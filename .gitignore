@@ -29,3 +29,7 @@ Thumbs.db
 # Ruff/Ruflo
 .swarm/
 .claude-flow/logs/
+
+# Ruflo runtime/metrics
+.claude-flow/daemon-state.json
+.claude-flow/metrics/

@@ -10,6 +10,10 @@ from .javascript.js_analyzer import JsAnalyzerEngine
 from .javascript.obfuscation_detector import ObfuscationDetectorEngine
 from .javascript.third_party_domains import ThirdPartyDomainEngine
 from .recon.technology import TechnologyEngine
+from .compromise.injected_js import InjectedJsEngine
+from .compromise.hidden_iframes import HiddenIframesEngine
+from .compromise.seo_spam import SeoSpamEngine
+from .compromise.suspicious_redirects import SuspiciousRedirectsEngine
 
 __all__ = [
     "SecurityHeadersEngine",
@@ -25,4 +29,8 @@ __all__ = [
     "ObfuscationDetectorEngine",
     "ThirdPartyDomainEngine",
     "TechnologyEngine",
+    "InjectedJsEngine",
+    "HiddenIframesEngine",
+    "SeoSpamEngine",
+    "SuspiciousRedirectsEngine",
 ]

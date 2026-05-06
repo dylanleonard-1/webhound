@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(venv/bin/pip install *)",
+      "Bash(venv/bin/pytest *)",
+      "Bash(venv/bin/pip list *)",
+      "Bash(venv/bin/python -c \"import pytest_anyio; print\\('pytest-anyio ok'\\)\")",
+      "Bash(venv/bin/python -c \"import pytest_anyio; print\\('ok'\\)\")",
+      "Bash(venv/bin/python *)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "claude-flow"
+  ]
+}

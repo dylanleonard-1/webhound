@@ -33,3 +33,6 @@ Thumbs.db
 # Ruflo runtime/metrics
 .claude-flow/daemon-state.json
 .claude-flow/metrics/
+
+# Scanner-local Ruflo runtime
+scanner/.claude-flow/

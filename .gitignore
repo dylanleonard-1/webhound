@@ -36,3 +36,18 @@ Thumbs.db
 
 # Scanner-local Ruflo runtime
 scanner/.claude-flow/
+# Claude / Ruflo runtime
+.claude-flow/
+.swarm/
+scanner/.claude-flow/
+
+# Logs
+*.log
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual env
+venv/
+scanner/venv/

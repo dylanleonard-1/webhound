@@ -1,5 +1,10 @@
 # WebHound — scanner/webhound/reporting/json_report.py
 # Structured JSON report builder for completed scan results.
+#
+# Schema version history:
+#   v1 — initial structured report
+#   v2 — added report_schema_version, scanner_version, profile, baseline_metadata,
+#         generated_at alias, report_metadata section
 
 from __future__ import annotations
 
@@ -8,6 +13,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 from webhound.models.scan_result import ScanResult
+
+_REPORT_SCHEMA_VERSION = 2
 
 
 def _wade_section(result: ScanResult) -> dict[str, Any]:
@@ -40,15 +47,37 @@ def _wade_section(result: ScanResult) -> dict[str, Any]:
 class JsonReport:
     """Serialises a completed ScanResult into a structured JSON report dict.
 
+    Optional keyword arguments allow enriching the report with scan profile
+    and baseline provenance metadata without breaking callers that omit them.
+
     Usage::
 
         report = JsonReport()
-        data = report.build(result)          # dict
-        json_str = report.to_json(result)    # pretty-printed JSON string
+        data = report.build(result)                              # dict
+        data = report.build(result, profile_name="standard")    # with profile
+        json_str = report.to_json(result)                        # pretty JSON
     """
 
-    def build(self, result: ScanResult) -> dict[str, Any]:
-        """Build and return the full report as a plain Python dict."""
+    def build(
+        self,
+        result: ScanResult,
+        *,
+        profile_name: str | None = None,
+        baseline_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Build and return the full report as a plain Python dict.
+
+        Parameters
+        ----------
+        result:
+            Completed scan result.
+        profile_name:
+            Name of the scan profile used (e.g. ``"standard"``).
+        baseline_id:
+            Scan UUID of the previous WADE baseline that was compared against,
+            if any.
+        """
+        now = datetime.now(timezone.utc).isoformat()
         risk_score = result.metadata.get("risk_score", 100)
         risk_level = result.metadata.get("risk_level", "low")
         bd = result.severity_breakdown
@@ -74,9 +103,22 @@ class JsonReport:
                 item["evidence_location"] = f.evidence[0].location
             findings_out.append(item)
 
+        profile_section: dict[str, Any] = (
+            {"name": profile_name} if profile_name else {}
+        )
+
+        baseline_section: dict[str, Any] = (
+            {"previous_baseline_id": baseline_id} if baseline_id else {}
+        )
+
         return {
-            "webhound_version": result.scanner_version,
-            "report_generated_at": datetime.now(timezone.utc).isoformat(),
+            # --- Schema / version ---
+            "report_schema_version": _REPORT_SCHEMA_VERSION,
+            "webhound_version": result.scanner_version,    # kept for back-compat
+            "scanner_version": result.scanner_version,
+            "report_generated_at": now,                    # kept for back-compat
+            "generated_at": now,
+            # --- Scan provenance ---
             "scan": {
                 "id": str(result.id),
                 "status": result.status.value,
@@ -91,6 +133,9 @@ class JsonReport:
                 "hostname": result.target.hostname,
                 "scheme": result.target.scheme,
             },
+            "profile": profile_section,
+            "baseline": baseline_section,
+            # --- Risk summary ---
             "risk": {
                 "score": risk_score,
                 "level": risk_level,
@@ -105,25 +150,7 @@ class JsonReport:
                     "actionable": bd.actionable,
                 },
             },
-            "findings": findings_out,
-            "engines_run": result.engines_run,
-            "engine_diagnostics": [
-                {
-                    "name": d.name,
-                    "category": d.category,
-                    "status": d.status.value,
-                    "findings_count": d.findings_count,
-                    "severity_counts": d.severity_counts,
-                    "skipped_reason": d.skipped_reason,
-                    "error_message": d.error_message,
-                    "duration_ms": d.duration_ms,
-                    "affected_target": d.affected_target,
-                    "is_passive": d.is_passive,
-                    "started_at": d.started_at.isoformat() if d.started_at else None,
-                    "finished_at": d.finished_at.isoformat() if d.finished_at else None,
-                }
-                for d in result.engine_diagnostics
-            ],
+            # --- Findings ---
             "grouped_findings": [
                 {
                     "title": gf.title,
@@ -145,7 +172,29 @@ class JsonReport:
                 }
                 for gf in result.grouped_findings
             ],
+            "findings": findings_out,
+            # --- Engine provenance ---
+            "engines_run": result.engines_run,
+            "engine_diagnostics": [
+                {
+                    "name": d.name,
+                    "category": d.category,
+                    "status": d.status.value,
+                    "findings_count": d.findings_count,
+                    "severity_counts": d.severity_counts,
+                    "skipped_reason": d.skipped_reason,
+                    "error_message": d.error_message,
+                    "duration_ms": d.duration_ms,
+                    "affected_target": d.affected_target,
+                    "is_passive": d.is_passive,
+                    "started_at": d.started_at.isoformat() if d.started_at else None,
+                    "finished_at": d.finished_at.isoformat() if d.finished_at else None,
+                }
+                for d in result.engine_diagnostics
+            ],
+            # --- WADE ---
             "wade": _wade_section(result),
+            # --- Crawl / infrastructure ---
             "crawl": {
                 "urls_crawled": result.urls_crawled,
                 "pages_analyzed": result.pages_analyzed,
@@ -158,12 +207,20 @@ class JsonReport:
                 }
                 for e in result.errors
             ],
+            # --- Metadata ---
             "metadata": {
                 "external_domains": result.metadata.get("external_domains", []),
                 "external_domain_count": result.metadata.get("external_domain_count", 0),
             },
+            "report_metadata": {
+                "generated_at": now,
+                "schema_version": _REPORT_SCHEMA_VERSION,
+                "profile": profile_name,
+                "previous_baseline_id": baseline_id,
+                "scan_id": str(result.id),
+            },
         }
 
-    def to_json(self, result: ScanResult, *, indent: int | None = 2) -> str:
+    def to_json(self, result: ScanResult, *, indent: int | None = 2, **kwargs: Any) -> str:
         """Build the report and return it as a JSON string."""
-        return json.dumps(self.build(result), indent=indent, default=str)
+        return json.dumps(self.build(result, **kwargs), indent=indent, default=str)

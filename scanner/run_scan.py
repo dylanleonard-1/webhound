@@ -22,11 +22,13 @@ from urllib.parse import urlparse
 from webhound.core.orchestrator import Scanner
 from webhound.core.scan_profiles import PROFILE_NAMES, get_profile
 from webhound.models.target import Target
+from webhound.reporting.cli_formatter import bold_divider, fmt_duration, fmt_risk, fmt_url
 from webhound.reporting.json_report import JsonReport
 from webhound.reporting.summary_builder import SummaryBuilder
 from webhound.wade.baseline_store import BaselineStore
 
 _REPORTS_DIR = Path(__file__).parent / "reports"
+_BAR_WIDTH = 60
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -83,6 +85,17 @@ def _report_filename(url: str, profile_name: str) -> str:
     return f"{hostname}_{profile_name}_{timestamp}.json"
 
 
+def _print_startup_banner(url: str, profile_name: str, profile_desc: str) -> None:
+    bar = bold_divider(_BAR_WIDTH)
+    print(bar)
+    print("  WebHound — Passive Security Scanner")
+    print(bar)
+    print(f"  Target  : {fmt_url(url, _BAR_WIDTH - 12)}")
+    print(f"  Profile : {profile_name}  —  {profile_desc}")
+    print(bar)
+    print()
+
+
 async def _run(args: argparse.Namespace) -> int:
     profile = get_profile(args.profile)
     options = profile.to_scan_options()
@@ -90,31 +103,23 @@ async def _run(args: argparse.Namespace) -> int:
     store = BaselineStore(args.baseline_store) if args.baseline_store else BaselineStore()
 
     previous_baseline = None
+    baseline_id: str | None = None
+
     if args.use_latest_baseline:
         previous_baseline = store.get_latest_baseline(args.url)
         if previous_baseline is None:
-            print(
-                f"[WebHound] No saved baseline for {args.url} — "
-                "running without comparison."
-            )
+            print(f"  [baseline] No saved baseline for {args.url} — running without comparison.")
         else:
+            baseline_id = previous_baseline.scan_id
             print(
-                f"[WebHound] Loaded baseline from scan "
-                f"{previous_baseline.scan_id[:8]}… "
-                f"({previous_baseline.page_count} pages)"
+                f"  [baseline] Loaded scan {previous_baseline.scan_id[:8]}…"
+                f"  ({previous_baseline.page_count} pages)"
             )
+
+    _print_startup_banner(args.url, profile.name, profile.description)
 
     target = Target.from_url(args.url, scan_options=options)
     scanner = Scanner(target, previous_baseline=previous_baseline)
-
-    print(f"[WebHound] Profile:  {profile.name} — {profile.description}")
-    print(
-        f"[WebHound] Target:   {args.url}  "
-        f"max_pages={profile.max_pages}  "
-        f"max_depth={profile.max_depth}  "
-        f"rps={profile.rate_limit_rps}"
-    )
-    print()
 
     result = await scanner.scan()
 
@@ -123,11 +128,12 @@ async def _run(args: argparse.Namespace) -> int:
     # ------------------------------------------------------------------
     if args.save_baseline and scanner.current_baseline is not None:
         saved_path = store.save_baseline(scanner.current_baseline)
-        print(f"[WebHound] Baseline saved → {saved_path}")
+        print(f"\n  [baseline] Saved → {saved_path}")
 
     # ------------------------------------------------------------------
     # Console summary
     # ------------------------------------------------------------------
+    print()
     print(SummaryBuilder().build(result))
 
     # ------------------------------------------------------------------
@@ -139,9 +145,18 @@ async def _run(args: argparse.Namespace) -> int:
     report_path = output_dir / filename
 
     with report_path.open("w", encoding="utf-8") as fh:
-        json.dump(JsonReport().build(result), fh, indent=2, default=str)
+        json.dump(
+            JsonReport().build(result, profile_name=profile.name, baseline_id=baseline_id),
+            fh,
+            indent=2,
+            default=str,
+        )
 
-    print(f"\n[WebHound] JSON report → {report_path}")
+    risk_score = result.metadata.get("risk_score", "—")
+    risk_level = result.metadata.get("risk_level", "unknown")
+    print(f"\n  Risk: {fmt_risk(risk_score, risk_level)}")
+    print(f"  Report: {report_path}")
+    print(bold_divider(_BAR_WIDTH))
 
     return 1 if result.status.value == "failed" else 0
 

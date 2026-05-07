@@ -1,53 +1,58 @@
+# =========================
 # Python
+# =========================
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.pytest_cache/
+.mypy_cache/
 
-# Virtual environments
+# =========================
+# Virtual Environments
+# =========================
 venv/
 scanner/venv/
 
-# Node
+# =========================
+# Node / Frontend
+# =========================
 node_modules/
-
-# Build
-dist/
-build/
 .next/
 
-# Env
-.env
+# =========================
+# Build Artifacts
+# =========================
+dist/
+build/
 
+# =========================
+# Environment Files
+# =========================
+.env
+.env.*
+
+# =========================
 # Logs
+# =========================
 *.log
 
-# OS
+# =========================
+# OS Files
+# =========================
 .DS_Store
 Thumbs.db
 
-# Ruff/Ruflo
-.swarm/
-.claude-flow/logs/
-
-# Ruflo runtime/metrics
-.claude-flow/daemon-state.json
-.claude-flow/metrics/
-
-# Scanner-local Ruflo runtime
-scanner/.claude-flow/
-# Claude / Ruflo runtime
+# =========================
+# Claude / Ruflo Runtime
+# =========================
+.claude/
 .claude-flow/
-.swarm/
 scanner/.claude-flow/
+.swarm/
 
-# Logs
-*.log
-
-# Python cache
-__pycache__/
-*.pyc
-
-# Virtual env
-venv/
-scanner/venv/
+# =========================
+# IDE
+# =========================
+.vscode/
+.idea/

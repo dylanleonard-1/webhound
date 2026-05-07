@@ -92,6 +92,8 @@ class ScanResult(BaseModel):
     urls_crawled: int = Field(default=0, ge=0)
     pages_analyzed: int = Field(default=0, ge=0)
     requests_made: int = Field(default=0, ge=0)
+    retry_count: int = Field(default=0, ge=0)
+    skip_count: int = Field(default=0, ge=0)
 
     # Non-fatal errors encountered during the run
     errors: list[ScanError] = Field(default_factory=list)

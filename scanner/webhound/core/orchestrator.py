@@ -43,6 +43,7 @@ from webhound.engines.tls_dns import dns_checker as _dns_module
 from webhound.engines.tls_dns import tls_checker as _tls_module
 from webhound.engines.tls_dns.dns_checker import DnsCheckerEngine
 from webhound.engines.tls_dns.tls_checker import TlsCheckerEngine
+from webhound.core.fp_filter import FPFilter
 from webhound.models.finding import Finding
 from webhound.models.grouped_finding import GroupedFinding
 from webhound.models.scan_result import ScanResult, SeverityBreakdown
@@ -54,6 +55,10 @@ from webhound.wade.baseline_builder import BaselineBuilder, SiteBaseline
 from webhound.wade.classifier import Classifier
 from webhound.wade.confidence import adjust_findings_confidence
 from webhound.wade.diff_engine import DiffEngine
+
+
+# Per-engine wall-clock timeout; cancels a hung engine coroutine.
+_ENGINE_TIMEOUT_SECONDS: float = 60.0
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +76,8 @@ async def _safe(
     """Call fn(*args, **kwargs), record any exception as a ScanError.
 
     Handles both synchronous callables and coroutine-returning callables.
+    Async callables are wrapped with asyncio.wait_for to enforce a per-engine
+    timeout so one hung engine cannot stall the entire scan.
     Records timing and per-engine outcome in ``ctx.tracker``.
     """
     started_at = datetime.now(timezone.utc)
@@ -78,7 +85,7 @@ async def _safe(
     try:
         result = fn(*args, **kwargs)
         if asyncio.iscoroutine(result):
-            result = await result
+            result = await asyncio.wait_for(result, timeout=_ENGINE_TIMEOUT_SECONDS)
         findings: list[Finding] = result or []
         duration_ms = (time.perf_counter() - t0) * 1000
         if engine_name not in ctx.scan_result.engines_run:
@@ -87,6 +94,14 @@ async def _safe(
             engine_name, findings, duration_ms, started_at, datetime.now(timezone.utc)
         )
         return findings
+    except asyncio.TimeoutError:
+        duration_ms = (time.perf_counter() - t0) * 1000
+        err = f"engine timeout after {_ENGINE_TIMEOUT_SECONDS:.0f}s"
+        ctx.record_error(engine_name, err)
+        ctx.tracker.record_error(
+            engine_name, err, duration_ms, started_at, datetime.now(timezone.utc)
+        )
+        return []
     except Exception as exc:
         duration_ms = (time.perf_counter() - t0) * 1000
         err = f"{type(exc).__name__}: {exc}"
@@ -260,6 +275,7 @@ class Scanner:
         ctx = ScanContext(self._target)
         external_domains: set[str] = set()
         crawl_results: list = []
+        _http_stats: dict[str, Any] = {}
 
         try:
             async with SafeHttpClient(self._target.scan_options, transport=self._transport) as client:
@@ -274,6 +290,9 @@ class Scanner:
                 for result in crawl_results:
                     await self._run_page_engines(result, ctx, external_domains)
 
+                # Capture HTTP stats before the client closes
+                _http_stats = client.fetch_stats.to_dict()
+
             # 4. TLS / DNS — blocking I/O, run in thread pool
             await self._run_tls_dns(ctx)
 
@@ -284,19 +303,28 @@ class Scanner:
             ctx.scan_result.mark_failed(str(exc))
             return ctx.scan_result
 
-        # 6. Deduplicate and finalize
+        # 6. Deduplicate
         ctx.scan_result.findings = _dedup_findings(ctx.scan_result.findings)
+
+        # 7. False-positive suppression — reduce confidence on known CDN/platform patterns
+        ctx.scan_result.findings = FPFilter().filter(ctx.scan_result.findings)
+
         result = ctx.finish()
 
-        # 7. Group findings for clean reporting and fair risk scoring
+        # 8. Group findings for clean reporting and fair risk scoring
         result.grouped_findings = FindingGrouper().group(result.active_findings)
 
-        # 8. Risk scoring — uses grouped findings to avoid penalising repeated issues
+        # 9. Risk scoring — uses grouped findings to avoid penalising repeated issues
         risk_score, risk_level = _compute_risk_score(result)
         result.metadata["risk_score"] = risk_score
         result.metadata["risk_level"] = risk_level
         result.metadata["external_domains"] = sorted(external_domains)
         result.metadata["external_domain_count"] = len(external_domains)
+        result.metadata["fetch_stats"] = _http_stats
+
+        # Propagate scan-wide retry/skip counters to top-level fields
+        result.retry_count = _http_stats.get("retried", 0)
+        result.skip_count = _http_stats.get("skipped", 0)
 
         return result
 

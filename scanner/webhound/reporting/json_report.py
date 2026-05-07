@@ -198,7 +198,11 @@ class JsonReport:
             "crawl": {
                 "urls_crawled": result.urls_crawled,
                 "pages_analyzed": result.pages_analyzed,
+                "retry_count": result.retry_count,
+                "skip_count": result.skip_count,
             },
+            # --- Performance / fetch statistics ---
+            "performance": result.metadata.get("fetch_stats", {}),
             "errors": [
                 {
                     "engine": e.engine,

@@ -12,6 +12,8 @@ from .javascript.third_party_domains import ThirdPartyDomainEngine
 from .recon.technology import TechnologyEngine
 from .recon.sensitive_paths import SensitivePathsEngine
 from .recon.robots_sitemap import RobotsAndSitemapEngine
+from .forms.form_risk import FormRiskEngine
+from .forms.input_analysis import InputAnalysisEngine
 from .compromise.injected_js import InjectedJsEngine
 from .compromise.hidden_iframes import HiddenIframesEngine
 from .compromise.seo_spam import SeoSpamEngine
@@ -33,6 +35,8 @@ __all__ = [
     "TechnologyEngine",
     "SensitivePathsEngine",
     "RobotsAndSitemapEngine",
+    "FormRiskEngine",
+    "InputAnalysisEngine",
     "InjectedJsEngine",
     "HiddenIframesEngine",
     "SeoSpamEngine",

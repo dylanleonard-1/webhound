@@ -44,10 +44,19 @@ class SummaryBuilder:
         lines.append(f"  LOW       {bd.low}")
         lines.append(f"  INFO      {bd.info}")
 
-        active = result.active_findings
-        if active:
+        if result.grouped_findings:
             lines.append("")
-            ordered = sorted(active, key=lambda f: f.severity.rank, reverse=True)
+            ordered = sorted(result.grouped_findings, key=lambda g: g.severity.rank, reverse=True)
+            lines.append("Top Findings:")
+            for g in ordered[:10]:
+                label = g.severity.value.upper()
+                url_note = f" ({g.affected_url_count} pages)" if g.affected_url_count > 1 else ""
+                lines.append(f"  [{label}]  {g.title}{url_note}")
+                if g.affected_urls:
+                    lines.append(f"           Location: {g.affected_urls[0]}")
+        elif result.active_findings:
+            lines.append("")
+            ordered = sorted(result.active_findings, key=lambda f: f.severity.rank, reverse=True)
             lines.append("Top Findings:")
             for f in ordered[:10]:
                 label = f.severity.value.upper()

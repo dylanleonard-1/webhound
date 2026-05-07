@@ -44,8 +44,11 @@ from webhound.engines.tls_dns import tls_checker as _tls_module
 from webhound.engines.tls_dns.dns_checker import DnsCheckerEngine
 from webhound.engines.tls_dns.tls_checker import TlsCheckerEngine
 from webhound.models.finding import Finding
-from webhound.models.scan_result import ScanResult
+from webhound.models.grouped_finding import GroupedFinding
+from webhound.models.scan_result import ScanResult, SeverityBreakdown
+from webhound.models.severity import Severity
 from webhound.models.target import ScanOptions, Target
+from webhound.core.finding_grouper import FindingGrouper
 from webhound.wade.anomaly_scorer import AnomalyScorer
 from webhound.wade.baseline_builder import BaselineBuilder, SiteBaseline
 from webhound.wade.classifier import Classifier
@@ -99,8 +102,29 @@ def _add_findings(ctx: ScanContext, findings: list[Finding]) -> None:
         ctx.add_finding(f)
 
 
+def _breakdown_from_grouped(grouped: list[GroupedFinding]) -> SeverityBreakdown:
+    """Build a SeverityBreakdown from grouped findings (one entry per unique issue)."""
+    bd = SeverityBreakdown()
+    for gf in grouped:
+        match gf.severity:
+            case Severity.CRITICAL:
+                bd.critical += 1
+            case Severity.HIGH:
+                bd.high += 1
+            case Severity.MEDIUM:
+                bd.medium += 1
+            case Severity.LOW:
+                bd.low += 1
+            case Severity.INFO:
+                bd.info += 1
+    return bd
+
+
 def _compute_risk_score(result: ScanResult) -> tuple[int, str]:
     """Compute a 0–100 website health score and a severity-aware risk level label.
+
+    Uses grouped findings when available so the same site-wide issue (e.g. a
+    missing security header on every page) is counted once, not once per page.
 
     Per-tier deductions with caps (no single tier can dominate):
       CRITICAL −30 each, cap −70  |  HIGH −15 each, cap −40
@@ -122,7 +146,11 @@ def _compute_risk_score(result: ScanResult) -> tuple[int, str]:
     Severity guard (upward — prevent misleading mild labels):
     - Any CRITICAL finding forces the label to at least "high".
     """
-    bd = result.severity_breakdown
+    bd = (
+        _breakdown_from_grouped(result.grouped_findings)
+        if result.grouped_findings
+        else result.severity_breakdown
+    )
     score = 100
     score -= min(bd.critical * 30, 70)
     score -= min(bd.high * 15, 40)
@@ -260,7 +288,10 @@ class Scanner:
         ctx.scan_result.findings = _dedup_findings(ctx.scan_result.findings)
         result = ctx.finish()
 
-        # 7. Risk scoring (needs recomputed aggregates from mark_complete)
+        # 7. Group findings for clean reporting and fair risk scoring
+        result.grouped_findings = FindingGrouper().group(result.active_findings)
+
+        # 8. Risk scoring — uses grouped findings to avoid penalising repeated issues
         risk_score, risk_level = _compute_risk_score(result)
         result.metadata["risk_score"] = risk_score
         result.metadata["risk_level"] = risk_level

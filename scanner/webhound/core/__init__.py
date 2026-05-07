@@ -2,6 +2,7 @@
 
 from .crawler import CrawlResult, Crawler
 from .engine_tracker import EngineTracker
+from .finding_grouper import FindingGrouper, _PER_URL_ENGINES
 from .extractor import (
     ExtractedForm,
     ExtractedScript,
@@ -35,4 +36,7 @@ __all__ = [
     "CrawlResult",
     # engine_tracker
     "EngineTracker",
+    # finding_grouper
+    "FindingGrouper",
+    "_PER_URL_ENGINES",
 ]

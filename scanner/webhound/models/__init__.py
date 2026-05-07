@@ -5,6 +5,7 @@ from .baseline import Baseline, BaselineEntry, BaselineStatus, ResponseProfile
 from .engine_status import EngineRunStatus, EngineStatus
 from .evidence import Evidence, EvidenceType
 from .finding import Finding, FindingCategory, FrameworkAlignment
+from .grouped_finding import GroupedFinding
 from .scan_result import ScanError, ScanResult, ScanStatus, SeverityBreakdown
 from .severity import Severity
 from .target import ScanOptions, Target, TargetScope, TLSInfo
@@ -22,6 +23,8 @@ __all__ = [
     "Finding",
     "FindingCategory",
     "FrameworkAlignment",
+    # grouped_finding
+    "GroupedFinding",
     # target
     "Target",
     "TargetScope",

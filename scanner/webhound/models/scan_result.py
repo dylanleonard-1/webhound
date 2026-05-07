@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, computed_field, model_validator
 
 from .engine_status import EngineStatus
 from .finding import Finding
+from .grouped_finding import GroupedFinding
 from .severity import Severity
 from .target import Target
 
@@ -97,6 +98,9 @@ class ScanResult(BaseModel):
 
     # Per-engine execution diagnostics (populated at scan completion)
     engine_diagnostics: list[EngineStatus] = Field(default_factory=list)
+
+    # Grouped findings — aggregated for clean reporting and fair risk scoring
+    grouped_findings: list[GroupedFinding] = Field(default_factory=list)
 
     metadata: dict[str, Any] = Field(default_factory=dict)
 

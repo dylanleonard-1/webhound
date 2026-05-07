@@ -124,6 +124,27 @@ class JsonReport:
                 }
                 for d in result.engine_diagnostics
             ],
+            "grouped_findings": [
+                {
+                    "title": gf.title,
+                    "severity": gf.severity.value,
+                    "category": gf.category.value,
+                    "scanner_engine": gf.scanner_engine,
+                    "description": gf.description,
+                    "remediation": gf.remediation,
+                    "affected_url_count": gf.affected_url_count,
+                    "affected_urls": gf.affected_urls,
+                    "evidence_count": gf.evidence_count,
+                    "confidence": gf.confidence,
+                    "anomaly_score": gf.anomaly_score,
+                    "framework": {
+                        "owasp_top10": gf.framework.owasp_top10,
+                        "cwe_ids": gf.framework.cwe_ids,
+                    },
+                    "finding_ids": gf.finding_ids,
+                }
+                for gf in result.grouped_findings
+            ],
             "wade": _wade_section(result),
             "crawl": {
                 "urls_crawled": result.urls_crawled,

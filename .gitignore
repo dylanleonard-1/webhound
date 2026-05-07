@@ -56,3 +56,10 @@ scanner/.claude-flow/
 # =========================
 .vscode/
 .idea/
+
+# =========================
+# WebHound Scan Outputs
+# =========================
+scanner/scan_output.json
+scanner/reports/
+*.webhound_baseline

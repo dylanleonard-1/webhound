@@ -12,6 +12,7 @@ from .extractor import (
 )
 from .http_client import WEBHOUND_USER_AGENT, HttpResponse, SafeHttpClient
 from .scan_context import QueueItem, ScanContext
+from .scan_profiles import PROFILE_NAMES, PROFILES, ScanProfile, get_profile
 from .scope import ScopeChecker, UrlNormalizer
 
 __all__ = [
@@ -39,4 +40,9 @@ __all__ = [
     # finding_grouper
     "FindingGrouper",
     "_PER_URL_ENGINES",
+    # scan_profiles
+    "ScanProfile",
+    "PROFILES",
+    "PROFILE_NAMES",
+    "get_profile",
 ]

@@ -154,9 +154,9 @@ class TestComputeRiskScore:
 
     def test_critical_cap_at_59(self):
         score, level = _compute_risk_score(self._result_with_breakdown(critical=1))
-        # Raw: 100 - 30 = 70, but capped to 59 by critical rule
+        # Raw: 100 - 30 = 70, capped to 59; upward guard → "high" (not "medium")
         assert score == 59
-        assert level == "medium"
+        assert level == "high"
 
     def test_critical_cap_prevents_low_level(self):
         # Even a single low finding alongside critical cannot be "low" risk
@@ -167,14 +167,65 @@ class TestComputeRiskScore:
         assert level != "low"
 
     def test_five_high_findings(self):
+        # HIGH cap at 40 deduction: 5×15=75 → capped → score=60 → "medium"
         score, level = _compute_risk_score(self._result_with_breakdown(high=5))
-        # 100 - 5*15 = 25
-        assert score == 25
+        assert score == 60
+        assert level == "medium"
+
+    def test_many_high_findings_capped_at_medium_not_critical(self):
+        # HIGH cap at 40: even 10 HIGH findings can only deduct 40 → score=60
+        score, level = _compute_risk_score(self._result_with_breakdown(high=10))
+        assert score == 60
+        assert level == "medium"  # downward guard: no CRIT/HIGH findings → "medium"? no, has HIGH. level stays medium by score.
+
+    # ------------------------------------------------------------------
+    # Severity-aware label tests (severity guard)
+    # ------------------------------------------------------------------
+
+    def test_many_medium_findings_not_critical(self):
+        # MEDIUM cap at 30: 20×7=140 → capped → score=70 → "medium" (not "critical")
+        score, level = _compute_risk_score(self._result_with_breakdown(medium=20))
+        assert score == 70
+        assert level == "medium"
+
+    def test_medium_only_never_critical(self):
+        # Any number of MEDIUM findings must not produce "critical" label
+        for count in (1, 5, 10, 50):
+            _, level = _compute_risk_score(self._result_with_breakdown(medium=count))
+            assert level != "critical", f"{count} MEDIUM findings should not be 'critical'"
+
+    def test_high_only_never_critical(self):
+        # Any number of HIGH findings (without CRITICAL) must not be "critical"
+        for count in (1, 3, 7, 15):
+            _, level = _compute_risk_score(self._result_with_breakdown(high=count))
+            assert level != "critical", f"{count} HIGH findings should not be 'critical'"
+
+    def test_low_only_never_critical(self):
+        # LOW cap at 10: even 60 LOW findings deduct at most 10 → score=90 → "low"
+        score, level = _compute_risk_score(self._result_with_breakdown(low=60))
+        assert score == 90
+        assert level == "low"
+
+    def test_critical_finding_permits_critical_label(self):
+        # 2 CRIT + 3 HIGH: min(60,70)+min(45,40) = 100 → score=0 → "critical"
+        # bd.critical > 0, so downward guard does not fire
+        score, level = _compute_risk_score(self._result_with_breakdown(critical=2, high=3))
+        assert score == 0
+        assert level == "critical"
+
+    def test_mixed_critical_and_medium_is_high(self):
+        # 1 CRITICAL + 5 MEDIUM: min(30,70)+min(35,30)=60 → score=40, capped at 40 → "high"
+        score, level = _compute_risk_score(
+            self._result_with_breakdown(critical=1, medium=5)
+        )
+        assert score == 40
         assert level == "high"
 
-    def test_many_high_findings_clamps_to_zero(self):
-        score, level = _compute_risk_score(self._result_with_breakdown(high=10))
-        # 100 - 150 → clamped to 0
+    def test_crit_and_high_can_reach_critical_label(self):
+        # 3 CRIT + 2 HIGH: min(90,70)+min(30,40) = 70+30=100 → score=0, capped at 0 → "critical"
+        score, level = _compute_risk_score(
+            self._result_with_breakdown(critical=3, high=2)
+        )
         assert score == 0
         assert level == "critical"
 
@@ -185,6 +236,55 @@ class TestComputeRiskScore:
         score_med, level_med = _compute_risk_score(self._result_with_breakdown(high=2))
         assert score_med == 70
         assert level_med == "medium"
+
+    # ------------------------------------------------------------------
+    # New scoring model — required scenario tests
+    # ------------------------------------------------------------------
+
+    def test_many_medium_findings_score_and_level(self):
+        # 24 MEDIUM: MEDIUM cap at 30 → score=70 → "medium" (was 0 with old formula)
+        score, level = _compute_risk_score(self._result_with_breakdown(medium=24))
+        assert score == 70
+        assert level == "medium"
+
+    def test_only_low_findings(self):
+        # 10 LOW: LOW cap at 10 → score=90 → "low"
+        score, level = _compute_risk_score(self._result_with_breakdown(low=10))
+        assert score == 90
+        assert level == "low"
+
+    def test_info_findings_have_zero_weight(self):
+        # INFO findings contribute nothing to score
+        score, level = _compute_risk_score(self._result_with_breakdown())
+        assert score == 100
+        assert level == "low"
+
+    def test_one_critical_finding_is_high_risk(self):
+        # 1 CRITICAL → score=59 (critical cap), upward guard → "high" label
+        score, level = _compute_risk_score(self._result_with_breakdown(critical=1))
+        assert score == 59
+        assert level == "high"
+
+    def test_multiple_high_findings_score_and_level(self):
+        # 3 HIGH: HIGH cap at 40 → score=60 → "medium"
+        score, level = _compute_risk_score(self._result_with_breakdown(high=3))
+        assert score == 60
+        assert level == "medium"
+
+    def test_mixed_medium_and_low_findings(self):
+        # 5 MEDIUM + 5 LOW: min(35,30)+min(10,10) = 40 → score=60 → "medium"
+        # No CRIT/HIGH → downward guard does not escalate label
+        score, level = _compute_risk_score(self._result_with_breakdown(medium=5, low=5))
+        assert score == 60
+        assert level == "medium"
+
+    def test_medium_only_downward_guard_prevents_high_label(self):
+        # Score 70 from MEDIUM-only puts us well above the "high" threshold (< 50)
+        # so the downward guard (no HIGH/CRIT → cap "high" at "medium") never fires.
+        # Verify the cap produces an intuitive result regardless.
+        score, level = _compute_risk_score(self._result_with_breakdown(medium=8))
+        assert score == 70
+        assert level == "medium"
 
 
 # ---------------------------------------------------------------------------

@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from webhound.core.engine_tracker import EngineTracker
 from webhound.core.scope import ScopeChecker, UrlNormalizer
 from webhound.models.finding import Finding
 from webhound.models.scan_result import ScanError, ScanResult, ScanStatus
@@ -48,6 +49,8 @@ class ScanContext:
             started_at=datetime.now(timezone.utc),
         )
         self.scope: ScopeChecker = ScopeChecker(target)
+
+        self.tracker: EngineTracker = EngineTracker()
 
         self._visited: set[str] = set()
         self._queued: set[str] = set()          # Track queued URLs to avoid duplicates
@@ -187,6 +190,7 @@ class ScanContext:
         """Mark the scan complete and return the finalised ScanResult."""
         self.scan_result.urls_crawled = self._pages_crawled
         self.scan_result.pages_analyzed = self._pages_crawled
+        self.scan_result.engine_diagnostics = self.tracker.build_statuses()
         self.scan_result.mark_complete()
         return self.scan_result
 

@@ -80,6 +80,23 @@ class JsonReport:
             },
             "findings": findings_out,
             "engines_run": result.engines_run,
+            "engine_diagnostics": [
+                {
+                    "name": d.name,
+                    "category": d.category,
+                    "status": d.status.value,
+                    "findings_count": d.findings_count,
+                    "severity_counts": d.severity_counts,
+                    "skipped_reason": d.skipped_reason,
+                    "error_message": d.error_message,
+                    "duration_ms": d.duration_ms,
+                    "affected_target": d.affected_target,
+                    "is_passive": d.is_passive,
+                    "started_at": d.started_at.isoformat() if d.started_at else None,
+                    "finished_at": d.finished_at.isoformat() if d.finished_at else None,
+                }
+                for d in result.engine_diagnostics
+            ],
             "crawl": {
                 "urls_crawled": result.urls_crawled,
                 "pages_analyzed": result.pages_analyzed,

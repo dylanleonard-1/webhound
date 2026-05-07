@@ -55,7 +55,17 @@ class SummaryBuilder:
                 if f.evidence:
                     lines.append(f"           Location: {f.evidence[0].location}")
 
-        if result.engines_run:
+        if result.engine_diagnostics:
+            lines.append("")
+            lines.append(f"Engine Diagnostics ({len(result.engine_diagnostics)}):")
+            lines.append(f"  {'Engine':<26} {'Category':<12} {'Status':<10} {'Findings':>8} {'ms':>8}")
+            lines.append(f"  {'-'*26} {'-'*12} {'-'*10} {'-'*8} {'-'*8}")
+            for d in sorted(result.engine_diagnostics, key=lambda x: x.name):
+                badge = d.status.value.upper()
+                lines.append(
+                    f"  {d.name:<26} {d.category:<12} {badge:<10} {d.findings_count:>8} {d.duration_ms:>8.1f}"
+                )
+        elif result.engines_run:
             lines.append("")
             engines_str = ", ".join(result.engines_run)
             lines.append(f"Engines ({len(result.engines_run)}):  {engines_str}")

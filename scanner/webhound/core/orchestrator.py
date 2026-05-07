@@ -11,10 +11,13 @@
 from __future__ import annotations
 
 import asyncio
+import time
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
+import tldextract as _tldextract
 
 from webhound.core.crawler import Crawler
 from webhound.core.extractor import _is_html
@@ -60,19 +63,29 @@ async def _safe(
     """Call fn(*args, **kwargs), record any exception as a ScanError.
 
     Handles both synchronous callables and coroutine-returning callables.
-    The engine is added to ``engines_run`` on a successful call regardless
-    of whether it produced findings.
+    Records timing and per-engine outcome in ``ctx.tracker``.
     """
+    started_at = datetime.now(timezone.utc)
+    t0 = time.perf_counter()
     try:
         result = fn(*args, **kwargs)
         if asyncio.iscoroutine(result):
             result = await result
         findings: list[Finding] = result or []
+        duration_ms = (time.perf_counter() - t0) * 1000
         if engine_name not in ctx.scan_result.engines_run:
             ctx.scan_result.engines_run.append(engine_name)
+        ctx.tracker.record_run(
+            engine_name, findings, duration_ms, started_at, datetime.now(timezone.utc)
+        )
         return findings
     except Exception as exc:
-        ctx.record_error(engine_name, f"{type(exc).__name__}: {exc}")
+        duration_ms = (time.perf_counter() - t0) * 1000
+        err = f"{type(exc).__name__}: {exc}"
+        ctx.record_error(engine_name, err)
+        ctx.tracker.record_error(
+            engine_name, err, duration_ms, started_at, datetime.now(timezone.utc)
+        )
         return []
 
 
@@ -82,19 +95,34 @@ def _add_findings(ctx: ScanContext, findings: list[Finding]) -> None:
 
 
 def _compute_risk_score(result: ScanResult) -> tuple[int, str]:
-    """Compute a 0–100 website health score and a risk level label.
+    """Compute a 0–100 website health score and a severity-aware risk level label.
 
-    Starts at 100 and deducts per finding severity:
-      CRITICAL −30 | HIGH −15 | MEDIUM −7 | LOW −2 | INFO 0
+    Per-tier deductions with caps (no single tier can dominate):
+      CRITICAL −30 each, cap −70  |  HIGH −15 each, cap −40
+      MEDIUM   −7 each,  cap −30  |  LOW  −2 each,  cap −10
+      INFO 0
 
-    If any CRITICAL finding exists, score is capped at 59 (cannot be 'low' risk).
+    Score rules:
+    - Clamped to [0, 100].
+    - Any CRITICAL finding caps the score at 59 (never "low" by score alone).
+
+    Label thresholds (score-based):
+      ≥ 75 → "low"  |  ≥ 50 → "medium"  |  ≥ 25 → "high"  |  < 25 → "critical"
+
+    Severity guards (downward — prevent misleading severe labels):
+    - "critical" label requires at least one CRITICAL finding.
+    - "high" label requires at least one HIGH or CRITICAL finding.
+      Many MEDIUM or LOW findings cannot produce a severe label on their own.
+
+    Severity guard (upward — prevent misleading mild labels):
+    - Any CRITICAL finding forces the label to at least "high".
     """
     bd = result.severity_breakdown
     score = 100
-    score -= bd.critical * 30
-    score -= bd.high * 15
-    score -= bd.medium * 7
-    score -= bd.low * 2
+    score -= min(bd.critical * 30, 70)
+    score -= min(bd.high * 15, 40)
+    score -= min(bd.medium * 7, 30)
+    score -= min(bd.low * 2, 10)
     score = max(0, score)
     if bd.critical > 0:
         score = min(score, 59)
@@ -107,6 +135,16 @@ def _compute_risk_score(result: ScanResult) -> tuple[int, str]:
         level = "high"
     else:
         level = "critical"
+
+    # Downward guards
+    if level == "critical" and bd.critical == 0:
+        level = "high"
+    if level == "high" and bd.critical == 0 and bd.high == 0:
+        level = "medium"
+
+    # Upward guard: any CRITICAL finding forces at least "high" label
+    if bd.critical > 0 and level not in ("high", "critical"):
+        level = "high"
 
     return score, level
 
@@ -273,6 +311,25 @@ class Scanner:
             else None
         )
 
+        # JsCollector — collects/structures JS resources (no findings output)
+        _jsc_start = datetime.now(timezone.utc)
+        _jsc_t0 = time.perf_counter()
+        try:
+            self._js_collector.collect(artifacts)
+            _jsc_dur = (time.perf_counter() - _jsc_t0) * 1000
+            if self._js_collector.NAME not in ctx.scan_result.engines_run:
+                ctx.scan_result.engines_run.append(self._js_collector.NAME)
+            ctx.tracker.record_run(
+                self._js_collector.NAME, [], _jsc_dur, _jsc_start, datetime.now(timezone.utc)
+            )
+        except Exception as exc:
+            _jsc_dur = (time.perf_counter() - _jsc_t0) * 1000
+            _jsc_err = f"{type(exc).__name__}: {exc}"
+            ctx.record_error(self._js_collector.NAME, _jsc_err)
+            ctx.tracker.record_error(
+                self._js_collector.NAME, _jsc_err, _jsc_dur, _jsc_start, datetime.now(timezone.utc)
+            )
+
         # Artifacts-based engines
         _add_findings(ctx, await _safe(ctx, self._technology.NAME, self._technology.analyze, artifacts))
         _add_findings(ctx, await _safe(ctx, self._js_analyzer.NAME, self._js_analyzer.analyze, artifacts))
@@ -295,19 +352,39 @@ class Scanner:
         port = target.port or (443 if target.is_https else 80)
 
         # TLS
+        _tls_start = datetime.now(timezone.utc)
+        _tls_t0 = time.perf_counter()
         try:
             cert_info = await asyncio.to_thread(
                 _tls_module.probe_tls, hostname, port
             )
             _add_findings(ctx, await _safe(ctx, self._tls.NAME, self._tls.analyze, cert_info))
         except Exception as exc:
-            ctx.record_error(self._tls.NAME, f"{type(exc).__name__}: {exc}")
+            _tls_dur = (time.perf_counter() - _tls_t0) * 1000
+            _tls_err = f"{type(exc).__name__}: {exc}"
+            ctx.record_error(self._tls.NAME, _tls_err)
+            ctx.tracker.record_error(
+                self._tls.NAME, _tls_err, _tls_dur, _tls_start, datetime.now(timezone.utc)
+            )
 
-        # DNS
+        # DNS — SPF/DMARC live at the apex domain, not the www subdomain.
+        _ext = _tldextract.extract(hostname)
+        dns_domain = (
+            f"{_ext.domain}.{_ext.suffix}"
+            if _ext.domain and _ext.suffix
+            else hostname
+        )
+        _dns_start = datetime.now(timezone.utc)
+        _dns_t0 = time.perf_counter()
         try:
             dns_records = await asyncio.to_thread(
-                _dns_module.resolve_dns, hostname
+                _dns_module.resolve_dns, dns_domain
             )
             _add_findings(ctx, await _safe(ctx, self._dns.NAME, self._dns.analyze, dns_records))
         except Exception as exc:
-            ctx.record_error(self._dns.NAME, f"{type(exc).__name__}: {exc}")
+            _dns_dur = (time.perf_counter() - _dns_t0) * 1000
+            _dns_err = f"{type(exc).__name__}: {exc}"
+            ctx.record_error(self._dns.NAME, _dns_err)
+            ctx.tracker.record_error(
+                self._dns.NAME, _dns_err, _dns_dur, _dns_start, datetime.now(timezone.utc)
+            )

@@ -1,0 +1,2424 @@
+{
+  "webhound_version": "0.1.0",
+  "report_generated_at": "2026-05-07T13:34:14.661768+00:00",
+  "scan": {
+    "id": "a5ad9173-975d-4413-b78b-98da1c9f8cee",
+    "status": "completed",
+    "started_at": "2026-05-07T13:33:42.480598+00:00",
+    "completed_at": "2026-05-07T13:34:14.656948+00:00",
+    "duration_seconds": 32.17635
+  },
+  "target": {
+    "url": "https://www.chicagopepperbros.com",
+    "hostname": "www.chicagopepperbros.com",
+    "scheme": "https"
+  },
+  "risk": {
+    "score": 60,
+    "level": "medium",
+    "overall_risk_score": 2.41,
+    "severity_breakdown": {
+      "critical": 0,
+      "high": 0,
+      "medium": 24,
+      "low": 85,
+      "info": 9,
+      "total": 118,
+      "actionable": 24
+    }
+  },
+  "findings": [
+    {
+      "id": "a0433cac-c51a-4554-bd06-21326f9ce78c",
+      "title": "Access-controlled Environment variable file path exists",
+      "severity": "low",
+      "category": "recon",
+      "confidence": 0.85,
+      "scanner_engine": "sensitive_paths",
+      "description": "The path '/.env' returned HTTP 403, indicating the environment variable file exists but is protected by access controls. While direct access is restricted, its existence confirms the presence of a sensitive resource and remains a target for authentication bypass.",
+      "remediation": "Consider removing '/.env' entirely rather than relying on access controls alone. A file that should not exist should not exist \u2014 not be hidden.",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/.env"
+    },
+    {
+      "id": "9a81074d-33a7-49a9-abaa-e12de66bca34",
+      "title": "Access-controlled Git repository config path exists",
+      "severity": "low",
+      "category": "recon",
+      "confidence": 0.85,
+      "scanner_engine": "sensitive_paths",
+      "description": "The path '/.git/config' returned HTTP 403, indicating the git repository config exists but is protected by access controls. While direct access is restricted, its existence confirms the presence of a sensitive resource and remains a target for authentication bypass.",
+      "remediation": "Consider removing '/.git/config' entirely rather than relying on access controls alone. A file that should not exist should not exist \u2014 not be hidden.",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/.git/config"
+    },
+    {
+      "id": "8ad9464a-c11b-45d3-8da3-32d1094eb2d0",
+      "title": "Access-controlled Git repository listing path exists",
+      "severity": "low",
+      "category": "recon",
+      "confidence": 0.85,
+      "scanner_engine": "sensitive_paths",
+      "description": "The path '/.git/' returned HTTP 403, indicating the git repository listing exists but is protected by access controls. While direct access is restricted, its existence confirms the presence of a sensitive resource and remains a target for authentication bypass.",
+      "remediation": "Consider removing '/.git/' entirely rather than relying on access controls alone. A file that should not exist should not exist \u2014 not be hidden.",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/.git/"
+    },
+    {
+      "id": "214daaa2-f473-45e7-8646-74fd2c19eec0",
+      "title": "Sensitive path disclosed in robots.txt Disallow",
+      "severity": "low",
+      "category": "recon",
+      "confidence": 0.9,
+      "scanner_engine": "robots_sitemap",
+      "description": "The robots.txt Disallow directive reveals the path '/config', which appears to be a sensitive or restricted area. robots.txt is a public document readable by anyone, so Disallow directives inadvertently advertise the existence of these paths to attackers and search engine crawlers alike.",
+      "remediation": "Do not rely on robots.txt to protect sensitive paths \u2014 it provides no access control and actively reveals the paths it tries to hide. Protect sensitive areas with authentication and authorization instead. Consider removing sensitive paths from Disallow directives.",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200",
+        "CWE-284"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/robots.txt"
+    },
+    {
+      "id": "ff2168e9-4c0e-4797-9d00-5bf34b980cfc",
+      "title": "Content-Security-Policy header missing",
+      "severity": "medium",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Content-Security-Policy (CSP) header was found. CSP is a critical defence-in-depth mechanism that limits the impact of cross-site scripting (XSS) and data injection attacks.",
+      "remediation": "Add a strict Content-Security-Policy header. Start with: Content-Security-Policy: default-src 'self'",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/"
+    },
+    {
+      "id": "c2396d58-bc0d-477c-bb0f-422a677506f9",
+      "title": "HSTS max-age is below 1 year",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "The Strict-Transport-Security max-age is 0 seconds (0 days), which is below the recommended minimum of 1 year (31,536,000 seconds).",
+      "remediation": "Set max-age to at least 31536000 (1 year).",
+      "owasp_top10": [
+        "A02:2021"
+      ],
+      "cwe_ids": [
+        "CWE-319"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/"
+    },
+    {
+      "id": "1c583cb4-2491-435b-a222-bbd4efcde11b",
+      "title": "HSTS does not include subdomains",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "The Strict-Transport-Security header is missing 'includeSubDomains'. Subdomains remain vulnerable to downgrade attacks even when the main domain is protected.",
+      "remediation": "Add 'includeSubDomains' to the HSTS header.",
+      "owasp_top10": [
+        "A02:2021"
+      ],
+      "cwe_ids": [
+        "CWE-319"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/"
+    },
+    {
+      "id": "08c9792b-7296-484c-b51b-27a6f46ff5c6",
+      "title": "X-Frame-Options header missing",
+      "severity": "medium",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "Neither X-Frame-Options nor a CSP frame-ancestors directive was found. The page may be embedded in an iframe on an attacker-controlled site (clickjacking).",
+      "remediation": "Add: X-Frame-Options: DENY\nOr use CSP: Content-Security-Policy: frame-ancestors 'none'",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-1021"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/"
+    },
+    {
+      "id": "82a22340-1807-4716-b479-1b7785ec794d",
+      "title": "Referrer-Policy header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Referrer-Policy header was found. Browsers default to 'no-referrer-when-downgrade', potentially leaking full URL paths to third-party sites via the Referer header.",
+      "remediation": "Add: Referrer-Policy: strict-origin-when-cross-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/"
+    },
+    {
+      "id": "5f9bc0d3-97fd-4b40-a572-a78214719ad5",
+      "title": "Permissions-Policy header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Permissions-Policy header was found. Without it, all browser features (camera, microphone, geolocation, etc.) default to their browser-specified policy, which may be permissive.",
+      "remediation": "Add a Permissions-Policy header restricting unused features. Example: Permissions-Policy: camera=(), microphone=(), geolocation=()",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/"
+    },
+    {
+      "id": "67e37059-aa18-40e1-841d-c46ced014bed",
+      "title": "Cross-Origin-Opener-Policy (COOP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "COOP prevents cross-origin windows from retaining a reference to this page, protecting against cross-origin attacks such as XS-Leaks.",
+      "remediation": "Add: Cross-Origin-Opener-Policy: same-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/"
+    },
+    {
+      "id": "6ec17004-74e8-446d-9c22-702d595a2d93",
+      "title": "Cross-Origin-Embedder-Policy (COEP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "COEP prevents a document from loading cross-origin resources that don't explicitly grant permission. Required to enable powerful features like SharedArrayBuffer.",
+      "remediation": "Add: Cross-Origin-Embedder-Policy: require-corp",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/"
+    },
+    {
+      "id": "1538f158-b1f5-46da-a834-69015c8da6e6",
+      "title": "Cross-Origin-Resource-Policy (CORP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "CORP restricts which origins may embed this resource. Without it, any site can embed this page's resources, enabling Spectre-style side-channel reads.",
+      "remediation": "Add: Cross-Origin-Resource-Policy: same-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/"
+    },
+    {
+      "id": "0515c84c-2ddd-4418-be53-a4e11c647c36",
+      "title": "Technology disclosed via server header",
+      "severity": "info",
+      "category": "technology",
+      "confidence": 0.85,
+      "scanner_engine": "technology",
+      "description": "The response header 'server: Squarespace' discloses the server/platform technology. This aids attacker reconnaissance.",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/"
+    },
+    {
+      "id": "7aa37af8-ae93-4b2f-876a-13779b5110af",
+      "title": "Third-party script loaded from assets.squarespace.com (unknown third party)",
+      "severity": "low",
+      "category": "javascript",
+      "confidence": 0.8,
+      "scanner_engine": "third_party_domains",
+      "description": "A script is loaded from the third-party domain 'assets.squarespace.com'. Third-party scripts run with full page privileges. A compromised or malicious third-party script can steal credentials, exfiltrate data, or inject malicious content.",
+      "remediation": "Audit all third-party scripts. Use Subresource Integrity (SRI) hashes on <script> tags to detect tampering. Host critical scripts on your own infrastructure where possible.",
+      "owasp_top10": [
+        "A08:2021"
+      ],
+      "cwe_ids": [
+        "CWE-829"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/"
+    },
+    {
+      "id": "ef413be6-373a-42cb-862a-79888cc16883",
+      "title": "Third-party script loaded from definitions.sqspcdn.com (unknown third party)",
+      "severity": "low",
+      "category": "javascript",
+      "confidence": 0.8,
+      "scanner_engine": "third_party_domains",
+      "description": "A script is loaded from the third-party domain 'definitions.sqspcdn.com'. Third-party scripts run with full page privileges. A compromised or malicious third-party script can steal credentials, exfiltrate data, or inject malicious content.",
+      "remediation": "Audit all third-party scripts. Use Subresource Integrity (SRI) hashes on <script> tags to detect tampering. Host critical scripts on your own infrastructure where possible.",
+      "owasp_top10": [
+        "A08:2021"
+      ],
+      "cwe_ids": [
+        "CWE-829"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/"
+    },
+    {
+      "id": "ebff9d73-af88-4603-96e6-f83c5b9dbad0",
+      "title": "Content-Security-Policy header missing",
+      "severity": "medium",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Content-Security-Policy (CSP) header was found. CSP is a critical defence-in-depth mechanism that limits the impact of cross-site scripting (XSS) and data injection attacks.",
+      "remediation": "Add a strict Content-Security-Policy header. Start with: Content-Security-Policy: default-src 'self'",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/cart"
+    },
+    {
+      "id": "bebf0fe0-3b11-422c-8bfe-4862d9cd31b2",
+      "title": "HSTS max-age is below 1 year",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "The Strict-Transport-Security max-age is 0 seconds (0 days), which is below the recommended minimum of 1 year (31,536,000 seconds).",
+      "remediation": "Set max-age to at least 31536000 (1 year).",
+      "owasp_top10": [
+        "A02:2021"
+      ],
+      "cwe_ids": [
+        "CWE-319"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/cart"
+    },
+    {
+      "id": "0c6ace6c-abf0-4df7-bf60-ebc03d9b67a0",
+      "title": "HSTS does not include subdomains",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "The Strict-Transport-Security header is missing 'includeSubDomains'. Subdomains remain vulnerable to downgrade attacks even when the main domain is protected.",
+      "remediation": "Add 'includeSubDomains' to the HSTS header.",
+      "owasp_top10": [
+        "A02:2021"
+      ],
+      "cwe_ids": [
+        "CWE-319"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/cart"
+    },
+    {
+      "id": "1a727349-69ec-4c03-91eb-3b19900bce42",
+      "title": "X-Frame-Options header missing",
+      "severity": "medium",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "Neither X-Frame-Options nor a CSP frame-ancestors directive was found. The page may be embedded in an iframe on an attacker-controlled site (clickjacking).",
+      "remediation": "Add: X-Frame-Options: DENY\nOr use CSP: Content-Security-Policy: frame-ancestors 'none'",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-1021"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/cart"
+    },
+    {
+      "id": "6a750f87-943a-406e-8596-8b29c12209aa",
+      "title": "Referrer-Policy header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Referrer-Policy header was found. Browsers default to 'no-referrer-when-downgrade', potentially leaking full URL paths to third-party sites via the Referer header.",
+      "remediation": "Add: Referrer-Policy: strict-origin-when-cross-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/cart"
+    },
+    {
+      "id": "bbf7cdb0-567f-47f6-a940-3a6357342a2b",
+      "title": "Permissions-Policy header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Permissions-Policy header was found. Without it, all browser features (camera, microphone, geolocation, etc.) default to their browser-specified policy, which may be permissive.",
+      "remediation": "Add a Permissions-Policy header restricting unused features. Example: Permissions-Policy: camera=(), microphone=(), geolocation=()",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/cart"
+    },
+    {
+      "id": "fa319441-3765-43ea-8490-97b6a080a303",
+      "title": "Cross-Origin-Opener-Policy (COOP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "COOP prevents cross-origin windows from retaining a reference to this page, protecting against cross-origin attacks such as XS-Leaks.",
+      "remediation": "Add: Cross-Origin-Opener-Policy: same-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/cart"
+    },
+    {
+      "id": "8db52c52-c477-4027-bf19-75a6dfa424c8",
+      "title": "Cross-Origin-Embedder-Policy (COEP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "COEP prevents a document from loading cross-origin resources that don't explicitly grant permission. Required to enable powerful features like SharedArrayBuffer.",
+      "remediation": "Add: Cross-Origin-Embedder-Policy: require-corp",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/cart"
+    },
+    {
+      "id": "6e350634-2405-4f97-8bee-887188b4a483",
+      "title": "Cross-Origin-Resource-Policy (CORP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "CORP restricts which origins may embed this resource. Without it, any site can embed this page's resources, enabling Spectre-style side-channel reads.",
+      "remediation": "Add: Cross-Origin-Resource-Policy: same-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/cart"
+    },
+    {
+      "id": "5d18107c-1b8b-4ee3-83ff-1f88d3e69805",
+      "title": "Technology disclosed via server header",
+      "severity": "info",
+      "category": "technology",
+      "confidence": 0.85,
+      "scanner_engine": "technology",
+      "description": "The response header 'server: Squarespace' discloses the server/platform technology. This aids attacker reconnaissance.",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/cart"
+    },
+    {
+      "id": "a3019d58-1564-4cad-b744-d213cacfc36c",
+      "title": "Third-party script loaded from assets.squarespace.com (unknown third party)",
+      "severity": "low",
+      "category": "javascript",
+      "confidence": 0.8,
+      "scanner_engine": "third_party_domains",
+      "description": "A script is loaded from the third-party domain 'assets.squarespace.com'. Third-party scripts run with full page privileges. A compromised or malicious third-party script can steal credentials, exfiltrate data, or inject malicious content.",
+      "remediation": "Audit all third-party scripts. Use Subresource Integrity (SRI) hashes on <script> tags to detect tampering. Host critical scripts on your own infrastructure where possible.",
+      "owasp_top10": [
+        "A08:2021"
+      ],
+      "cwe_ids": [
+        "CWE-829"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/cart"
+    },
+    {
+      "id": "860130dc-8f8c-4601-bef3-9d19994e627d",
+      "title": "Third-party script loaded from definitions.sqspcdn.com (unknown third party)",
+      "severity": "low",
+      "category": "javascript",
+      "confidence": 0.8,
+      "scanner_engine": "third_party_domains",
+      "description": "A script is loaded from the third-party domain 'definitions.sqspcdn.com'. Third-party scripts run with full page privileges. A compromised or malicious third-party script can steal credentials, exfiltrate data, or inject malicious content.",
+      "remediation": "Audit all third-party scripts. Use Subresource Integrity (SRI) hashes on <script> tags to detect tampering. Host critical scripts on your own infrastructure where possible.",
+      "owasp_top10": [
+        "A08:2021"
+      ],
+      "cwe_ids": [
+        "CWE-829"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/cart"
+    },
+    {
+      "id": "77d933e0-76c7-464c-9e9c-615d1b0e1c58",
+      "title": "Content-Security-Policy header missing",
+      "severity": "medium",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Content-Security-Policy (CSP) header was found. CSP is a critical defence-in-depth mechanism that limits the impact of cross-site scripting (XSS) and data injection attacks.",
+      "remediation": "Add a strict Content-Security-Policy header. Start with: Content-Security-Policy: default-src 'self'",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop"
+    },
+    {
+      "id": "6e99147e-c38c-4064-b764-2e6b143cb641",
+      "title": "HSTS max-age is below 1 year",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "The Strict-Transport-Security max-age is 0 seconds (0 days), which is below the recommended minimum of 1 year (31,536,000 seconds).",
+      "remediation": "Set max-age to at least 31536000 (1 year).",
+      "owasp_top10": [
+        "A02:2021"
+      ],
+      "cwe_ids": [
+        "CWE-319"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop"
+    },
+    {
+      "id": "e604e378-7f5c-49c8-8e0c-b1b135350ca7",
+      "title": "HSTS does not include subdomains",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "The Strict-Transport-Security header is missing 'includeSubDomains'. Subdomains remain vulnerable to downgrade attacks even when the main domain is protected.",
+      "remediation": "Add 'includeSubDomains' to the HSTS header.",
+      "owasp_top10": [
+        "A02:2021"
+      ],
+      "cwe_ids": [
+        "CWE-319"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop"
+    },
+    {
+      "id": "500eb6e6-04ad-44b3-89c1-ac509bd9b8e9",
+      "title": "X-Frame-Options header missing",
+      "severity": "medium",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "Neither X-Frame-Options nor a CSP frame-ancestors directive was found. The page may be embedded in an iframe on an attacker-controlled site (clickjacking).",
+      "remediation": "Add: X-Frame-Options: DENY\nOr use CSP: Content-Security-Policy: frame-ancestors 'none'",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-1021"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop"
+    },
+    {
+      "id": "0473755f-8a69-428b-9848-37359e1b7809",
+      "title": "Referrer-Policy header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Referrer-Policy header was found. Browsers default to 'no-referrer-when-downgrade', potentially leaking full URL paths to third-party sites via the Referer header.",
+      "remediation": "Add: Referrer-Policy: strict-origin-when-cross-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop"
+    },
+    {
+      "id": "1f701beb-2ccd-4242-ac8c-425120f45950",
+      "title": "Permissions-Policy header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Permissions-Policy header was found. Without it, all browser features (camera, microphone, geolocation, etc.) default to their browser-specified policy, which may be permissive.",
+      "remediation": "Add a Permissions-Policy header restricting unused features. Example: Permissions-Policy: camera=(), microphone=(), geolocation=()",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop"
+    },
+    {
+      "id": "669158e4-0914-492c-919f-8926765c6d38",
+      "title": "Cross-Origin-Opener-Policy (COOP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "COOP prevents cross-origin windows from retaining a reference to this page, protecting against cross-origin attacks such as XS-Leaks.",
+      "remediation": "Add: Cross-Origin-Opener-Policy: same-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop"
+    },
+    {
+      "id": "70e1b691-3e46-4b48-8723-0a67f194ed6e",
+      "title": "Cross-Origin-Embedder-Policy (COEP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "COEP prevents a document from loading cross-origin resources that don't explicitly grant permission. Required to enable powerful features like SharedArrayBuffer.",
+      "remediation": "Add: Cross-Origin-Embedder-Policy: require-corp",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop"
+    },
+    {
+      "id": "5380aabb-cd03-4d71-9946-f61be1205836",
+      "title": "Cross-Origin-Resource-Policy (CORP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "CORP restricts which origins may embed this resource. Without it, any site can embed this page's resources, enabling Spectre-style side-channel reads.",
+      "remediation": "Add: Cross-Origin-Resource-Policy: same-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop"
+    },
+    {
+      "id": "97d65123-9b97-4208-a46d-faaed9665751",
+      "title": "Technology disclosed via server header",
+      "severity": "info",
+      "category": "technology",
+      "confidence": 0.85,
+      "scanner_engine": "technology",
+      "description": "The response header 'server: Squarespace' discloses the server/platform technology. This aids attacker reconnaissance.",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop"
+    },
+    {
+      "id": "efa63444-9a1c-4c07-a2fb-40c0b2863ac9",
+      "title": "Third-party script loaded from assets.squarespace.com (unknown third party)",
+      "severity": "low",
+      "category": "javascript",
+      "confidence": 0.8,
+      "scanner_engine": "third_party_domains",
+      "description": "A script is loaded from the third-party domain 'assets.squarespace.com'. Third-party scripts run with full page privileges. A compromised or malicious third-party script can steal credentials, exfiltrate data, or inject malicious content.",
+      "remediation": "Audit all third-party scripts. Use Subresource Integrity (SRI) hashes on <script> tags to detect tampering. Host critical scripts on your own infrastructure where possible.",
+      "owasp_top10": [
+        "A08:2021"
+      ],
+      "cwe_ids": [
+        "CWE-829"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop"
+    },
+    {
+      "id": "7cac48b1-ba75-4d90-85c4-86792be09cb1",
+      "title": "Third-party script loaded from definitions.sqspcdn.com (unknown third party)",
+      "severity": "low",
+      "category": "javascript",
+      "confidence": 0.8,
+      "scanner_engine": "third_party_domains",
+      "description": "A script is loaded from the third-party domain 'definitions.sqspcdn.com'. Third-party scripts run with full page privileges. A compromised or malicious third-party script can steal credentials, exfiltrate data, or inject malicious content.",
+      "remediation": "Audit all third-party scripts. Use Subresource Integrity (SRI) hashes on <script> tags to detect tampering. Host critical scripts on your own infrastructure where possible.",
+      "owasp_top10": [
+        "A08:2021"
+      ],
+      "cwe_ids": [
+        "CWE-829"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop"
+    },
+    {
+      "id": "a9ad025b-cf24-42fc-90f7-71c1e45ef4c9",
+      "title": "Content-Security-Policy header missing",
+      "severity": "medium",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Content-Security-Policy (CSP) header was found. CSP is a critical defence-in-depth mechanism that limits the impact of cross-site scripting (XSS) and data injection attacks.",
+      "remediation": "Add a strict Content-Security-Policy header. Start with: Content-Security-Policy: default-src 'self'",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/about-us"
+    },
+    {
+      "id": "19a8e003-aabf-4776-babb-4c5ec36b135e",
+      "title": "HSTS max-age is below 1 year",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "The Strict-Transport-Security max-age is 0 seconds (0 days), which is below the recommended minimum of 1 year (31,536,000 seconds).",
+      "remediation": "Set max-age to at least 31536000 (1 year).",
+      "owasp_top10": [
+        "A02:2021"
+      ],
+      "cwe_ids": [
+        "CWE-319"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/about-us"
+    },
+    {
+      "id": "7c3b6344-3980-440e-9194-9c962d54b72d",
+      "title": "HSTS does not include subdomains",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "The Strict-Transport-Security header is missing 'includeSubDomains'. Subdomains remain vulnerable to downgrade attacks even when the main domain is protected.",
+      "remediation": "Add 'includeSubDomains' to the HSTS header.",
+      "owasp_top10": [
+        "A02:2021"
+      ],
+      "cwe_ids": [
+        "CWE-319"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/about-us"
+    },
+    {
+      "id": "19a37ae5-d96a-4948-a2ea-5511f45bf4b3",
+      "title": "X-Frame-Options header missing",
+      "severity": "medium",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "Neither X-Frame-Options nor a CSP frame-ancestors directive was found. The page may be embedded in an iframe on an attacker-controlled site (clickjacking).",
+      "remediation": "Add: X-Frame-Options: DENY\nOr use CSP: Content-Security-Policy: frame-ancestors 'none'",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-1021"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/about-us"
+    },
+    {
+      "id": "3b65f792-9954-4271-b764-c7eb49d609d5",
+      "title": "Referrer-Policy header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Referrer-Policy header was found. Browsers default to 'no-referrer-when-downgrade', potentially leaking full URL paths to third-party sites via the Referer header.",
+      "remediation": "Add: Referrer-Policy: strict-origin-when-cross-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/about-us"
+    },
+    {
+      "id": "981633a4-2990-4353-9052-e112c5386cf0",
+      "title": "Permissions-Policy header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Permissions-Policy header was found. Without it, all browser features (camera, microphone, geolocation, etc.) default to their browser-specified policy, which may be permissive.",
+      "remediation": "Add a Permissions-Policy header restricting unused features. Example: Permissions-Policy: camera=(), microphone=(), geolocation=()",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/about-us"
+    },
+    {
+      "id": "56902c79-265e-41fb-af9a-87bca9a18c4a",
+      "title": "Cross-Origin-Opener-Policy (COOP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "COOP prevents cross-origin windows from retaining a reference to this page, protecting against cross-origin attacks such as XS-Leaks.",
+      "remediation": "Add: Cross-Origin-Opener-Policy: same-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/about-us"
+    },
+    {
+      "id": "2f66f1e1-d5fb-4daf-bfc7-b4120e9b1426",
+      "title": "Cross-Origin-Embedder-Policy (COEP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "COEP prevents a document from loading cross-origin resources that don't explicitly grant permission. Required to enable powerful features like SharedArrayBuffer.",
+      "remediation": "Add: Cross-Origin-Embedder-Policy: require-corp",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/about-us"
+    },
+    {
+      "id": "18b87536-a383-4179-93bd-96be27616336",
+      "title": "Cross-Origin-Resource-Policy (CORP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "CORP restricts which origins may embed this resource. Without it, any site can embed this page's resources, enabling Spectre-style side-channel reads.",
+      "remediation": "Add: Cross-Origin-Resource-Policy: same-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/about-us"
+    },
+    {
+      "id": "d3e8f48c-24c0-4244-8876-1136b0b7a42b",
+      "title": "Technology disclosed via server header",
+      "severity": "info",
+      "category": "technology",
+      "confidence": 0.85,
+      "scanner_engine": "technology",
+      "description": "The response header 'server: Squarespace' discloses the server/platform technology. This aids attacker reconnaissance.",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/about-us"
+    },
+    {
+      "id": "cb878607-bca6-4808-a1bd-ec133bbca836",
+      "title": "Third-party script loaded from assets.squarespace.com (unknown third party)",
+      "severity": "low",
+      "category": "javascript",
+      "confidence": 0.8,
+      "scanner_engine": "third_party_domains",
+      "description": "A script is loaded from the third-party domain 'assets.squarespace.com'. Third-party scripts run with full page privileges. A compromised or malicious third-party script can steal credentials, exfiltrate data, or inject malicious content.",
+      "remediation": "Audit all third-party scripts. Use Subresource Integrity (SRI) hashes on <script> tags to detect tampering. Host critical scripts on your own infrastructure where possible.",
+      "owasp_top10": [
+        "A08:2021"
+      ],
+      "cwe_ids": [
+        "CWE-829"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/about-us"
+    },
+    {
+      "id": "c059c537-f4f2-4b85-9c89-547b6ebdb987",
+      "title": "Third-party script loaded from definitions.sqspcdn.com (unknown third party)",
+      "severity": "low",
+      "category": "javascript",
+      "confidence": 0.8,
+      "scanner_engine": "third_party_domains",
+      "description": "A script is loaded from the third-party domain 'definitions.sqspcdn.com'. Third-party scripts run with full page privileges. A compromised or malicious third-party script can steal credentials, exfiltrate data, or inject malicious content.",
+      "remediation": "Audit all third-party scripts. Use Subresource Integrity (SRI) hashes on <script> tags to detect tampering. Host critical scripts on your own infrastructure where possible.",
+      "owasp_top10": [
+        "A08:2021"
+      ],
+      "cwe_ids": [
+        "CWE-829"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/about-us"
+    },
+    {
+      "id": "fc98ad8a-58b8-4cbb-be29-6de971e7bf6a",
+      "title": "Content-Security-Policy header missing",
+      "severity": "medium",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Content-Security-Policy (CSP) header was found. CSP is a critical defence-in-depth mechanism that limits the impact of cross-site scripting (XSS) and data injection attacks.",
+      "remediation": "Add a strict Content-Security-Policy header. Start with: Content-Security-Policy: default-src 'self'",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/contact-us"
+    },
+    {
+      "id": "9d6cdd3a-0c53-474e-8d23-b28dd1eec619",
+      "title": "HSTS max-age is below 1 year",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "The Strict-Transport-Security max-age is 0 seconds (0 days), which is below the recommended minimum of 1 year (31,536,000 seconds).",
+      "remediation": "Set max-age to at least 31536000 (1 year).",
+      "owasp_top10": [
+        "A02:2021"
+      ],
+      "cwe_ids": [
+        "CWE-319"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/contact-us"
+    },
+    {
+      "id": "e92cc2b7-1176-4fc0-98f1-deb7723d757e",
+      "title": "HSTS does not include subdomains",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "The Strict-Transport-Security header is missing 'includeSubDomains'. Subdomains remain vulnerable to downgrade attacks even when the main domain is protected.",
+      "remediation": "Add 'includeSubDomains' to the HSTS header.",
+      "owasp_top10": [
+        "A02:2021"
+      ],
+      "cwe_ids": [
+        "CWE-319"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/contact-us"
+    },
+    {
+      "id": "f84de7c7-c8f1-4c8a-bee5-47bdb62e0c7a",
+      "title": "X-Frame-Options header missing",
+      "severity": "medium",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "Neither X-Frame-Options nor a CSP frame-ancestors directive was found. The page may be embedded in an iframe on an attacker-controlled site (clickjacking).",
+      "remediation": "Add: X-Frame-Options: DENY\nOr use CSP: Content-Security-Policy: frame-ancestors 'none'",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-1021"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/contact-us"
+    },
+    {
+      "id": "19af5c35-5183-4aa5-b531-cc96ee28a74b",
+      "title": "Referrer-Policy header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Referrer-Policy header was found. Browsers default to 'no-referrer-when-downgrade', potentially leaking full URL paths to third-party sites via the Referer header.",
+      "remediation": "Add: Referrer-Policy: strict-origin-when-cross-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/contact-us"
+    },
+    {
+      "id": "cb557292-94a4-48f7-8e47-38366c24a693",
+      "title": "Permissions-Policy header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Permissions-Policy header was found. Without it, all browser features (camera, microphone, geolocation, etc.) default to their browser-specified policy, which may be permissive.",
+      "remediation": "Add a Permissions-Policy header restricting unused features. Example: Permissions-Policy: camera=(), microphone=(), geolocation=()",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/contact-us"
+    },
+    {
+      "id": "9bdf5760-27a7-4575-89df-724513d55446",
+      "title": "Cross-Origin-Opener-Policy (COOP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "COOP prevents cross-origin windows from retaining a reference to this page, protecting against cross-origin attacks such as XS-Leaks.",
+      "remediation": "Add: Cross-Origin-Opener-Policy: same-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/contact-us"
+    },
+    {
+      "id": "9495108a-a9c2-47d2-9780-19bd80642b7a",
+      "title": "Cross-Origin-Embedder-Policy (COEP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "COEP prevents a document from loading cross-origin resources that don't explicitly grant permission. Required to enable powerful features like SharedArrayBuffer.",
+      "remediation": "Add: Cross-Origin-Embedder-Policy: require-corp",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/contact-us"
+    },
+    {
+      "id": "f3996a1a-12f4-4684-be4b-3b3803d1f67e",
+      "title": "Cross-Origin-Resource-Policy (CORP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "CORP restricts which origins may embed this resource. Without it, any site can embed this page's resources, enabling Spectre-style side-channel reads.",
+      "remediation": "Add: Cross-Origin-Resource-Policy: same-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/contact-us"
+    },
+    {
+      "id": "f51a3fb3-d212-410f-aabf-14ff034f27b4",
+      "title": "Technology disclosed via server header",
+      "severity": "info",
+      "category": "technology",
+      "confidence": 0.85,
+      "scanner_engine": "technology",
+      "description": "The response header 'server: Squarespace' discloses the server/platform technology. This aids attacker reconnaissance.",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/contact-us"
+    },
+    {
+      "id": "5d6055c9-e9aa-460a-a271-8e0bf16bacf8",
+      "title": "Third-party script loaded from assets.squarespace.com (unknown third party)",
+      "severity": "low",
+      "category": "javascript",
+      "confidence": 0.8,
+      "scanner_engine": "third_party_domains",
+      "description": "A script is loaded from the third-party domain 'assets.squarespace.com'. Third-party scripts run with full page privileges. A compromised or malicious third-party script can steal credentials, exfiltrate data, or inject malicious content.",
+      "remediation": "Audit all third-party scripts. Use Subresource Integrity (SRI) hashes on <script> tags to detect tampering. Host critical scripts on your own infrastructure where possible.",
+      "owasp_top10": [
+        "A08:2021"
+      ],
+      "cwe_ids": [
+        "CWE-829"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/contact-us"
+    },
+    {
+      "id": "5da7e5f1-0ef8-4e55-8a59-4e73d588e4c9",
+      "title": "Third-party script loaded from definitions.sqspcdn.com (unknown third party)",
+      "severity": "low",
+      "category": "javascript",
+      "confidence": 0.8,
+      "scanner_engine": "third_party_domains",
+      "description": "A script is loaded from the third-party domain 'definitions.sqspcdn.com'. Third-party scripts run with full page privileges. A compromised or malicious third-party script can steal credentials, exfiltrate data, or inject malicious content.",
+      "remediation": "Audit all third-party scripts. Use Subresource Integrity (SRI) hashes on <script> tags to detect tampering. Host critical scripts on your own infrastructure where possible.",
+      "owasp_top10": [
+        "A08:2021"
+      ],
+      "cwe_ids": [
+        "CWE-829"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/contact-us"
+    },
+    {
+      "id": "7cf6122a-0520-4ff5-992e-f46dd05f7327",
+      "title": "Content-Security-Policy header missing",
+      "severity": "medium",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Content-Security-Policy (CSP) header was found. CSP is a critical defence-in-depth mechanism that limits the impact of cross-site scripting (XSS) and data injection attacks.",
+      "remediation": "Add a strict Content-Security-Policy header. Start with: Content-Security-Policy: default-src 'self'",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/hot-giardi"
+    },
+    {
+      "id": "aa474f82-4172-4b6e-8a6a-82f2d6fd769f",
+      "title": "HSTS max-age is below 1 year",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "The Strict-Transport-Security max-age is 0 seconds (0 days), which is below the recommended minimum of 1 year (31,536,000 seconds).",
+      "remediation": "Set max-age to at least 31536000 (1 year).",
+      "owasp_top10": [
+        "A02:2021"
+      ],
+      "cwe_ids": [
+        "CWE-319"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/hot-giardi"
+    },
+    {
+      "id": "4d566169-8924-4d5d-8016-988a22d88e59",
+      "title": "HSTS does not include subdomains",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "The Strict-Transport-Security header is missing 'includeSubDomains'. Subdomains remain vulnerable to downgrade attacks even when the main domain is protected.",
+      "remediation": "Add 'includeSubDomains' to the HSTS header.",
+      "owasp_top10": [
+        "A02:2021"
+      ],
+      "cwe_ids": [
+        "CWE-319"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/hot-giardi"
+    },
+    {
+      "id": "1e55f2a5-99c4-49b5-bc49-c494d3a733d9",
+      "title": "X-Frame-Options header missing",
+      "severity": "medium",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "Neither X-Frame-Options nor a CSP frame-ancestors directive was found. The page may be embedded in an iframe on an attacker-controlled site (clickjacking).",
+      "remediation": "Add: X-Frame-Options: DENY\nOr use CSP: Content-Security-Policy: frame-ancestors 'none'",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-1021"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/hot-giardi"
+    },
+    {
+      "id": "96de162f-fa76-4756-b83f-db691da46bea",
+      "title": "Referrer-Policy header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Referrer-Policy header was found. Browsers default to 'no-referrer-when-downgrade', potentially leaking full URL paths to third-party sites via the Referer header.",
+      "remediation": "Add: Referrer-Policy: strict-origin-when-cross-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/hot-giardi"
+    },
+    {
+      "id": "9896388d-fdee-4796-be30-3f0749db372f",
+      "title": "Permissions-Policy header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Permissions-Policy header was found. Without it, all browser features (camera, microphone, geolocation, etc.) default to their browser-specified policy, which may be permissive.",
+      "remediation": "Add a Permissions-Policy header restricting unused features. Example: Permissions-Policy: camera=(), microphone=(), geolocation=()",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/hot-giardi"
+    },
+    {
+      "id": "a21c8766-323b-4b3f-b12b-b256dd10c7f4",
+      "title": "Cross-Origin-Opener-Policy (COOP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "COOP prevents cross-origin windows from retaining a reference to this page, protecting against cross-origin attacks such as XS-Leaks.",
+      "remediation": "Add: Cross-Origin-Opener-Policy: same-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/hot-giardi"
+    },
+    {
+      "id": "a8b1ac7c-3886-499c-a95d-69efa4dacdf5",
+      "title": "Cross-Origin-Embedder-Policy (COEP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "COEP prevents a document from loading cross-origin resources that don't explicitly grant permission. Required to enable powerful features like SharedArrayBuffer.",
+      "remediation": "Add: Cross-Origin-Embedder-Policy: require-corp",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/hot-giardi"
+    },
+    {
+      "id": "7ea3a6b7-1bb5-42db-bac4-1e5a7c137d32",
+      "title": "Cross-Origin-Resource-Policy (CORP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "CORP restricts which origins may embed this resource. Without it, any site can embed this page's resources, enabling Spectre-style side-channel reads.",
+      "remediation": "Add: Cross-Origin-Resource-Policy: same-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/hot-giardi"
+    },
+    {
+      "id": "17fbbd5d-95a7-462f-9d73-0d214eb6263b",
+      "title": "Technology disclosed via server header",
+      "severity": "info",
+      "category": "technology",
+      "confidence": 0.85,
+      "scanner_engine": "technology",
+      "description": "The response header 'server: Squarespace' discloses the server/platform technology. This aids attacker reconnaissance.",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/hot-giardi"
+    },
+    {
+      "id": "f3e96e72-2106-4503-8bb0-4967a7826ece",
+      "title": "Large base64 blob in inline script",
+      "severity": "medium",
+      "category": "javascript",
+      "confidence": 0.6,
+      "scanner_engine": "obfuscation_detector",
+      "description": "An inline script contains a base64-encoded blob of 103 characters. Large base64 strings in inline scripts often carry obfuscated payloads (shellcode, packed JavaScript, exfiltration data).",
+      "remediation": "Investigate the source of the base64 string. Decode and review its content. Remove if unexpected or injected.",
+      "owasp_top10": [
+        "A03:2021"
+      ],
+      "cwe_ids": [
+        "CWE-116"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/hot-giardi"
+    },
+    {
+      "id": "731ce838-a066-4036-a243-6a203328604f",
+      "title": "Third-party script loaded from assets.squarespace.com (unknown third party)",
+      "severity": "low",
+      "category": "javascript",
+      "confidence": 0.8,
+      "scanner_engine": "third_party_domains",
+      "description": "A script is loaded from the third-party domain 'assets.squarespace.com'. Third-party scripts run with full page privileges. A compromised or malicious third-party script can steal credentials, exfiltrate data, or inject malicious content.",
+      "remediation": "Audit all third-party scripts. Use Subresource Integrity (SRI) hashes on <script> tags to detect tampering. Host critical scripts on your own infrastructure where possible.",
+      "owasp_top10": [
+        "A08:2021"
+      ],
+      "cwe_ids": [
+        "CWE-829"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/hot-giardi"
+    },
+    {
+      "id": "8b992bfb-bf34-4456-a866-158ab6c294c0",
+      "title": "Third-party script loaded from definitions.sqspcdn.com (unknown third party)",
+      "severity": "low",
+      "category": "javascript",
+      "confidence": 0.8,
+      "scanner_engine": "third_party_domains",
+      "description": "A script is loaded from the third-party domain 'definitions.sqspcdn.com'. Third-party scripts run with full page privileges. A compromised or malicious third-party script can steal credentials, exfiltrate data, or inject malicious content.",
+      "remediation": "Audit all third-party scripts. Use Subresource Integrity (SRI) hashes on <script> tags to detect tampering. Host critical scripts on your own infrastructure where possible.",
+      "owasp_top10": [
+        "A08:2021"
+      ],
+      "cwe_ids": [
+        "CWE-829"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/hot-giardi"
+    },
+    {
+      "id": "15416a0a-4c11-499a-b338-31028e6e430f",
+      "title": "Content-Security-Policy header missing",
+      "severity": "medium",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Content-Security-Policy (CSP) header was found. CSP is a critical defence-in-depth mechanism that limits the impact of cross-site scripting (XSS) and data injection attacks.",
+      "remediation": "Add a strict Content-Security-Policy header. Start with: Content-Security-Policy: default-src 'self'",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-og"
+    },
+    {
+      "id": "ee026b41-9def-4f6d-8a02-9bd950b55800",
+      "title": "HSTS max-age is below 1 year",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "The Strict-Transport-Security max-age is 0 seconds (0 days), which is below the recommended minimum of 1 year (31,536,000 seconds).",
+      "remediation": "Set max-age to at least 31536000 (1 year).",
+      "owasp_top10": [
+        "A02:2021"
+      ],
+      "cwe_ids": [
+        "CWE-319"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-og"
+    },
+    {
+      "id": "559f40f6-5f21-43a8-adde-f527240a15b7",
+      "title": "HSTS does not include subdomains",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "The Strict-Transport-Security header is missing 'includeSubDomains'. Subdomains remain vulnerable to downgrade attacks even when the main domain is protected.",
+      "remediation": "Add 'includeSubDomains' to the HSTS header.",
+      "owasp_top10": [
+        "A02:2021"
+      ],
+      "cwe_ids": [
+        "CWE-319"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-og"
+    },
+    {
+      "id": "b28ebaa6-0fff-41d5-975d-a8449f458f3b",
+      "title": "X-Frame-Options header missing",
+      "severity": "medium",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "Neither X-Frame-Options nor a CSP frame-ancestors directive was found. The page may be embedded in an iframe on an attacker-controlled site (clickjacking).",
+      "remediation": "Add: X-Frame-Options: DENY\nOr use CSP: Content-Security-Policy: frame-ancestors 'none'",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-1021"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-og"
+    },
+    {
+      "id": "b2c4cc8a-3c6e-4eb9-8530-e4f6bb2bd8b7",
+      "title": "Referrer-Policy header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Referrer-Policy header was found. Browsers default to 'no-referrer-when-downgrade', potentially leaking full URL paths to third-party sites via the Referer header.",
+      "remediation": "Add: Referrer-Policy: strict-origin-when-cross-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-og"
+    },
+    {
+      "id": "a18d5625-2ae4-4a29-932d-01096b22a032",
+      "title": "Permissions-Policy header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Permissions-Policy header was found. Without it, all browser features (camera, microphone, geolocation, etc.) default to their browser-specified policy, which may be permissive.",
+      "remediation": "Add a Permissions-Policy header restricting unused features. Example: Permissions-Policy: camera=(), microphone=(), geolocation=()",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-og"
+    },
+    {
+      "id": "6788372d-e94c-45e9-b1c2-e0a783de270b",
+      "title": "Cross-Origin-Opener-Policy (COOP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "COOP prevents cross-origin windows from retaining a reference to this page, protecting against cross-origin attacks such as XS-Leaks.",
+      "remediation": "Add: Cross-Origin-Opener-Policy: same-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-og"
+    },
+    {
+      "id": "50b10d4b-47e7-40a3-a831-bd907bf0eb28",
+      "title": "Cross-Origin-Embedder-Policy (COEP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "COEP prevents a document from loading cross-origin resources that don't explicitly grant permission. Required to enable powerful features like SharedArrayBuffer.",
+      "remediation": "Add: Cross-Origin-Embedder-Policy: require-corp",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-og"
+    },
+    {
+      "id": "77e0bb23-1f12-4c3c-9ba9-7861f6ca130c",
+      "title": "Cross-Origin-Resource-Policy (CORP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "CORP restricts which origins may embed this resource. Without it, any site can embed this page's resources, enabling Spectre-style side-channel reads.",
+      "remediation": "Add: Cross-Origin-Resource-Policy: same-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-og"
+    },
+    {
+      "id": "01f4d384-1878-4cab-b237-e651a482d443",
+      "title": "Technology disclosed via server header",
+      "severity": "info",
+      "category": "technology",
+      "confidence": 0.85,
+      "scanner_engine": "technology",
+      "description": "The response header 'server: Squarespace' discloses the server/platform technology. This aids attacker reconnaissance.",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-og"
+    },
+    {
+      "id": "4848ce4f-9588-4491-acc4-1211c3311b70",
+      "title": "Large base64 blob in inline script",
+      "severity": "medium",
+      "category": "javascript",
+      "confidence": 0.6,
+      "scanner_engine": "obfuscation_detector",
+      "description": "An inline script contains a base64-encoded blob of 107 characters. Large base64 strings in inline scripts often carry obfuscated payloads (shellcode, packed JavaScript, exfiltration data).",
+      "remediation": "Investigate the source of the base64 string. Decode and review its content. Remove if unexpected or injected.",
+      "owasp_top10": [
+        "A03:2021"
+      ],
+      "cwe_ids": [
+        "CWE-116"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-og"
+    },
+    {
+      "id": "f4011c63-abd0-4fa2-b958-212a0e579adf",
+      "title": "Third-party script loaded from assets.squarespace.com (unknown third party)",
+      "severity": "low",
+      "category": "javascript",
+      "confidence": 0.8,
+      "scanner_engine": "third_party_domains",
+      "description": "A script is loaded from the third-party domain 'assets.squarespace.com'. Third-party scripts run with full page privileges. A compromised or malicious third-party script can steal credentials, exfiltrate data, or inject malicious content.",
+      "remediation": "Audit all third-party scripts. Use Subresource Integrity (SRI) hashes on <script> tags to detect tampering. Host critical scripts on your own infrastructure where possible.",
+      "owasp_top10": [
+        "A08:2021"
+      ],
+      "cwe_ids": [
+        "CWE-829"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-og"
+    },
+    {
+      "id": "937009e6-58af-4284-a217-95bb7fd4a28f",
+      "title": "Third-party script loaded from definitions.sqspcdn.com (unknown third party)",
+      "severity": "low",
+      "category": "javascript",
+      "confidence": 0.8,
+      "scanner_engine": "third_party_domains",
+      "description": "A script is loaded from the third-party domain 'definitions.sqspcdn.com'. Third-party scripts run with full page privileges. A compromised or malicious third-party script can steal credentials, exfiltrate data, or inject malicious content.",
+      "remediation": "Audit all third-party scripts. Use Subresource Integrity (SRI) hashes on <script> tags to detect tampering. Host critical scripts on your own infrastructure where possible.",
+      "owasp_top10": [
+        "A08:2021"
+      ],
+      "cwe_ids": [
+        "CWE-829"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-og"
+    },
+    {
+      "id": "5b4d0c1c-ffc2-4262-bbce-d9b042d19d2e",
+      "title": "Content-Security-Policy header missing",
+      "severity": "medium",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Content-Security-Policy (CSP) header was found. CSP is a critical defence-in-depth mechanism that limits the impact of cross-site scripting (XSS) and data injection attacks.",
+      "remediation": "Add a strict Content-Security-Policy header. Start with: Content-Security-Policy: default-src 'self'",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/mild-garden-mix"
+    },
+    {
+      "id": "75e2a7d3-ebcc-4fa1-ae2a-81a47876ad93",
+      "title": "HSTS max-age is below 1 year",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "The Strict-Transport-Security max-age is 0 seconds (0 days), which is below the recommended minimum of 1 year (31,536,000 seconds).",
+      "remediation": "Set max-age to at least 31536000 (1 year).",
+      "owasp_top10": [
+        "A02:2021"
+      ],
+      "cwe_ids": [
+        "CWE-319"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/mild-garden-mix"
+    },
+    {
+      "id": "e0eee403-45f6-469e-8220-5fc792b2c025",
+      "title": "HSTS does not include subdomains",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "The Strict-Transport-Security header is missing 'includeSubDomains'. Subdomains remain vulnerable to downgrade attacks even when the main domain is protected.",
+      "remediation": "Add 'includeSubDomains' to the HSTS header.",
+      "owasp_top10": [
+        "A02:2021"
+      ],
+      "cwe_ids": [
+        "CWE-319"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/mild-garden-mix"
+    },
+    {
+      "id": "ee9e145d-90ec-4e44-a476-146c97534898",
+      "title": "X-Frame-Options header missing",
+      "severity": "medium",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "Neither X-Frame-Options nor a CSP frame-ancestors directive was found. The page may be embedded in an iframe on an attacker-controlled site (clickjacking).",
+      "remediation": "Add: X-Frame-Options: DENY\nOr use CSP: Content-Security-Policy: frame-ancestors 'none'",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-1021"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/mild-garden-mix"
+    },
+    {
+      "id": "9d776563-667c-475c-a2e6-fa919ca5f961",
+      "title": "Referrer-Policy header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Referrer-Policy header was found. Browsers default to 'no-referrer-when-downgrade', potentially leaking full URL paths to third-party sites via the Referer header.",
+      "remediation": "Add: Referrer-Policy: strict-origin-when-cross-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/mild-garden-mix"
+    },
+    {
+      "id": "a6c2c200-1926-4112-964a-0fd13bf27acd",
+      "title": "Permissions-Policy header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Permissions-Policy header was found. Without it, all browser features (camera, microphone, geolocation, etc.) default to their browser-specified policy, which may be permissive.",
+      "remediation": "Add a Permissions-Policy header restricting unused features. Example: Permissions-Policy: camera=(), microphone=(), geolocation=()",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/mild-garden-mix"
+    },
+    {
+      "id": "d45e0a4c-a61d-4933-8839-2e0d257118c0",
+      "title": "Cross-Origin-Opener-Policy (COOP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "COOP prevents cross-origin windows from retaining a reference to this page, protecting against cross-origin attacks such as XS-Leaks.",
+      "remediation": "Add: Cross-Origin-Opener-Policy: same-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/mild-garden-mix"
+    },
+    {
+      "id": "16630653-221e-44a9-818c-ec548fa81fc8",
+      "title": "Cross-Origin-Embedder-Policy (COEP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "COEP prevents a document from loading cross-origin resources that don't explicitly grant permission. Required to enable powerful features like SharedArrayBuffer.",
+      "remediation": "Add: Cross-Origin-Embedder-Policy: require-corp",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/mild-garden-mix"
+    },
+    {
+      "id": "5283095f-ecb5-4e0b-aa67-817af7a1d09c",
+      "title": "Cross-Origin-Resource-Policy (CORP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "CORP restricts which origins may embed this resource. Without it, any site can embed this page's resources, enabling Spectre-style side-channel reads.",
+      "remediation": "Add: Cross-Origin-Resource-Policy: same-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/mild-garden-mix"
+    },
+    {
+      "id": "5cd033da-2723-4fd3-b1ce-a29560323ecc",
+      "title": "Technology disclosed via server header",
+      "severity": "info",
+      "category": "technology",
+      "confidence": 0.85,
+      "scanner_engine": "technology",
+      "description": "The response header 'server: Squarespace' discloses the server/platform technology. This aids attacker reconnaissance.",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/mild-garden-mix"
+    },
+    {
+      "id": "7f990285-78a4-40aa-8d04-0c2ba8cd13e6",
+      "title": "Large base64 blob in inline script",
+      "severity": "medium",
+      "category": "javascript",
+      "confidence": 0.6,
+      "scanner_engine": "obfuscation_detector",
+      "description": "An inline script contains a base64-encoded blob of 104 characters. Large base64 strings in inline scripts often carry obfuscated payloads (shellcode, packed JavaScript, exfiltration data).",
+      "remediation": "Investigate the source of the base64 string. Decode and review its content. Remove if unexpected or injected.",
+      "owasp_top10": [
+        "A03:2021"
+      ],
+      "cwe_ids": [
+        "CWE-116"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/mild-garden-mix"
+    },
+    {
+      "id": "5cd5cf67-b41f-43d4-81ee-4349a1f8d452",
+      "title": "Third-party script loaded from assets.squarespace.com (unknown third party)",
+      "severity": "low",
+      "category": "javascript",
+      "confidence": 0.8,
+      "scanner_engine": "third_party_domains",
+      "description": "A script is loaded from the third-party domain 'assets.squarespace.com'. Third-party scripts run with full page privileges. A compromised or malicious third-party script can steal credentials, exfiltrate data, or inject malicious content.",
+      "remediation": "Audit all third-party scripts. Use Subresource Integrity (SRI) hashes on <script> tags to detect tampering. Host critical scripts on your own infrastructure where possible.",
+      "owasp_top10": [
+        "A08:2021"
+      ],
+      "cwe_ids": [
+        "CWE-829"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/mild-garden-mix"
+    },
+    {
+      "id": "cbd2dfed-ad4f-4da8-b138-5334c3d5968a",
+      "title": "Third-party script loaded from definitions.sqspcdn.com (unknown third party)",
+      "severity": "low",
+      "category": "javascript",
+      "confidence": 0.8,
+      "scanner_engine": "third_party_domains",
+      "description": "A script is loaded from the third-party domain 'definitions.sqspcdn.com'. Third-party scripts run with full page privileges. A compromised or malicious third-party script can steal credentials, exfiltrate data, or inject malicious content.",
+      "remediation": "Audit all third-party scripts. Use Subresource Integrity (SRI) hashes on <script> tags to detect tampering. Host critical scripts on your own infrastructure where possible.",
+      "owasp_top10": [
+        "A08:2021"
+      ],
+      "cwe_ids": [
+        "CWE-829"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/mild-garden-mix"
+    },
+    {
+      "id": "a7979e2b-7b3d-4a07-8c32-1994466bf48e",
+      "title": "Content-Security-Policy header missing",
+      "severity": "medium",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Content-Security-Policy (CSP) header was found. CSP is a critical defence-in-depth mechanism that limits the impact of cross-site scripting (XSS) and data injection attacks.",
+      "remediation": "Add a strict Content-Security-Policy header. Start with: Content-Security-Policy: default-src 'self'",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-diablo"
+    },
+    {
+      "id": "2013b890-9675-482a-8c45-ded96d535a86",
+      "title": "HSTS max-age is below 1 year",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "The Strict-Transport-Security max-age is 0 seconds (0 days), which is below the recommended minimum of 1 year (31,536,000 seconds).",
+      "remediation": "Set max-age to at least 31536000 (1 year).",
+      "owasp_top10": [
+        "A02:2021"
+      ],
+      "cwe_ids": [
+        "CWE-319"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-diablo"
+    },
+    {
+      "id": "94e605cb-9034-40d4-b66b-5880ba949eed",
+      "title": "HSTS does not include subdomains",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "The Strict-Transport-Security header is missing 'includeSubDomains'. Subdomains remain vulnerable to downgrade attacks even when the main domain is protected.",
+      "remediation": "Add 'includeSubDomains' to the HSTS header.",
+      "owasp_top10": [
+        "A02:2021"
+      ],
+      "cwe_ids": [
+        "CWE-319"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-diablo"
+    },
+    {
+      "id": "42151112-ba05-4a75-890d-3f2896096674",
+      "title": "X-Frame-Options header missing",
+      "severity": "medium",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "Neither X-Frame-Options nor a CSP frame-ancestors directive was found. The page may be embedded in an iframe on an attacker-controlled site (clickjacking).",
+      "remediation": "Add: X-Frame-Options: DENY\nOr use CSP: Content-Security-Policy: frame-ancestors 'none'",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-1021"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-diablo"
+    },
+    {
+      "id": "752056c6-0420-4d21-8994-d2ebda7514b2",
+      "title": "Referrer-Policy header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Referrer-Policy header was found. Browsers default to 'no-referrer-when-downgrade', potentially leaking full URL paths to third-party sites via the Referer header.",
+      "remediation": "Add: Referrer-Policy: strict-origin-when-cross-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-diablo"
+    },
+    {
+      "id": "db1fe91f-c950-43ad-a0da-e564e9ac6716",
+      "title": "Permissions-Policy header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "No Permissions-Policy header was found. Without it, all browser features (camera, microphone, geolocation, etc.) default to their browser-specified policy, which may be permissive.",
+      "remediation": "Add a Permissions-Policy header restricting unused features. Example: Permissions-Policy: camera=(), microphone=(), geolocation=()",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-diablo"
+    },
+    {
+      "id": "f4407749-1cf5-40c0-b5a1-f391a0388da3",
+      "title": "Cross-Origin-Opener-Policy (COOP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "COOP prevents cross-origin windows from retaining a reference to this page, protecting against cross-origin attacks such as XS-Leaks.",
+      "remediation": "Add: Cross-Origin-Opener-Policy: same-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-diablo"
+    },
+    {
+      "id": "4376664e-9060-429e-850c-3a1787e595f4",
+      "title": "Cross-Origin-Embedder-Policy (COEP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "COEP prevents a document from loading cross-origin resources that don't explicitly grant permission. Required to enable powerful features like SharedArrayBuffer.",
+      "remediation": "Add: Cross-Origin-Embedder-Policy: require-corp",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-diablo"
+    },
+    {
+      "id": "ec689953-c31d-4d39-8b92-a67e761744c3",
+      "title": "Cross-Origin-Resource-Policy (CORP) header missing",
+      "severity": "low",
+      "category": "security_header",
+      "confidence": 1.0,
+      "scanner_engine": "security_headers",
+      "description": "CORP restricts which origins may embed this resource. Without it, any site can embed this page's resources, enabling Spectre-style side-channel reads.",
+      "remediation": "Add: Cross-Origin-Resource-Policy: same-origin",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-693"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-diablo"
+    },
+    {
+      "id": "7d6a33c9-6412-4d9d-88f5-30771610cce3",
+      "title": "Technology disclosed via server header",
+      "severity": "info",
+      "category": "technology",
+      "confidence": 0.85,
+      "scanner_engine": "technology",
+      "description": "The response header 'server: Squarespace' discloses the server/platform technology. This aids attacker reconnaissance.",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-200"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-diablo"
+    },
+    {
+      "id": "6529c5fd-1f22-4bb8-8d89-fc1aaf5a1470",
+      "title": "Large base64 blob in inline script",
+      "severity": "medium",
+      "category": "javascript",
+      "confidence": 0.6,
+      "scanner_engine": "obfuscation_detector",
+      "description": "An inline script contains a base64-encoded blob of 107 characters. Large base64 strings in inline scripts often carry obfuscated payloads (shellcode, packed JavaScript, exfiltration data).",
+      "remediation": "Investigate the source of the base64 string. Decode and review its content. Remove if unexpected or injected.",
+      "owasp_top10": [
+        "A03:2021"
+      ],
+      "cwe_ids": [
+        "CWE-116"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-diablo"
+    },
+    {
+      "id": "1ac835b9-ea05-40ac-80dc-cb21028cad61",
+      "title": "Third-party script loaded from assets.squarespace.com (unknown third party)",
+      "severity": "low",
+      "category": "javascript",
+      "confidence": 0.8,
+      "scanner_engine": "third_party_domains",
+      "description": "A script is loaded from the third-party domain 'assets.squarespace.com'. Third-party scripts run with full page privileges. A compromised or malicious third-party script can steal credentials, exfiltrate data, or inject malicious content.",
+      "remediation": "Audit all third-party scripts. Use Subresource Integrity (SRI) hashes on <script> tags to detect tampering. Host critical scripts on your own infrastructure where possible.",
+      "owasp_top10": [
+        "A08:2021"
+      ],
+      "cwe_ids": [
+        "CWE-829"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-diablo"
+    },
+    {
+      "id": "c631836f-1f98-4a49-ab26-bfc178674006",
+      "title": "Third-party script loaded from definitions.sqspcdn.com (unknown third party)",
+      "severity": "low",
+      "category": "javascript",
+      "confidence": 0.8,
+      "scanner_engine": "third_party_domains",
+      "description": "A script is loaded from the third-party domain 'definitions.sqspcdn.com'. Third-party scripts run with full page privileges. A compromised or malicious third-party script can steal credentials, exfiltrate data, or inject malicious content.",
+      "remediation": "Audit all third-party scripts. Use Subresource Integrity (SRI) hashes on <script> tags to detect tampering. Host critical scripts on your own infrastructure where possible.",
+      "owasp_top10": [
+        "A08:2021"
+      ],
+      "cwe_ids": [
+        "CWE-829"
+      ],
+      "evidence_location": "https://www.chicagopepperbros.com/pepper-shop/p/inferno-diablo"
+    },
+    {
+      "id": "317021f2-02ad-4d12-93bc-bc014e15bd49",
+      "title": "SPF record missing for chicagopepperbros.com",
+      "severity": "medium",
+      "category": "dns",
+      "confidence": 1.0,
+      "scanner_engine": "dns_checker",
+      "description": "No SPF (Sender Policy Framework) TXT record was found for 'chicagopepperbros.com'. Without SPF, attackers can forge email from this domain, enabling phishing and spam campaigns.",
+      "remediation": "Add an SPF TXT record. Example: v=spf1 include:_spf.yourdomain.com -all",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-290"
+      ],
+      "evidence_location": "https://chicagopepperbros.com"
+    },
+    {
+      "id": "c754c1ec-d9ae-4278-8b0b-8a1fb8e97f2a",
+      "title": "DMARC record missing for chicagopepperbros.com",
+      "severity": "medium",
+      "category": "dns",
+      "confidence": 1.0,
+      "scanner_engine": "dns_checker",
+      "description": "No DMARC record was found at '_dmarc.chicagopepperbros.com'. Without DMARC, there is no policy to reject or quarantine spoofed email and no visibility into abuse of the domain.",
+      "remediation": "Add a DMARC TXT record at _dmarc.{domain}. Start with monitoring: v=DMARC1; p=none; rua=mailto:dmarc@yourdomain.com. Progressively tighten to p=quarantine then p=reject.",
+      "owasp_top10": [
+        "A05:2021"
+      ],
+      "cwe_ids": [
+        "CWE-290"
+      ],
+      "evidence_location": "https://chicagopepperbros.com"
+    }
+  ],
+  "engines_run": [
+    "sensitive_paths",
+    "robots_sitemap",
+    "security_headers",
+    "cors",
+    "cookie_scanner",
+    "js_collector",
+    "technology",
+    "js_analyzer",
+    "obfuscation_detector",
+    "third_party_domains",
+    "injected_js",
+    "hidden_iframes",
+    "seo_spam",
+    "suspicious_redirects",
+    "form_risk",
+    "input_analysis",
+    "tls_checker",
+    "dns_checker"
+  ],
+  "engine_diagnostics": [
+    {
+      "name": "sensitive_paths",
+      "category": "recon",
+      "status": "findings",
+      "findings_count": 3,
+      "severity_counts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 3,
+        "info": 0
+      },
+      "skipped_reason": null,
+      "error_message": null,
+      "duration_ms": 18808.4,
+      "affected_target": null,
+      "is_passive": true,
+      "started_at": "2026-05-07T13:33:42.922418+00:00",
+      "finished_at": "2026-05-07T13:34:01.730835+00:00"
+    },
+    {
+      "name": "robots_sitemap",
+      "category": "recon",
+      "status": "findings",
+      "findings_count": 1,
+      "severity_counts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 1,
+        "info": 0
+      },
+      "skipped_reason": null,
+      "error_message": null,
+      "duration_ms": 2111.79,
+      "affected_target": null,
+      "is_passive": true,
+      "started_at": "2026-05-07T13:34:01.730862+00:00",
+      "finished_at": "2026-05-07T13:34:03.842661+00:00"
+    },
+    {
+      "name": "security_headers",
+      "category": "headers",
+      "status": "findings",
+      "findings_count": 81,
+      "severity_counts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 18,
+        "low": 63,
+        "info": 0
+      },
+      "skipped_reason": null,
+      "error_message": null,
+      "duration_ms": 1.4,
+      "affected_target": null,
+      "is_passive": true,
+      "started_at": "2026-05-07T13:34:13.696080+00:00",
+      "finished_at": "2026-05-07T13:34:13.880417+00:00"
+    },
+    {
+      "name": "cors",
+      "category": "headers",
+      "status": "passed",
+      "findings_count": 0,
+      "severity_counts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "skipped_reason": null,
+      "error_message": null,
+      "duration_ms": 0.01,
+      "affected_target": null,
+      "is_passive": true,
+      "started_at": "2026-05-07T13:34:13.696354+00:00",
+      "finished_at": "2026-05-07T13:34:13.880427+00:00"
+    },
+    {
+      "name": "cookie_scanner",
+      "category": "cookies",
+      "status": "passed",
+      "findings_count": 0,
+      "severity_counts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "skipped_reason": null,
+      "error_message": null,
+      "duration_ms": 0.02,
+      "affected_target": null,
+      "is_passive": true,
+      "started_at": "2026-05-07T13:34:13.696360+00:00",
+      "finished_at": "2026-05-07T13:34:13.880431+00:00"
+    },
+    {
+      "name": "js_collector",
+      "category": "javascript",
+      "status": "passed",
+      "findings_count": 0,
+      "severity_counts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "skipped_reason": null,
+      "error_message": null,
+      "duration_ms": 0.83,
+      "affected_target": null,
+      "is_passive": true,
+      "started_at": "2026-05-07T13:34:13.696392+00:00",
+      "finished_at": "2026-05-07T13:34:13.880529+00:00"
+    },
+    {
+      "name": "technology",
+      "category": "technology",
+      "status": "findings",
+      "findings_count": 9,
+      "severity_counts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 9
+      },
+      "skipped_reason": null,
+      "error_message": null,
+      "duration_ms": 1.24,
+      "affected_target": null,
+      "is_passive": true,
+      "started_at": "2026-05-07T13:34:13.696506+00:00",
+      "finished_at": "2026-05-07T13:34:13.880638+00:00"
+    },
+    {
+      "name": "js_analyzer",
+      "category": "javascript",
+      "status": "passed",
+      "findings_count": 0,
+      "severity_counts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "skipped_reason": null,
+      "error_message": null,
+      "duration_ms": 35.67,
+      "affected_target": null,
+      "is_passive": true,
+      "started_at": "2026-05-07T13:34:13.696641+00:00",
+      "finished_at": "2026-05-07T13:34:13.884305+00:00"
+    },
+    {
+      "name": "obfuscation_detector",
+      "category": "javascript",
+      "status": "findings",
+      "findings_count": 4,
+      "severity_counts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 4,
+        "low": 0,
+        "info": 0
+      },
+      "skipped_reason": null,
+      "error_message": null,
+      "duration_ms": 23.33,
+      "affected_target": null,
+      "is_passive": true,
+      "started_at": "2026-05-07T13:34:13.700372+00:00",
+      "finished_at": "2026-05-07T13:34:13.886646+00:00"
+    },
+    {
+      "name": "third_party_domains",
+      "category": "javascript",
+      "status": "findings",
+      "findings_count": 18,
+      "severity_counts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 18,
+        "info": 0
+      },
+      "skipped_reason": null,
+      "error_message": null,
+      "duration_ms": 1.33,
+      "affected_target": null,
+      "is_passive": true,
+      "started_at": "2026-05-07T13:34:13.702661+00:00",
+      "finished_at": "2026-05-07T13:34:13.886753+00:00"
+    },
+    {
+      "name": "injected_js",
+      "category": "compromise",
+      "status": "passed",
+      "findings_count": 0,
+      "severity_counts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "skipped_reason": null,
+      "error_message": null,
+      "duration_ms": 24.72,
+      "affected_target": null,
+      "is_passive": true,
+      "started_at": "2026-05-07T13:34:13.703031+00:00",
+      "finished_at": "2026-05-07T13:34:13.889301+00:00"
+    },
+    {
+      "name": "hidden_iframes",
+      "category": "compromise",
+      "status": "passed",
+      "findings_count": 0,
+      "severity_counts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "skipped_reason": null,
+      "error_message": null,
+      "duration_ms": 58.42,
+      "affected_target": null,
+      "is_passive": true,
+      "started_at": "2026-05-07T13:34:13.705544+00:00",
+      "finished_at": "2026-05-07T13:34:13.893955+00:00"
+    },
+    {
+      "name": "seo_spam",
+      "category": "compromise",
+      "status": "passed",
+      "findings_count": 0,
+      "severity_counts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "skipped_reason": null,
+      "error_message": null,
+      "duration_ms": 46.96,
+      "affected_target": null,
+      "is_passive": true,
+      "started_at": "2026-05-07T13:34:13.712030+00:00",
+      "finished_at": "2026-05-07T13:34:13.899362+00:00"
+    },
+    {
+      "name": "suspicious_redirects",
+      "category": "compromise",
+      "status": "passed",
+      "findings_count": 0,
+      "severity_counts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "skipped_reason": null,
+      "error_message": null,
+      "duration_ms": 9.7,
+      "affected_target": null,
+      "is_passive": true,
+      "started_at": "2026-05-07T13:34:13.718018+00:00",
+      "finished_at": "2026-05-07T13:34:13.900431+00:00"
+    },
+    {
+      "name": "form_risk",
+      "category": "forms",
+      "status": "passed",
+      "findings_count": 0,
+      "severity_counts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "skipped_reason": null,
+      "error_message": null,
+      "duration_ms": 0.01,
+      "affected_target": null,
+      "is_passive": true,
+      "started_at": "2026-05-07T13:34:13.719067+00:00",
+      "finished_at": "2026-05-07T13:34:13.900434+00:00"
+    },
+    {
+      "name": "input_analysis",
+      "category": "forms",
+      "status": "passed",
+      "findings_count": 0,
+      "severity_counts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "skipped_reason": null,
+      "error_message": null,
+      "duration_ms": 0.0,
+      "affected_target": null,
+      "is_passive": true,
+      "started_at": "2026-05-07T13:34:13.719071+00:00",
+      "finished_at": "2026-05-07T13:34:13.900435+00:00"
+    },
+    {
+      "name": "tls_checker",
+      "category": "tls_dns",
+      "status": "passed",
+      "findings_count": 0,
+      "severity_counts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0
+      },
+      "skipped_reason": null,
+      "error_message": null,
+      "duration_ms": 0.02,
+      "affected_target": null,
+      "is_passive": true,
+      "started_at": "2026-05-07T13:34:14.014331+00:00",
+      "finished_at": "2026-05-07T13:34:14.014359+00:00"
+    },
+    {
+      "name": "dns_checker",
+      "category": "tls_dns",
+      "status": "findings",
+      "findings_count": 2,
+      "severity_counts": {
+        "critical": 0,
+        "high": 0,
+        "medium": 2,
+        "low": 0,
+        "info": 0
+      },
+      "skipped_reason": null,
+      "error_message": null,
+      "duration_ms": 0.09,
+      "affected_target": null,
+      "is_passive": true,
+      "started_at": "2026-05-07T13:34:14.656672+00:00",
+      "finished_at": "2026-05-07T13:34:14.656770+00:00"
+    }
+  ],
+  "crawl": {
+    "urls_crawled": 9,
+    "pages_analyzed": 9
+  },
+  "errors": [],
+  "metadata": {
+    "external_domains": [
+      "chicagopepperbros.com",
+      "www.instagram.com"
+    ],
+    "external_domain_count": 2
+  }
+}

@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, computed_field, model_validator
 
+from .engine_status import EngineStatus
 from .finding import Finding
 from .severity import Severity
 from .target import Target
@@ -93,6 +94,9 @@ class ScanResult(BaseModel):
 
     # Non-fatal errors encountered during the run
     errors: list[ScanError] = Field(default_factory=list)
+
+    # Per-engine execution diagnostics (populated at scan completion)
+    engine_diagnostics: list[EngineStatus] = Field(default_factory=list)
 
     metadata: dict[str, Any] = Field(default_factory=dict)
 

@@ -2,6 +2,7 @@
 # Public surface of the models package.
 
 from .baseline import Baseline, BaselineEntry, BaselineStatus, ResponseProfile
+from .engine_status import EngineRunStatus, EngineStatus
 from .evidence import Evidence, EvidenceType
 from .finding import Finding, FindingCategory, FrameworkAlignment
 from .scan_result import ScanError, ScanResult, ScanStatus, SeverityBreakdown
@@ -11,6 +12,9 @@ from .target import ScanOptions, Target, TargetScope, TLSInfo
 __all__ = [
     # severity
     "Severity",
+    # engine_status
+    "EngineRunStatus",
+    "EngineStatus",
     # evidence
     "Evidence",
     "EvidenceType",

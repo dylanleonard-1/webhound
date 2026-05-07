@@ -1,6 +1,7 @@
 # WebHound — scanner/webhound/core/__init__.py
 
 from .crawler import CrawlResult, Crawler
+from .engine_tracker import EngineTracker
 from .extractor import (
     ExtractedForm,
     ExtractedScript,
@@ -32,4 +33,6 @@ __all__ = [
     # crawler
     "Crawler",
     "CrawlResult",
+    # engine_tracker
+    "EngineTracker",
 ]

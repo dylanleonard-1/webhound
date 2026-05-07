@@ -69,10 +69,16 @@ def resolve_dns(domain: str, timeout: float = 5.0) -> DnsRecords:
     Requires ``dnspython``; falls back to stdlib socket for A/AAAA only.
     """
     try:
-        import dns.exception as _dnsexc
         import dns.resolver as _resolver
     except ImportError:
         return _stdlib_resolve(domain, timeout)
+
+    # dnspython ≥ 2.0 relocated NXDOMAIN/NoAnswer/NoNameservers into dns.resolver.
+    _NOT_FOUND = (
+        _resolver.NXDOMAIN,
+        _resolver.NoAnswer,
+        _resolver.NoNameservers,
+    )
 
     records = DnsRecords(domain=domain)
     resolver = _resolver.Resolver()
@@ -81,7 +87,7 @@ def resolve_dns(domain: str, timeout: float = 5.0) -> DnsRecords:
     def _query(qname: str, qtype: str) -> list[str]:
         try:
             return [str(r) for r in resolver.resolve(qname, qtype)]
-        except (_dnsexc.NXDOMAIN, _dnsexc.NoAnswer, _dnsexc.NoNameservers):
+        except _NOT_FOUND:
             return []
         except Exception:
             return []

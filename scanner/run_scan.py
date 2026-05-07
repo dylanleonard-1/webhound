@@ -20,9 +20,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from webhound.core.orchestrator import Scanner
+from webhound.core.performance import ScanTelemetry
 from webhound.core.scan_profiles import PROFILE_NAMES, get_profile
 from webhound.models.target import Target
-from webhound.reporting.cli_formatter import bold_divider, fmt_duration, fmt_risk, fmt_url
+from webhound.reporting.cli_formatter import bold_divider, fmt_duration, fmt_risk, fmt_url, thin_divider
 from webhound.reporting.json_report import JsonReport
 from webhound.reporting.summary_builder import SummaryBuilder
 from webhound.wade.baseline_store import BaselineStore
@@ -74,6 +75,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help=f"Directory for JSON reports. Default: {_REPORTS_DIR}.",
     )
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Print a detailed performance table after the scan summary.",
+    )
     return parser
 
 
@@ -83,6 +89,42 @@ def _report_filename(url: str, profile_name: str) -> str:
     hostname = (parsed.hostname or "unknown").replace(".", "_")
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     return f"{hostname}_{profile_name}_{timestamp}.json"
+
+
+def _print_benchmark(tel: ScanTelemetry) -> None:
+    """Print a detailed performance table to stdout."""
+    bar = bold_divider(_BAR_WIDTH)
+    sep = thin_divider(_BAR_WIDTH)
+    print()
+    print(bar)
+    print("  Benchmark Summary")
+    print(bar)
+    dur = fmt_duration(tel.total_duration_seconds) if tel.total_duration_seconds else "—"
+    crawl_dur = (
+        fmt_duration(tel.crawl_duration_seconds) if tel.crawl_duration_seconds else "—"
+    )
+    pps = f"{tel.pages_per_second:.2f}" if tel.pages_per_second > 0 else "—"
+    print(f"  Duration:      {dur}  (crawl: {crawl_dur})")
+    print(f"  Throughput:    {tel.pages_crawled} pages  @  {pps} pages/sec")
+    print(sep)
+    print(
+        f"  Requests:      {tel.total_requests} total"
+        f"  |  {tel.successful_requests} success"
+        f"  |  {tel.failed_requests} failed"
+        f"  |  {tel.retried_requests} retried"
+        f"  |  {tel.skipped_requests} skipped"
+    )
+    if tel.avg_request_ms > 0:
+        print(f"  Avg resp time: {tel.avg_request_ms:.1f} ms")
+    print(sep)
+    slowest = tel.slowest_engines(5)
+    if slowest:
+        print(f"  {'Slowest Engines':<28} {'Duration':>10}  {'Findings':>8}")
+        print(f"  {'-'*28} {'-'*10}  {'-'*8}")
+        for name, ms in slowest:
+            fcount = tel.findings_per_engine.get(name, 0)
+            print(f"  {name:<28} {ms:>9.1f}ms  {fcount:>8}")
+    print(bar)
 
 
 def _print_startup_banner(url: str, profile_name: str, profile_desc: str) -> None:
@@ -157,6 +199,9 @@ async def _run(args: argparse.Namespace) -> int:
     print(f"\n  Risk: {fmt_risk(risk_score, risk_level)}")
     print(f"  Report: {report_path}")
     print(bold_divider(_BAR_WIDTH))
+
+    if args.benchmark:
+        _print_benchmark(ScanTelemetry.from_result(result))
 
     return 1 if result.status.value == "failed" else 0
 

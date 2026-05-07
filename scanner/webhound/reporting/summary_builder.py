@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from webhound.core.performance import ScanTelemetry
 from webhound.models.finding import FindingCategory
 from webhound.models.grouped_finding import GroupedFinding
 from webhound.models.scan_result import ScanResult
@@ -50,6 +51,7 @@ class SummaryBuilder:
         self._recommended_actions(result, lines)
         self._engine_diagnostics(result, lines)
         self._wade_section(result, lines)
+        self._performance_section(result, lines)
         self._errors_section(result, lines)
 
         return "\n".join(lines)
@@ -191,6 +193,27 @@ class SummaryBuilder:
                     lines.append(f"  [{f.severity.value.upper()}]{score_str}  {f.title}")
             else:
                 lines.append("  (no previous baseline — diff skipped)")
+
+    def _performance_section(self, result: ScanResult, lines: list[str]) -> None:
+        tel = ScanTelemetry.from_result(result)
+        lines.append("")
+        lines.append("Performance:")
+
+        dur_str = fmt_duration(tel.total_duration_seconds) if tel.total_duration_seconds else "—"
+        pps_str = f"{tel.pages_per_second:.1f} pages/sec" if tel.pages_per_second > 0 else "—"
+        lines.append(f"  Duration:  {dur_str}  ({pps_str})")
+
+        lines.append(
+            f"  Requests:  {tel.total_requests} total"
+            f"  ({tel.successful_requests} success"
+            f"  {tel.failed_requests} failed"
+            f"  {tel.retried_requests} retried)"
+        )
+
+        slowest = tel.slowest_engines(1)
+        if slowest:
+            sname, sms = slowest[0]
+            lines.append(f"  Slowest engine:  {sname}  ({sms:.0f} ms)")
 
     def _errors_section(self, result: ScanResult, lines: list[str]) -> None:
         lines.append("")

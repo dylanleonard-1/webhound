@@ -469,16 +469,18 @@ def test_performance_metrics_in_json_report():
     report = JsonReport().build(result)
     assert "performance" in report
     perf = report["performance"]
-    assert perf["requests_made"] == 5
-    assert perf["retried"] == 2
-    assert perf["response_time_ms"]["mean"] == pytest.approx(123.4)
+    # Performance is now a ScanTelemetry dict with nested sections
+    rs = perf["request_stats"]
+    assert rs["total_requests"] == 5
+    assert rs["retried_requests"] == 2
+    assert rs["avg_request_ms"] == pytest.approx(123.4)
 
     crawl = report["crawl"]
     assert crawl["retry_count"] == 2
     assert crawl["skip_count"] == 0
 
 
-def test_performance_section_empty_when_no_fetch_stats():
+def test_performance_section_always_present_in_report():
     from webhound.models.scan_result import ScanResult
     from webhound.reporting.json_report import JsonReport
 
@@ -488,4 +490,8 @@ def test_performance_section_empty_when_no_fetch_stats():
 
     report = JsonReport().build(result)
     assert "performance" in report
-    assert report["performance"] == {}
+    # Even with no fetch_stats, all structural keys are present
+    perf = report["performance"]
+    assert "timing_stats" in perf
+    assert "request_stats" in perf
+    assert "crawl_stats" in perf

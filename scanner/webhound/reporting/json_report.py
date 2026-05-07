@@ -12,6 +12,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
+from webhound.core.performance import ScanTelemetry
 from webhound.models.scan_result import ScanResult
 
 _REPORT_SCHEMA_VERSION = 2
@@ -201,8 +202,8 @@ class JsonReport:
                 "retry_count": result.retry_count,
                 "skip_count": result.skip_count,
             },
-            # --- Performance / fetch statistics ---
-            "performance": result.metadata.get("fetch_stats", {}),
+            # --- Performance telemetry ---
+            "performance": ScanTelemetry.from_result(result).to_dict(),
             "errors": [
                 {
                     "engine": e.engine,

@@ -6,7 +6,14 @@
       "Bash(venv/bin/pip list *)",
       "Bash(venv/bin/python -c \"import pytest_anyio; print\\('pytest-anyio ok'\\)\")",
       "Bash(venv/bin/python -c \"import pytest_anyio; print\\('ok'\\)\")",
-      "Bash(venv/bin/python *)"
+      "Bash(venv/bin/python *)",
+      "Bash(python *)",
+      "Bash(rm /mnt/c/Users/dmleo/OneDrive/Documents/Scripts/WebHound/.git/index.lock)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(pip show *)",
+      "Bash(wait)",
+      "Bash(git commit *)"
     ]
   },
   "enableAllProjectMcpServers": true,

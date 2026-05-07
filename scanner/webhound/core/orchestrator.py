@@ -276,15 +276,18 @@ class Scanner:
         external_domains: set[str] = set()
         crawl_results: list = []
         _http_stats: dict[str, Any] = {}
+        _crawl_duration_seconds: float = 0.0
 
         try:
             async with SafeHttpClient(self._target.scan_options, transport=self._transport) as client:
                 # 1. Target-level engines that use the HTTP client
                 await self._run_target_engines(ctx, client)
 
-                # 2. BFS crawl
+                # 2. BFS crawl (timed separately for throughput metrics)
                 crawler = Crawler(ctx, client)
+                _crawl_t0 = time.perf_counter()
                 crawl_results = await crawler.crawl()
+                _crawl_duration_seconds = time.perf_counter() - _crawl_t0
 
                 # 3. Per-page engines
                 for result in crawl_results:
@@ -321,6 +324,7 @@ class Scanner:
         result.metadata["external_domains"] = sorted(external_domains)
         result.metadata["external_domain_count"] = len(external_domains)
         result.metadata["fetch_stats"] = _http_stats
+        result.metadata["crawl_duration_seconds"] = round(_crawl_duration_seconds, 3)
 
         # Propagate scan-wide retry/skip counters to top-level fields
         result.retry_count = _http_stats.get("retried", 0)

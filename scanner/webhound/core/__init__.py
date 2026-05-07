@@ -4,6 +4,7 @@ from .crawler import CrawlResult, Crawler
 from .engine_tracker import EngineTracker
 from .finding_grouper import FindingGrouper, _PER_URL_ENGINES
 from .fp_filter import FPFilter
+from .performance import ScanTelemetry
 from .extractor import (
     ExtractedForm,
     ExtractedScript,
@@ -40,6 +41,8 @@ __all__ = [
     "parse_retry_after",
     # fp_filter
     "FPFilter",
+    # performance
+    "ScanTelemetry",
     # scan_context
     "QueueItem",
     "ScanContext",

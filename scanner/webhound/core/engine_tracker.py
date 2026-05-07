@@ -35,6 +35,7 @@ _ENGINE_CATEGORIES: dict[str, str] = {
     "hidden_iframes":       "compromise",
     "seo_spam":             "compromise",
     "suspicious_redirects": "compromise",
+    "wade":                 "anomaly_detection",
 }
 
 _SEVERITY_KEYS = ("critical", "high", "medium", "low", "info")

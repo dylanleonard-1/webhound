@@ -46,6 +46,11 @@ from webhound.engines.tls_dns.tls_checker import TlsCheckerEngine
 from webhound.models.finding import Finding
 from webhound.models.scan_result import ScanResult
 from webhound.models.target import ScanOptions, Target
+from webhound.wade.anomaly_scorer import AnomalyScorer
+from webhound.wade.baseline_builder import BaselineBuilder, SiteBaseline
+from webhound.wade.classifier import Classifier
+from webhound.wade.confidence import adjust_findings_confidence
+from webhound.wade.diff_engine import DiffEngine
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +192,7 @@ class Scanner:
         *,
         options: ScanOptions | None = None,
         _transport: httpx.AsyncBaseTransport | None = None,
+        previous_baseline: SiteBaseline | None = None,
     ) -> None:
         if isinstance(target, str):
             target = Target.from_url(target, scan_options=options or ScanOptions())
@@ -194,6 +200,8 @@ class Scanner:
             target.scan_options = options
         self._target = target
         self._transport = _transport
+        self._previous_baseline: SiteBaseline | None = previous_baseline
+        self._current_baseline: SiteBaseline | None = None
 
         # Engines instantiated once; all are stateless.
         self._security_headers = SecurityHeadersEngine()
@@ -223,6 +231,7 @@ class Scanner:
         """Execute the full scan pipeline and return a completed ScanResult."""
         ctx = ScanContext(self._target)
         external_domains: set[str] = set()
+        crawl_results: list = []
 
         try:
             async with SafeHttpClient(self._target.scan_options, transport=self._transport) as client:
@@ -240,15 +249,18 @@ class Scanner:
             # 4. TLS / DNS — blocking I/O, run in thread pool
             await self._run_tls_dns(ctx)
 
+            # 5. WADE — build baseline; optionally compare against previous
+            self._run_wade(ctx, crawl_results)
+
         except Exception as exc:
             ctx.scan_result.mark_failed(str(exc))
             return ctx.scan_result
 
-        # 5. Deduplicate and finalize
+        # 6. Deduplicate and finalize
         ctx.scan_result.findings = _dedup_findings(ctx.scan_result.findings)
         result = ctx.finish()
 
-        # 6. Risk scoring (needs recomputed aggregates from mark_complete)
+        # 7. Risk scoring (needs recomputed aggregates from mark_complete)
         risk_score, risk_level = _compute_risk_score(result)
         result.metadata["risk_score"] = risk_score
         result.metadata["risk_level"] = risk_level
@@ -256,6 +268,11 @@ class Scanner:
         result.metadata["external_domain_count"] = len(external_domains)
 
         return result
+
+    @property
+    def current_baseline(self) -> SiteBaseline | None:
+        """The WADE baseline built from the most recent :meth:`scan` call."""
+        return self._current_baseline
 
     # ------------------------------------------------------------------
     # Target-level engines (run once for the whole scan)
@@ -341,6 +358,57 @@ class Scanner:
         _add_findings(ctx, await _safe(ctx, self._suspicious_redirects.NAME, self._suspicious_redirects.analyze, artifacts))
         _add_findings(ctx, await _safe(ctx, self._form_risk.NAME, self._form_risk.analyze, artifacts))
         _add_findings(ctx, await _safe(ctx, self._input_analysis.NAME, self._input_analysis.analyze, artifacts))
+
+    # ------------------------------------------------------------------
+    # WADE — Website Anomaly Detection Engine
+    # ------------------------------------------------------------------
+
+    def _run_wade(self, ctx: ScanContext, crawl_results: list) -> None:
+        """Build a WADE baseline and, if a previous baseline is available, compare."""
+        wade_start = datetime.now(timezone.utc)
+        t0 = time.perf_counter()
+
+        if not crawl_results:
+            ctx.tracker.record_skip("wade", "no crawl results available")
+            ctx.scan_result.metadata["wade_baseline_generated"] = False
+            ctx.scan_result.metadata["wade_baseline_version"] = None
+            ctx.scan_result.metadata["wade_compared_to_previous"] = False
+            ctx.scan_result.metadata["wade_anomaly_count"] = 0
+            return
+
+        baseline = BaselineBuilder().build(crawl_results, ctx.scan_result)
+        self._current_baseline = baseline
+        ctx.scan_result.metadata["wade_baseline_generated"] = True
+        ctx.scan_result.metadata["wade_baseline_version"] = baseline.scan_id
+
+        if self._previous_baseline is None:
+            ctx.tracker.record_skip("wade", "no previous baseline supplied")
+            ctx.scan_result.metadata["wade_compared_to_previous"] = False
+            ctx.scan_result.metadata["wade_anomaly_count"] = 0
+            return
+
+        try:
+            diff_items = DiffEngine().diff_site(baseline.pages, self._previous_baseline)
+            anomalies = AnomalyScorer().score(diff_items)
+            findings = Classifier().classify(anomalies)
+            adjust_findings_confidence(findings, anomalies)
+
+            for f in findings:
+                ctx.add_finding(f)
+
+            duration_ms = (time.perf_counter() - t0) * 1000
+            ctx.tracker.record_run(
+                "wade", findings, duration_ms, wade_start, datetime.now(timezone.utc)
+            )
+            ctx.scan_result.metadata["wade_compared_to_previous"] = True
+            ctx.scan_result.metadata["wade_anomaly_count"] = len(findings)
+        except Exception as exc:
+            duration_ms = (time.perf_counter() - t0) * 1000
+            err = f"{type(exc).__name__}: {exc}"
+            ctx.record_error("wade", err)
+            ctx.tracker.record_error("wade", err, duration_ms, wade_start, datetime.now(timezone.utc))
+            ctx.scan_result.metadata["wade_compared_to_previous"] = False
+            ctx.scan_result.metadata["wade_anomaly_count"] = 0
 
     # ------------------------------------------------------------------
     # TLS / DNS (blocking I/O wrapped in thread pool)

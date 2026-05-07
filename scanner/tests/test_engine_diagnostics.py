@@ -625,9 +625,10 @@ class TestEngineCategoriesMap:
         "sensitive_paths", "robots_sitemap",
         "form_risk", "input_analysis",
         "injected_js", "hidden_iframes", "seo_spam", "suspicious_redirects",
+        "wade",
     }
 
-    def test_all_18_engines_in_map(self) -> None:
+    def test_all_19_engines_in_map(self) -> None:
         assert self._KNOWN_ENGINES == set(_ENGINE_CATEGORIES.keys())
 
     def test_no_engine_has_empty_category(self) -> None:

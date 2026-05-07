@@ -10,6 +10,33 @@ from typing import Any
 from webhound.models.scan_result import ScanResult
 
 
+def _wade_section(result: ScanResult) -> dict[str, Any]:
+    """Build the WADE sub-dict for the JSON report."""
+    wade_findings = sorted(
+        [f for f in result.active_findings if f.scanner_engine == "wade"],
+        key=lambda f: (f.anomaly_score or 0.0),
+        reverse=True,
+    )
+    top_anomalies = [
+        {
+            "title": f.title,
+            "severity": f.severity.value,
+            "confidence": f.confidence,
+            "anomaly_score": f.anomaly_score,
+            "evidence_location": f.evidence[0].location if f.evidence else None,
+            "description": f.description,
+        }
+        for f in wade_findings[:5]
+    ]
+    return {
+        "baseline_generated": result.metadata.get("wade_baseline_generated", False),
+        "baseline_version": result.metadata.get("wade_baseline_version"),
+        "compared_to_previous_baseline": result.metadata.get("wade_compared_to_previous", False),
+        "anomaly_count": result.metadata.get("wade_anomaly_count", 0),
+        "top_anomalies": top_anomalies,
+    }
+
+
 class JsonReport:
     """Serialises a completed ScanResult into a structured JSON report dict.
 
@@ -97,6 +124,7 @@ class JsonReport:
                 }
                 for d in result.engine_diagnostics
             ],
+            "wade": _wade_section(result),
             "crawl": {
                 "urls_crawled": result.urls_crawled,
                 "pages_analyzed": result.pages_analyzed,

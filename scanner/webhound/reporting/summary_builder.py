@@ -70,6 +70,27 @@ class SummaryBuilder:
             engines_str = ", ".join(result.engines_run)
             lines.append(f"Engines ({len(result.engines_run)}):  {engines_str}")
 
+        wade_generated = result.metadata.get("wade_baseline_generated", False)
+        wade_compared = result.metadata.get("wade_compared_to_previous", False)
+        wade_count = result.metadata.get("wade_anomaly_count", 0)
+        wade_findings = sorted(
+            [f for f in result.active_findings if f.scanner_engine == "wade"],
+            key=lambda f: (f.anomaly_score or 0.0),
+            reverse=True,
+        )
+        if wade_generated or wade_findings:
+            lines.append("")
+            lines.append("WADE Anomaly Detection:")
+            lines.append(f"  Baseline generated:   {'yes' if wade_generated else 'no'}")
+            lines.append(f"  Compared to baseline: {'yes' if wade_compared else 'no'}")
+            if wade_compared:
+                lines.append(f"  Anomalies detected:   {wade_count}")
+                for f in wade_findings[:5]:
+                    score_str = f" (score {f.anomaly_score:.2f})" if f.anomaly_score is not None else ""
+                    lines.append(f"  [{f.severity.value.upper()}]{score_str}  {f.title}")
+            else:
+                lines.append("  (no previous baseline — diff skipped)")
+
         lines.append("")
         error_count = len(result.errors)
         if error_count:

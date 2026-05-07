@@ -1,5 +1,5 @@
 # WebHound — scanner/run_scan.py
-# Baseline-aware passive scan runner with profile support.
+# Baseline-aware passive scan runner with profile and output-format support.
 #
 # Usage examples:
 #   python run_scan.py https://example.com
@@ -8,6 +8,8 @@
 #   python run_scan.py https://example.com --profile monitor \
 #       --use-latest-baseline --save-baseline
 #   python run_scan.py https://example.com --baseline-store /var/webhound/baselines
+#   python run_scan.py https://example.com --format sarif --format markdown
+#   python run_scan.py https://example.com --format all --benchmark
 
 from __future__ import annotations
 
@@ -23,13 +25,35 @@ from webhound.core.orchestrator import Scanner
 from webhound.core.performance import ScanTelemetry
 from webhound.core.scan_profiles import PROFILE_NAMES, get_profile
 from webhound.models.target import Target
-from webhound.reporting.cli_formatter import bold_divider, fmt_duration, fmt_risk, fmt_url, thin_divider
+from webhound.reporting.cli_formatter import (
+    bold_divider,
+    fmt_duration,
+    fmt_risk,
+    fmt_url,
+    thin_divider,
+)
+from webhound.reporting.csv_report import CsvReport
 from webhound.reporting.json_report import JsonReport
+from webhound.reporting.markdown_report import MarkdownReport
+from webhound.reporting.sarif_report import SarifReport
 from webhound.reporting.summary_builder import SummaryBuilder
 from webhound.wade.baseline_store import BaselineStore
 
 _REPORTS_DIR = Path(__file__).parent / "reports"
 _BAR_WIDTH = 60
+
+_ALL_FORMATS: frozenset[str] = frozenset({"json", "sarif", "csv", "markdown"})
+_FORMAT_EXTENSION: dict[str, str] = {
+    "json": ".json",
+    "sarif": ".sarif",
+    "csv": ".csv",
+    "markdown": ".md",
+}
+
+
+# ---------------------------------------------------------------------------
+# CLI argument parser
+# ---------------------------------------------------------------------------
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -43,6 +67,13 @@ def _build_arg_parser() -> argparse.ArgumentParser:
             "  standard – 25 pages, depth 2, 1 req/s (recommended)",
             "  deep     – 100 pages, depth 4, 0.5 req/s (thorough)",
             "  monitor  – 10 pages, depth 1, 0.5 req/s (baseline comparison)",
+            "",
+            "Formats:",
+            "  json     – structured JSON (default)",
+            "  sarif    – SARIF 2.1.0 (code-scanning integration)",
+            "  csv      – flat CSV (spreadsheet / SIEM)",
+            "  markdown – human-readable Markdown",
+            "  all      – write all of the above",
         ]),
     )
     parser.add_argument("url", help="Target URL to scan (must include scheme).")
@@ -73,7 +104,18 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--output-dir",
         metavar="PATH",
         default=None,
-        help=f"Directory for JSON reports. Default: {_REPORTS_DIR}.",
+        help=f"Directory for reports. Default: {_REPORTS_DIR}.",
+    )
+    parser.add_argument(
+        "--format",
+        choices=["json", "sarif", "csv", "markdown", "all"],
+        action="append",
+        dest="formats",
+        metavar="FORMAT",
+        help=(
+            "Output format(s): json, sarif, csv, markdown, all. "
+            "Repeatable. Default: json."
+        ),
     )
     parser.add_argument(
         "--benchmark",
@@ -83,12 +125,31 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _report_filename(url: str, profile_name: str) -> str:
-    """Return a filesystem-safe report filename derived from the target URL."""
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _resolve_formats(formats: list[str] | None) -> set[str]:
+    """Expand format list, substituting 'all' for the full set."""
+    if not formats:
+        return {"json"}
+    if "all" in formats:
+        return set(_ALL_FORMATS)
+    return set(formats)
+
+
+def _report_stem(url: str, profile_name: str) -> str:
+    """Return a filesystem-safe filename stem (no extension)."""
     parsed = urlparse(url)
     hostname = (parsed.hostname or "unknown").replace(".", "_")
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    return f"{hostname}_{profile_name}_{timestamp}.json"
+    return f"{hostname}_{profile_name}_{timestamp}"
+
+
+# Keep the old name available so existing callers are not broken.
+def _report_filename(url: str, profile_name: str) -> str:
+    return _report_stem(url, profile_name) + ".json"
 
 
 def _print_benchmark(tel: ScanTelemetry) -> None:
@@ -138,6 +199,11 @@ def _print_startup_banner(url: str, profile_name: str, profile_desc: str) -> Non
     print()
 
 
+# ---------------------------------------------------------------------------
+# Main runner
+# ---------------------------------------------------------------------------
+
+
 async def _run(args: argparse.Namespace) -> int:
     profile = get_profile(args.profile)
     options = profile.to_scan_options()
@@ -173,31 +239,63 @@ async def _run(args: argparse.Namespace) -> int:
         print(f"\n  [baseline] Saved → {saved_path}")
 
     # ------------------------------------------------------------------
-    # Console summary
+    # Console summary (always printed)
     # ------------------------------------------------------------------
     print()
     print(SummaryBuilder().build(result))
 
     # ------------------------------------------------------------------
-    # JSON report to reports/ directory
+    # Report file(s)
     # ------------------------------------------------------------------
     output_dir = Path(args.output_dir) if args.output_dir else _REPORTS_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
-    filename = _report_filename(args.url, profile.name)
-    report_path = output_dir / filename
+    stem = _report_stem(args.url, profile.name)
+    formats = _resolve_formats(getattr(args, "formats", None))
 
-    with report_path.open("w", encoding="utf-8") as fh:
-        json.dump(
-            JsonReport().build(result, profile_name=profile.name, baseline_id=baseline_id),
-            fh,
-            indent=2,
-            default=str,
+    written: list[Path] = []
+
+    if "json" in formats:
+        path = output_dir / f"{stem}.json"
+        with path.open("w", encoding="utf-8") as fh:
+            json.dump(
+                JsonReport().build(result, profile_name=profile.name, baseline_id=baseline_id),
+                fh,
+                indent=2,
+                default=str,
+            )
+        written.append(path)
+
+    if "sarif" in formats:
+        path = output_dir / f"{stem}.sarif"
+        with path.open("w", encoding="utf-8") as fh:
+            json.dump(
+                SarifReport().build(result, profile_name=profile.name),
+                fh,
+                indent=2,
+                default=str,
+            )
+        written.append(path)
+
+    if "csv" in formats:
+        path = output_dir / f"{stem}.csv"
+        path.write_text(CsvReport().build(result), encoding="utf-8")
+        written.append(path)
+
+    if "markdown" in formats:
+        path = output_dir / f"{stem}.md"
+        path.write_text(
+            MarkdownReport().build(
+                result, profile_name=profile.name, baseline_id=baseline_id
+            ),
+            encoding="utf-8",
         )
+        written.append(path)
 
     risk_score = result.metadata.get("risk_score", "—")
     risk_level = result.metadata.get("risk_level", "unknown")
     print(f"\n  Risk: {fmt_risk(risk_score, risk_level)}")
-    print(f"  Report: {report_path}")
+    for p in written:
+        print(f"  Report: {p}")
     print(bold_divider(_BAR_WIDTH))
 
     if args.benchmark:

@@ -10,6 +10,9 @@
 #   python run_scan.py https://example.com --baseline-store /var/webhound/baselines
 #   python run_scan.py https://example.com --format sarif --format markdown
 #   python run_scan.py https://example.com --format all --benchmark
+#   python run_scan.py https://example.com --header "X-Custom: value" \
+#       --cookie "session=abc" --bearer-token-env WEBHOUND_TOKEN
+#   python run_scan.py https://example.com --session-file session.json
 
 from __future__ import annotations
 
@@ -24,6 +27,7 @@ from urllib.parse import urlparse
 from webhound.core.orchestrator import Scanner
 from webhound.core.performance import ScanTelemetry
 from webhound.core.scan_profiles import PROFILE_NAMES, get_profile
+from webhound.core.session_context import SessionContext, parse_cookie, parse_header
 from webhound.models.target import Target
 from webhound.reporting.cli_formatter import (
     bold_divider,
@@ -122,6 +126,48 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print a detailed performance table after the scan summary.",
     )
+
+    # ------------------------------------------------------------------
+    # Session / authentication flags (passive GET/HEAD only — no login forms)
+    # ------------------------------------------------------------------
+    parser.add_argument(
+        "--header",
+        action="append",
+        dest="headers",
+        metavar="NAME: VALUE",
+        help=(
+            "Add a custom request header (format: 'Name: value'). Repeatable. "
+            "Example: --header 'X-Custom: abc'."
+        ),
+    )
+    parser.add_argument(
+        "--cookie",
+        action="append",
+        dest="cookies",
+        metavar="NAME=VALUE",
+        help=(
+            "Add a custom cookie (format: 'name=value'). Repeatable. "
+            "Example: --cookie 'session=abc123'."
+        ),
+    )
+    parser.add_argument(
+        "--bearer-token-env",
+        metavar="ENV_VAR",
+        default=None,
+        help=(
+            "Load a bearer token from the named environment variable. "
+            "The token is never read from the command line directly."
+        ),
+    )
+    parser.add_argument(
+        "--session-file",
+        metavar="PATH",
+        default=None,
+        help=(
+            "Load session headers and cookies from a JSON file. "
+            "No passwords or tokens are read from session files."
+        ),
+    )
     return parser
 
 
@@ -200,6 +246,69 @@ def _print_startup_banner(url: str, profile_name: str, profile_desc: str) -> Non
 
 
 # ---------------------------------------------------------------------------
+# Session helpers
+# ---------------------------------------------------------------------------
+
+
+def _build_session_context(args: argparse.Namespace) -> SessionContext | None:
+    """Assemble a SessionContext from CLI flags, or return None when unused."""
+    contexts: list[SessionContext] = []
+
+    if args.session_file:
+        try:
+            contexts.append(SessionContext.from_file(args.session_file))
+        except (ValueError, OSError) as exc:
+            print(f"  [session] ERROR loading session file: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+    headers: dict[str, str] = {}
+    for raw in (args.headers or []):
+        try:
+            name, value = parse_header(raw)
+            headers[name] = value
+        except ValueError as exc:
+            print(f"  [session] ERROR in --header: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+    cookies: dict[str, str] = {}
+    for raw in (args.cookies or []):
+        try:
+            name, value = parse_cookie(raw)
+            cookies[name] = value
+        except ValueError as exc:
+            print(f"  [session] ERROR in --cookie: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+    if headers or cookies:
+        contexts.append(SessionContext(headers=headers, cookies=cookies))
+
+    if args.bearer_token_env:
+        try:
+            contexts.append(SessionContext.from_env(args.bearer_token_env))
+        except ValueError as exc:
+            print(f"  [session] ERROR loading bearer token: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+    if not contexts:
+        return None
+    ctx = SessionContext.merge(*contexts)
+    return ctx if not ctx.is_empty else None
+
+
+def _print_session_warning(ctx: SessionContext) -> None:
+    """Warn the user that authenticated scanning is active."""
+    bar = bold_divider(_BAR_WIDTH)
+    print(bar)
+    print("  *** AUTHENTICATED SCAN — session context active ***")
+    print(f"  Custom headers : {ctx.header_count}")
+    print(f"  Custom cookies : {ctx.cookie_count}")
+    print(f"  Bearer token   : {'<set>' if ctx._bearer_token else 'no'}")  # noqa: SLF001
+    print("  Secrets are NEVER included in scan reports or logs.")
+    print(bar)
+    print()
+
+
+# ---------------------------------------------------------------------------
 # Main runner
 # ---------------------------------------------------------------------------
 
@@ -224,10 +333,14 @@ async def _run(args: argparse.Namespace) -> int:
                 f"  ({previous_baseline.page_count} pages)"
             )
 
+    session_ctx = _build_session_context(args)
+    if session_ctx is not None:
+        _print_session_warning(session_ctx)
+
     _print_startup_banner(args.url, profile.name, profile.description)
 
     target = Target.from_url(args.url, scan_options=options)
-    scanner = Scanner(target, previous_baseline=previous_baseline)
+    scanner = Scanner(target, previous_baseline=previous_baseline, session_context=session_ctx)
 
     result = await scanner.scan()
 

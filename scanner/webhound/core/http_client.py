@@ -31,6 +31,7 @@ from webhound.core.retry_policy import (
     parse_retry_after,
     should_retry,
 )
+from webhound.core.session_context import SessionContext
 from webhound.models.target import ScanOptions
 
 # WebHound identifies itself clearly so site owners can recognize and allow it.
@@ -134,10 +135,12 @@ class SafeHttpClient:
         *,
         transport: httpx.AsyncBaseTransport | None = None,
         retry_policy: RetryPolicy | None = None,
+        session_context: SessionContext | None = None,
     ) -> None:
         self._options: ScanOptions = options or ScanOptions()
         self._transport = transport
         self._retry_policy: RetryPolicy = retry_policy or DEFAULT_RETRY_POLICY
+        self._session_context: SessionContext | None = session_context
         self._client: httpx.AsyncClient | None = None
         self._min_delay: float = 1.0 / self._options.rate_limit_rps
         self._last_request_time: float = 0.0
@@ -156,12 +159,19 @@ class SafeHttpClient:
 
     async def _ensure_client(self) -> None:
         if self._client is None:
+            base_headers: dict[str, str] = {
+                "User-Agent": self._options.user_agent,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5",
+            }
+            base_cookies: dict[str, str] = {}
+            if self._session_context is not None:
+                # Session headers override defaults; session cookies are merged in.
+                base_headers.update(self._session_context.merged_headers())
+                base_cookies.update(self._session_context.merged_cookies())
             kwargs: dict[str, Any] = {
-                "headers": {
-                    "User-Agent": self._options.user_agent,
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                    "Accept-Language": "en-US,en;q=0.5",
-                },
+                "headers": base_headers,
+                "cookies": base_cookies or None,
                 "timeout": httpx.Timeout(
                     connect=10.0,
                     read=float(self._options.request_timeout_seconds),

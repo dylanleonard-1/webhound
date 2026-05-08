@@ -25,6 +25,7 @@ from .retry_policy import (
 from .scan_context import QueueItem, ScanContext
 from .scan_profiles import PROFILE_NAMES, PROFILES, ScanProfile, get_profile
 from .scope import ScopeChecker, UrlNormalizer
+from .session_context import SessionContext, parse_cookie, parse_header
 
 __all__ = [
     # http_client
@@ -68,4 +69,8 @@ __all__ = [
     "PROFILES",
     "PROFILE_NAMES",
     "get_profile",
+    # session_context
+    "SessionContext",
+    "parse_header",
+    "parse_cookie",
 ]

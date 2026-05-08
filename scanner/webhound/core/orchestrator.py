@@ -31,7 +31,9 @@ from webhound.engines.cookies.cookie_scanner import CookieScannerEngine
 from webhound.engines.forms.form_risk import FormRiskEngine
 from webhound.engines.forms.input_analysis import InputAnalysisEngine
 from webhound.engines.headers.cors import CorsEngine
+from webhound.engines.headers.csp_engine import CspEngine
 from webhound.engines.headers.security_headers import SecurityHeadersEngine
+from webhound.engines.secrets.secret_scanner import SecretScannerEngine
 from webhound.engines.javascript.js_analyzer import JsAnalyzerEngine
 from webhound.engines.javascript.js_collector import JsCollectorEngine
 from webhound.engines.javascript.obfuscation_detector import ObfuscationDetectorEngine
@@ -44,6 +46,7 @@ from webhound.engines.tls_dns import tls_checker as _tls_module
 from webhound.engines.tls_dns.dns_checker import DnsCheckerEngine
 from webhound.engines.tls_dns.tls_checker import TlsCheckerEngine
 from webhound.core.fp_filter import FPFilter
+from webhound.core.session_context import SessionContext
 from webhound.models.finding import Finding
 from webhound.models.grouped_finding import GroupedFinding
 from webhound.models.scan_result import ScanResult, SeverityBreakdown
@@ -236,6 +239,7 @@ class Scanner:
         options: ScanOptions | None = None,
         _transport: httpx.AsyncBaseTransport | None = None,
         previous_baseline: SiteBaseline | None = None,
+        session_context: SessionContext | None = None,
     ) -> None:
         if isinstance(target, str):
             target = Target.from_url(target, scan_options=options or ScanOptions())
@@ -244,11 +248,14 @@ class Scanner:
         self._target = target
         self._transport = _transport
         self._previous_baseline: SiteBaseline | None = previous_baseline
+        self._session_context: SessionContext | None = session_context
         self._current_baseline: SiteBaseline | None = None
 
         # Engines instantiated once; all are stateless.
         self._security_headers = SecurityHeadersEngine()
         self._cors = CorsEngine()
+        self._csp = CspEngine()
+        self._secret_scanner = SecretScannerEngine()
         self._cookies = CookieScannerEngine()
         self._tls = TlsCheckerEngine()
         self._dns = DnsCheckerEngine()
@@ -279,7 +286,11 @@ class Scanner:
         _crawl_duration_seconds: float = 0.0
 
         try:
-            async with SafeHttpClient(self._target.scan_options, transport=self._transport) as client:
+            async with SafeHttpClient(
+                self._target.scan_options,
+                transport=self._transport,
+                session_context=self._session_context,
+            ) as client:
                 # 1. Target-level engines that use the HTTP client
                 await self._run_target_engines(ctx, client)
 
@@ -375,6 +386,7 @@ class Scanner:
         _add_findings(ctx, await _safe(ctx, self._security_headers.NAME, self._security_headers.analyze, response))
         _add_findings(ctx, await _safe(ctx, self._cors.NAME, self._cors.analyze, response))
         _add_findings(ctx, await _safe(ctx, self._cookies.NAME, self._cookies.analyze, response))
+        _add_findings(ctx, await _safe(ctx, self._csp.NAME, self._csp.analyze, response))
 
         if artifacts is None:
             return
@@ -421,6 +433,7 @@ class Scanner:
         _add_findings(ctx, await _safe(ctx, self._suspicious_redirects.NAME, self._suspicious_redirects.analyze, artifacts))
         _add_findings(ctx, await _safe(ctx, self._form_risk.NAME, self._form_risk.analyze, artifacts))
         _add_findings(ctx, await _safe(ctx, self._input_analysis.NAME, self._input_analysis.analyze, artifacts))
+        _add_findings(ctx, await _safe(ctx, self._secret_scanner.NAME, self._secret_scanner.analyze, artifacts, html_body=html_body))
 
     # ------------------------------------------------------------------
     # WADE — Website Anomaly Detection Engine

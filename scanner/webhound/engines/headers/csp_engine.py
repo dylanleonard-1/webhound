@@ -1,0 +1,378 @@
+# WebHound — scanner/webhound/engines/headers/csp_engine.py
+# Deep structural analysis of Content-Security-Policy headers.
+#
+# Complements the basic CSP presence / unsafe-directive checks already
+# performed by SecurityHeadersEngine.  This engine parses the full directive
+# set and flags higher-order policy weaknesses:
+#
+#   • Missing object-src 'none'   — allows plugin/embed injection
+#   • Missing or permissive base-uri — enables base-tag hijacking
+#   • Missing form-action          — allows cross-origin form exfiltration
+#   • data: / blob: in script-src  — permits JS execution via data URIs
+#   • http: in script-src          — script loading over plaintext HTTP
+#   • frame-ancestors not set      — incomplete clickjacking protection
+#   • Enforce-only header absent (report-only mode only)
+#
+# Safe-mode: reads response headers only.  No requests are made.
+
+from __future__ import annotations
+
+import re
+from typing import Any
+
+from webhound.core.http_client import HttpResponse
+from webhound.models.evidence import Evidence, EvidenceType
+from webhound.models.finding import Finding, FindingCategory, FrameworkAlignment
+from webhound.models.severity import Severity
+
+_ENGINE = "csp_engine"
+
+# Source-list values that permit unsafe code execution paths.
+_DATA_URI_RE = re.compile(r"\bdata:", re.I)
+_BLOB_URI_RE = re.compile(r"\bblob:", re.I)
+_HTTP_SRC_RE = re.compile(r"(?<![s])\bhttp:", re.I)  # 'http:' but not 'https:'
+
+
+def _parse_csp(header: str) -> dict[str, list[str]]:
+    """Parse a CSP header string into {directive_name: [source_values]}.
+
+    Directive names are lower-cased; source values retain their original case.
+    """
+    directives: dict[str, list[str]] = {}
+    for part in header.split(";"):
+        part = part.strip()
+        if not part:
+            continue
+        tokens = part.split()
+        name = tokens[0].lower()
+        directives[name] = tokens[1:]
+    return directives
+
+
+def _src_value_contains(sources: list[str], pattern: re.Pattern[str]) -> bool:
+    return any(pattern.search(s) for s in sources)
+
+
+class CspEngine:
+    """Deep structural analysis of Content-Security-Policy headers.
+
+    Operates on the *enforcement* CSP only (``Content-Security-Policy``).
+    If only a report-only policy is present it emits an informational finding.
+
+    Usage::
+
+        findings = CspEngine().analyze(response)
+    """
+
+    NAME = _ENGINE
+
+    def analyze(self, response: HttpResponse) -> list[Finding]:
+        h = response.headers
+        url = response.url
+        findings: list[Finding] = []
+
+        csp_enforce = h.get("content-security-policy", "").strip()
+        csp_report_only = h.get("content-security-policy-report-only", "").strip()
+
+        # If there is no CSP at all the SecurityHeadersEngine already flags it.
+        if not csp_enforce and not csp_report_only:
+            return []
+
+        # If only report-only is present, flag the missing enforcement header.
+        if not csp_enforce and csp_report_only:
+            findings.append(_finding(
+                title="CSP enforcement header missing (report-only only)",
+                description=(
+                    "A Content-Security-Policy-Report-Only header is present but "
+                    "there is no enforced Content-Security-Policy header. "
+                    "Report-Only mode collects violation data but does not block "
+                    "any malicious content — it provides no active XSS protection."
+                ),
+                severity=Severity.MEDIUM,
+                url=url,
+                evidence_content=f"Content-Security-Policy-Report-Only: {csp_report_only[:200]}",
+                remediation=(
+                    "Graduate the policy to enforcement mode: use "
+                    "Content-Security-Policy instead of (or alongside) "
+                    "Content-Security-Policy-Report-Only."
+                ),
+                framework=FrameworkAlignment(owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]),
+            ))
+            return findings
+
+        # Work with the enforcement policy from here.
+        csp = csp_enforce
+        ev = Evidence(
+            evidence_type=EvidenceType.HEADER,
+            content=f"Content-Security-Policy: {csp[:300]}",
+            location=url,
+            source_engine=_ENGINE,
+        )
+        directives = _parse_csp(csp)
+
+        findings.extend(self._check_object_src(directives, url, ev))
+        findings.extend(self._check_base_uri(directives, url, ev))
+        findings.extend(self._check_form_action(directives, url, ev))
+        findings.extend(self._check_script_src_data(directives, url, ev))
+        findings.extend(self._check_script_src_http(directives, url, ev))
+        findings.extend(self._check_frame_ancestors(directives, url, ev))
+
+        return findings
+
+    # ------------------------------------------------------------------
+    # Directive checks
+    # ------------------------------------------------------------------
+
+    def _check_object_src(
+        self, d: dict[str, list[str]], url: str, ev: Evidence
+    ) -> list[Finding]:
+        """object-src 'none' prevents plugin/embed/applet injection."""
+        obj = d.get("object-src", d.get("default-src", []))
+        if obj and "'none'" in [s.lower() for s in obj]:
+            return []
+        return [_finding(
+            title="CSP missing restrictive object-src directive",
+            description=(
+                "The Content-Security-Policy does not restrict object-src to "
+                "'none'. Without this, <object>, <embed>, and <applet> tags can "
+                "load plugins (Flash, Java) which execute arbitrary code and "
+                "bypass all other CSP directives."
+            ),
+            severity=Severity.HIGH,
+            url=url,
+            evidence=ev,
+            remediation="Add: object-src 'none' to your Content-Security-Policy.",
+            framework=FrameworkAlignment(
+                owasp_top10=["A05:2021"],
+                cwe_ids=["CWE-693"],
+            ),
+        )]
+
+    def _check_base_uri(
+        self, d: dict[str, list[str]], url: str, ev: Evidence
+    ) -> list[Finding]:
+        """base-uri restricts the <base href> tag — prevents base-tag hijacking."""
+        if "base-uri" in d:
+            sources = [s.lower() for s in d["base-uri"]]
+            if "*" not in sources:
+                return []
+            return [_finding(
+                title="CSP base-uri allows wildcard",
+                description=(
+                    "The CSP base-uri directive permits all origins (*). "
+                    "A <base href> tag can redirect all relative URLs to an "
+                    "attacker-controlled origin."
+                ),
+                severity=Severity.MEDIUM,
+                url=url,
+                evidence=ev,
+                remediation="Change base-uri to 'self' or 'none'.",
+                framework=FrameworkAlignment(
+                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
+                ),
+            )]
+        return [_finding(
+            title="CSP missing base-uri directive",
+            description=(
+                "The Content-Security-Policy has no base-uri directive. "
+                "Without it, an injected <base href='https://evil.example/'> tag "
+                "can redirect all relative URLs to an attacker-controlled origin, "
+                "enabling credential harvesting."
+            ),
+            severity=Severity.MEDIUM,
+            url=url,
+            evidence=ev,
+            remediation="Add: base-uri 'self' to your Content-Security-Policy.",
+            framework=FrameworkAlignment(
+                owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
+            ),
+        )]
+
+    def _check_form_action(
+        self, d: dict[str, list[str]], url: str, ev: Evidence
+    ) -> list[Finding]:
+        """form-action limits where forms may be submitted."""
+        if "form-action" in d:
+            sources = [s.lower() for s in d["form-action"]]
+            if "*" not in sources:
+                return []
+            return [_finding(
+                title="CSP form-action allows wildcard",
+                description=(
+                    "The CSP form-action directive allows submission to any origin (*). "
+                    "An attacker with XSS or HTML injection can redirect form submissions "
+                    "to an exfiltration endpoint."
+                ),
+                severity=Severity.MEDIUM,
+                url=url,
+                evidence=ev,
+                remediation="Change form-action to 'self' or an explicit allow-list.",
+                framework=FrameworkAlignment(
+                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
+                ),
+            )]
+        return [_finding(
+            title="CSP missing form-action directive",
+            description=(
+                "The Content-Security-Policy has no form-action directive. "
+                "Without it, form submissions are not restricted by CSP, "
+                "allowing injected forms to exfiltrate data to any origin."
+            ),
+            severity=Severity.MEDIUM,
+            url=url,
+            evidence=ev,
+            remediation="Add: form-action 'self' to your Content-Security-Policy.",
+            framework=FrameworkAlignment(
+                owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
+            ),
+        )]
+
+    def _check_script_src_data(
+        self, d: dict[str, list[str]], url: str, ev: Evidence
+    ) -> list[Finding]:
+        """data: / blob: in script-src permits JS execution via data URIs."""
+        script_sources = d.get("script-src", d.get("default-src", []))
+        findings: list[Finding] = []
+
+        if _src_value_contains(script_sources, _DATA_URI_RE):
+            findings.append(_finding(
+                title="CSP script-src allows data: URIs",
+                description=(
+                    "The CSP script-src (or default-src) directive includes 'data:'. "
+                    "This allows JavaScript to be executed via "
+                    "<script src='data:text/javascript,...'>, completely bypassing "
+                    "the intent of the CSP script restriction."
+                ),
+                severity=Severity.HIGH,
+                url=url,
+                evidence=ev,
+                remediation="Remove 'data:' from script-src. Use nonces or hashes instead.",
+                framework=FrameworkAlignment(
+                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
+                ),
+            ))
+
+        if _src_value_contains(script_sources, _BLOB_URI_RE):
+            findings.append(_finding(
+                title="CSP script-src allows blob: URIs",
+                description=(
+                    "The CSP script-src directive includes 'blob:'. "
+                    "Blob URLs can wrap arbitrary JavaScript, allowing script "
+                    "execution that bypasses URL-based CSP checks."
+                ),
+                severity=Severity.HIGH,
+                url=url,
+                evidence=ev,
+                remediation="Remove 'blob:' from script-src.",
+                framework=FrameworkAlignment(
+                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
+                ),
+            ))
+
+        return findings
+
+    def _check_script_src_http(
+        self, d: dict[str, list[str]], url: str, ev: Evidence
+    ) -> list[Finding]:
+        """Explicit http: source in script-src loads scripts over plaintext."""
+        script_sources = d.get("script-src", d.get("default-src", []))
+        if not _src_value_contains(script_sources, _HTTP_SRC_RE):
+            return []
+        return [_finding(
+            title="CSP script-src includes http: scheme",
+            description=(
+                "The CSP script-src directive explicitly allows scripts loaded "
+                "via unencrypted HTTP (http:). Scripts loaded over HTTP can be "
+                "intercepted and modified by a network attacker."
+            ),
+            severity=Severity.HIGH,
+            url=url,
+            evidence=ev,
+            remediation=(
+                "Remove 'http:' from script-src. Use 'https:' or explicit "
+                "HTTPS origins only."
+            ),
+            framework=FrameworkAlignment(
+                owasp_top10=["A02:2021", "A05:2021"], cwe_ids=["CWE-319", "CWE-693"]
+            ),
+        )]
+
+    def _check_frame_ancestors(
+        self, d: dict[str, list[str]], url: str, ev: Evidence
+    ) -> list[Finding]:
+        """frame-ancestors is the CSP replacement for X-Frame-Options."""
+        if "frame-ancestors" in d:
+            sources = [s.lower() for s in d["frame-ancestors"]]
+            if "*" in sources:
+                return [_finding(
+                    title="CSP frame-ancestors allows any origin",
+                    description=(
+                        "The CSP frame-ancestors directive permits all origins (*) "
+                        "to embed this page in a frame, making it vulnerable to "
+                        "clickjacking attacks."
+                    ),
+                    severity=Severity.MEDIUM,
+                    url=url,
+                    evidence=ev,
+                    remediation="Change frame-ancestors to 'self' or 'none'.",
+                    framework=FrameworkAlignment(
+                        owasp_top10=["A05:2021"], cwe_ids=["CWE-1021"]
+                    ),
+                )]
+            return []
+        return [_finding(
+            title="CSP missing frame-ancestors directive",
+            description=(
+                "The Content-Security-Policy does not include a frame-ancestors "
+                "directive. frame-ancestors is the modern replacement for "
+                "X-Frame-Options and controls which origins may embed this page. "
+                "Without it, clickjacking protection relies solely on the "
+                "X-Frame-Options header."
+            ),
+            severity=Severity.LOW,
+            url=url,
+            evidence=ev,
+            remediation=(
+                "Add: frame-ancestors 'self' (or 'none' if framing is not needed)."
+            ),
+            framework=FrameworkAlignment(
+                owasp_top10=["A05:2021"], cwe_ids=["CWE-1021"]
+            ),
+        )]
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _finding(
+    title: str,
+    description: str,
+    severity: Severity,
+    url: str,
+    remediation: str | None = None,
+    framework: FrameworkAlignment | None = None,
+    evidence: Evidence | None = None,
+    evidence_content: str | None = None,
+    confidence: float = 1.0,
+) -> Finding:
+    if evidence is None and evidence_content is not None:
+        evidence = Evidence(
+            evidence_type=EvidenceType.HEADER,
+            content=evidence_content,
+            location=url,
+            source_engine=_ENGINE,
+        )
+    return Finding(
+        title=title,
+        description=description,
+        severity=severity,
+        category=FindingCategory.SECURITY_HEADER,
+        evidence=[evidence] if evidence else [],
+        confidence=confidence,
+        remediation=remediation,
+        framework=framework or FrameworkAlignment(),
+        scanner_engine=_ENGINE,
+        metadata={"url": url},
+    )

@@ -13,7 +13,13 @@
       "Bash(git commit -m ' *)",
       "Bash(pip show *)",
       "Bash(wait)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(PYTHONPATH=. python -c \"from apps.api.config import Settings; print\\('config ok'\\)\")",
+      "Bash(PYTHONPATH=. python -c \"from apps.api.main import app; print\\('app ok'\\)\")",
+      "Bash(pip install *)",
+      "Bash(PYTHONPATH=. python *)",
+      "Bash(xargs cat -n)",
+      "Bash(pip list *)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -99,8 +99,7 @@ async def test_create_website_data_scheme_rejected(client):
 async def test_create_website_localhost_rejected(client):
     r = await _create(client, "http://localhost/admin")
     assert r.status_code == 422
-    # detail may be a list (Pydantic validation errors) or a string (HTTPException)
-    detail_str = str(r.json()["detail"]).lower()
+    detail_str = str(r.json()["error"]["details"]).lower()
     assert "localhost" in detail_str
 
 

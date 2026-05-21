@@ -28,7 +28,7 @@ class ReportRecord(Base, TimestampMixin):
         index=True,
     )
     format: Mapped[ReportFormat] = mapped_column(
-        SAEnum(ReportFormat, name="reportformat"), nullable=False
+        SAEnum(ReportFormat, name="reportformat", values_callable=lambda x: [e.value for e in x]), nullable=False
     )
     path: Mapped[str | None] = mapped_column(sa.String(2048))
     content_json: Mapped[dict | None] = mapped_column(sa.JSON)

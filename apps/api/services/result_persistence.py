@@ -73,6 +73,7 @@ async def persist_scan_result(
                 affected_urls=gf.affected_urls,
                 evidence_count=gf.evidence_count,
                 confidence=gf.confidence,
+                description=gf.description,
                 remediation=gf.remediation,
                 framework=gf.framework.model_dump(mode="json"),
                 finding_ids=gf.finding_ids,

@@ -5,6 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from apps.api.pagination import BaseListResponse
+
 from apps.api.models.enums import ScanProfile, ScanStatus
 
 
@@ -38,8 +40,5 @@ class ScanJobResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ScanJobListResponse(BaseModel):
+class ScanJobListResponse(BaseListResponse):
     items: list[ScanJobResponse]
-    total: int
-    limit: int
-    offset: int

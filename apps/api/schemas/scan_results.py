@@ -3,7 +3,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+from apps.api.pagination import BaseListResponse
 
 from apps.api.models.enums import ReportFormat
 
@@ -46,11 +48,8 @@ class ScanResultSummary(BaseModel):
     created_at: datetime
 
 
-class ScanResultListResponse(BaseModel):
+class ScanResultListResponse(BaseListResponse):
     items: list[ScanResultSummary]
-    total: int
-    limit: int
-    offset: int
 
 
 class ScanResultDetail(BaseModel):
@@ -81,6 +80,7 @@ class GroupedFindingResponse(BaseModel):
     affected_urls: list[str] | None = None
     evidence_count: int
     confidence: float | None = None
+    description: str | None = None
     remediation: str | None = None
     framework: dict | None = None
     finding_ids: list[str] | None = None
@@ -89,11 +89,13 @@ class GroupedFindingResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class GroupedFindingListResponse(BaseModel):
+class GroupedFindingDetailResponse(GroupedFindingResponse):
+    """Grouped finding with sample evidence from constituent raw findings."""
+    sample_evidence: list[dict] = Field(default_factory=list)
+
+
+class GroupedFindingListResponse(BaseListResponse):
     items: list[GroupedFindingResponse]
-    total: int
-    limit: int
-    offset: int
 
 
 class FindingResponse(BaseModel):
@@ -114,11 +116,8 @@ class FindingResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class FindingListResponse(BaseModel):
+class FindingListResponse(BaseListResponse):
     items: list[FindingResponse]
-    total: int
-    limit: int
-    offset: int
 
 
 class EngineDiagnosticResponse(BaseModel):

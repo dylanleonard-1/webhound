@@ -4,20 +4,30 @@ WORKDIR /app
 
 # System deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev gcc \
+    libpq-dev gcc curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Non-root user for production security
+RUN useradd --system --create-home --shell /bin/bash webhound
+
+# Install scanner deps first (larger layer, changes less)
+COPY scanner/requirements.txt /tmp/scanner-requirements.txt
+RUN pip install --no-cache-dir -r /tmp/scanner-requirements.txt
 
 # Install API deps
 COPY apps/api/requirements.txt /tmp/api-requirements.txt
 RUN pip install --no-cache-dir -r /tmp/api-requirements.txt
 
-# Install scanner as an editable package
+# Install scanner package
 COPY scanner /app/scanner
 RUN pip install --no-cache-dir -e /app/scanner
 
-# Copy application source
+# Copy app source
 COPY apps/api /app/apps/api
 COPY apps/__init__.py /app/apps/__init__.py
+COPY worker /app/worker
+
+RUN chown -R webhound:webhound /app
 
 ENV PYTHONPATH=/app
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -25,4 +35,7 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
-CMD ["uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+USER webhound
+
+# Migrate then serve. Use exec so uvicorn receives SIGTERM directly.
+CMD ["sh", "-c", "alembic -c apps/api/alembic.ini upgrade head && exec uvicorn apps.api.main:app --host 0.0.0.0 --port 8000 --log-level $(echo ${LOG_LEVEL:-info} | tr '[:upper:]' '[:lower:]')"]

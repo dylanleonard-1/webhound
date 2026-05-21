@@ -22,39 +22,106 @@ from webhound.models.finding import Finding, FindingCategory
 # ---------------------------------------------------------------------------
 
 _KNOWN_CDN_DOMAINS: frozenset[str] = frozenset({
+    # Google
     "googleapis.com",
     "googletagmanager.com",
     "google-analytics.com",
     "googlefonts.com",
     "fonts.gstatic.com",
+    "gstatic.com",
+    "google.com",
+    "googleadservices.com",
+    # Cloudflare
     "cloudflare.com",
     "cdnjs.cloudflare.com",
+    "cloudflare.net",
+    # General CDNs
     "jsdelivr.net",
     "unpkg.com",
     "fastly.net",
+    "fastly.com",
     "akamaihd.net",
     "akamai.net",
+    "akamaized.net",
+    "cloudfront.net",
     "bootstrapcdn.com",
     "stackpath.bootstrapcdn.com",
     "jquery.com",
     "code.jquery.com",
+    # Social / ads
     "facebook.net",
     "fbcdn.net",
     "twitter.com",
     "twimg.com",
+    "linkedin.com",
+    "licdn.com",
+    "pinterest.com",
+    # Analytics / marketing
     "hotjar.com",
     "segment.io",
     "segment.com",
+    "mixpanel.com",
+    "amplitude.com",
+    "heap.io",
+    "fullstory.com",
+    "logrocket.com",
+    "datadog-browser-agent.com",
+    "newrelic.com",
+    "nr-data.net",
+    # Support / chat
     "intercom.io",
     "intercomcdn.com",
+    "zendesk.com",
+    "zopim.com",
+    "freshworks.com",
+    "tawk.to",
+    "crisp.chat",
+    # E-commerce platforms
     "shopify.com",
     "cdn.shopify.com",
     "myshopify.com",
+    "shopifycdn.com",
+    "shopifysvc.com",
+    "bigcommerce.com",
+    "woocommerce.com",
+    "ecwid.com",
+    # Website builders / CMS
     "squarespace.com",
     "squarespace-cdn.com",
+    "sqspcdn.com",
+    "wix.com",
+    "wixstatic.com",
+    "wixsite.com",
+    "weebly.com",
+    "webflow.com",
+    "webflow.io",
+    "wordpress.com",
+    "wp.com",
+    # Hosting / deploy platforms
     "vercel.app",
     "vercel-cdn.com",
     "netlify.app",
+    "netlify.com",
+    "pages.dev",
+    "github.io",
+    "amazonaws.com",
+    # Payments (client-side SDKs)
+    "stripe.com",
+    "stripe.network",
+    "paypal.com",
+    "paypalobjects.com",
+    "braintree-api.com",
+    # Fonts / assets
+    "typekit.net",
+    "adobe.com",
+    "fonts.com",
+    # Email marketing
+    "mailchimp.com",
+    "chimpstatic.com",
+    "hubspot.com",
+    "hs-scripts.com",
+    "hsforms.com",
+    "klaviyo.com",
 })
 
 # ---------------------------------------------------------------------------
@@ -62,11 +129,25 @@ _KNOWN_CDN_DOMAINS: frozenset[str] = frozenset({
 # ---------------------------------------------------------------------------
 
 _SAFE_PATH_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(r"/_next/"),          # Next.js
-    re.compile(r"/__nuxt/"),         # Nuxt.js
-    re.compile(r"/gatsby-"),         # Gatsby
-    re.compile(r"/static/chunks/"),  # webpack code-split output
-    re.compile(r"\.shopify\.com"),   # Shopify sub-domain
+    re.compile(r"/_next/"),              # Next.js
+    re.compile(r"/__nuxt/"),             # Nuxt.js
+    re.compile(r"/gatsby-"),             # Gatsby
+    re.compile(r"/static/chunks/"),      # Webpack code-split output
+    re.compile(r"/static/js/"),          # CRA / Vite
+    re.compile(r"/wp-content/"),         # WordPress
+    re.compile(r"/wp-includes/"),        # WordPress core
+    re.compile(r"\.shopify\.com"),       # Shopify subdomain
+    re.compile(r"cdn\.shopify\.com"),    # Shopify CDN
+    re.compile(r"\.squarespace\.com"),   # Squarespace
+    re.compile(r"sqspcdn\.com"),         # Squarespace CDN
+    re.compile(r"\.wixstatic\.com"),     # Wix CDN
+    re.compile(r"\.webflow\.io"),        # Webflow preview
+    re.compile(r"\.netlify\.app"),       # Netlify preview
+    re.compile(r"\.pages\.dev"),         # Cloudflare Pages
+    re.compile(r"/assets/"),             # Common asset path
+    re.compile(r"/bundles/"),            # Rails / Django bundled assets
+    re.compile(r"/dist/"),               # Build output directory
+    re.compile(r"/build/static/"),       # CRA build output
 ]
 
 # ---------------------------------------------------------------------------

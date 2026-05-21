@@ -127,6 +127,40 @@ async def list_scan_results(
     return list(rows.all()), total
 
 
+async def get_grouped_finding_detail(
+    db: AsyncSession,
+    scan_result_id: uuid.UUID,
+    grouped_finding_id: uuid.UUID,
+    user_id: uuid.UUID | None = None,
+) -> tuple[GroupedFindingRecord, list[FindingRecord]] | None:
+    if await get_scan_result(db, scan_result_id, user_id=user_id) is None:
+        return None
+    gf = await db.scalar(
+        sa.select(GroupedFindingRecord).where(
+            GroupedFindingRecord.id == grouped_finding_id,
+            GroupedFindingRecord.scan_result_id == scan_result_id,
+        )
+    )
+    if gf is None:
+        return None
+
+    sample_findings: list[FindingRecord] = []
+    raw_ids = gf.finding_ids or []
+    if raw_ids:
+        try:
+            ids = [uuid.UUID(fid) for fid in raw_ids[:8]]
+            rows = await db.scalars(
+                sa.select(FindingRecord)
+                .where(FindingRecord.id.in_(ids))
+                .limit(8)
+            )
+            sample_findings = list(rows.all())
+        except (ValueError, AttributeError):
+            pass
+
+    return gf, sample_findings
+
+
 async def list_grouped_findings(
     db: AsyncSession,
     scan_result_id: uuid.UUID,

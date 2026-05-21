@@ -2,6 +2,8 @@
 from apps.api.models.baseline import BaselineRecord
 from apps.api.models.engine_diagnostic import EngineDiagnosticRecord
 from apps.api.models.enums import (
+    NotificationSeverity,
+    NotificationType,
     ReportFormat,
     ScheduleFrequency,
     ScanProfile,
@@ -11,6 +13,7 @@ from apps.api.models.enums import (
 )
 from apps.api.models.finding import FindingRecord
 from apps.api.models.grouped_finding import GroupedFindingRecord
+from apps.api.models.notification import Notification
 from apps.api.models.report import ReportRecord
 from apps.api.models.scan_job import ScanJob
 from apps.api.models.scan_result import ScanResultRecord
@@ -30,10 +33,13 @@ __all__ = [
     "BaselineRecord",
     "ReportRecord",
     "ScanSchedule",
+    "Notification",
     "VerificationStatus",
     "VerificationMethod",
     "ScanStatus",
     "ScanProfile",
     "ReportFormat",
     "ScheduleFrequency",
+    "NotificationType",
+    "NotificationSeverity",
 ]

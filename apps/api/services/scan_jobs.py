@@ -6,13 +6,18 @@ from datetime import datetime, timezone
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.models.enums import ScanStatus
+from apps.api.config import get_settings
+from apps.api.models.enums import ScanStatus, VerificationStatus
 from apps.api.models.scan_job import ScanJob
 from apps.api.models.website import Website
 from apps.api.schemas.scan_jobs import ScanJobCreate, ScanJobStatusUpdate
 
 
 class WebsiteNotFoundError(Exception):
+    pass
+
+
+class WebsiteNotVerifiedError(Exception):
     pass
 
 
@@ -43,9 +48,13 @@ _CANCELLABLE = frozenset({ScanStatus.QUEUED, ScanStatus.RUNNING})
 
 
 async def create_scan_job(
-    db: AsyncSession, data: ScanJobCreate, user_id: uuid.UUID | None = None
+    db: AsyncSession,
+    data: ScanJobCreate,
+    user_id: uuid.UUID | None = None,
+    *,
+    is_admin: bool = False,
 ) -> ScanJob:
-    if user_id is None:
+    if is_admin or user_id is None:
         website = await db.get(Website, data.website_id)
     else:
         website = await db.scalar(
@@ -55,6 +64,17 @@ async def create_scan_job(
         )
     if website is None:
         raise WebsiteNotFoundError(f"Website not found: {data.website_id}")
+
+    settings = get_settings()
+    if (
+        website.verification_status != VerificationStatus.VERIFIED
+        and not settings.dev_allow_unverified_scans
+        and not is_admin
+    ):
+        raise WebsiteNotVerifiedError(
+            "Website must be verified before scanning. "
+            "Complete domain verification or set DEV_ALLOW_UNVERIFIED_SCANS=true in development."
+        )
 
     job = ScanJob(
         website_id=data.website_id,

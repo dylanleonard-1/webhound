@@ -17,13 +17,16 @@ class WebsiteNotFoundError(Exception):
 
 
 async def create_schedule(
-    db: AsyncSession, data: ScanScheduleCreate, user_id: uuid.UUID
+    db: AsyncSession, data: ScanScheduleCreate, user_id: uuid.UUID, *, is_admin: bool = False
 ) -> ScanSchedule:
-    website = await db.scalar(
-        sa.select(Website).where(
-            Website.id == data.website_id, Website.user_id == user_id
+    if is_admin:
+        website = await db.get(Website, data.website_id)
+    else:
+        website = await db.scalar(
+            sa.select(Website).where(
+                Website.id == data.website_id, Website.user_id == user_id
+            )
         )
-    )
     if website is None:
         raise WebsiteNotFoundError(f"Website not found: {data.website_id}")
 
@@ -44,8 +47,10 @@ async def create_schedule(
 
 
 async def get_schedule(
-    db: AsyncSession, schedule_id: uuid.UUID, user_id: uuid.UUID
+    db: AsyncSession, schedule_id: uuid.UUID, user_id: uuid.UUID | None
 ) -> ScanSchedule | None:
+    if user_id is None:
+        return await db.get(ScanSchedule, schedule_id)
     return await db.scalar(
         sa.select(ScanSchedule).where(
             ScanSchedule.id == schedule_id, ScanSchedule.user_id == user_id
@@ -55,18 +60,18 @@ async def get_schedule(
 
 async def list_schedules(
     db: AsyncSession,
-    user_id: uuid.UUID,
+    user_id: uuid.UUID | None,
     *,
     website_id: uuid.UUID | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> tuple[list[ScanSchedule], int]:
-    base = sa.select(ScanSchedule).where(ScanSchedule.user_id == user_id)
-    count_base = (
-        sa.select(sa.func.count())
-        .select_from(ScanSchedule)
-        .where(ScanSchedule.user_id == user_id)
-    )
+    base = sa.select(ScanSchedule)
+    count_base = sa.select(sa.func.count()).select_from(ScanSchedule)
+
+    if user_id is not None:
+        base = base.where(ScanSchedule.user_id == user_id)
+        count_base = count_base.where(ScanSchedule.user_id == user_id)
 
     if website_id is not None:
         base = base.where(ScanSchedule.website_id == website_id)
@@ -83,7 +88,7 @@ async def update_schedule(
     db: AsyncSession,
     schedule_id: uuid.UUID,
     data: ScanSchedulePatch,
-    user_id: uuid.UUID,
+    user_id: uuid.UUID | None,
 ) -> ScanSchedule | None:
     schedule = await get_schedule(db, schedule_id, user_id)
     if schedule is None:
@@ -99,7 +104,7 @@ async def update_schedule(
 
 
 async def delete_schedule(
-    db: AsyncSession, schedule_id: uuid.UUID, user_id: uuid.UUID
+    db: AsyncSession, schedule_id: uuid.UUID, user_id: uuid.UUID | None
 ) -> bool:
     schedule = await get_schedule(db, schedule_id, user_id)
     if schedule is None:

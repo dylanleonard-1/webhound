@@ -20,6 +20,10 @@ if TYPE_CHECKING:
 
 class ScanResultRecord(Base, TimestampMixin):
     __tablename__ = "scan_results"
+    __table_args__ = (
+        sa.Index("ix_scan_results_risk_level", "risk_level"),
+        sa.Index("ix_scan_results_created_at", "created_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4

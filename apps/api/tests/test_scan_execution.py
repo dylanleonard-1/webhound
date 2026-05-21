@@ -73,6 +73,7 @@ def mock_scan_result():
     grouped.affected_urls = ["https://example.com/", "https://example.com/about"]
     grouped.evidence_count = 5
     grouped.confidence = 1.0
+    grouped.description = "Content-Security-Policy header is missing, allowing XSS and injection attacks."
     grouped.remediation = "Add Content-Security-Policy."
     grouped.framework = MagicMock()
     grouped.framework.model_dump.return_value = {}

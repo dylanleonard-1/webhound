@@ -16,6 +16,11 @@ if TYPE_CHECKING:
 
 class BaselineRecord(Base, TimestampMixin):
     __tablename__ = "baselines"
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "website_id", "baseline_version", name="uq_baselines_website_version"
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4

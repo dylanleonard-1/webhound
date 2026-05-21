@@ -13,8 +13,10 @@ from webhound.wade.diff_engine import DiffType
 
 NAME = "wade"
 
-# Severity escalation threshold: script anomalies on high-context pages
-_CRITICAL_THRESHOLD = 0.85
+# WADE findings are behavioural signals, not confirmed vulnerabilities.
+# We intentionally cap WADE severity at HIGH — CRITICAL is reserved for
+# security engine findings that confirm an exploitable condition.
+_CRITICAL_THRESHOLD = 1.1  # effectively unreachable
 
 # Confidence threshold below which we demote severity by one level
 _DOWNGRADE_THRESHOLD = 0.40

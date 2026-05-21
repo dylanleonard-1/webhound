@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.database import get_db
+from apps.api.pagination import page_meta
 from apps.api.models.user import User
 from apps.api.schemas.scan_schedules import (
     ScanScheduleCreate,
@@ -23,12 +24,18 @@ _DB = Annotated[AsyncSession, Depends(get_db)]
 _CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
+def _uid(user: User) -> uuid.UUID | None:
+    return None if user.is_admin else user.id
+
+
 @router.post("", response_model=ScanScheduleResponse, status_code=201)
 async def create_scan_schedule(
     data: ScanScheduleCreate, db: _DB, current_user: _CurrentUser
 ) -> ScanScheduleResponse:
     try:
-        schedule = await ss_service.create_schedule(db, data, user_id=current_user.id)
+        schedule = await ss_service.create_schedule(
+            db, data, user_id=current_user.id, is_admin=current_user.is_admin
+        )
     except ss_service.WebsiteNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     await db.commit()
@@ -44,13 +51,14 @@ async def list_scan_schedules(
     website_id: uuid.UUID | None = None,
 ) -> ScanScheduleListResponse:
     items, total = await ss_service.list_schedules(
-        db, current_user.id, website_id=website_id, limit=limit, offset=offset
+        db, _uid(current_user), website_id=website_id, limit=limit, offset=offset
     )
     return ScanScheduleListResponse(
         items=[ScanScheduleResponse.model_validate(s) for s in items],
         total=total,
         limit=limit,
         offset=offset,
+        **page_meta(total, limit, offset),
     )
 
 
@@ -58,7 +66,7 @@ async def list_scan_schedules(
 async def get_scan_schedule(
     schedule_id: uuid.UUID, db: _DB, current_user: _CurrentUser
 ) -> ScanScheduleResponse:
-    schedule = await ss_service.get_schedule(db, schedule_id, current_user.id)
+    schedule = await ss_service.get_schedule(db, schedule_id, _uid(current_user))
     if schedule is None:
         raise HTTPException(status_code=404, detail="Schedule not found")
     return ScanScheduleResponse.model_validate(schedule)
@@ -71,7 +79,7 @@ async def update_scan_schedule(
     db: _DB,
     current_user: _CurrentUser,
 ) -> ScanScheduleResponse:
-    schedule = await ss_service.update_schedule(db, schedule_id, data, current_user.id)
+    schedule = await ss_service.update_schedule(db, schedule_id, data, _uid(current_user))
     if schedule is None:
         raise HTTPException(status_code=404, detail="Schedule not found")
     await db.commit()
@@ -82,7 +90,7 @@ async def update_scan_schedule(
 async def delete_scan_schedule(
     schedule_id: uuid.UUID, db: _DB, current_user: _CurrentUser
 ) -> None:
-    deleted = await ss_service.delete_schedule(db, schedule_id, current_user.id)
+    deleted = await ss_service.delete_schedule(db, schedule_id, _uid(current_user))
     if not deleted:
         raise HTTPException(status_code=404, detail="Schedule not found")
     await db.commit()

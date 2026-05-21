@@ -5,6 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from apps.api.pagination import BaseListResponse
+
 from apps.api._url_utils import URLValidationError, normalize_url
 from apps.api.models.enums import VerificationStatus
 
@@ -43,8 +45,5 @@ class WebsiteResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class WebsiteListResponse(BaseModel):
+class WebsiteListResponse(BaseListResponse):
     items: list[WebsiteResponse]
-    total: int
-    limit: int
-    offset: int

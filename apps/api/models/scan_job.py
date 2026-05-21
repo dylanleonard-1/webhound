@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 class ScanJob(Base, UpdatedAtMixin):
     __tablename__ = "scan_jobs"
+    __table_args__ = (sa.Index("ix_scan_jobs_created_at", "created_at"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -30,13 +31,13 @@ class ScanJob(Base, UpdatedAtMixin):
         index=True,
     )
     status: Mapped[ScanStatus] = mapped_column(
-        SAEnum(ScanStatus, name="scanstatus"),
+        SAEnum(ScanStatus, name="scanstatus", values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=ScanStatus.QUEUED,
         index=True,
     )
     profile: Mapped[ScanProfile] = mapped_column(
-        SAEnum(ScanProfile, name="scanprofile"),
+        SAEnum(ScanProfile, name="scanprofile", values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=ScanProfile.STANDARD,
     )

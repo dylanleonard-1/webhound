@@ -150,6 +150,24 @@ _PATTERNS: list[_PatternDef] = [
 ]
 
 
+# Per-pattern base confidence — patterns that commonly appear in legitimate
+# platform-generated scripts get a lower starting confidence.
+_PATTERN_CONFIDENCE: dict[str, float] = {
+    "eval_call": 0.65,
+    "new_function": 0.70,
+    "document_write": 0.65,
+    "innerhtml_assign": 0.60,
+    "atob_call": 0.45,         # Very common in minified/platform code
+    "from_char_code": 0.55,
+    "unescape_call": 0.60,
+    "cookie_access": 0.60,
+    "local_storage": 0.40,     # Ubiquitous in SPAs, not itself a vulnerability
+    "session_storage": 0.40,
+    "location_redirect": 0.55,
+    "form_action_manip": 0.65,
+}
+
+
 class JsAnalyzerEngine:
     """Passive pattern analysis of inline JavaScript content.
 
@@ -185,13 +203,14 @@ class JsAnalyzerEngine:
                     source_engine=_ENGINE,
                     extra={"pattern": pat.name, "script_index": idx},
                 )
+                confidence = _PATTERN_CONFIDENCE.get(pat.name, 0.65)
                 findings.append(Finding(
                     title=pat.short_desc,
                     description=pat.description,
                     severity=pat.severity,
                     category=FindingCategory.JAVASCRIPT,
                     evidence=[ev],
-                    confidence=0.7,
+                    confidence=confidence,
                     remediation=pat.remediation,
                     framework=FrameworkAlignment(
                         owasp_top10=["A03:2021"],

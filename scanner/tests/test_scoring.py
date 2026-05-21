@@ -1,5 +1,9 @@
 # WebHound — scanner/tests/test_scoring.py
 # Tests for _compute_risk_score and risk-level label logic.
+#
+# Score direction: 0 = safe, 100 = critical.
+# Tier caps: critical +85, high +40, medium +30, low +10.
+# Thresholds: ≤19 safe | ≤39 low | ≤59 medium | ≤79 high | >79 critical.
 
 from __future__ import annotations
 
@@ -24,28 +28,28 @@ def _result_with_breakdown(
     medium: int = 0,
     low: int = 0,
     info: int = 0,
+    engine: str = "test",
 ) -> ScanResult:
     """Build a minimal ScanResult with the given severity counts in grouped_findings."""
     target = Target.from_url("https://example.com")
     result = ScanResult(target=target)
-    # Build grouped findings to represent each severity count
     for _ in range(critical):
-        result.grouped_findings.append(_grouped(Severity.CRITICAL))
+        result.grouped_findings.append(_grouped(Severity.CRITICAL, engine))
     for _ in range(high):
-        result.grouped_findings.append(_grouped(Severity.HIGH))
+        result.grouped_findings.append(_grouped(Severity.HIGH, engine))
     for _ in range(medium):
-        result.grouped_findings.append(_grouped(Severity.MEDIUM))
+        result.grouped_findings.append(_grouped(Severity.MEDIUM, engine))
     for _ in range(low):
-        result.grouped_findings.append(_grouped(Severity.LOW))
+        result.grouped_findings.append(_grouped(Severity.LOW, engine))
     for _ in range(info):
-        result.grouped_findings.append(_grouped(Severity.INFO))
+        result.grouped_findings.append(_grouped(Severity.INFO, engine))
     return result
 
 
 _GF_COUNTER = 0
 
 
-def _grouped(severity: Severity) -> GroupedFinding:
+def _grouped(severity: Severity, engine: str = "test") -> GroupedFinding:
     global _GF_COUNTER
     _GF_COUNTER += 1
     return GroupedFinding(
@@ -53,7 +57,7 @@ def _grouped(severity: Severity) -> GroupedFinding:
         description="Test finding",
         severity=severity,
         category=FindingCategory.SECURITY_HEADER,
-        scanner_engine="test",
+        scanner_engine=engine,
         affected_urls=["https://example.com/"],
         affected_url_count=1,
         evidence_count=1,
@@ -63,87 +67,80 @@ def _grouped(severity: Severity) -> GroupedFinding:
 
 
 # ---------------------------------------------------------------------------
-# Score arithmetic
+# Score arithmetic (0 = safe, 100 = critical)
 # ---------------------------------------------------------------------------
 
 
 class TestScoreArithmetic:
-    def test_no_findings_scores_100(self):
-        score, _ = _compute_risk_score(_result_with_breakdown())
-        assert score == 100
+    def test_no_findings_scores_0(self):
+        risk, _ = _compute_risk_score(_result_with_breakdown())
+        assert risk == 0
 
-    def test_one_critical_deducts_30_then_caps_at_59(self):
-        # 100 - 30 = 70, but the critical cap clamps the result to ≤ 59
-        score, _ = _compute_risk_score(_result_with_breakdown(critical=1))
-        assert score == 59
+    def test_one_critical_adds_30(self):
+        risk, _ = _compute_risk_score(_result_with_breakdown(critical=1))
+        assert risk == 30
 
-    def test_two_criticals_deducts_60(self):
-        score, _ = _compute_risk_score(_result_with_breakdown(critical=2))
-        assert score == 40
+    def test_two_criticals_adds_60(self):
+        risk, _ = _compute_risk_score(_result_with_breakdown(critical=2))
+        assert risk == 60
 
-    def test_critical_cap_at_70_deduction(self):
-        # 3 × 30 = 90, capped at 70 → score = 30
-        score, _ = _compute_risk_score(_result_with_breakdown(critical=3))
-        assert score == 30
+    def test_three_criticals_adds_85_capped(self):
+        # 3 × 30 = 90, capped at 85
+        risk, _ = _compute_risk_score(_result_with_breakdown(critical=3))
+        assert risk == 85
 
-    def test_one_high_deducts_15(self):
-        score, _ = _compute_risk_score(_result_with_breakdown(high=1))
-        assert score == 85
+    def test_critical_cap_at_85(self):
+        # Many criticals: always capped at 85
+        risk, _ = _compute_risk_score(_result_with_breakdown(critical=10))
+        assert risk == 85
 
-    def test_high_cap_at_40_deduction(self):
-        # 3 × 15 = 45, capped at 40 → score = 60
-        score, _ = _compute_risk_score(_result_with_breakdown(high=3))
-        assert score == 60
+    def test_one_high_adds_15(self):
+        risk, _ = _compute_risk_score(_result_with_breakdown(high=1))
+        assert risk == 15
 
-    def test_one_medium_deducts_7(self):
-        score, _ = _compute_risk_score(_result_with_breakdown(medium=1))
-        assert score == 93
+    def test_high_cap_at_40(self):
+        # 3 × 15 = 45, capped at 40
+        risk, _ = _compute_risk_score(_result_with_breakdown(high=3))
+        assert risk == 40
 
-    def test_medium_cap_at_30_deduction(self):
-        # 5 × 7 = 35, capped at 30 → score = 70
-        score, _ = _compute_risk_score(_result_with_breakdown(medium=5))
-        assert score == 70
+    def test_one_medium_adds_7(self):
+        risk, _ = _compute_risk_score(_result_with_breakdown(medium=1))
+        assert risk == 7
 
-    def test_one_low_deducts_2(self):
-        score, _ = _compute_risk_score(_result_with_breakdown(low=1))
-        assert score == 98
+    def test_medium_cap_at_30(self):
+        # 5 × 7 = 35, capped at 30
+        risk, _ = _compute_risk_score(_result_with_breakdown(medium=5))
+        assert risk == 30
 
-    def test_low_cap_at_10_deduction(self):
-        # 6 × 2 = 12, capped at 10 → score = 90
-        score, _ = _compute_risk_score(_result_with_breakdown(low=6))
-        assert score == 90
+    def test_one_low_adds_2(self):
+        risk, _ = _compute_risk_score(_result_with_breakdown(low=1))
+        assert risk == 2
 
-    def test_info_deducts_nothing(self):
-        score, _ = _compute_risk_score(_result_with_breakdown(info=10))
-        assert score == 100
+    def test_low_cap_at_10(self):
+        # 6 × 2 = 12, capped at 10
+        risk, _ = _compute_risk_score(_result_with_breakdown(low=6))
+        assert risk == 10
 
-    def test_score_never_goes_below_zero(self):
-        # Pile on everything
-        score, _ = _compute_risk_score(
+    def test_info_adds_nothing(self):
+        risk, _ = _compute_risk_score(_result_with_breakdown(info=10))
+        assert risk == 0
+
+    def test_score_never_exceeds_100(self):
+        risk, _ = _compute_risk_score(
             _result_with_breakdown(critical=10, high=10, medium=10, low=10)
         )
-        assert score >= 0
+        assert risk <= 100
 
-    def test_score_capped_at_100(self):
-        score, _ = _compute_risk_score(_result_with_breakdown())
-        assert score <= 100
+    def test_score_never_below_zero(self):
+        risk, _ = _compute_risk_score(_result_with_breakdown())
+        assert risk >= 0
 
-
-# ---------------------------------------------------------------------------
-# Critical finding caps score at 59
-# ---------------------------------------------------------------------------
-
-
-class TestCriticalCap:
-    def test_one_critical_caps_at_59(self):
-        # 100 - 30 = 70, but critical cap reduces to min(70, 59) = 59
-        score, _ = _compute_risk_score(_result_with_breakdown(critical=1))
-        assert score <= 59
-
-    def test_no_critical_not_capped(self):
-        # Without criticals, a good score can exceed 59
-        score, _ = _compute_risk_score(_result_with_breakdown(high=1))
-        assert score > 59
+    def test_combined_tiers_sum_correctly(self):
+        # 1 critical (30) + 1 high (15) + 1 medium (7) + 1 low (2) = 54
+        risk, _ = _compute_risk_score(
+            _result_with_breakdown(critical=1, high=1, medium=1, low=1)
+        )
+        assert risk == 54
 
 
 # ---------------------------------------------------------------------------
@@ -152,83 +149,147 @@ class TestCriticalCap:
 
 
 class TestRiskLevelLabels:
-    def test_no_findings_is_low_risk(self):
+    def test_no_findings_is_safe(self):
         _, level = _compute_risk_score(_result_with_breakdown())
+        assert level == "safe"
+
+    def test_info_only_is_safe(self):
+        _, level = _compute_risk_score(_result_with_breakdown(info=20))
+        assert level == "safe"
+
+    def test_one_medium_is_safe(self):
+        # risk = 7 → safe (≤ 19)
+        _, level = _compute_risk_score(_result_with_breakdown(medium=1))
+        assert level == "safe"
+
+    def test_three_medium_is_low(self):
+        # risk = 21 → low (20–39)
+        _, level = _compute_risk_score(_result_with_breakdown(medium=3))
         assert level == "low"
 
-    def test_score_75_is_low(self):
-        # 2 medium = 14 deducted → 86 → "low"
-        _, level = _compute_risk_score(_result_with_breakdown(medium=2))
-        assert level == "low"
-
-    def test_medium_findings_produce_medium_risk(self):
-        # 5 medium = 30 deducted → 70 → "low" (guard prevents medium from producing high)
-        # 3 medium = 21 deducted → 79 → "low"
-        # Need enough medium to get below 75: 4 × 7 = 28 → 72 → "low"
-        # Actually: 5 medium = 30 → 70 → "low" still (≥75 is "low", ≥50 is "medium")
-        # To get "medium" we need score in [50, 74]: e.g. high=2 → 70 "low"; high=3 → 55 "medium"
+    def test_three_high_is_medium(self):
+        # risk = 40 → medium (40–59)
         _, level = _compute_risk_score(_result_with_breakdown(high=3))
         assert level == "medium"
 
-    def test_critical_finding_forces_high_or_above(self):
+    def test_three_high_three_medium_is_high(self):
+        # risk = 40 + 21 = 61 → high (60–79)
+        _, level = _compute_risk_score(_result_with_breakdown(high=3, medium=3))
+        assert level == "high"
+
+    def test_three_critical_three_high_is_critical(self):
+        # risk = 85 + 40 = 125 → 100 (clamped) → critical (> 79)
+        _, level = _compute_risk_score(_result_with_breakdown(critical=3, high=3))
+        assert level == "critical"
+
+    def test_one_critical_forces_high_label_via_upward_guard(self):
+        # risk = 30 → "low" by threshold, but upward guard forces "high"
         _, level = _compute_risk_score(_result_with_breakdown(critical=1))
-        assert level in ("high", "critical")
+        assert level == "high"
 
-    def test_many_mediums_without_high_cannot_produce_high_label(self):
-        # Downward guard: "high" requires at least one HIGH or CRITICAL finding
-        score, level = _compute_risk_score(_result_with_breakdown(medium=10))
-        # Score = 100 - 30 = 70 → "low" by score threshold
-        # Even if it were in "high" range, the guard would push it to "medium"
-        assert level in ("low", "medium")
-
-    def test_many_lows_without_high_cannot_produce_high_label(self):
-        _, level = _compute_risk_score(_result_with_breakdown(low=20))
-        assert level in ("low", "medium")
+    def test_one_high_forces_low_label_via_upward_guard(self):
+        # risk = 15 → "safe" by threshold, but upward guard forces "low"
+        _, level = _compute_risk_score(_result_with_breakdown(high=1))
+        assert level == "low"
 
     def test_critical_label_requires_critical_finding(self):
-        # Score < 25 without any CRITICAL finding → downward guard kicks in
-        # Many highs: 100 - 40 = 60 (capped) → still "medium" or "high"
-        # To get score < 25 without CRITICAL: 40 + 30 + 10 = 80 → 20
-        score, level = _compute_risk_score(
+        # Even with max high + medium + low (40+30+10=80 > 79), no critical → downward guard
+        risk, level = _compute_risk_score(
             _result_with_breakdown(high=3, medium=5, low=6)
         )
-        # If score < 25 but no critical finding, guard changes "critical" → "high"
-        if score < 25:
-            assert level != "critical"
+        assert level != "critical"
 
-    def test_critical_finding_label_when_score_very_low(self):
-        # Multiple criticals + everything else
-        _, level = _compute_risk_score(
-            _result_with_breakdown(critical=3, high=3, medium=5)
-        )
-        assert level in ("critical", "high")
+    def test_high_label_requires_high_or_critical(self):
+        # medium+low only: max = 30+10=40 → medium (not in high range)
+        # Guard would apply if somehow in high range
+        _, level = _compute_risk_score(_result_with_breakdown(medium=5, low=6))
+        assert level in ("safe", "low", "medium")
 
-    def test_zero_score_with_critical_findings_is_critical(self):
-        # 3 criticals: 100 - 70 = 30, but caps at 59. 3×30=90 capped at 70 → score=30.
-        # That's ≥25 so "high" by threshold. Upward guard: critical present → "high" min.
-        score, level = _compute_risk_score(_result_with_breakdown(critical=3))
-        assert level in ("high", "critical")
+    def test_many_mediums_cannot_produce_high_or_above(self):
+        # medium cap = 30 → max risk from medium alone = 30 → "low"
+        _, level = _compute_risk_score(_result_with_breakdown(medium=20))
+        assert level in ("safe", "low")
+
+    def test_many_lows_alone_are_safe_or_low(self):
+        _, level = _compute_risk_score(_result_with_breakdown(low=20))
+        assert level in ("safe", "low")
 
 
 # ---------------------------------------------------------------------------
-# Grouped vs raw findings
+# Grouped vs raw findings fallback
 # ---------------------------------------------------------------------------
 
 
 class TestScoringUsesGroupedFindings:
     def test_grouped_findings_take_precedence(self):
         result = _result_with_breakdown(critical=1)
-        # grouped_findings already set; severity_breakdown should be ignored
+        # Even if severity_breakdown says 0 criticals, grouped findings win
         result.severity_breakdown = SeverityBreakdown(critical=0, high=0)
-        score, level = _compute_risk_score(result)
-        # Score should reflect the grouped finding (1 critical), not the empty breakdown
-        assert score <= 59
-        assert level in ("high", "critical")
+        risk, level = _compute_risk_score(result)
+        assert risk == 30  # 1 critical
+        assert level == "high"  # upward guard
 
     def test_falls_back_to_severity_breakdown_when_no_grouped(self):
         target = Target.from_url("https://example.com")
         result = ScanResult(target=target)
         result.severity_breakdown = SeverityBreakdown(critical=1)
-        # grouped_findings is empty
-        score, level = _compute_risk_score(result)
-        assert score <= 59
+        # grouped_findings is empty — falls back to severity_breakdown
+        risk, level = _compute_risk_score(result)
+        assert risk == 30
+        assert level == "high"  # upward guard
+
+
+# ---------------------------------------------------------------------------
+# WADE engine exclusion from security score
+# ---------------------------------------------------------------------------
+
+
+class TestWadeExclusion:
+    def test_wade_critical_does_not_inflate_score_above_security_findings(self):
+        # Security: 1 medium → risk = 7 (safe)
+        # WADE: 1 "critical" (behavioural) — must NOT raise the score
+        target = Target.from_url("https://example.com")
+        result = ScanResult(target=target)
+        result.grouped_findings.append(_grouped(Severity.MEDIUM, engine="test"))
+        result.grouped_findings.append(_grouped(Severity.CRITICAL, engine="wade"))
+        risk, level = _compute_risk_score(result)
+        # Only security finding (medium) should count: risk = 7
+        assert risk == 7
+        assert level == "safe"
+
+    def test_wade_only_falls_back_to_wade_findings(self):
+        # When ALL findings are WADE (no security engine findings), WADE
+        # findings are used as the fallback — they contribute to the score.
+        target = Target.from_url("https://example.com")
+        result = ScanResult(target=target)
+        result.grouped_findings.append(_grouped(Severity.HIGH, engine="wade"))
+        risk, level = _compute_risk_score(result)
+        # security_grouped = [] → falls back to all grouped (wade HIGH = 15)
+        # upward guard (bd.high > 0) → at least "low"
+        assert risk == 15
+        assert level == "low"
+
+    def test_security_findings_plus_wade_use_security_only(self):
+        # Security: 1 critical. WADE: 1 critical. Score should only reflect security.
+        target = Target.from_url("https://example.com")
+        result = ScanResult(target=target)
+        result.grouped_findings.append(_grouped(Severity.CRITICAL, engine="security_headers"))
+        result.grouped_findings.append(_grouped(Severity.CRITICAL, engine="wade"))
+        risk, level = _compute_risk_score(result)
+        # Only 1 security critical: risk = 30, upward guard → high
+        assert risk == 30
+        assert level == "high"
+
+    def test_all_wade_findings_fall_back_to_breakdown(self):
+        # If ALL grouped findings are wade, security_grouped is empty → fall back
+        # to result.grouped_findings (all-wade) rather than empty
+        target = Target.from_url("https://example.com")
+        result = ScanResult(target=target)
+        result.grouped_findings.append(_grouped(Severity.HIGH, engine="wade"))
+        result.grouped_findings.append(_grouped(Severity.MEDIUM, engine="wade"))
+        # security_grouped = [] (empty) → falls back to all grouped (wade)
+        risk, level = _compute_risk_score(result)
+        # Falls back to wade grouped: high(15) + medium(7) = 22 → low
+        # upward guard: bd.high > 0 → at least "low"
+        assert risk == 22
+        assert level == "low"

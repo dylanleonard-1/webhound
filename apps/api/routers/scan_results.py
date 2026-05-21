@@ -8,12 +8,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.database import get_db
+from apps.api.pagination import page_meta
 from apps.api.models.enums import ReportFormat
 from apps.api.models.user import User
 from apps.api.schemas.scan_results import (
     EngineDiagnosticResponse,
     FindingListResponse,
     FindingResponse,
+    GroupedFindingDetailResponse,
     GroupedFindingListResponse,
     GroupedFindingResponse,
     ReportResponse,
@@ -32,6 +34,10 @@ _DB = Annotated[AsyncSession, Depends(get_db)]
 _CurrentUser = Annotated[User, Depends(get_current_user)]
 
 _VALID_RISK_LEVELS = frozenset({"low", "medium", "high", "critical"})
+
+
+def _uid(user: User) -> uuid.UUID | None:
+    return None if user.is_admin else user.id
 
 
 def _to_summary(record) -> ScanResultSummary:
@@ -84,13 +90,14 @@ async def list_scan_results(
         max_risk_score=max_risk_score,
         created_from=created_from,
         created_to=created_to,
-        user_id=current_user.id,
+        user_id=_uid(current_user),
     )
     return ScanResultListResponse(
         items=[_to_summary(r) for r in items],
         total=total,
         limit=limit,
         offset=offset,
+        **page_meta(total, limit, offset),
     )
 
 
@@ -99,7 +106,7 @@ async def get_scan_result(
     scan_result_id: uuid.UUID, db: _DB, current_user: _CurrentUser
 ) -> ScanResultDetail:
     record = await sr_service.get_scan_result_detail(
-        db, scan_result_id, user_id=current_user.id
+        db, scan_result_id, user_id=_uid(current_user)
     )
     if record is None:
         raise HTTPException(status_code=404, detail="Scan result not found")
@@ -135,7 +142,7 @@ async def list_grouped_findings(
     scanner_engine: str | None = None,
     min_confidence: Annotated[float | None, Query(ge=0.0, le=1.0)] = None,
 ) -> GroupedFindingListResponse:
-    if await sr_service.get_scan_result(db, scan_result_id, user_id=current_user.id) is None:
+    if await sr_service.get_scan_result(db, scan_result_id, user_id=_uid(current_user)) is None:
         raise HTTPException(status_code=404, detail="Scan result not found")
     items, total = await sr_service.list_grouped_findings(
         db,
@@ -152,7 +159,28 @@ async def list_grouped_findings(
         total=total,
         limit=limit,
         offset=offset,
+        **page_meta(total, limit, offset),
     )
+
+
+@router.get("/{scan_result_id}/grouped-findings/{grouped_finding_id}", response_model=GroupedFindingDetailResponse)
+async def get_grouped_finding_detail(
+    scan_result_id: uuid.UUID,
+    grouped_finding_id: uuid.UUID,
+    db: _DB,
+    current_user: _CurrentUser,
+) -> GroupedFindingDetailResponse:
+    result = await sr_service.get_grouped_finding_detail(
+        db, scan_result_id, grouped_finding_id, user_id=_uid(current_user)
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Grouped finding not found")
+    gf, sample_findings = result
+    evidence: list[dict] = [
+        ev for f in sample_findings for ev in (f.evidence or [])
+    ][:10]
+    base = GroupedFindingResponse.model_validate(gf)
+    return GroupedFindingDetailResponse(**base.model_dump(), sample_evidence=evidence)
 
 
 @router.get("/{scan_result_id}/findings", response_model=FindingListResponse)
@@ -168,7 +196,7 @@ async def list_findings(
     affected_url: str | None = None,
     min_confidence: Annotated[float | None, Query(ge=0.0, le=1.0)] = None,
 ) -> FindingListResponse:
-    if await sr_service.get_scan_result(db, scan_result_id, user_id=current_user.id) is None:
+    if await sr_service.get_scan_result(db, scan_result_id, user_id=_uid(current_user)) is None:
         raise HTTPException(status_code=404, detail="Scan result not found")
     items, total = await sr_service.list_findings(
         db,
@@ -186,6 +214,7 @@ async def list_findings(
         total=total,
         limit=limit,
         offset=offset,
+        **page_meta(total, limit, offset),
     )
 
 
@@ -198,7 +227,7 @@ async def list_engine_diagnostics(
     category: str | None = None,
     engine_name: str | None = None,
 ) -> list[EngineDiagnosticResponse]:
-    if await sr_service.get_scan_result(db, scan_result_id, user_id=current_user.id) is None:
+    if await sr_service.get_scan_result(db, scan_result_id, user_id=_uid(current_user)) is None:
         raise HTTPException(status_code=404, detail="Scan result not found")
     items = await sr_service.list_engine_diagnostics(
         db, scan_result_id, status=status, category=category, engine_name=engine_name
@@ -210,7 +239,7 @@ async def list_engine_diagnostics(
 async def list_reports(
     scan_result_id: uuid.UUID, db: _DB, current_user: _CurrentUser
 ) -> list[ReportResponse]:
-    if await sr_service.get_scan_result(db, scan_result_id, user_id=current_user.id) is None:
+    if await sr_service.get_scan_result(db, scan_result_id, user_id=_uid(current_user)) is None:
         raise HTTPException(status_code=404, detail="Scan result not found")
     items = await sr_service.list_reports(db, scan_result_id)
     return [ReportResponse.model_validate(r) for r in items]
@@ -220,7 +249,7 @@ async def list_reports(
 async def get_report_by_format(
     scan_result_id: uuid.UUID, fmt: ReportFormat, db: _DB, current_user: _CurrentUser
 ) -> ReportResponse:
-    if await sr_service.get_scan_result(db, scan_result_id, user_id=current_user.id) is None:
+    if await sr_service.get_scan_result(db, scan_result_id, user_id=_uid(current_user)) is None:
         raise HTTPException(status_code=404, detail="Scan result not found")
     report = await sr_service.get_report_by_format(db, scan_result_id, fmt.value)
     if report is None:

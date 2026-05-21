@@ -18,6 +18,66 @@ from webhound.models.severity import Severity
 
 _ENGINE = "third_party_domains"
 
+# ---------------------------------------------------------------------------
+# Domain categorization
+# ---------------------------------------------------------------------------
+
+_DOMAIN_CATEGORY: dict[str, str] = {
+    # CDN
+    "cloudflare.com": "CDN", "cloudflare.net": "CDN",
+    "cloudfront.net": "CDN", "fastly.net": "CDN", "fastly.com": "CDN",
+    "akamaized.net": "CDN", "akamai.com": "CDN", "akamaihd.net": "CDN",
+    "jsdelivr.net": "CDN", "unpkg.com": "CDN", "bootstrapcdn.com": "CDN",
+    "googleapis.com": "CDN", "gstatic.com": "CDN", "googleusercontent.com": "CDN",
+    "jquery.com": "CDN", "jquery.org": "CDN", "amazonaws.com": "CDN",
+    "typekit.net": "CDN", "adobe.com": "CDN", "fonts.com": "CDN",
+    "github.io": "CDN", "github.com": "CDN", "githubusercontent.com": "CDN",
+    # Analytics
+    "google-analytics.com": "Analytics", "googletagmanager.com": "Analytics",
+    "googleadservices.com": "Analytics", "googlesyndication.com": "Analytics",
+    "doubleclick.net": "Analytics", "hotjar.com": "Analytics",
+    "mixpanel.com": "Analytics", "amplitude.com": "Analytics",
+    "heap.io": "Analytics", "fullstory.com": "Analytics",
+    "logrocket.com": "Analytics", "segment.io": "Analytics", "segment.com": "Analytics",
+    # Tracking / Advertising
+    "facebook.net": "Tracking", "facebook.com": "Tracking", "fbcdn.net": "Tracking",
+    "twitter.com": "Tracking", "twimg.com": "Tracking",
+    "pinterest.com": "Tracking", "tiktok.com": "Tracking", "addthis.com": "Tracking",
+    # Payments
+    "stripe.com": "Payments", "stripe.network": "Payments",
+    "paypal.com": "Payments", "paypalobjects.com": "Payments",
+    "braintreegateway.com": "Payments",
+    "square.com": "Payments", "squareup.com": "Payments",
+    # Marketing
+    "mailchimp.com": "Marketing", "chimpstatic.com": "Marketing",
+    "hubspot.com": "Marketing", "hs-scripts.com": "Marketing", "hsforms.com": "Marketing",
+    "klaviyo.com": "Marketing", "constantcontact.com": "Marketing",
+    "sendgrid.com": "Marketing",
+    # Monitoring / Error Tracking
+    "sentry.io": "Monitoring", "newrelic.com": "Monitoring", "nr-data.net": "Monitoring",
+    "datadog-browser-agent.com": "Monitoring",
+    # Support / Chat
+    "intercomcdn.com": "Support", "intercom.io": "Support",
+    "zendesk.com": "Support", "zopim.com": "Support",
+    "freshworks.com": "Support", "tawk.to": "Support",
+    # Social / Media
+    "instagram.com": "Social", "linkedin.com": "Social", "licdn.com": "Social",
+    "youtube.com": "Video", "ytimg.com": "Video",
+    "vimeo.com": "Video", "vimeocdn.com": "Video",
+    "wistia.com": "Video", "wistia.net": "Video",
+    "brightcove.net": "Video", "brightcove.com": "Video",
+    # Security / Auth
+    "recaptcha.net": "Security", "hcaptcha.com": "Security", "captcha.net": "Security",
+    "disqus.com": "Community", "disquscdn.com": "Community",
+    "mapbox.com": "Maps", "openstreetmap.org": "Maps",
+}
+
+
+def _get_category(registered: str) -> str:
+    """Return a human-readable category label for a registered domain."""
+    return _DOMAIN_CATEGORY.get(registered, "Unknown")
+
+
 # TLDs frequently associated with free/disposable domains or abuse infrastructure.
 _RISKY_TLDS: frozenset[str] = frozenset({
     "tk", "ml", "ga", "cf", "gq",   # Freenom free TLDs, high abuse rate
@@ -29,8 +89,11 @@ _RISKY_TLDS: frozenset[str] = frozenset({
 # Registered domains (domain.suffix) that are well-known CDNs or trusted platforms.
 # Scripts from these domains are common and not flagged as suspicious.
 _TRUSTED_DOMAINS: frozenset[str] = frozenset({
+    # Google
     "googleapis.com", "gstatic.com", "googletagmanager.com",
-    "google-analytics.com", "google.com",
+    "google-analytics.com", "google.com", "googleadservices.com",
+    "googlesyndication.com", "googleusercontent.com",
+    # CDNs
     "cloudflare.com", "cloudflare.net",
     "jsdelivr.net", "unpkg.com",
     "bootstrapcdn.com",
@@ -38,21 +101,69 @@ _TRUSTED_DOMAINS: frozenset[str] = frozenset({
     "cloudfront.net",
     "fastly.net", "fastly.com",
     "akamaized.net", "akamai.com", "akamaihd.net",
-    "amazonaws.com", "aws.amazon.com",
-    "facebook.net", "facebook.com",
-    "twitter.com",
+    "amazonaws.com",
+    # Social
+    "facebook.net", "facebook.com", "fbcdn.net",
+    "twitter.com", "twimg.com",
+    "linkedin.com", "licdn.com",
+    "instagram.com",
+    "pinterest.com",
+    "tiktok.com",
+    # Dev / code hosting
     "github.io", "github.com", "githubusercontent.com",
+    "gitlab.com",
+    "bitbucket.org",
+    # Analytics / monitoring
     "hotjar.com",
-    "licdn.com",
-    "intercomcdn.com",
+    "segment.io", "segment.com",
+    "mixpanel.com",
+    "amplitude.com",
+    "heap.io",
+    "fullstory.com",
+    "logrocket.com",
+    "newrelic.com", "nr-data.net",
+    "datadog-browser-agent.com",
+    "sentry.io",
+    # Support / chat
+    "intercomcdn.com", "intercom.io",
+    "zendesk.com", "zopim.com",
+    "freshworks.com",
+    "tawk.to",
+    # Payments
     "stripe.com", "stripe.network",
     "paypal.com", "paypalobjects.com",
-    "typekit.net", "adobe.com",
+    "braintreegateway.com",
+    "square.com", "squareup.com",
+    # E-commerce platforms
+    "shopify.com", "cdn.shopify.com", "myshopify.com", "shopifycdn.com",
+    "bigcommerce.com",
+    "ecwid.com",
+    # Website builders
+    "squarespace.com", "squarespace-cdn.com", "sqspcdn.com",
+    "wix.com", "wixstatic.com",
+    "webflow.com", "webflow.io",
+    "wordpress.com", "wp.com",
+    # Email marketing
+    "mailchimp.com", "chimpstatic.com",
+    "hubspot.com", "hs-scripts.com", "hsforms.com",
+    "klaviyo.com",
+    "constantcontact.com",
+    "sendgrid.com",
+    # Fonts / assets
+    "typekit.net", "adobe.com", "fonts.com",
+    # Media / video
     "vimeo.com", "vimeocdn.com",
     "youtube.com", "ytimg.com",
-    "twimg.com",
+    "wistia.com", "wistia.net",
+    "brightcove.net", "brightcove.com",
+    # Maps
+    "mapbox.com",
+    "openstreetmap.org",
+    # Misc trusted
     "addthis.com",
     "disqus.com", "disquscdn.com",
+    "captcha.net", "recaptcha.net",
+    "hcaptcha.com",
 })
 
 # Heuristic: domain name with very few vowels looks machine-generated.
@@ -75,12 +186,11 @@ class ThirdPartyDomainEngine:
         findings: list[Finding] = []
         page_host = urlparse(artifacts.url).hostname or ""
 
-        findings.extend(
-            self._check_script_domains(artifacts, page_host)
-        )
-        findings.extend(
-            self._check_form_action_domains(artifacts, page_host)
-        )
+        findings.extend(self._check_script_domains(artifacts, page_host))
+        findings.extend(self._check_form_action_domains(artifacts, page_host))
+        findings.extend(self._check_iframe_domains(artifacts))
+        findings.extend(self._check_stylesheet_domains(artifacts))
+        findings.extend(self._check_js_request_domains(artifacts))
 
         return findings
 
@@ -198,6 +308,171 @@ class ThirdPartyDomainEngine:
                 ),
                 scanner_engine=_ENGINE,
                 metadata={"url": artifacts.url, "domain": action_host},
+            ))
+
+        return findings
+
+
+    # ------------------------------------------------------------------
+    # External visible iframes (hidden iframes handled by compromise engine)
+    # ------------------------------------------------------------------
+
+    def _check_iframe_domains(self, artifacts: PageArtifacts) -> list[Finding]:
+        findings: list[Finding] = []
+        seen_domains: set[str] = set()
+
+        for iframe in artifacts.iframes:
+            if iframe.is_hidden or not iframe.is_external_domain or not iframe.src_url:
+                continue
+            host = urlparse(iframe.src_url).hostname or ""
+            registered = _registered_domain(host)
+            if not registered or registered in seen_domains:
+                continue
+            seen_domains.add(registered)
+            if _is_trusted(registered):
+                continue
+
+            category = _get_category(registered)
+            ev = Evidence(
+                evidence_type=EvidenceType.HTML_ELEMENT,
+                content=f"Cross-domain iframe src: {iframe.src_url}",
+                location=artifacts.url,
+                source_engine=_ENGINE,
+                extra={"domain": host, "iframe_src": iframe.src_url, "category": category},
+            )
+            findings.append(Finding(
+                title=f"External iframe from {host} ({category})",
+                description=(
+                    f"An <iframe> embeds content from '{host}', a third-party domain. "
+                    "External iframes load full pages from another origin and can include "
+                    "tracking pixels, ads, or unexpected content changes."
+                ),
+                severity=Severity.LOW,
+                category=FindingCategory.JAVASCRIPT,
+                evidence=[ev],
+                confidence=0.65,
+                remediation=(
+                    "Verify all cross-domain iframes are from intended, trusted sources. "
+                    "Apply a CSP frame-src directive and use the sandbox attribute to "
+                    "restrict iframe capabilities."
+                ),
+                framework=FrameworkAlignment(
+                    owasp_top10=["A08:2021"],
+                    cwe_ids=["CWE-829"],
+                    nist_controls=["SI-10"],
+                ),
+                scanner_engine=_ENGINE,
+                metadata={"url": artifacts.url, "domain": host},
+            ))
+
+        return findings
+
+    # ------------------------------------------------------------------
+    # External stylesheet domains
+    # ------------------------------------------------------------------
+
+    def _check_stylesheet_domains(self, artifacts: PageArtifacts) -> list[Finding]:
+        findings: list[Finding] = []
+        seen_domains: set[str] = set()
+
+        all_css_urls = list(artifacts.external_stylesheet_urls) + list(artifacts.inline_css_import_urls)
+        for url in all_css_urls:
+            host = urlparse(url).hostname or ""
+            registered = _registered_domain(host)
+            if not registered or registered in seen_domains:
+                continue
+            seen_domains.add(registered)
+            if _is_trusted(registered):
+                continue
+
+            category = _get_category(registered)
+            ev = Evidence(
+                evidence_type=EvidenceType.HTML_ELEMENT,
+                content=f"External stylesheet: {url}",
+                location=artifacts.url,
+                source_engine=_ENGINE,
+                extra={"domain": host, "stylesheet_url": url, "category": category},
+            )
+            findings.append(Finding(
+                title=f"External stylesheet loaded from {host} ({category})",
+                description=(
+                    f"A CSS stylesheet is loaded from '{host}', a third-party domain. "
+                    "External stylesheets can introduce CSS injection risks, load "
+                    "additional resources (fonts, images), and enable cross-site tracking."
+                ),
+                severity=Severity.LOW,
+                category=FindingCategory.JAVASCRIPT,
+                evidence=[ev],
+                confidence=0.65,
+                remediation=(
+                    "Apply Subresource Integrity (SRI) hashes to external stylesheets. "
+                    "Host critical CSS on your own infrastructure. "
+                    "Restrict with CSP style-src."
+                ),
+                framework=FrameworkAlignment(
+                    owasp_top10=["A08:2021"],
+                    cwe_ids=["CWE-829"],
+                    nist_controls=["SI-10", "SA-12"],
+                ),
+                scanner_engine=_ENGINE,
+                metadata={"url": artifacts.url, "domain": host},
+            ))
+
+        return findings
+
+    # ------------------------------------------------------------------
+    # Fetch / XHR / WebSocket request destinations from inline scripts
+    # ------------------------------------------------------------------
+
+    def _check_js_request_domains(self, artifacts: PageArtifacts) -> list[Finding]:
+        findings: list[Finding] = []
+        seen_domains: set[str] = set()
+        page_host = urlparse(artifacts.url).hostname or ""
+
+        for url in artifacts.inline_js_request_urls:
+            host = urlparse(url).hostname or ""
+            if not host or host == page_host:
+                continue
+            registered = _registered_domain(host)
+            if not registered or registered in seen_domains:
+                continue
+            seen_domains.add(registered)
+            if _is_trusted(registered):
+                continue
+
+            category = _get_category(registered)
+            is_ws = url.startswith(("wss://", "ws://"))
+            kind = "WebSocket connection" if is_ws else "fetch/XHR request"
+            ev = Evidence(
+                evidence_type=EvidenceType.JAVASCRIPT,
+                content=f"Inline JS {kind} to: {url}",
+                location=artifacts.url,
+                source_engine=_ENGINE,
+                extra={"domain": host, "request_url": url, "type": kind, "category": category},
+            )
+            findings.append(Finding(
+                title=f"Inline JS {kind} to external domain {host} ({category})",
+                description=(
+                    f"Inline script makes a {kind} to '{host}', a third-party domain. "
+                    "External API calls can send page data, user behaviour, or session "
+                    "identifiers to third parties."
+                ),
+                severity=Severity.LOW,
+                category=FindingCategory.JAVASCRIPT,
+                evidence=[ev],
+                confidence=0.70,
+                remediation=(
+                    "Verify all external API destinations are intentional and documented. "
+                    "Restrict outbound connections using CSP connect-src. "
+                    "Review data sent in each request for PII or sensitive information."
+                ),
+                framework=FrameworkAlignment(
+                    owasp_top10=["A08:2021"],
+                    cwe_ids=["CWE-829"],
+                    nist_controls=["SI-10", "SC-8"],
+                ),
+                scanner_engine=_ENGINE,
+                metadata={"url": artifacts.url, "domain": host},
             ))
 
         return findings

@@ -5,6 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from apps.api.pagination import BaseListResponse
+
 from apps.api.models.enums import ScheduleFrequency, ScanProfile
 
 
@@ -44,8 +46,5 @@ class ScanScheduleResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ScanScheduleListResponse(BaseModel):
+class ScanScheduleListResponse(BaseListResponse):
     items: list[ScanScheduleResponse]
-    total: int
-    limit: int
-    offset: int

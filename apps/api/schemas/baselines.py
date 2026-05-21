@@ -5,6 +5,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from apps.api.pagination import BaseListResponse
+
 
 class BaselineSummary(BaseModel):
     id: uuid.UUID
@@ -30,11 +32,8 @@ class BaselineDetail(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class BaselineListResponse(BaseModel):
+class BaselineListResponse(BaseListResponse):
     items: list[BaselineSummary]
-    total: int
-    limit: int
-    offset: int
 
 
 class WadeGroupedFinding(BaseModel):

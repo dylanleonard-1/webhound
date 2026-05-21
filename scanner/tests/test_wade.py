@@ -638,11 +638,12 @@ class TestClassifier:
         findings = self.clf.classify([_scored(_diff(DiffType.STATUS_CODE_CHANGE))])
         assert findings[0].severity == Severity.INFO
 
-    def test_high_anomaly_script_escalates_to_critical(self) -> None:
-        # anomaly_score ≥ 0.85 + script type → CRITICAL
+    def test_high_anomaly_script_capped_at_high(self) -> None:
+        # WADE is intentionally capped at HIGH (CRITICAL threshold set unreachable)
+        # to prevent behavioural anomalies from inflating the security risk score.
         a = _scored(_diff(DiffType.NEW_SCRIPT_SOURCE), anomaly_score=0.90)
         findings = self.clf.classify([a])
-        assert findings[0].severity == Severity.CRITICAL
+        assert findings[0].severity == Severity.HIGH
 
     def test_normal_anomaly_script_is_high(self) -> None:
         a = _scored(_diff(DiffType.NEW_SCRIPT_SOURCE), anomaly_score=0.75)

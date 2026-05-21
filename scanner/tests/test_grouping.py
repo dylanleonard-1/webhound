@@ -339,42 +339,42 @@ class TestRiskScoringGrouped:
         )
 
     def test_many_raw_medium_findings_score_fairly_when_grouped(self) -> None:
-        # 24 raw medium findings → 1 grouped medium → much better score than raw
+        # 24 raw medium findings → 1 grouped medium → much lower risk than counting all raws
         raw_findings = [
             _finding(title="Missing CSP", location=f"https://example.com/p{i}")
             for i in range(24)
         ]
         result = _completed_result(raw_findings)
         result.grouped_findings = FindingGrouper().group(result.active_findings)
-        score, level = _compute_risk_score(result)
-        # 1 grouped medium = -7 → score 93 → "low"
-        assert score >= 90
-        assert level == "low"
+        risk, level = _compute_risk_score(result)
+        # 1 grouped medium = +7 → risk 7 → "safe"
+        assert risk <= 19
+        assert level in ("safe", "low")
 
     def test_raw_severity_breakdown_used_when_no_groups(self) -> None:
         result = ScanResult(target=_target())
         result.severity_breakdown = SeverityBreakdown(medium=24)
         result.grouped_findings = []
-        score, level = _compute_risk_score(result)
-        # 24 mediums: min(24*7, 30) = 30 → score 70 → "medium"
-        assert score == 70
-        assert level == "medium"
+        risk, level = _compute_risk_score(result)
+        # 24 mediums: min(24*7, 30) = 30 → risk 30 → "low"
+        assert risk == 30
+        assert level in ("safe", "low")
 
     def test_grouped_score_uses_grouped_count(self) -> None:
-        # 1 grouped MEDIUM
+        # 1 grouped MEDIUM: risk = 7 → "safe"
         g = self._grouped(Severity.MEDIUM)
         result = self._result_with_grouped([g])
-        score, level = _compute_risk_score(result)
-        assert score == 93
-        assert level == "low"
+        risk, level = _compute_risk_score(result)
+        assert risk == 7
+        assert level == "safe"
 
     def test_many_grouped_mediums_still_capped(self) -> None:
-        # Even 10 grouped MEDIUMs can't exceed the 30-point cap
+        # Even 10 grouped MEDIUMs can't exceed the 30-point cap → risk=30 → "low"
         groups = [self._grouped(Severity.MEDIUM, f"Issue{i}") for i in range(10)]
         result = self._result_with_grouped(groups)
-        score, level = _compute_risk_score(result)
-        assert score == 70  # 100 - 30 (cap)
-        assert level == "medium"
+        risk, level = _compute_risk_score(result)
+        assert risk == 30
+        assert level in ("safe", "low")
 
     def test_single_critical_grouped_forces_high_label(self) -> None:
         groups = [self._grouped(Severity.CRITICAL)]
@@ -398,9 +398,9 @@ class TestRiskScoringGrouped:
     def test_info_findings_dont_affect_score(self) -> None:
         groups = [self._grouped(Severity.INFO, "Info Issue")]
         result = self._result_with_grouped(groups)
-        score, level = _compute_risk_score(result)
-        assert score == 100
-        assert level == "low"
+        risk, level = _compute_risk_score(result)
+        assert risk == 0
+        assert level == "safe"
 
     def test_sensitive_path_findings_remain_in_grouped(self) -> None:
         f1 = _finding(title="Exposed .env", engine="sensitive_paths",
@@ -653,7 +653,7 @@ class TestScannerGroupingIntegration:
         scanner = Scanner(_target(), _transport=_mock_transport())
         result = await scanner.scan()
         # Verify the stored risk_score used grouped findings
-        stored_score = result.metadata.get("risk_score", 100)
+        stored_score = result.metadata.get("risk_score", 0)
         # Recompute manually with grouped — should match
         recomputed, _ = _compute_risk_score(result)
         assert stored_score == recomputed

@@ -5,13 +5,17 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
+import sqlalchemy as sa
 
 import apps.api.models  # noqa: F401 — ensure all models are registered
 from apps.api.database import Base
 from apps.api.models.baseline import BaselineRecord
 from apps.api.models.engine_diagnostic import EngineDiagnosticRecord
 from apps.api.models.enums import (
+    NotificationSeverity,
+    NotificationType,
     ReportFormat,
+    ScheduleFrequency,
     ScanProfile,
     ScanStatus,
     VerificationMethod,
@@ -19,9 +23,11 @@ from apps.api.models.enums import (
 )
 from apps.api.models.finding import FindingRecord
 from apps.api.models.grouped_finding import GroupedFindingRecord
+from apps.api.models.notification import Notification
 from apps.api.models.report import ReportRecord
 from apps.api.models.scan_job import ScanJob
 from apps.api.models.scan_result import ScanResultRecord
+from apps.api.models.scan_schedule import ScanSchedule
 from apps.api.models.user import User
 from apps.api.models.website import DomainVerification, Website
 
@@ -266,3 +272,70 @@ class TestReportRecordConstruction:
         )
         assert r.format == ReportFormat.JSON
         assert r.path is None
+
+
+# ---------------------------------------------------------------------------
+# Enum persistence: SAEnum columns must use .value (lowercase) not .name
+# ---------------------------------------------------------------------------
+
+
+def _col_enums(model, colname: str) -> list[str]:
+    """Return the list of enum strings that SQLAlchemy will send to the DB."""
+    col = sa.inspect(model).c[colname]
+    return list(col.type.enums)
+
+
+class TestEnumPersistenceConfig:
+    """Verify every SAEnum column is configured with values_callable so the
+    ORM sends lowercase enum values (e.g. 'queued') not names ('QUEUED')
+    to PostgreSQL."""
+
+    def test_website_verification_status_lowercase(self):
+        vals = _col_enums(Website, "verification_status")
+        assert vals == [e.value for e in VerificationStatus]
+        assert all(v == v.lower() for v in vals)
+
+    def test_domain_verification_method_lowercase(self):
+        vals = _col_enums(DomainVerification, "method")
+        assert vals == [e.value for e in VerificationMethod]
+        assert all(v == v.lower() for v in vals)
+
+    def test_domain_verification_status_lowercase(self):
+        vals = _col_enums(DomainVerification, "status")
+        assert vals == [e.value for e in VerificationStatus]
+        assert all(v == v.lower() for v in vals)
+
+    def test_scan_job_status_lowercase(self):
+        vals = _col_enums(ScanJob, "status")
+        assert vals == [e.value for e in ScanStatus]
+        assert all(v == v.lower() for v in vals)
+
+    def test_scan_job_profile_lowercase(self):
+        vals = _col_enums(ScanJob, "profile")
+        assert vals == [e.value for e in ScanProfile]
+        assert all(v == v.lower() for v in vals)
+
+    def test_scan_schedule_profile_lowercase(self):
+        vals = _col_enums(ScanSchedule, "profile")
+        assert vals == [e.value for e in ScanProfile]
+        assert all(v == v.lower() for v in vals)
+
+    def test_scan_schedule_frequency_lowercase(self):
+        vals = _col_enums(ScanSchedule, "frequency")
+        assert vals == [e.value for e in ScheduleFrequency]
+        assert all(v == v.lower() for v in vals)
+
+    def test_report_format_lowercase(self):
+        vals = _col_enums(ReportRecord, "format")
+        assert vals == [e.value for e in ReportFormat]
+        assert all(v == v.lower() for v in vals)
+
+    def test_notification_type_lowercase(self):
+        vals = _col_enums(Notification, "type")
+        assert vals == [e.value for e in NotificationType]
+        assert all(v == v.lower() for v in vals)
+
+    def test_notification_severity_lowercase(self):
+        vals = _col_enums(Notification, "severity")
+        assert vals == [e.value for e in NotificationSeverity]
+        assert all(v == v.lower() for v in vals)

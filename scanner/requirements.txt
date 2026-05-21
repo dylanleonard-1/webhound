@@ -1,0 +1,8 @@
+beautifulsoup4
+lxml
+httpx
+dnspython
+tldextract
+pydantic
+pytest
+pytest-asyncio

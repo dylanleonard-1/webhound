@@ -81,18 +81,22 @@ _PATTERNS: list[_SecretPattern] = [
     _p(
         "Stripe Live Publishable Key",
         r"pk_live_[0-9a-zA-Z]{24,}",
-        Severity.HIGH,
-        0.95,
-        "Publishable keys are lower risk but should not be hardcoded in source. "
-        "Consider restricting publishable key domains in the Stripe Dashboard.",
+        Severity.LOW,
+        0.70,
+        "Stripe publishable keys are designed to be used in frontend code and are "
+        "not secret. However, restrict the key to specific domains in your Stripe "
+        "Dashboard (Developers → API keys → Publishable key → Restrict) to prevent "
+        "misuse if the key is copied.",
     ),
     _p(
         "Stripe Test Key",
         r"sk_test_[0-9a-zA-Z]{24,}",
         Severity.MEDIUM,
-        0.95,
-        "Test keys should not be hardcoded in production source. Use environment "
-        "variables to separate test and live credentials.",
+        0.85,
+        "Stripe test secret keys should not appear in client-side code. While "
+        "they cannot access live payment data, they can be used to create test "
+        "charges and access your test customer records. Store them server-side "
+        "using environment variables.",
     ),
     _p(
         "Google API Key",
@@ -144,9 +148,11 @@ _PATTERNS: list[_SecretPattern] = [
             ['"]?([a-zA-Z0-9_\-]{32,})['"]?
         """,
         Severity.MEDIUM,
-        0.50,
-        "Remove hardcoded API secrets from page source. Load them server-side "
-        "and pass only what the browser strictly needs.",
+        0.40,
+        "A potential API key or token was detected in the page source. "
+        "Verify whether this value is intentionally public. If it is a secret "
+        "credential, remove it from client-side code and load it server-side using "
+        "environment variables or a secrets manager.",
     ),
 ]
 

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.database import get_db
+from apps.api.pagination import page_meta
 from apps.api.models.user import User
 from apps.api.schemas.baselines import (
     BaselineDetail,
@@ -27,6 +28,10 @@ _DB = Annotated[AsyncSession, Depends(get_db)]
 _CurrentUser = Annotated[User, Depends(get_current_user)]
 
 _TOP_ANOMALY_LIMIT = 5
+
+
+def _uid(user: User) -> uuid.UUID | None:
+    return None if user.is_admin else user.id
 
 
 def _wade_metadata(scanner_metadata: dict | None) -> dict:
@@ -52,7 +57,7 @@ async def list_baselines(
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> BaselineListResponse:
-    if not await bl_service.website_exists(db, website_id, user_id=current_user.id):
+    if not await bl_service.website_exists(db, website_id, user_id=_uid(current_user)):
         raise HTTPException(status_code=404, detail="Website not found")
     items, total = await bl_service.list_baselines(
         db, website_id, limit=limit, offset=offset
@@ -62,6 +67,7 @@ async def list_baselines(
         total=total,
         limit=limit,
         offset=offset,
+        **page_meta(total, limit, offset),
     )
 
 
@@ -69,7 +75,7 @@ async def list_baselines(
 async def get_latest_baseline(
     website_id: uuid.UUID, db: _DB, current_user: _CurrentUser
 ) -> BaselineDetail:
-    if not await bl_service.website_exists(db, website_id, user_id=current_user.id):
+    if not await bl_service.website_exists(db, website_id, user_id=_uid(current_user)):
         raise HTTPException(status_code=404, detail="Website not found")
     record = await bl_service.get_latest_baseline(db, website_id)
     if record is None:
@@ -87,7 +93,7 @@ async def get_baseline(
     baseline_record_id: uuid.UUID, db: _DB, current_user: _CurrentUser
 ) -> BaselineDetail:
     record = await bl_service.get_baseline(
-        db, baseline_record_id, user_id=current_user.id
+        db, baseline_record_id, user_id=_uid(current_user)
     )
     if record is None:
         raise HTTPException(status_code=404, detail="Baseline not found")
@@ -99,7 +105,7 @@ async def delete_baseline(
     baseline_record_id: uuid.UUID, db: _DB, current_user: _CurrentUser
 ) -> None:
     deleted = await bl_service.delete_baseline(
-        db, baseline_record_id, user_id=current_user.id
+        db, baseline_record_id, user_id=_uid(current_user)
     )
     if not deleted:
         raise HTTPException(status_code=404, detail="Baseline not found")
@@ -116,7 +122,7 @@ async def get_wade_summary(
     scan_result_id: uuid.UUID, db: _DB, current_user: _CurrentUser
 ) -> WadeSummary:
     sr, wade_findings, wade_diag = await bl_service.get_wade_data(
-        db, scan_result_id, user_id=current_user.id
+        db, scan_result_id, user_id=_uid(current_user)
     )
     if sr is None:
         raise HTTPException(status_code=404, detail="Scan result not found")
@@ -147,7 +153,7 @@ async def get_wade_history(
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> WadeHistoryResponse:
-    if not await bl_service.website_exists(db, website_id, user_id=current_user.id):
+    if not await bl_service.website_exists(db, website_id, user_id=_uid(current_user)):
         raise HTTPException(status_code=404, detail="Website not found")
 
     results, total = await bl_service.get_wade_history(

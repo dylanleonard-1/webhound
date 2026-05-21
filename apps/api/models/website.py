@@ -21,13 +21,17 @@ if TYPE_CHECKING:
 
 class Website(Base, UpdatedAtMixin):
     __tablename__ = "websites"
+    __table_args__ = (
+        sa.UniqueConstraint("url", name="uq_websites_url"),
+        sa.Index("ix_websites_created_at", "created_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        sa.ForeignKey("users.id", ondelete="SET NULL"),
+        sa.ForeignKey("users.id", ondelete="CASCADE"),
         index=True,
     )
     url: Mapped[str] = mapped_column(sa.String(2048), nullable=False)
@@ -35,7 +39,7 @@ class Website(Base, UpdatedAtMixin):
     scheme: Mapped[str] = mapped_column(sa.String(16), nullable=False)
     display_name: Mapped[str | None] = mapped_column(sa.String(255))
     verification_status: Mapped[VerificationStatus] = mapped_column(
-        SAEnum(VerificationStatus, name="verificationstatus"),
+        SAEnum(VerificationStatus, name="verificationstatus", values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=VerificationStatus.UNVERIFIED,
     )
@@ -68,11 +72,11 @@ class DomainVerification(Base, TimestampMixin):
         index=True,
     )
     method: Mapped[VerificationMethod] = mapped_column(
-        SAEnum(VerificationMethod, name="verificationmethod"), nullable=False
+        SAEnum(VerificationMethod, name="verificationmethod", values_callable=lambda x: [e.value for e in x]), nullable=False
     )
     token: Mapped[str] = mapped_column(sa.String(255), nullable=False)
     status: Mapped[VerificationStatus] = mapped_column(
-        SAEnum(VerificationStatus, name="verificationstatus"),
+        SAEnum(VerificationStatus, name="verificationstatus", values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=VerificationStatus.PENDING,
     )

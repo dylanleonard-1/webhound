@@ -1,0 +1,262 @@
+@import "tailwindcss";
+
+@theme {
+  /* ── Fonts ─────────────────────────────────────────────────── */
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), "Courier New", monospace;
+
+  /* ── Marketing / hero palette ──────────────────────────────── */
+  --color-cs-bg:       #020617;
+  --color-cs-bg-deep:  #030712;
+  --color-cs-surface:  #06111f;
+  --color-cs-elevated: #07111c;
+  --color-cs-neon:     #8BFF3E;
+
+  /* ── Dashboard palette ─────────────────────────────────────── */
+  --color-app-bg:             #050810;
+  --color-app-surface:        #080c16;
+  --color-app-card:           #0d1220;
+  --color-app-border:         rgba(255,255,255,0.06);
+  --color-app-border-subtle:  rgba(255,255,255,0.10);
+
+  /* ── Accent ────────────────────────────────────────────────── */
+  --color-accent-green:     #8BFF3E;
+  --color-accent-green-dim: #5fcc1a;
+  --color-accent-blue:      #4F9CF9;
+  --color-accent-blue-dim:  #2D6FCC;
+  --color-accent-cyan:      #22d3ee;
+  --color-accent-violet:    #a78bfa;
+
+  /* ── Severity ───────────────────────────────────────────────── */
+  --color-critical: #ef4444;
+  --color-high:     #f97316;
+  --color-medium:   #eab308;
+  --color-low:      #3b82f6;
+  --color-info:     #6b7280;
+
+  /* Aliases for existing code */
+  --color-severity-critical: #ef4444;
+  --color-severity-high:     #f97316;
+  --color-severity-medium:   #eab308;
+  --color-severity-low:      #3b82f6;
+  --color-severity-info:     #6b7280;
+
+  /* ── Radius tokens ──────────────────────────────────────────── */
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   16px;
+  --radius-xl:   20px;
+  --radius-2xl:  24px;
+}
+
+@variant dark (&:is(.dark *));
+
+/* ── Base ────────────────────────────────────────────────────── */
+@layer base {
+  html, body {
+    height: 100%;
+    background-color: #050810;
+    color: #F9FAFB;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "kern" 1, "liga" 1, "ss01" 1;
+  }
+
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  :focus-visible {
+    outline: 2px solid rgba(139,255,62,0.7);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+
+  button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
+    outline: 2px solid rgba(139,255,62,0.75);
+    outline-offset: 3px;
+    border-radius: 10px;
+  }
+
+  ::selection {
+    background-color: rgba(139,255,62,0.2);
+    color: #F9FAFB;
+  }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.08);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.14);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.1ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ── Keyframes ───────────────────────────────────────────────── */
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 5px rgba(139,255,62,0.9); }
+  50%       { opacity: 0.2; box-shadow: 0 0 2px rgba(139,255,62,0.3); }
+}
+
+@keyframes gridScroll {
+  from { background-position: 0 0; }
+  to   { background-position: 40px 40px; }
+}
+
+@keyframes scanSweep {
+  0%   { top: -2px; opacity: 0; }
+  5%   { opacity: 1; }
+  95%  { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes floatY {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
+}
+
+@keyframes breatheGlow {
+  0%, 100% { opacity: 0.55; }
+  50%       { opacity: 1; }
+}
+
+@keyframes sweepLight {
+  0%, 10%   { transform: translateX(-200%); }
+  55%, 100% { transform: translateX(300%); }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes ringFill {
+  from { stroke-dashoffset: 251; }
+}
+
+@keyframes blinkCursor {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes scanH {
+  0%   { left: -35%; }
+  100% { left: 135%; }
+}
+
+/* ── Utility classes ────────────────────────────────────────── */
+
+@utility gpu-layer {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+@utility section-contain {
+  contain: paint;
+}
+
+@utility grid-anim-layer {
+  will-change: background-position;
+  transform: translateZ(0);
+}
+
+@utility text-neon {
+  color: #8BFF3E;
+  text-shadow: 0 0 48px rgba(139,255,62,0.28), 0 0 96px rgba(139,255,62,0.12);
+}
+
+@utility text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@utility glass-card {
+  background: rgba(8,12,22,0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px;
+}
+
+@utility glass-panel {
+  background: rgba(8,12,22,0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 16px;
+}
+
+@utility glow-green {
+  box-shadow: 0 0 24px rgba(139,255,62,0.25);
+}
+
+@utility glow-green-sm {
+  box-shadow: 0 0 12px rgba(139,255,62,0.18);
+}
+
+@utility glow-neon {
+  box-shadow: 0 0 32px rgba(139,255,62,0.4);
+}
+
+@utility glow-neon-sm {
+  box-shadow: 0 0 16px rgba(139,255,62,0.25);
+}
+
+@utility glow-blue {
+  box-shadow: 0 0 20px rgba(79,156,249,0.2);
+}
+
+/* Dashboard surface card */
+@utility dash-card {
+  background: rgba(10,15,28,0.9);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+}
+
+/* Subtle hover lift for interactive cards */
+@utility card-hover {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  &:hover {
+    border-color: rgba(255,255,255,0.10);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+    transform: translateY(-1px);
+  }
+}

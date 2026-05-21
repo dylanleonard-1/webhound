@@ -1,0 +1,67 @@
+# Development override — extends docker-compose.yml
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# What this does:
+#   web  — mounts source for hot-reload via Next.js dev server
+#   api  — mounts source + enables uvicorn --reload
+#   worker — mounts source so code changes are reflected on restart
+
+services:
+
+  # ── Web: Next.js dev server with hot-reload ─────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.web.dev
+    ports:
+      - "3000:3000"
+    volumes:
+      # Source files from host — Next.js watches these for HMR
+      - ./apps/web:/app
+      # Named volume for node_modules — prevents host from overwriting
+      # the container's installed packages (critical on Windows paths)
+      - web_node_modules:/app/node_modules
+    environment:
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: "1"
+      # NEXT_PUBLIC_ vars are runtime-evaluated in dev (unlike prod where they're baked in)
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      # Required for WSL2 / Windows filesystem — enables polling-based file watching
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3000 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  # ── API: uvicorn with --reload ───────────────────────────────────────────────
+  api:
+    volumes:
+      - ./apps/api:/app/apps/api
+      - ./scanner:/app/scanner
+      - ./worker:/app/worker
+    user: root
+    command: >
+      sh -c "pip install -e /app/scanner --quiet &&
+             alembic -c apps/api/alembic.ini upgrade head &&
+             uvicorn apps.api.main:app
+               --host 0.0.0.0 --port 8000
+               --reload --reload-dir /app/apps/api
+               --log-level debug"
+
+  # ── Worker: volume mounts (restart to pick up changes) ──────────────────────
+  worker:
+    volumes:
+      - ./apps/api:/app/apps/api
+      - ./scanner:/app/scanner
+      - ./worker:/app/worker
+    user: root
+
+volumes:
+  web_node_modules:

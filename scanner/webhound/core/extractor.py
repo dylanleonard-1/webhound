@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from urllib.parse import urlparse
@@ -65,6 +66,16 @@ class ExtractedScript:
     is_external_domain: bool  # src hostname differs from the page hostname
 
 
+@dataclass(frozen=True)
+class ExtractedIframe:
+    """An <iframe> element captured for security analysis (never loaded)."""
+
+    src_url: str | None       # Resolved src URL, or None for no-src iframes
+    is_external_domain: bool  # src hostname differs from the page hostname
+    is_hidden: bool           # Heuristic: width/height ≤1 or CSS-hidden
+    sandbox: str | None       # Raw sandbox attribute value, if present
+
+
 @dataclass
 class PageArtifacts:
     """All artifacts extracted from a single HTML page response."""
@@ -95,6 +106,47 @@ class PageArtifacts:
     meta_tags: dict[str, str]         # name/property → content
 
     extracted_at: datetime
+
+    # Expanded artifact detection (V2) — default to empty so existing callers are unaffected
+    iframes: list[ExtractedIframe] = field(default_factory=list)
+    external_image_urls: list[str] = field(default_factory=list)
+    external_stylesheet_urls: list[str] = field(default_factory=list)
+    inline_css_import_urls: list[str] = field(default_factory=list)
+    inline_js_request_urls: list[str] = field(default_factory=list)
+
+
+# Regex patterns used by the V2 extraction methods.
+_CSS_IMPORT_RE = re.compile(
+    r'@import\s+(?:url\s*\(\s*)?["\']([^"\']+)["\']', re.IGNORECASE
+)
+_JS_FETCH_RE = re.compile(r'\bfetch\s*\(\s*["\']([^"\']+)["\']')
+_JS_XHR_OPEN_RE = re.compile(
+    r'\.open\s*\(\s*["\'](?:GET|POST|PUT|DELETE|PATCH)["\'],\s*["\']([^"\']+)["\']',
+    re.IGNORECASE,
+)
+_JS_WS_RE = re.compile(r'\bnew\s+WebSocket\s*\(\s*["\']([^"\']+)["\']')
+_IFRAME_HIDDEN_CSS_RE = re.compile(
+    r"display\s*:\s*none|visibility\s*:\s*hidden", re.IGNORECASE
+)
+
+
+def _iframe_is_hidden(tag: Tag) -> bool:
+    """Heuristic: iframe is CSS-hidden or dimensioned to ≤1 pixel."""
+    style = tag.get("style") or ""
+    if isinstance(style, list):
+        style = " ".join(style)
+    if _IFRAME_HIDDEN_CSS_RE.search(str(style)):
+        return True
+    for attr in ("width", "height"):
+        val = tag.get(attr, "")
+        if isinstance(val, list):
+            val = val[0] if val else ""
+        try:
+            if int(str(val).strip()) <= 1:
+                return True
+        except (ValueError, TypeError):
+            pass
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -154,6 +206,11 @@ class Extractor:
             response_headers=dict(response.headers),
             meta_tags=meta_tags,
             extracted_at=datetime.now(timezone.utc),
+            iframes=self._extract_iframes(soup, base_url, page_hostname),
+            external_image_urls=self._extract_external_images(soup, base_url, page_hostname),
+            external_stylesheet_urls=self._extract_external_stylesheets(soup, base_url, page_hostname),
+            inline_css_import_urls=self._extract_css_imports(soup),
+            inline_js_request_urls=self._extract_js_request_urls(scripts),
         )
 
     # ------------------------------------------------------------------
@@ -320,6 +377,121 @@ class Extractor:
             text = title_tag.get_text(strip=True)
             return text or None
         return None
+
+    # ------------------------------------------------------------------
+    # V2 artifact extraction
+    # ------------------------------------------------------------------
+
+    def _extract_iframes(
+        self,
+        soup: BeautifulSoup,
+        base_url: str,
+        page_hostname: str,
+    ) -> list[ExtractedIframe]:
+        iframes: list[ExtractedIframe] = []
+        for tag in soup.find_all("iframe"):
+            if not isinstance(tag, Tag):
+                continue
+            src_raw = tag.get("src") or ""
+            if isinstance(src_raw, list):
+                src_raw = src_raw[0] if src_raw else ""
+            src_url = (
+                UrlNormalizer.normalize(str(src_raw).strip(), base_url=base_url)
+                if str(src_raw).strip()
+                else None
+            )
+            src_host = (urlparse(src_url).hostname or "").lower() if src_url else ""
+            sandbox_raw = tag.get("sandbox")
+            iframes.append(ExtractedIframe(
+                src_url=src_url,
+                is_external_domain=bool(src_host and src_host != page_hostname),
+                is_hidden=_iframe_is_hidden(tag),
+                sandbox=str(sandbox_raw) if sandbox_raw is not None else None,
+            ))
+        return iframes
+
+    def _extract_external_images(
+        self,
+        soup: BeautifulSoup,
+        base_url: str,
+        page_hostname: str,
+    ) -> list[str]:
+        urls: list[str] = []
+        seen: set[str] = set()
+        for tag in soup.find_all("img", src=True):
+            if not isinstance(tag, Tag):
+                continue
+            src_raw = tag.get("src", "")
+            if not src_raw or not isinstance(src_raw, str):
+                continue
+            resolved = UrlNormalizer.normalize(src_raw.strip(), base_url=base_url)
+            if not resolved or resolved in seen:
+                continue
+            host = (urlparse(resolved).hostname or "").lower()
+            if host and host != page_hostname:
+                seen.add(resolved)
+                urls.append(resolved)
+        return urls
+
+    def _extract_external_stylesheets(
+        self,
+        soup: BeautifulSoup,
+        base_url: str,
+        page_hostname: str,
+    ) -> list[str]:
+        urls: list[str] = []
+        seen: set[str] = set()
+        for tag in soup.find_all("link"):
+            if not isinstance(tag, Tag):
+                continue
+            rel = tag.get("rel", [])
+            if isinstance(rel, str):
+                rel = [rel]
+            if "stylesheet" not in [r.lower() for r in rel]:
+                continue
+            href_raw = tag.get("href", "")
+            if not href_raw or not isinstance(href_raw, str):
+                continue
+            resolved = UrlNormalizer.normalize(href_raw.strip(), base_url=base_url)
+            if not resolved or resolved in seen:
+                continue
+            host = (urlparse(resolved).hostname or "").lower()
+            if host and host != page_hostname:
+                seen.add(resolved)
+                urls.append(resolved)
+        return urls
+
+    def _extract_css_imports(self, soup: BeautifulSoup) -> list[str]:
+        urls: list[str] = []
+        seen: set[str] = set()
+        for style_tag in soup.find_all("style"):
+            if not isinstance(style_tag, Tag):
+                continue
+            content = style_tag.get_text() or ""
+            for m in _CSS_IMPORT_RE.finditer(content):
+                url = m.group(1).strip()
+                if url.startswith(("http://", "https://")) and url not in seen:
+                    seen.add(url)
+                    urls.append(url)
+        return urls
+
+    def _extract_js_request_urls(self, scripts: list[ExtractedScript]) -> list[str]:
+        urls: list[str] = []
+        seen: set[str] = set()
+        for script in scripts:
+            if not script.is_inline or not script.content:
+                continue
+            content = script.content
+            for pattern in (_JS_FETCH_RE, _JS_XHR_OPEN_RE, _JS_WS_RE):
+                for m in pattern.finditer(content):
+                    url = m.group(1).strip()
+                    if (
+                        url.startswith(("http://", "https://", "wss://", "ws://"))
+                        and url not in seen
+                    ):
+                        seen.add(url)
+                        urls.append(url)
+        return urls
 
 
 # ---------------------------------------------------------------------------

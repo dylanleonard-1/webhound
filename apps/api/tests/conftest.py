@@ -7,6 +7,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import apps.api.models  # noqa: F401
+from apps.api.config import Settings, get_settings
 from apps.api.database import Base, get_db
 from apps.api.main import app
 from apps.api.models.user import User
@@ -16,6 +17,14 @@ from apps.api.security import get_current_user, hash_password
 @pytest.fixture(scope="session")
 def anyio_backend():
     return "asyncio"
+
+
+@pytest.fixture(autouse=True)
+def _dev_settings():
+    """Allow unverified scans in test environment — domain verification is not available in tests."""
+    test_settings = Settings(dev_allow_unverified_scans=True)
+    with patch("apps.api.services.scan_jobs.get_settings", return_value=test_settings):
+        yield
 
 
 @pytest.fixture(autouse=True)

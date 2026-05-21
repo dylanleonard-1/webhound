@@ -36,6 +36,7 @@ class GroupedFindingRecord(Base, TimestampMixin):
     affected_urls: Mapped[list | None] = mapped_column(sa.JSON)
     evidence_count: Mapped[int] = mapped_column(sa.Integer, default=0, nullable=False)
     confidence: Mapped[float | None] = mapped_column(sa.Float)
+    description: Mapped[str | None] = mapped_column(sa.Text)
     remediation: Mapped[str | None] = mapped_column(sa.Text)
     framework: Mapped[dict | None] = mapped_column(sa.JSON)
     finding_ids: Mapped[list | None] = mapped_column(sa.JSON)

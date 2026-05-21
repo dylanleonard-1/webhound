@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.database import get_db
+from apps.api.pagination import page_meta
 from apps.api.models.enums import ScanProfile, ScanStatus
 from apps.api.models.user import User
 from apps.api.schemas.scan_jobs import (
@@ -28,14 +29,22 @@ _DB = Annotated[AsyncSession, Depends(get_db)]
 _CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
+def _uid(user: User) -> uuid.UUID | None:
+    return None if user.is_admin else user.id
+
+
 @router.post("", response_model=ScanJobResponse, status_code=201)
 async def create_scan_job(
     data: ScanJobCreate, db: _DB, current_user: _CurrentUser
 ) -> ScanJobResponse:
     try:
-        job = await sj_service.create_scan_job(db, data, user_id=current_user.id)
+        job = await sj_service.create_scan_job(
+            db, data, user_id=current_user.id, is_admin=current_user.is_admin
+        )
     except sj_service.WebsiteNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    except sj_service.WebsiteNotVerifiedError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     try:
         task = run_scan.delay(str(job.id), job.requested_url, job.profile.value)
         job.celery_task_id = task.id
@@ -62,13 +71,14 @@ async def list_scan_jobs(
         website_id=website_id,
         status=status,
         profile=profile.value if profile else None,
-        user_id=current_user.id,
+        user_id=_uid(current_user),
     )
     return ScanJobListResponse(
         items=[ScanJobResponse.model_validate(j) for j in items],
         total=total,
         limit=limit,
         offset=offset,
+        **page_meta(total, limit, offset),
     )
 
 
@@ -76,7 +86,7 @@ async def list_scan_jobs(
 async def get_scan_job(
     scan_job_id: uuid.UUID, db: _DB, current_user: _CurrentUser
 ) -> ScanJobResponse:
-    job = await sj_service.get_scan_job(db, scan_job_id, user_id=current_user.id)
+    job = await sj_service.get_scan_job(db, scan_job_id, user_id=_uid(current_user))
     if job is None:
         raise HTTPException(status_code=404, detail="Scan job not found")
     return ScanJobResponse.model_validate(job)
@@ -88,7 +98,7 @@ async def cancel_scan_job(
 ) -> ScanJobResponse:
     try:
         job = await sj_service.cancel_scan_job(
-            db, scan_job_id, user_id=current_user.id
+            db, scan_job_id, user_id=_uid(current_user)
         )
     except sj_service.InvalidStatusTransitionError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
@@ -107,7 +117,7 @@ async def update_scan_job_status(
 ) -> ScanJobResponse:
     try:
         job = await sj_service.update_scan_job_status(
-            db, scan_job_id, data, user_id=current_user.id
+            db, scan_job_id, data, user_id=_uid(current_user)
         )
     except sj_service.InvalidStatusTransitionError as exc:
         raise HTTPException(status_code=409, detail=str(exc))

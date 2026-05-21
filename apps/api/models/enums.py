@@ -42,3 +42,20 @@ class ScheduleFrequency(str, enum.Enum):
     DAILY = "daily"
     WEEKLY = "weekly"
     MONTHLY = "monthly"
+
+
+class NotificationType(str, enum.Enum):
+    SCAN_COMPLETED = "scan_completed"
+    SCAN_FAILED = "scan_failed"
+    HIGH_RISK_FINDING = "high_risk_finding"
+    CRITICAL_FINDING = "critical_finding"
+    WADE_ANOMALY = "wade_anomaly"
+    SCHEDULE_FAILED = "schedule_failed"
+
+
+class NotificationSeverity(str, enum.Enum):
+    INFO = "info"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"

@@ -19,6 +19,9 @@ if TYPE_CHECKING:
 
 class ScanSchedule(Base, UpdatedAtMixin):
     __tablename__ = "scan_schedules"
+    __table_args__ = (
+        sa.Index("ix_scan_schedules_enabled_next", "is_enabled", "next_run_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -36,12 +39,12 @@ class ScanSchedule(Base, UpdatedAtMixin):
         index=True,
     )
     profile: Mapped[ScanProfile] = mapped_column(
-        SAEnum(ScanProfile, name="scanprofile"),
+        SAEnum(ScanProfile, name="scanprofile", values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         default=ScanProfile.STANDARD,
     )
     frequency: Mapped[ScheduleFrequency] = mapped_column(
-        SAEnum(ScheduleFrequency, name="schedulefrequency"),
+        SAEnum(ScheduleFrequency, name="schedulefrequency", values_callable=lambda x: [e.value for e in x]),
         nullable=False,
     )
     is_enabled: Mapped[bool] = mapped_column(sa.Boolean, default=True, nullable=False)

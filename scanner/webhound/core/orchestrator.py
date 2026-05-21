@@ -139,50 +139,55 @@ def _breakdown_from_grouped(grouped: list[GroupedFinding]) -> SeverityBreakdown:
 
 
 def _compute_risk_score(result: ScanResult) -> tuple[int, str]:
-    """Compute a 0–100 website health score and a severity-aware risk level label.
+    """Compute a 0–100 risk score where 0 = safe and 100 = critical.
 
-    Uses grouped findings when available so the same site-wide issue (e.g. a
-    missing security header on every page) is counted once, not once per page.
+    Uses grouped findings when available (same site-wide issue counts once,
+    not once per page).  Behavioral findings from the WADE engine are excluded
+    from the breakdown so that a structural page change between scans cannot
+    inflate the security risk label.
 
-    Per-tier deductions with caps (no single tier can dominate):
-      CRITICAL −30 each, cap −70  |  HIGH −15 each, cap −40
-      MEDIUM   −7 each,  cap −30  |  LOW  −2 each,  cap −10
-      INFO 0
+    Tier contributions with per-tier caps (no single tier dominates):
+      CRITICAL  +30 each, cap +85  |  HIGH    +15 each, cap +40
+      MEDIUM    +7 each,  cap +30  |  LOW     +2 each,  cap +10
 
-    Score rules:
-    - Clamped to [0, 100].
-    - Any CRITICAL finding caps the score at 59 (never "low" by score alone).
+    Label thresholds:
+      0–19 → safe  |  20–39 → low  |  40–59 → medium
+      60–79 → high  |  80–100 → critical
 
-    Label thresholds (score-based):
-      ≥ 75 → "low"  |  ≥ 50 → "medium"  |  ≥ 25 → "high"  |  < 25 → "critical"
+    Downward guards (prevent labels without sufficient evidence):
+      "critical" requires at least one CRITICAL finding.
+      "high"     requires at least one HIGH or CRITICAL finding.
 
-    Severity guards (downward — prevent misleading severe labels):
-    - "critical" label requires at least one CRITICAL finding.
-    - "high" label requires at least one HIGH or CRITICAL finding.
-      Many MEDIUM or LOW findings cannot produce a severe label on their own.
-
-    Severity guard (upward — prevent misleading mild labels):
-    - Any CRITICAL finding forces the label to at least "high".
+    Upward guards (prevent misleadingly mild labels):
+      Any CRITICAL finding forces label to at least "high".
+      Any HIGH finding forces label to at least "low".
     """
-    bd = (
-        _breakdown_from_grouped(result.grouped_findings)
-        if result.grouped_findings
-        else result.severity_breakdown
-    )
-    score = 100
-    score -= min(bd.critical * 30, 70)
-    score -= min(bd.high * 15, 40)
-    score -= min(bd.medium * 7, 30)
-    score -= min(bd.low * 2, 10)
-    score = max(0, score)
-    if bd.critical > 0:
-        score = min(score, 59)
+    # Prefer security-engine grouped findings; exclude WADE (behavioural engine).
+    security_grouped = [
+        gf for gf in result.grouped_findings if gf.scanner_engine != "wade"
+    ] if result.grouped_findings else None
 
-    if score >= 75:
+    if security_grouped:
+        bd = _breakdown_from_grouped(security_grouped)
+    elif result.grouped_findings:
+        bd = _breakdown_from_grouped(result.grouped_findings)
+    else:
+        bd = result.severity_breakdown
+
+    risk = 0
+    risk += min(bd.critical * 30, 85)
+    risk += min(bd.high * 15, 40)
+    risk += min(bd.medium * 7, 30)
+    risk += min(bd.low * 2, 10)
+    risk = min(100, risk)
+
+    if risk <= 19:
+        level = "safe"
+    elif risk <= 39:
         level = "low"
-    elif score >= 50:
+    elif risk <= 59:
         level = "medium"
-    elif score >= 25:
+    elif risk <= 79:
         level = "high"
     else:
         level = "critical"
@@ -193,11 +198,13 @@ def _compute_risk_score(result: ScanResult) -> tuple[int, str]:
     if level == "high" and bd.critical == 0 and bd.high == 0:
         level = "medium"
 
-    # Upward guard: any CRITICAL finding forces at least "high" label
-    if bd.critical > 0 and level not in ("high", "critical"):
+    # Upward guards
+    if bd.critical > 0 and level in ("safe", "low", "medium"):
         level = "high"
+    if bd.high > 0 and level == "safe":
+        level = "low"
 
-    return score, level
+    return risk, level
 
 
 def _dedup_findings(findings: list[Finding]) -> list[Finding]:
@@ -281,6 +288,7 @@ class Scanner:
         """Execute the full scan pipeline and return a completed ScanResult."""
         ctx = ScanContext(self._target)
         external_domains: set[str] = set()
+        external_script_domains: set[str] = set()
         crawl_results: list = []
         _http_stats: dict[str, Any] = {}
         _crawl_duration_seconds: float = 0.0
@@ -302,7 +310,9 @@ class Scanner:
 
                 # 3. Per-page engines
                 for result in crawl_results:
-                    await self._run_page_engines(result, ctx, external_domains)
+                    await self._run_page_engines(
+                        result, ctx, external_domains, external_script_domains
+                    )
 
                 # Capture HTTP stats before the client closes
                 _http_stats = client.fetch_stats.to_dict()
@@ -334,6 +344,8 @@ class Scanner:
         result.metadata["risk_level"] = risk_level
         result.metadata["external_domains"] = sorted(external_domains)
         result.metadata["external_domain_count"] = len(external_domains)
+        result.metadata["external_script_domains"] = sorted(external_script_domains)
+        result.metadata["external_script_domain_count"] = len(external_script_domains)
         result.metadata["fetch_stats"] = _http_stats
         result.metadata["crawl_duration_seconds"] = round(_crawl_duration_seconds, 3)
 
@@ -375,6 +387,7 @@ class Scanner:
         result: Any,  # CrawlResult
         ctx: ScanContext,
         external_domains: set[str],
+        external_script_domains: set[str],
     ) -> None:
         response = result.response
         artifacts = result.artifacts
@@ -391,11 +404,18 @@ class Scanner:
         if artifacts is None:
             return
 
-        # Collect external domains from this page
+        # Collect external link domains from this page
         for link in artifacts.external_links:
             host = urlparse(link).hostname
             if host:
                 external_domains.add(host.lower())
+
+        # Collect all external script source domains (trusted and unknown alike)
+        for script in artifacts.scripts:
+            if script.is_external_domain and script.src:
+                host = urlparse(script.src).hostname
+                if host:
+                    external_script_domains.add(host.lower())
 
         html_body: str | None = (
             response.body

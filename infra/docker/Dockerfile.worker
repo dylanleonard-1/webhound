@@ -3,8 +3,19 @@ FROM python:3.12-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev gcc \
+    libpq-dev gcc curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Non-root user for production security
+RUN useradd --system --create-home --shell /bin/bash webhound
+
+# Install scanner deps first (larger layer, changes less)
+COPY scanner/requirements.txt /tmp/scanner-requirements.txt
+RUN pip install --no-cache-dir -r /tmp/scanner-requirements.txt
+
+# Install API deps because worker imports from apps.api.*
+COPY apps/api/requirements.txt /tmp/api-requirements.txt
+RUN pip install --no-cache-dir -r /tmp/api-requirements.txt
 
 # Install worker deps
 COPY worker/requirements.txt /tmp/worker-requirements.txt
@@ -14,11 +25,17 @@ RUN pip install --no-cache-dir -r /tmp/worker-requirements.txt
 COPY scanner /app/scanner
 RUN pip install --no-cache-dir -e /app/scanner
 
-# Copy worker source
+# Copy application source
+COPY apps /app/apps
 COPY worker /app/worker
+
+RUN chown -R webhound:webhound /app
 
 ENV PYTHONPATH=/app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-CMD ["celery", "-A", "worker.celery_app:celery", "worker", "--loglevel=info", "--concurrency=2"]
+USER webhound
+
+# WORKER_CONCURRENCY defaults to 2; override via environment variable.
+CMD ["sh", "-c", "exec celery -A worker.celery_app:celery worker --loglevel=info --concurrency=${WORKER_CONCURRENCY:-2}"]

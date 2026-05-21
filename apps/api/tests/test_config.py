@@ -33,5 +33,33 @@ def test_settings_production_env():
         database_url="postgresql+asyncpg://u:p@db/prod",
         redis_url="redis://localhost:6379/0",
         app_env="production",
+        secret_key="a" * 64,  # valid non-default key
     )
     assert s.app_env == "production"
+
+
+def test_settings_production_rejects_default_secret():
+    from apps.api.config import Settings
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError, match="SECRET_KEY must be changed"):
+        Settings(
+            _env_file=None,
+            database_url="postgresql+asyncpg://u:p@db/prod",
+            redis_url="redis://localhost:6379/0",
+            app_env="production",
+            secret_key="dev-secret-key-change-in-production",
+        )
+
+
+def test_settings_production_rejects_dev_scan_bypass():
+    from apps.api.config import Settings
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError, match="DEV_ALLOW_UNVERIFIED_SCANS"):
+        Settings(
+            _env_file=None,
+            database_url="postgresql+asyncpg://u:p@db/prod",
+            redis_url="redis://localhost:6379/0",
+            app_env="production",
+            secret_key="a" * 64,
+            dev_allow_unverified_scans=True,
+        )

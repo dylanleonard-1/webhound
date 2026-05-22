@@ -14,6 +14,7 @@ import {
   getStoredToken,
   setStoredToken,
   type LoginChallenge,
+  type RegisterPayload,
   type UserResponse,
 } from '@/lib/api'
 
@@ -23,7 +24,7 @@ interface AuthContextValue {
   initiateLogin: (email: string, password: string) => Promise<LoginChallenge>
   verifyLoginCode: (challengeToken: string, code: string) => Promise<void>
   resendLoginCode: (challengeToken: string) => Promise<{ devCode?: string }>
-  register: (email: string, password: string) => Promise<{ devVerifyUrl?: string }>
+  register: (payload: RegisterPayload) => Promise<{ devVerifyUrl?: string }>
   loginWithToken: (token: string) => Promise<void>
   logout: () => void
 }
@@ -63,8 +64,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { devCode: res.dev_code }
   }, [])
 
-  const register = useCallback(async (email: string, password: string) => {
-    const res = await api.auth.register(email, password)
+  const register = useCallback(async (payload: RegisterPayload) => {
+    const res = await api.auth.register(payload)
     setStoredToken(res.access_token)
     const me = await api.auth.me()
     setUser(me)

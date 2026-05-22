@@ -34,6 +34,8 @@ class User(Base, UpdatedAtMixin):
     oauth_provider_id: Mapped[str | None] = mapped_column(sa.String(255), index=True)
     full_name: Mapped[str | None] = mapped_column(sa.String(255))
     avatar_url: Mapped[str | None] = mapped_column(sa.String(500))
+    company_name: Mapped[str | None] = mapped_column(sa.String(255))
+    use_case: Mapped[str | None] = mapped_column(sa.String(64))
 
     email_verified: Mapped[bool] = mapped_column(sa.Boolean, default=False, nullable=False)
     email_verification_token: Mapped[str | None] = mapped_column(sa.String(128), index=True)

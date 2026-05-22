@@ -29,7 +29,26 @@ export interface UserResponse {
   email_verified: boolean
   phone_number: string | null
   phone_verified: boolean
+  full_name?: string | null
+  company_name?: string | null
+  use_case?: string | null
   created_at: string
+}
+
+export type UseCase =
+  | 'developer'
+  | 'security_engineer'
+  | 'founder'
+  | 'agency'
+  | 'it_team'
+  | 'other'
+
+export interface RegisterPayload {
+  email: string
+  password: string
+  full_name?: string | null
+  company_name?: string | null
+  use_case?: UseCase | null
 }
 
 export interface TokenResponse {
@@ -347,9 +366,9 @@ function qs(params?: Record<string, string | number | boolean | undefined | null
 
 export const api = {
   auth: {
-    register: (email: string, password: string) =>
+    register: (payload: RegisterPayload) =>
       request<UserResponse & { access_token: string; token_type: string; dev_verify_url?: string }>(
-        'POST', '/auth/register', { email, password }
+        'POST', '/auth/register', payload
       ),
 
     login: (email: string, password: string) =>

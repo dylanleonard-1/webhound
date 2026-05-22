@@ -5,7 +5,16 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth'
-import type { LoginChallenge } from '@/lib/api'
+import type { LoginChallenge, UseCase } from '@/lib/api'
+
+const USE_CASES: Array<{ value: UseCase; label: string }> = [
+  { value: 'developer',         label: 'Developer' },
+  { value: 'security_engineer', label: 'Security engineer' },
+  { value: 'founder',           label: 'Founder / owner' },
+  { value: 'agency',            label: 'Agency / consultant' },
+  { value: 'it_team',           label: 'IT / ops team' },
+  { value: 'other',             label: 'Something else' },
+]
 
 const API_BASE =
   (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL) ||
@@ -218,6 +227,10 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [challenge, setChallenge] = useState<LoginChallenge | null>(null)
+  // Register-only fields
+  const [fullName, setFullName] = useState('')
+  const [companyName, setCompanyName] = useState('')
+  const [useCase, setUseCase] = useState<UseCase | ''>('')
 
   const isLogin = mode === 'login'
 
@@ -234,7 +247,13 @@ export function AuthForm({ mode }: AuthFormProps) {
         const c = await initiateLogin(email, password)
         setChallenge(c)
       } else {
-        const { devVerifyUrl } = await register(email, password)
+        const { devVerifyUrl } = await register({
+          email,
+          password,
+          full_name: fullName || null,
+          company_name: companyName || null,
+          use_case: useCase || null,
+        })
         if (devVerifyUrl) sessionStorage.setItem('dev_verify_url', devVerifyUrl)
         router.replace('/verify-email')
       }
@@ -293,6 +312,68 @@ export function AuthForm({ mode }: AuthFormProps) {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-3">
+        {!isLogin && (
+          <>
+            <div>
+              <label htmlFor="fullName" className="block text-[12px] font-medium text-gray-400 mb-1.5">
+                Full name
+              </label>
+              <input
+                id="fullName" type="text" placeholder="Jane Doe" autoComplete="name"
+                value={fullName} onChange={e => setFullName(e.target.value)} required
+                className="w-full h-11 px-3.5 rounded-xl text-[13.5px] text-white placeholder:text-gray-600 outline-none transition-colors"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                onFocus={e => (e.currentTarget.style.borderColor = 'rgba(139,255,62,0.45)')}
+                onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="companyName" className="block text-[12px] font-medium text-gray-400 mb-1.5">
+                Company <span className="text-gray-600">(optional)</span>
+              </label>
+              <input
+                id="companyName" type="text" placeholder="Acme Inc." autoComplete="organization"
+                value={companyName} onChange={e => setCompanyName(e.target.value)}
+                className="w-full h-11 px-3.5 rounded-xl text-[13.5px] text-white placeholder:text-gray-600 outline-none transition-colors"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                onFocus={e => (e.currentTarget.style.borderColor = 'rgba(139,255,62,0.45)')}
+                onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="useCase" className="block text-[12px] font-medium text-gray-400 mb-1.5">
+                What best describes you?
+              </label>
+              <select
+                id="useCase"
+                value={useCase}
+                onChange={e => setUseCase(e.target.value as UseCase | '')}
+                required
+                className="w-full h-11 px-3 rounded-xl text-[13.5px] text-white outline-none transition-colors appearance-none"
+                style={{
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23a3a3a3' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E\")",
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'right 14px center',
+                  paddingRight: '36px',
+                }}
+                onFocus={e => (e.currentTarget.style.borderColor = 'rgba(139,255,62,0.45)')}
+                onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}
+              >
+                <option value="" disabled className="bg-[#0a0f1c] text-gray-500">Select an option</option>
+                {USE_CASES.map(opt => (
+                  <option key={opt.value} value={opt.value} className="bg-[#0a0f1c] text-white">
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
+
         <div>
           <label htmlFor="email" className="block text-[12px] font-medium text-gray-400 mb-1.5">Email address</label>
           <input

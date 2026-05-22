@@ -122,6 +122,10 @@ async def initiate_verification(
         raise HTTPException(404, "Website not found")
     if website.verification_status.value == "verified":
         return {"already_verified": True}
+    if current_user.is_admin:
+        website.verification_status = VerificationStatus.VERIFIED
+        await db.commit()
+        return {"already_verified": True}
     dv = await verify_service.get_or_create_verification(db, website, method)
     await db.commit()
     return {

@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 from functools import lru_cache
+from typing import Annotated
 
 from pydantic import field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 _INSECURE_KEYS = {
     "dev-secret-key-change-in-production",
@@ -106,6 +107,25 @@ class Settings(BaseSettings):
     # Dev overrides — must never be set true in production
     dev_allow_unverified_scans: bool = False
     dev_skip_domain_verification: bool = False
+
+    # Emails auto-promoted to is_admin on signup, OAuth, and startup backfill.
+    # Override with ADMIN_EMAILS env var as JSON array or comma-separated list.
+    admin_emails: Annotated[list[str], NoDecode] = ["dmleonard5125@gmail.com"]
+
+    @field_validator("admin_emails", mode="before")
+    @classmethod
+    def parse_admin_emails(cls, v: object) -> list[str]:
+        if isinstance(v, list):
+            return [str(e).strip().lower() for e in v if str(e).strip()]
+        if not isinstance(v, str) or not v.strip():
+            return []
+        try:
+            parsed = json.loads(v)
+            if isinstance(parsed, list):
+                return [str(e).strip().lower() for e in parsed if str(e).strip()]
+        except json.JSONDecodeError:
+            pass
+        return [s.strip().lower() for s in v.split(",") if s.strip()]
 
     @field_validator("app_env")
     @classmethod

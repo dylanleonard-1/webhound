@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.api.config import get_settings
 from apps.api.models.user import User
 from apps.api.schemas.auth import UserCreate
 from apps.api.security import hash_password, verify_password
@@ -27,10 +28,12 @@ async def create_user(db: AsyncSession, data: UserCreate) -> tuple[User, str | N
     if existing is not None:
         raise DuplicateEmailError(f"Email already registered: {data.email}")
     token, expires = _make_verification_token()
+    is_admin = data.email.strip().lower() in get_settings().admin_emails
     user = User(
         email=data.email,
         hashed_password=hash_password(data.password),
         is_active=True,
+        is_admin=is_admin,
         email_verified=False,
         email_verification_token=token,
         email_verification_expires_at=expires,

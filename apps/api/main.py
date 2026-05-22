@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+import logging
+
+import sqlalchemy as sa
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from apps.api.config import get_settings
+from apps.api.database import AsyncSessionLocal
 from apps.api.errors import (
     http_exception_handler,
     internal_exception_handler,
     validation_exception_handler,
 )
 from apps.api.middleware import RateLimitMiddleware, SecurityHeadersMiddleware
+from apps.api.models.user import User
 from apps.api.routers import (
     auth,
     baselines,
@@ -81,3 +86,21 @@ app.include_router(scan_results.router)
 app.include_router(baselines.router)
 app.include_router(scan_schedules.router)
 app.include_router(notifications.router)
+
+
+@app.on_event("startup")
+async def _backfill_admin_emails() -> None:
+    emails = settings.admin_emails
+    if not emails:
+        return
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            sa.update(User)
+            .where(sa.func.lower(User.email).in_(emails), User.is_admin.is_(False))
+            .values(is_admin=True)
+        )
+        await db.commit()
+        if result.rowcount:
+            logging.getLogger(__name__).info(
+                "Promoted %d user(s) to admin via admin_emails", result.rowcount
+            )

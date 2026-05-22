@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.api.config import get_settings
 from apps.api.models.user import User
 
 
@@ -18,6 +19,7 @@ class OAuthUserInfo:
 
 
 async def find_or_create_oauth_user(db: AsyncSession, info: OAuthUserInfo) -> User:
+    admin_emails = get_settings().admin_emails
     # 1. Find by provider + provider_id (returning user)
     user = await db.scalar(
         sa.select(User).where(
@@ -26,6 +28,8 @@ async def find_or_create_oauth_user(db: AsyncSession, info: OAuthUserInfo) -> Us
         )
     )
     if user:
+        if user.email and user.email.strip().lower() in admin_emails and not user.is_admin:
+            user.is_admin = True
         return user
 
     # 2. Find by email and link OAuth to existing account
@@ -39,10 +43,13 @@ async def find_or_create_oauth_user(db: AsyncSession, info: OAuthUserInfo) -> Us
                 user.full_name = info.name
             if info.avatar_url and not user.avatar_url:
                 user.avatar_url = info.avatar_url
+            if info.email.strip().lower() in admin_emails and not user.is_admin:
+                user.is_admin = True
             return user
 
     # 3. Create new OAuth user (email already verified by provider)
     email = info.email or f"{info.provider}_{info.provider_id}@webhound.oauth"
+    is_admin = email.strip().lower() in admin_emails
     user = User(
         email=email,
         hashed_password=None,
@@ -51,6 +58,7 @@ async def find_or_create_oauth_user(db: AsyncSession, info: OAuthUserInfo) -> Us
         full_name=info.name,
         avatar_url=info.avatar_url,
         is_active=True,
+        is_admin=is_admin,
         email_verified=True,
     )
     db.add(user)

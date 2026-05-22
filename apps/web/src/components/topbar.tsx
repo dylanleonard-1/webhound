@@ -2,11 +2,9 @@
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { Bell, Plus, Search, ChevronRight, Command } from 'lucide-react'
+import { Bell, Plus, Search, ChevronRight, Menu } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
-
-// ── Breadcrumb builder ────────────────────────────────────────────────────────
 
 interface Crumb { label: string; href?: string }
 
@@ -32,9 +30,11 @@ function buildCrumbs(pathname: string): Crumb[] {
   return [{ label: 'Dashboard' }]
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+interface TopbarProps {
+  onMenuClick?: () => void
+}
 
-export function Topbar() {
+export function Topbar({ onMenuClick }: TopbarProps) {
   const pathname = usePathname()
   const crumbs = buildCrumbs(pathname)
   const [unread, setUnread] = useState(0)
@@ -43,43 +43,64 @@ export function Topbar() {
     api.notifications.unreadCount().then(r => setUnread(r.count)).catch(() => {})
   }, [pathname])
 
+  // On mobile we only show the last crumb so the title doesn't wrap or overflow.
+  const mobileCrumb = crumbs[crumbs.length - 1]
+
   return (
     <header
-      className="h-[57px] flex items-center justify-between px-6 flex-shrink-0 gap-4"
+      className="h-[57px] flex items-center justify-between px-3 sm:px-6 flex-shrink-0 gap-2 sm:gap-4"
       style={{
         background: 'rgba(5,8,16,0.95)',
         borderBottom: '1px solid rgba(255,255,255,0.055)',
         backdropFilter: 'blur(12px)',
       }}
     >
-      {/* ── Left: breadcrumb ──────────────────────────────────── */}
-      <div className="flex items-center gap-1.5 min-w-0">
-        {crumbs.map((c, i) => (
-          <div key={i} className="flex items-center gap-1.5 min-w-0">
-            {i > 0 && (
-              <ChevronRight className="w-3 h-3 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.2)' }} />
-            )}
-            {c.href ? (
-              <Link
-                href={c.href}
-                className="text-[13px] font-medium transition-colors truncate"
-                style={{ color: 'rgba(255,255,255,0.38)' }}
-                onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.7)')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.38)')}
-              >
-                {c.label}
-              </Link>
-            ) : (
-              <span className="text-[13px] font-semibold text-white truncate">{c.label}</span>
-            )}
-          </div>
-        ))}
+      {/* ── Left: mobile menu + breadcrumb ──────────────────────── */}
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <button
+          type="button"
+          onClick={onMenuClick}
+          className="md:hidden flex items-center justify-center w-9 h-9 rounded-[8px] flex-shrink-0"
+          style={{ color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.07)' }}
+          aria-label="Open menu"
+        >
+          <Menu className="w-4 h-4" />
+        </button>
+
+        {/* Mobile: just the current page label */}
+        <div className="md:hidden min-w-0 flex-1">
+          <span className="text-[14px] font-semibold text-white truncate block">
+            {mobileCrumb.label}
+          </span>
+        </div>
+
+        {/* Desktop: full breadcrumb */}
+        <div className="hidden md:flex items-center gap-1.5 min-w-0">
+          {crumbs.map((c, i) => (
+            <div key={i} className="flex items-center gap-1.5 min-w-0">
+              {i > 0 && (
+                <ChevronRight className="w-3 h-3 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.2)' }} />
+              )}
+              {c.href ? (
+                <Link
+                  href={c.href}
+                  className="text-[13px] font-medium transition-colors truncate"
+                  style={{ color: 'rgba(255,255,255,0.38)' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.7)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.38)')}
+                >
+                  {c.label}
+                </Link>
+              ) : (
+                <span className="text-[13px] font-semibold text-white truncate">{c.label}</span>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* ── Right: actions ────────────────────────────────────── */}
       <div className="flex items-center gap-2 flex-shrink-0">
-
-        {/* Command palette trigger */}
         <button
           className="hidden md:flex items-center gap-2 px-3 py-[6px] rounded-[8px] text-[11px] transition-all duration-150"
           style={{
@@ -100,10 +121,10 @@ export function Topbar() {
           </div>
         </button>
 
-        {/* New Scan CTA */}
+        {/* New Scan CTA — icon-only on small screens */}
         <Link href="/dashboard/websites/new">
           <button
-            className="flex items-center gap-1.5 px-3 py-[6px] rounded-[8px] text-[12px] font-semibold transition-all duration-200"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-[6px] rounded-[8px] text-[12px] font-semibold transition-all duration-200"
             style={{
               background: 'rgba(139,255,62,0.1)',
               border: '1px solid rgba(139,255,62,0.3)',
@@ -119,9 +140,10 @@ export function Topbar() {
               el.style.background = 'rgba(139,255,62,0.1)'
               el.style.borderColor = 'rgba(139,255,62,0.3)'
             }}
+            aria-label="New Scan"
           >
             <Plus className="w-3.5 h-3.5" />
-            New Scan
+            <span className="hidden sm:inline">New Scan</span>
           </button>
         </Link>
 

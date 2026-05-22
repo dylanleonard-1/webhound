@@ -127,7 +127,7 @@ export default function NotificationsPage() {
 
   return (
     <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-      <div className="max-w-[860px] mx-auto px-6 py-8 space-y-6">
+      <div className="max-w-[860px] mx-auto px-4 py-5 sm:px-6 sm:py-8 space-y-6">
 
         {/* Header */}
         <motion.div

@@ -33,7 +33,7 @@ export default function WebsiteMonitoringPage() {
 
   if (notFound || !website) {
     return (
-      <div className="max-w-4xl mx-auto p-6">
+      <div className="max-w-4xl mx-auto p-4 sm:p-6">
         <Link
           href="/dashboard/websites"
           className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors mb-6"
@@ -47,7 +47,7 @@ export default function WebsiteMonitoringPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
+    <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
       {/* Header */}
       <div>
         <Link

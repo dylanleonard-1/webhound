@@ -49,7 +49,7 @@ export default function WebsitesPage() {
 
   return (
     <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-      <div className="max-w-[1100px] mx-auto px-6 py-8 space-y-6">
+      <div className="max-w-[1100px] mx-auto px-4 py-5 sm:px-6 sm:py-8 space-y-6">
 
         {/* Header */}
         <motion.div
@@ -126,7 +126,7 @@ export default function WebsitesPage() {
                 <Link
                   key={site.id}
                   href={`/dashboard/websites/${site.id}`}
-                  className="flex items-center gap-4 px-5 py-3.5 group transition-colors"
+                  className="flex items-center gap-3 sm:gap-4 px-3 sm:px-5 py-3.5 group transition-colors"
                   style={{ borderBottom: i < items.length - 1 ? '1px solid rgba(255,255,255,0.04)' : undefined }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.02)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -143,13 +143,13 @@ export default function WebsitesPage() {
                         {site.hostname}
                       </span>
                       {site.display_name && (
-                        <span className="text-[11px] px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.35)' }}>
+                        <span className="hidden sm:inline-block text-[11px] px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.35)' }}>
                           {site.display_name}
                         </span>
                       )}
                     </div>
-                    <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.28)' }}>
-                      {site.url} · Added {timeAgo(site.created_at)}
+                    <span className="text-[10px] truncate block" style={{ color: 'rgba(255,255,255,0.28)' }}>
+                      <span className="hidden sm:inline">{site.url} · </span>Added {timeAgo(site.created_at)}
                     </span>
                   </div>
 

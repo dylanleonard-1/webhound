@@ -212,7 +212,7 @@ export default function SettingsPage() {
 
   return (
     <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-      <div className="max-w-[680px] mx-auto px-6 py-8 space-y-5">
+      <div className="max-w-[680px] mx-auto px-4 py-5 sm:px-6 sm:py-8 space-y-5">
 
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
           <h1 className="text-[22px] font-bold text-white tracking-tight">Settings</h1>

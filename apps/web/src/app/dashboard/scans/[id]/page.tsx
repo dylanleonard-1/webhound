@@ -171,7 +171,7 @@ export default function ScanDetailPage() {
 
   return (
     <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-      <div className="max-w-[820px] mx-auto px-6 py-8 space-y-5">
+      <div className="max-w-[820px] mx-auto px-4 py-5 sm:px-6 sm:py-8 space-y-5">
 
         {/* Back nav */}
         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>

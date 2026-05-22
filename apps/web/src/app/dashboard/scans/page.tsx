@@ -73,7 +73,7 @@ export default function ScansPage() {
 
   return (
     <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-      <div className="max-w-[1100px] mx-auto px-6 py-8 space-y-6">
+      <div className="max-w-[1100px] mx-auto px-4 py-5 sm:px-6 sm:py-8 space-y-6">
 
         {/* Header */}
         <motion.div
@@ -177,7 +177,7 @@ export default function ScansPage() {
                 <Link
                   key={job.id}
                   href={`/dashboard/scans/${job.id}`}
-                  className="flex items-center gap-4 px-5 py-3.5 group transition-colors"
+                  className="flex items-center gap-3 sm:gap-4 px-3 sm:px-5 py-3.5 group transition-colors"
                   style={{
                     borderBottom: i < filtered.length - 1 ? '1px solid rgba(255,255,255,0.04)' : undefined,
                   }}
@@ -204,10 +204,10 @@ export default function ScansPage() {
                     </span>
                   </div>
 
-                  {/* Badges */}
+                  {/* Badges — profile hidden on mobile to keep the row from wrapping */}
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span
-                      className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide"
+                      className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide"
                       style={{ background: `${profileColor}18`, color: profileColor, border: `1px solid ${profileColor}35` }}
                     >
                       {job.profile}
@@ -218,7 +218,7 @@ export default function ScansPage() {
                     >
                       {s.label}
                     </span>
-                    <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'rgba(255,255,255,0.3)' }} />
+                    <ChevronRight className="hidden sm:block w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'rgba(255,255,255,0.3)' }} />
                   </div>
                 </Link>
               )

@@ -292,7 +292,7 @@ export default function WebsiteDetailPage() {
 
   if (siteLoading) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <LoadingState />
       </div>
     )
@@ -300,7 +300,7 @@ export default function WebsiteDetailPage() {
 
   if (siteError || !site) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <ErrorState message={siteError ?? 'Website not found.'} />
         <div className="mt-4 flex justify-center">
           <Button variant="ghost" asChild>
@@ -315,7 +315,7 @@ export default function WebsiteDetailPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-3xl">
+    <div className="p-4 sm:p-6 space-y-6 max-w-3xl">
       {/* Back */}
       <Button variant="ghost" size="sm" asChild>
         <Link href="/dashboard/websites">

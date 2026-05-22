@@ -115,7 +115,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-      <div className="max-w-[1100px] mx-auto px-6 py-8 space-y-8">
+      <div className="max-w-[1100px] mx-auto px-4 py-5 sm:px-6 sm:py-8 space-y-6 sm:space-y-8">
 
         {/* ── Header ──────────────────────────────────────────── */}
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
@@ -208,7 +208,7 @@ export default function DashboardPage() {
                       <Link
                         key={scan.id}
                         href={`/dashboard/scans/${scan.id}`}
-                        className="flex items-center gap-3 px-5 py-3.5 transition-colors group"
+                        className="flex items-center gap-3 px-3 sm:px-5 py-3.5 transition-colors group"
                         style={{
                           borderBottom: i < recentScans.length - 1 ? '1px solid rgba(255,255,255,0.04)' : undefined,
                         }}
@@ -240,7 +240,7 @@ export default function DashboardPage() {
                             {scan.status}
                           </span>
                           <span
-                            className="px-2 py-0.5 rounded-full text-[9px] font-medium"
+                            className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[9px] font-medium"
                             style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.3)' }}
                           >
                             {scan.profile}

@@ -38,6 +38,31 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class LoginChallengeResponse(BaseModel):
+    # Returned after the password step succeeds. Holds the opaque challenge
+    # token the client must echo back along with the 6-digit code from email.
+    challenge_token: str
+    email: str          # masked, e.g. d***l@gmail.com
+    expires_in: int     # seconds
+
+
+class LoginVerifyRequest(BaseModel):
+    challenge_token: str
+    code: str
+
+    @field_validator("code")
+    @classmethod
+    def code_format(cls, v: str) -> str:
+        v = v.strip()
+        if not v.isdigit() or len(v) != 6:
+            raise ValueError("Code must be 6 digits")
+        return v
+
+
+class LoginResendRequest(BaseModel):
+    challenge_token: str
+
+
 class PasswordResetRequest(BaseModel):
     email: str
 

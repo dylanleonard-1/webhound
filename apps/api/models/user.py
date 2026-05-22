@@ -42,6 +42,9 @@ class User(Base, UpdatedAtMixin):
     password_reset_token: Mapped[str | None] = mapped_column(sa.String(128), index=True)
     password_reset_expires_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
 
+    login_otp: Mapped[str | None] = mapped_column(sa.String(10))
+    login_otp_expires_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+
     phone_number: Mapped[str | None] = mapped_column(sa.String(32))
     phone_verified: Mapped[bool] = mapped_column(sa.Boolean, default=False, nullable=False)
     phone_otp: Mapped[str | None] = mapped_column(sa.String(10))

@@ -8,12 +8,21 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { api, clearStoredToken, getStoredToken, setStoredToken, type UserResponse } from '@/lib/api'
+import {
+  api,
+  clearStoredToken,
+  getStoredToken,
+  setStoredToken,
+  type LoginChallenge,
+  type UserResponse,
+} from '@/lib/api'
 
 interface AuthContextValue {
   user: UserResponse | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
+  initiateLogin: (email: string, password: string) => Promise<LoginChallenge>
+  verifyLoginCode: (challengeToken: string, code: string) => Promise<void>
+  resendLoginCode: (challengeToken: string) => Promise<{ devCode?: string }>
   register: (email: string, password: string) => Promise<{ devVerifyUrl?: string }>
   loginWithToken: (token: string) => Promise<void>
   logout: () => void
@@ -38,18 +47,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false))
   }, [])
 
-  const login = useCallback(async (email: string, password: string) => {
-    const { access_token } = await api.auth.login(email, password)
+  const initiateLogin = useCallback(async (email: string, password: string) => {
+    return api.auth.login(email, password)
+  }, [])
+
+  const verifyLoginCode = useCallback(async (challengeToken: string, code: string) => {
+    const { access_token } = await api.auth.verifyLoginCode(challengeToken, code)
     setStoredToken(access_token)
     const me = await api.auth.me()
     setUser(me)
   }, [])
 
+  const resendLoginCode = useCallback(async (challengeToken: string) => {
+    const res = await api.auth.resendLoginCode(challengeToken)
+    return { devCode: res.dev_code }
+  }, [])
+
   const register = useCallback(async (email: string, password: string) => {
     const res = await api.auth.register(email, password)
-    await login(email, password)
+    setStoredToken(res.access_token)
+    const me = await api.auth.me()
+    setUser(me)
     return { devVerifyUrl: res.dev_verify_url }
-  }, [login])
+  }, [])
 
   const loginWithToken = useCallback(async (token: string) => {
     setStoredToken(token)
@@ -64,7 +84,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, loginWithToken, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        initiateLogin,
+        verifyLoginCode,
+        resendLoginCode,
+        register,
+        loginWithToken,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )

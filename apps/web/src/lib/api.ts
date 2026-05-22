@@ -37,6 +37,13 @@ export interface TokenResponse {
   token_type: string
 }
 
+export interface LoginChallenge {
+  challenge_token: string
+  email: string       // masked
+  expires_in: number  // seconds
+  dev_code?: string   // present only when no email provider is configured
+}
+
 export interface WebsiteResponse {
   id: string
   url: string
@@ -341,10 +348,18 @@ function qs(params?: Record<string, string | number | boolean | undefined | null
 export const api = {
   auth: {
     register: (email: string, password: string) =>
-      request<UserResponse & { dev_verify_url?: string }>('POST', '/auth/register', { email, password }),
+      request<UserResponse & { access_token: string; token_type: string; dev_verify_url?: string }>(
+        'POST', '/auth/register', { email, password }
+      ),
 
     login: (email: string, password: string) =>
-      request<TokenResponse>('POST', '/auth/login', { email, password }),
+      request<LoginChallenge>('POST', '/auth/login', { email, password }),
+
+    verifyLoginCode: (challenge_token: string, code: string) =>
+      request<TokenResponse>('POST', '/auth/login/verify', { challenge_token, code }),
+
+    resendLoginCode: (challenge_token: string) =>
+      request<{ message: string; dev_code?: string }>('POST', '/auth/login/resend-code', { challenge_token }),
 
     me: () => request<UserResponse>('GET', '/auth/me'),
 

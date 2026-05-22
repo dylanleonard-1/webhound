@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useState, useRef, useEffect, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Eye, EyeOff, ArrowRight, Loader2 } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth'
+import type { LoginChallenge } from '@/lib/api'
 
 const API_BASE =
   (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL) ||
@@ -31,8 +32,6 @@ function GitHubIcon() {
   )
 }
 
-// ── OAuth providers config ────────────────────────────────────────────────────
-
 const PROVIDERS = [
   {
     id: 'google',
@@ -48,35 +47,158 @@ const PROVIDERS = [
   },
 ]
 
-// ── Input field ───────────────────────────────────────────────────────────────
+// ── Login: 6-digit code step ──────────────────────────────────────────────────
 
-function Field({
-  id, label, type, placeholder, autoComplete, value, onChange, minLength, extra,
+function LoginCodeStep({
+  challenge,
+  onVerify,
+  onResend,
+  onBack,
 }: {
-  id: string; label: string; type: string; placeholder: string
-  autoComplete: string; value: string; onChange: (v: string) => void
-  minLength?: number; extra?: React.ReactNode
+  challenge: LoginChallenge
+  onVerify: (code: string) => Promise<void>
+  onResend: () => Promise<{ devCode?: string }>
+  onBack: () => void
 }) {
-  const inputStyle: React.CSSProperties = {
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
+  const [digits, setDigits] = useState<string[]>(['', '', '', '', '', ''])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [resending, setResending] = useState(false)
+  const [resentDev, setResentDev] = useState<string | null>(challenge.dev_code ?? null)
+  const inputs = useRef<Array<HTMLInputElement | null>>([])
+
+  useEffect(() => { inputs.current[0]?.focus() }, [])
+
+  function setDigit(i: number, raw: string) {
+    const clean = raw.replace(/\D/g, '').slice(-1)
+    const next = [...digits]
+    next[i] = clean
+    setDigits(next)
+    if (clean && i < 5) inputs.current[i + 1]?.focus()
   }
+
+  function handlePaste(e: React.ClipboardEvent<HTMLInputElement>) {
+    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (!text) return
+    e.preventDefault()
+    const next = ['', '', '', '', '', '']
+    for (let i = 0; i < text.length; i++) next[i] = text[i]
+    setDigits(next)
+    const focusIdx = Math.min(text.length, 5)
+    inputs.current[focusIdx]?.focus()
+  }
+
+  function handleKey(i: number, e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Backspace' && !digits[i] && i > 0) {
+      inputs.current[i - 1]?.focus()
+    }
+  }
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    setError(null)
+    const code = digits.join('')
+    if (code.length !== 6) {
+      setError('Enter all 6 digits.')
+      return
+    }
+    setLoading(true)
+    try {
+      await onVerify(code)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invalid code.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function resend() {
+    setResending(true)
+    setError(null)
+    try {
+      const res = await onResend()
+      if (res.devCode) setResentDev(res.devCode)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not resend.')
+    } finally {
+      setResending(false)
+    }
+  }
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-1.5">
-        <label htmlFor={id} className="text-[12px] font-medium text-gray-400">{label}</label>
-        {extra}
+      <h1 className="text-[22px] font-bold text-white tracking-tight mb-1">Enter your code</h1>
+      <p className="text-[13px] mb-6 leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>
+        We sent a 6-digit code to <span className="text-white">{challenge.email}</span>.
+      </p>
+
+      {resentDev && (
+        <div
+          className="mb-4 p-3 rounded-xl text-[12px] flex items-center justify-between"
+          style={{ background: 'rgba(139,255,62,0.05)', border: '1px solid rgba(139,255,62,0.2)' }}
+        >
+          <span style={{ color: 'rgba(255,255,255,0.6)' }}>
+            Dev code: <span className="font-mono font-bold" style={{ color: '#8BFF3E' }}>{resentDev}</span>
+          </span>
+        </div>
+      )}
+
+      <form onSubmit={submit} className="space-y-4">
+        <div className="flex gap-2 justify-between">
+          {digits.map((d, i) => (
+            <input
+              key={i}
+              ref={el => { inputs.current[i] = el }}
+              inputMode="numeric"
+              autoComplete={i === 0 ? 'one-time-code' : 'off'}
+              maxLength={1}
+              value={d}
+              onChange={e => setDigit(i, e.target.value)}
+              onKeyDown={e => handleKey(i, e)}
+              onPaste={handlePaste}
+              className="w-[14.5%] aspect-square text-center text-white text-[20px] font-semibold rounded-xl outline-none transition-colors"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+              onFocus={e => (e.currentTarget.style.borderColor = 'rgba(139,255,62,0.45)')}
+              onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}
+            />
+          ))}
+        </div>
+
+        {error && (
+          <p className="text-[12.5px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3.5 py-2.5">
+            {error}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="flex items-center justify-center gap-2 w-full h-[44px] rounded-xl text-[13.5px] font-semibold text-[#020617] disabled:opacity-50"
+          style={{ background: '#8BFF3E', boxShadow: '0 0 20px rgba(139,255,62,0.18)' }}
+        >
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Verify<ArrowRight className="w-4 h-4" /></>}
+        </button>
+      </form>
+
+      <div className="mt-5 flex flex-col items-center gap-2 text-[12.5px]">
+        <button
+          type="button"
+          onClick={resend}
+          disabled={resending}
+          className="font-medium hover:underline disabled:opacity-50"
+          style={{ color: 'rgba(139,255,62,0.85)' }}
+        >
+          {resending ? 'Sending…' : 'Resend code'}
+        </button>
+        <button
+          type="button"
+          onClick={onBack}
+          className="hover:underline"
+          style={{ color: 'rgba(255,255,255,0.38)' }}
+        >
+          Use a different account
+        </button>
       </div>
-      <input
-        id={id} type={type} placeholder={placeholder}
-        autoComplete={autoComplete} value={value}
-        onChange={e => onChange(e.target.value)}
-        required minLength={minLength}
-        className="w-full h-11 px-3.5 rounded-xl text-[13.5px] text-white placeholder:text-gray-600 outline-none transition-colors"
-        style={inputStyle}
-        onFocus={e => (e.currentTarget.style.borderColor = 'rgba(139,255,62,0.45)')}
-        onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}
-      />
     </div>
   )
 }
@@ -88,13 +210,15 @@ interface AuthFormProps {
 }
 
 export function AuthForm({ mode }: AuthFormProps) {
-  const { login, register } = useAuth()
+  const { initiateLogin, verifyLoginCode, resendLoginCode, register } = useAuth()
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [challenge, setChallenge] = useState<LoginChallenge | null>(null)
+
   const isLogin = mode === 'login'
 
   function handleOAuth(provider: string) {
@@ -107,8 +231,8 @@ export function AuthForm({ mode }: AuthFormProps) {
     setLoading(true)
     try {
       if (isLogin) {
-        await login(email, password)
-        router.replace('/dashboard')
+        const c = await initiateLogin(email, password)
+        setChallenge(c)
       } else {
         const { devVerifyUrl } = await register(email, password)
         if (devVerifyUrl) sessionStorage.setItem('dev_verify_url', devVerifyUrl)
@@ -119,6 +243,21 @@ export function AuthForm({ mode }: AuthFormProps) {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Login: code step
+  if (isLogin && challenge) {
+    return (
+      <LoginCodeStep
+        challenge={challenge}
+        onVerify={async code => {
+          await verifyLoginCode(challenge.challenge_token, code)
+          router.replace('/dashboard')
+        }}
+        onResend={() => resendLoginCode(challenge.challenge_token)}
+        onBack={() => setChallenge(null)}
+      />
+    )
   }
 
   return (
@@ -147,28 +286,36 @@ export function AuthForm({ mode }: AuthFormProps) {
         ))}
       </div>
 
-      {/* Divider */}
       <div className="flex items-center gap-3 mb-6">
         <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.07)' }} />
         <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.22)' }}>or</span>
         <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.07)' }} />
       </div>
 
-      {/* Email / password form */}
       <form onSubmit={handleSubmit} className="space-y-3">
-        <Field
-          id="email" label="Email address" type="email"
-          placeholder="you@example.com" autoComplete="email"
-          value={email} onChange={setEmail}
-        />
+        <div>
+          <label htmlFor="email" className="block text-[12px] font-medium text-gray-400 mb-1.5">Email address</label>
+          <input
+            id="email" type="email" placeholder="you@example.com" autoComplete="email"
+            value={email} onChange={e => setEmail(e.target.value)} required
+            className="w-full h-11 px-3.5 rounded-xl text-[13.5px] text-white placeholder:text-gray-600 outline-none transition-colors"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+            onFocus={e => (e.currentTarget.style.borderColor = 'rgba(139,255,62,0.45)')}
+            onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}
+          />
+        </div>
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label htmlFor="password" className="text-[12px] font-medium text-gray-400">Password</label>
             {isLogin && (
-              <Link href="/forgot-password" className="text-[11px] transition-colors" style={{ color: 'rgba(255,255,255,0.30)' }}
+              <Link
+                href="/forgot-password"
+                className="text-[11px] transition-colors"
+                style={{ color: 'rgba(255,255,255,0.30)' }}
                 onMouseEnter={e => (e.currentTarget.style.color = 'rgba(139,255,62,0.8)')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.30)')}>
+                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.30)')}
+              >
                 Forgot password?
               </Link>
             )}
@@ -188,8 +335,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}
             />
             <button
-              type="button"
-              tabIndex={-1}
+              type="button" tabIndex={-1}
               onClick={() => setShowPw(v => !v)}
               className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
               style={{ color: 'rgba(255,255,255,0.28)' }}
@@ -217,25 +363,19 @@ export function AuthForm({ mode }: AuthFormProps) {
         >
           {loading
             ? <Loader2 className="w-4 h-4 animate-spin" />
-            : <>{isLogin ? 'Sign in' : 'Create account'}<ArrowRight className="w-4 h-4" /></>
+            : <>{isLogin ? 'Continue' : 'Create account'}<ArrowRight className="w-4 h-4" /></>
           }
         </button>
       </form>
 
-      {/* Switch */}
       <p className="mt-6 text-center text-[13px]" style={{ color: 'rgba(255,255,255,0.38)' }}>
         {isLogin ? (
-          <>No account?{' '}
-            <Link href="/register" className="text-accent-green font-medium hover:underline">Sign up free</Link>
-          </>
+          <>No account?{' '}<Link href="/register" className="text-accent-green font-medium hover:underline">Sign up free</Link></>
         ) : (
-          <>Already have an account?{' '}
-            <Link href="/login" className="text-accent-green font-medium hover:underline">Sign in</Link>
-          </>
+          <>Already have an account?{' '}<Link href="/login" className="text-accent-green font-medium hover:underline">Sign in</Link></>
         )}
       </p>
 
-      {/* Legal (register only) */}
       {!isLogin && (
         <p className="mt-4 text-center text-[11px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.22)' }}>
           By creating an account you agree to our{' '}

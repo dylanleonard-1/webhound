@@ -119,6 +119,64 @@ async def send_verification_email(to: str, token: str) -> str | None:
     return None
 
 
+async def send_password_reset_email(to: str, token: str) -> str | None:
+    """Returns the reset URL in dev mode so callers can surface it. Returns None when email is sent."""
+    settings = get_settings()
+    reset_url = f"{settings.frontend_url}/reset-password?token={token}"
+    subject = "Reset your WebHound password"
+    text = f"Reset your WebHound password:\n\n{reset_url}\n\nThis link expires in 1 hour. If you did not request this, ignore this email."
+    body_html = (
+        '<p style="margin:0 0 8px;color:#475569;font-size:14px;line-height:1.6">'
+        'A password reset was requested for your WebHound account. Click below to choose a new password.'
+        ' This link expires in 1 hour.</p>'
+        '<p style="margin:12px 0 0;color:#94a3b8;font-size:13px;line-height:1.6">'
+        'If you did not request this, you can safely ignore this email — your password will not change.</p>'
+    )
+    html = _email_html("Reset your password", body_html, reset_url, "Choose a new password")
+
+    if not settings.resend_api_key and not settings.smtp_host:
+        logger.info("No email provider configured — password reset link for %s: %s", to, reset_url)
+        print(f"\n[EMAIL] Password reset link for {to}:\n  {reset_url}\n")
+        return reset_url
+
+    try:
+        _send_email(to, subject, html, text)
+    except Exception:
+        logger.exception("Failed to send password reset email to %s", to)
+    return None
+
+
+async def send_login_code_email(to: str, code: str) -> str | None:
+    """Sends a 6-digit login verification code. Returns the code in dev mode so callers can surface it."""
+    settings = get_settings()
+    subject = f"{code} is your WebHound sign-in code"
+    text = f"Your WebHound sign-in code is: {code}\n\nThis code expires in 10 minutes."
+    body_html = (
+        '<p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.6">'
+        'Use the code below to finish signing in to WebHound. It expires in 10 minutes.</p>'
+        f'<div style="margin:20px 0;padding:18px 24px;background:#f1f5f9;border-radius:10px;'
+        'text-align:center;font-family:ui-monospace,Menlo,Consolas,monospace;'
+        'font-size:28px;font-weight:700;letter-spacing:6px;color:#020617">'
+        f'{code}</div>'
+        '<p style="margin:0;color:#94a3b8;font-size:13px;line-height:1.6">'
+        "If you didn't try to sign in, you can ignore this email and your account stays safe.</p>"
+    )
+    # CTA in the template still points somewhere useful — the dashboard.
+    cta_url = f"{settings.frontend_url}/login"
+    html = _email_html("Your sign-in code", body_html, cta_url, "Open WebHound")
+
+    if not settings.resend_api_key and not settings.smtp_host:
+        logger.info("No email provider configured — sign-in code for %s: %s", to, code)
+        print(f"\n[EMAIL] Sign-in code for {to}: {code}\n")
+        return code
+
+    try:
+        _send_email(to, subject, html, text)
+    except Exception:
+        logger.exception("Failed to send sign-in code to %s", to)
+    return None
+
+
 async def send_login_alert(to: str, ip: str, user_agent: str) -> None:
     """Sends a login-from-new-device alert. No-op in dev when email not configured."""
     settings = get_settings()

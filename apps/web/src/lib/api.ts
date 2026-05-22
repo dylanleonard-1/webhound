@@ -353,6 +353,12 @@ export const api = {
 
     resendVerification: () =>
       request<{ message: string; dev_verify_url?: string }>('POST', '/auth/resend-verification'),
+
+    forgotPassword: (email: string) =>
+      request<{ message: string; dev_reset_url?: string }>('POST', '/auth/forgot-password', { email }),
+
+    resetPassword: (token: string, new_password: string) =>
+      request<{ message: string }>('POST', '/auth/reset-password', { token, new_password }),
   },
 
   phone: {

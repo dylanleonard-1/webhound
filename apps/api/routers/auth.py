@@ -11,7 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.database import get_db
 from apps.api.models.user import User
-from apps.api.schemas.auth import TokenResponse, UserCreate, UserLogin, UserResponse
+from apps.api.schemas.auth import (
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    TokenResponse,
+    UserCreate,
+    UserLogin,
+    UserResponse,
+)
 from apps.api.security import create_access_token, get_current_user
 from apps.api.services import auth as auth_service
 from apps.api.services.email import send_verification_email
@@ -81,3 +88,27 @@ async def resend_verification(current_user: _CurrentUser, db: _DB) -> dict:
     if dev_link:
         result["dev_verify_url"] = dev_link
     return result
+
+
+@router.post("/forgot-password")
+async def forgot_password(data: PasswordResetRequest, db: _DB) -> dict:
+    # Always returns the same success message regardless of whether the email
+    # exists — prevents account enumeration.
+    dev_link = await auth_service.request_password_reset(db, data.email)
+    await db.commit()
+    response: dict = {
+        "message": "If an account exists for that email, a reset link has been sent."
+    }
+    if dev_link:
+        response["dev_reset_url"] = dev_link
+    return response
+
+
+@router.post("/reset-password")
+async def reset_password(data: PasswordResetConfirm, db: _DB) -> dict:
+    try:
+        await auth_service.reset_password(db, data.token, data.new_password)
+    except auth_service.InvalidResetTokenError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    await db.commit()
+    return {"message": "Password reset successfully. You can now sign in."}

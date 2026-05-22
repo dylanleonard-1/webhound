@@ -1,4 +1,7 @@
 /** @type {import('next').NextConfig} */
+const isProd = process.env.NODE_ENV === 'production'
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.webhoundsecurity.com'
+
 const nextConfig = {
   output: 'standalone',
 
@@ -37,7 +40,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https:",
-              "connect-src 'self' https://api.webhoundsecurity.com wss://api.webhoundsecurity.com http://localhost:8000 ws://localhost:8000",
+              `connect-src 'self' ${apiUrl} ${apiUrl.replace('https://', 'wss://').replace('http://', 'ws://')}${isProd ? '' : ' http://localhost:8000 ws://localhost:8000'}`,
               "frame-ancestors 'none'",
             ].join('; '),
           },

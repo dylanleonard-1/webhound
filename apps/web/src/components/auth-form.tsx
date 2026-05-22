@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/auth'
 
 const API_BASE =
   (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_URL) ||
-  'http://localhost:8000'
+  'https://api.webhoundsecurity.com'
 
 // ── Brand icons ───────────────────────────────────────────────────────────────
 

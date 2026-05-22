@@ -124,7 +124,8 @@ export function AuthForm({ mode }: AuthFormProps) {
         await login(email, password)
         router.replace('/dashboard')
       } else {
-        await register(email, password)
+        const { devVerifyUrl } = await register(email, password)
+        if (devVerifyUrl) sessionStorage.setItem('dev_verify_url', devVerifyUrl)
         router.replace('/verify-email')
       }
     } catch (err: unknown) {

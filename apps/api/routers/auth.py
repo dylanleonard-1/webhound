@@ -6,6 +6,7 @@ from typing import Annotated
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.database import get_db
@@ -21,14 +22,17 @@ _DB = Annotated[AsyncSession, Depends(get_db)]
 _CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
-@router.post("/register", response_model=UserResponse, status_code=201)
-async def register(data: UserCreate, db: _DB) -> UserResponse:
+@router.post("/register", status_code=201)
+async def register(data: UserCreate, db: _DB) -> JSONResponse:
     try:
-        user = await auth_service.create_user(db, data)
+        user, dev_link = await auth_service.create_user(db, data)
     except auth_service.DuplicateEmailError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     await db.commit()
-    return UserResponse.model_validate(user)
+    body = UserResponse.model_validate(user).model_dump(mode="json")
+    if dev_link:
+        body["dev_verify_url"] = dev_link
+    return JSONResponse(content=body, status_code=201)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -72,5 +76,8 @@ async def resend_verification(current_user: _CurrentUser, db: _DB) -> dict:
     current_user.email_verification_token = token
     current_user.email_verification_expires_at = expires
     await db.commit()
-    await send_verification_email(current_user.email, token)
-    return {"message": "Verification email sent"}
+    dev_link = await send_verification_email(current_user.email, token)
+    result: dict = {"message": "Verification email sent"}
+    if dev_link:
+        result["dev_verify_url"] = dev_link
+    return result

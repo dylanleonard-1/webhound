@@ -11,7 +11,7 @@ export function MockDashboard() {
             <div className="w-2.5 h-2.5 rounded-full bg-green-500/60" />
           </div>
           <div className="flex-1 mx-3 px-3 py-1 rounded bg-[#0B0F19] border border-white/[0.06] text-center">
-            <span className="text-[10px] text-gray-500 font-mono">app.webhound.io/dashboard</span>
+            <span className="text-[10px] text-gray-500 font-mono">app.webhoundsecurity.com/dashboard</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse" />

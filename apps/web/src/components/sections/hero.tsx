@@ -89,7 +89,7 @@ export function Hero() {
               style={{ background: '#7CFF00', boxShadow: '0 0 8px rgba(124,255,0,0.9)', animation: 'pulse 2s ease-in-out infinite' }}
             />
             <span className="text-[10px] font-bold tracking-[0.28em] uppercase" style={{ color: 'rgba(139,255,62,0.75)' }}>
-              AI-Powered Security · Cybersec Solutions
+              AI-Powered Security · webhoundsecurity.com
             </span>
           </motion.div>
 

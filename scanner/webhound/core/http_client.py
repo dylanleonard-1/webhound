@@ -35,7 +35,7 @@ from webhound.core.session_context import SessionContext
 from webhound.models.target import ScanOptions
 
 # WebHound identifies itself clearly so site owners can recognize and allow it.
-WEBHOUND_USER_AGENT = "WebHound/1.0 (security-scanner; +https://webhound.io/bot)"
+WEBHOUND_USER_AGENT = "WebHound/1.0 (security-scanner; +https://webhoundsecurity.com/bot)"
 
 # Maximum redirects the client will follow before giving up.
 _MAX_REDIRECTS: int = 10

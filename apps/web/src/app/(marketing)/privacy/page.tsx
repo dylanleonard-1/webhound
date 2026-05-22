@@ -51,7 +51,7 @@ const sections = [
     body: [
       'Account data is retained for the lifetime of your account and for up to 90 days after deletion.',
       'Scan results and reports are retained per your subscription plan. Free tier: 30 days. Pro tier: 12 months. Enterprise: custom.',
-      'You may request deletion of your data at any time by contacting us at privacy@webhound.io.',
+      'You may request deletion of your data at any time by contacting us at privacy@webhoundsecurity.com.',
     ],
   },
   {
@@ -71,7 +71,7 @@ const sections = [
       'All data is encrypted in transit using TLS 1.3 and at rest using AES-256.',
       'Access to production systems is restricted to authorized personnel and requires multi-factor authentication.',
       'We conduct regular security audits and penetration tests of our own infrastructure.',
-      'To report a security vulnerability in WebHound, please contact security@webhound.io.',
+      'To report a security vulnerability in WebHound, please contact security@webhoundsecurity.com.',
     ],
   },
   {
@@ -93,8 +93,8 @@ const sections = [
   {
     title: '10. Contact',
     body: [
-      'For privacy questions, data requests, or complaints, contact us at privacy@webhound.io.',
-      'WebHound, Inc. · privacy@webhound.io',
+      'For privacy questions, data requests, or complaints, contact us at privacy@webhoundsecurity.com.',
+      'WebHound Security · privacy@webhoundsecurity.com',
     ],
   },
 ]
@@ -151,8 +151,8 @@ export default function PrivacyPage() {
           <p className="text-[rgba(255,255,255,0.38)] text-sm leading-relaxed">
             This document is provided for informational purposes. For enterprise data processing
             agreements or GDPR Data Processing Addendums, contact{' '}
-            <a href="mailto:privacy@webhound.io" className="text-[#8BFF3E] hover:underline">
-              privacy@webhound.io
+            <a href="mailto:privacy@webhoundsecurity.com" className="text-[#8BFF3E] hover:underline">
+              privacy@webhoundsecurity.com
             </a>.
           </p>
         </div>

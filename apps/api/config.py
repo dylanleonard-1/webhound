@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24  # 24 hours
 
     # CORS — override with CORS_ORIGINS env var as JSON array for staging/prod
-    # e.g. CORS_ORIGINS='["https://app.webhound.io","https://staging.webhound.io"]'
+    # e.g. CORS_ORIGINS='["https://webhoundsecurity.com","https://app.webhoundsecurity.com"]'
     cors_origins: list[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     apple_private_key: str = ""  # PEM-encoded ES256 private key
 
     # Public-facing URLs (used in OAuth redirect_uri and post-auth redirects)
+    # Production: api_base_url=https://api.webhoundsecurity.com  frontend_url=https://webhoundsecurity.com
     api_base_url: str = "http://localhost:8000"
     frontend_url: str = "http://localhost:3000"
 
@@ -86,8 +87,14 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_username: str = ""
     smtp_password: str = ""
-    smtp_from_email: str = "noreply@webhound.io"
+    smtp_from_email: str = "noreply@webhoundsecurity.com"
     smtp_from_name: str = "WebHound"
+
+    # Resend (preferred over raw SMTP for production)
+    # Sign up at resend.com, add webhoundsecurity.com domain, get API key
+    resend_api_key: str = ""
+    resend_from_email: str = "auth@webhoundsecurity.com"
+    resend_from_name: str = "WebHound"
 
     # Dev overrides — must never be set true in production
     dev_allow_unverified_scans: bool = False

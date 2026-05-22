@@ -258,7 +258,7 @@ export default function MonitoringPage() {
                 <div className="scanline" />
                 <div className="flex items-center gap-2 px-4 py-3 border-b border-white/[0.06] bg-[#0D1520]">
                   <div className="flex gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-500/60" /><div className="w-2.5 h-2.5 rounded-full bg-yellow-500/60" /><div className="w-2.5 h-2.5 rounded-full bg-green-500/60" /></div>
-                  <div className="flex-1 mx-3 px-3 py-1 rounded bg-[#0B0F19] border border-white/[0.05] text-center"><span className="text-[10px] text-gray-500 font-mono">app.webhound.io/dashboard/monitoring</span></div>
+                  <div className="flex-1 mx-3 px-3 py-1 rounded bg-[#0B0F19] border border-white/[0.05] text-center"><span className="text-[10px] text-gray-500 font-mono">app.webhoundsecurity.com/dashboard/monitoring</span></div>
                   <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-accent-green blink" /><span className="text-[10px] text-accent-green font-mono">WATCHING</span></div>
                 </div>
                 <div className="p-4 grid grid-cols-2 lg:grid-cols-3 gap-3">

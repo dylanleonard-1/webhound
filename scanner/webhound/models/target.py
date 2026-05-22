@@ -59,7 +59,7 @@ class ScanOptions(BaseModel):
     request_timeout_seconds: int = Field(default=30, ge=5, le=120)
     follow_redirects: bool = Field(default=True)
     user_agent: str = Field(
-        default="WebHound/1.0 (security-scanner; +https://webhound.io/bot)"
+        default="WebHound/1.0 (security-scanner; +https://webhoundsecurity.com/bot)"
     )
     rate_limit_rps: float = Field(
         default=2.0,

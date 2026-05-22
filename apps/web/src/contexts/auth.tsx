@@ -14,7 +14,7 @@ interface AuthContextValue {
   user: UserResponse | null
   loading: boolean
   login: (email: string, password: string) => Promise<void>
-  register: (email: string, password: string) => Promise<void>
+  register: (email: string, password: string) => Promise<{ devVerifyUrl?: string }>
   loginWithToken: (token: string) => Promise<void>
   logout: () => void
 }
@@ -46,8 +46,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const register = useCallback(async (email: string, password: string) => {
-    await api.auth.register(email, password)
+    const res = await api.auth.register(email, password)
     await login(email, password)
+    return { devVerifyUrl: res.dev_verify_url }
   }, [login])
 
   const loginWithToken = useCallback(async (token: string) => {

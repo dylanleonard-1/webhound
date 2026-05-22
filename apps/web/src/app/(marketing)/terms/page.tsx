@@ -48,7 +48,7 @@ const sections = [
     body: [
       'You are responsible for maintaining the confidentiality of your account credentials.',
       'You are responsible for all activity that occurs under your account.',
-      'You must notify us immediately of any unauthorized use of your account at security@webhound.io.',
+      'You must notify us immediately of any unauthorized use of your account at security@webhoundsecurity.com.',
       'You must provide accurate and complete registration information and keep it up to date.',
     ],
   },
@@ -102,8 +102,8 @@ const sections = [
   {
     title: '12. Contact',
     body: [
-      'For questions about these Terms, contact us at legal@webhound.io.',
-      'WebHound, Inc. · legal@webhound.io',
+      'For questions about these Terms, contact us at legal@webhoundsecurity.com.',
+      'WebHound Security · legal@webhoundsecurity.com',
     ],
   },
 ]
@@ -159,8 +159,8 @@ export default function TermsPage() {
           <p className="text-[rgba(255,255,255,0.38)] text-sm leading-relaxed">
             These Terms were written to be clear and fair. If something is unclear or you have
             a specific legal question, reach out to{' '}
-            <a href="mailto:legal@webhound.io" className="text-[#8BFF3E] hover:underline">
-              legal@webhound.io
+            <a href="mailto:legal@webhoundsecurity.com" className="text-[#8BFF3E] hover:underline">
+              legal@webhoundsecurity.com
             </a>{' '}
             before using the Service.
           </p>

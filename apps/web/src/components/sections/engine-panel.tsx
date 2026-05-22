@@ -289,7 +289,7 @@ function ScanStatus() {
             transition={{ duration: 0.95, repeat: Infinity }}
             style={{ boxShadow: '0 0 4px rgba(139,255,62,1)' }}
           />
-          <span className="text-[9px] font-mono text-[rgba(255,255,255,0.4)]">target.webhound.io</span>
+          <span className="text-[9px] font-mono text-[rgba(255,255,255,0.4)]">target.webhoundsecurity.com</span>
         </div>
         <span className="text-[8px] font-black text-[rgba(139,255,62,0.6)] tracking-wider">SCANNING</span>
       </div>

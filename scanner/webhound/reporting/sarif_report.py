@@ -187,7 +187,7 @@ class SarifReport:
                         "driver": {
                             "name": "WebHound",
                             "version": result.scanner_version,
-                            "informationUri": "https://webhound.io",
+                            "informationUri": "https://webhoundsecurity.com",
                             "rules": list(rules.values()),
                         }
                     },

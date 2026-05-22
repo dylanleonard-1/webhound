@@ -243,7 +243,7 @@ function ThreatDigest() {
 
 const ALERTS = [
   { sev: 'crit', time: '2m ago',  title: 'New CVE — Next.js 13.x',      detail: 'CVE-2024-34351 · Patch available: upgrade to 14.1.0' },
-  { sev: 'high', time: '1h ago',  title: 'SSL certificate expiring',     detail: 'target.webhound.io · expires in 12 days' },
+  { sev: 'high', time: '1h ago',  title: 'SSL certificate expiring',     detail: 'target.webhoundsecurity.com · expires in 12 days' },
   { sev: 'med',  time: '3h ago',  title: 'Port scan activity detected',  detail: '198.51.100.0/24 probing TCP 22, 443, 8080' },
   { sev: 'info', time: '6h ago',  title: 'DNS propagation anomaly',      detail: 'api.target.com — 2 resolvers returning stale record' },
 ]

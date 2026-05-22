@@ -341,7 +341,7 @@ function qs(params?: Record<string, string | number | boolean | undefined | null
 export const api = {
   auth: {
     register: (email: string, password: string) =>
-      request<UserResponse>('POST', '/auth/register', { email, password }),
+      request<UserResponse & { dev_verify_url?: string }>('POST', '/auth/register', { email, password }),
 
     login: (email: string, password: string) =>
       request<TokenResponse>('POST', '/auth/login', { email, password }),
@@ -352,7 +352,7 @@ export const api = {
       request<{ message: string }>('GET', `/auth/verify-email?token=${encodeURIComponent(token)}`),
 
     resendVerification: () =>
-      request<{ message: string }>('POST', '/auth/resend-verification'),
+      request<{ message: string; dev_verify_url?: string }>('POST', '/auth/resend-verification'),
   },
 
   phone: {

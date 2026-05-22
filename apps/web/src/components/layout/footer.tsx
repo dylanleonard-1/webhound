@@ -29,7 +29,7 @@ const COLS = [
       { label: 'Privacy Policy',   href: '/privacy'  },
       { label: 'Terms of Service', href: '/terms'    },
       { label: 'Security',         href: '/security' },
-      { label: 'Contact',          href: 'mailto:hello@webhound.io' },
+      { label: 'Contact',          href: 'mailto:hello@webhoundsecurity.com' },
     ],
   },
 ]
@@ -65,7 +65,7 @@ export function Footer() {
                   color: 'rgba(139,255,62,0.7)',
                 }}
               >
-                Cybersec Solutions
+                webhoundsecurity.com
               </span>
             </div>
             <div className="mt-5">
@@ -110,7 +110,7 @@ export function Footer() {
           style={{ borderTop: '1px solid rgba(139,255,62,0.05)' }}
         >
           <span className="text-[12px]" style={{ color: 'rgba(255,255,255,0.18)' }}>
-            © {new Date().getFullYear()} WebHound · Cybersec Solutions. All rights reserved.
+            © {new Date().getFullYear()} WebHound Security. All rights reserved.
           </span>
           <div className="flex items-center gap-6">
             {[

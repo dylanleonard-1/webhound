@@ -64,8 +64,8 @@ export default function SecurityPage() {
           If you discover a security vulnerability in WebHound, please report it responsibly.
           Do not publicly disclose issues before we have had a chance to address them.
           Contact us at{' '}
-          <a href="mailto:security@webhound.io" className="text-accent-green hover:underline">
-            security@webhound.io
+          <a href="mailto:security@webhoundsecurity.com" className="text-accent-green hover:underline">
+            security@webhoundsecurity.com
           </a>
           .
         </p>

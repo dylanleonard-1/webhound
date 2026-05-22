@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from 'next'
 import type { ReactNode } from 'react'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 import { AuthProvider } from '@/contexts/auth'
-import { LenisProvider } from '@/lib/lenis-provider'
 import { PageTransition } from '@/components/effects/page-transition'
 import { HomepageNav } from '@/components/layout/homepage-nav'
 import { QueryProvider } from '@/providers/query'
@@ -21,10 +20,10 @@ const jetbrainsMono = JetBrains_Mono({
   display: 'swap',
 })
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://webhound.io'
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://webhoundsecurity.com'
 const TITLE = 'WebHound — Web Application Security Scanner'
 const DESCRIPTION =
-  'WebHound scans your entire attack surface — DNS, SSL, APIs, and cloud infrastructure — running 42,000+ security checks and returning a CVSS-scored report with code-level remediation in under 2 minutes.'
+  'WebHound scans your entire attack surface — DNS, SSL, APIs, and cloud infrastructure — running security checks and returning a risk-scored report with actionable remediation.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -52,7 +51,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: TITLE,
     description: DESCRIPTION,
-    creator: '@webhoundio',
+    creator: '@webhoundsecurity',
   },
   robots: {
     index: true,
@@ -74,24 +73,22 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" className={`dark ${inter.variable} ${jetbrainsMono.variable}`}>
       <body className="font-sans bg-[#020617] text-gray-100 min-h-screen">
         <QueryProvider>
-          <LenisProvider>
-            <AuthProvider>
-              <HomepageNav />
-              <PageTransition>{children}</PageTransition>
-              <Toaster
-                position="bottom-right"
-                toastOptions={{
-                  style: {
-                    background: 'rgba(8,12,22,0.97)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    color: '#ffffff',
-                    borderRadius: '10px',
-                    fontSize: '13px',
-                  },
-                }}
-              />
-            </AuthProvider>
-          </LenisProvider>
+          <AuthProvider>
+            <HomepageNav />
+            <PageTransition>{children}</PageTransition>
+            <Toaster
+              position="bottom-right"
+              toastOptions={{
+                style: {
+                  background: 'rgba(8,12,22,0.97)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  color: '#ffffff',
+                  borderRadius: '10px',
+                  fontSize: '13px',
+                },
+              }}
+            />
+          </AuthProvider>
         </QueryProvider>
       </body>
     </html>

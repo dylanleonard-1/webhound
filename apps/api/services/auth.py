@@ -22,7 +22,7 @@ def _make_verification_token() -> tuple[str, datetime]:
     return token, expires
 
 
-async def create_user(db: AsyncSession, data: UserCreate) -> User:
+async def create_user(db: AsyncSession, data: UserCreate) -> tuple[User, str | None]:
     existing = await db.scalar(sa.select(User).where(User.email == data.email))
     if existing is not None:
         raise DuplicateEmailError(f"Email already registered: {data.email}")
@@ -38,8 +38,8 @@ async def create_user(db: AsyncSession, data: UserCreate) -> User:
     db.add(user)
     await db.flush()
     await db.refresh(user)
-    await send_verification_email(user.email, token)
-    return user
+    dev_link = await send_verification_email(user.email, token)
+    return user, dev_link
 
 
 async def authenticate_user(

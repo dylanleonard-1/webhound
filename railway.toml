@@ -1,9 +1,9 @@
 [build]
 builder = "dockerfile"
+dockerfilePath = "infra/docker/Dockerfile.api"
 
-# Railway reads this file to understand multi-service deployments.
-# Each service (api, worker) gets its own Railway service configured
-# with the dockerfile path override in the Railway dashboard.
-#
-# API service:    dockerfile = "infra/docker/Dockerfile.api"
-# Worker service: dockerfile = "infra/docker/Dockerfile.worker"
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 60
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

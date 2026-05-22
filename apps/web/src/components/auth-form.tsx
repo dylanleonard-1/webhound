@@ -31,14 +31,6 @@ function GitHubIcon() {
   )
 }
 
-function AppleIcon() {
-  return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.7 9.05 7.4c1.27.07 2.18.73 2.96.75.86-.17 1.68-.84 2.96-.9 1.28.06 2.26.66 2.95 1.69-2.68 1.6-2.28 5.2.48 6.2-.57 1.57-1.32 3.12-2.35 4.14zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-    </svg>
-  )
-}
-
 // ── OAuth providers config ────────────────────────────────────────────────────
 
 const PROVIDERS = [
@@ -53,12 +45,6 @@ const PROVIDERS = [
     label: 'Continue with GitHub',
     Icon: GitHubIcon,
     style: { background: 'rgba(255,255,255,0.07)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.12)' },
-  },
-  {
-    id: 'apple',
-    label: 'Continue with Apple',
-    Icon: AppleIcon,
-    style: { background: '#000000', color: '#ffffff', border: '1px solid rgba(255,255,255,0.14)' },
   },
 ]
 

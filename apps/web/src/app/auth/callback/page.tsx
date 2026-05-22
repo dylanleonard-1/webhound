@@ -21,8 +21,6 @@ function CallbackInner() {
       const messages: Record<string, string> = {
         google_auth_failed: 'Google sign-in failed. Please try again.',
         github_auth_failed: 'GitHub sign-in failed. Please try again.',
-        apple_auth_failed:  'Apple sign-in failed. Please try again.',
-        apple_no_subject:   'Apple did not return a valid user identifier.',
       }
       setError(messages[err] ?? 'Sign-in failed. Please try again.')
       return

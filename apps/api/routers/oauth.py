@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import time
 from typing import Annotated
 from urllib.parse import urlencode
@@ -9,6 +11,7 @@ import httpx
 import jwt as pyjwt
 from fastapi import APIRouter, Depends, Form, HTTPException
 from fastapi.responses import RedirectResponse
+from jwt import PyJWKClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.config import get_settings
@@ -31,6 +34,10 @@ _GITHUB_EMAILS = "https://api.github.com/user/emails"
 
 _APPLE_AUTH  = "https://appleid.apple.com/auth/authorize"
 _APPLE_TOKEN = "https://appleid.apple.com/auth/token"
+_APPLE_JWKS  = "https://appleid.apple.com/auth/keys"
+_APPLE_ISSUER = "https://appleid.apple.com"
+
+logger = logging.getLogger(__name__)
 
 
 def _error_redirect(frontend_url: str, reason: str) -> RedirectResponse:
@@ -38,18 +45,44 @@ def _error_redirect(frontend_url: str, reason: str) -> RedirectResponse:
 
 
 def _apple_client_secret(settings) -> str:  # type: ignore[no-untyped-def]
+    # Per Apple docs, client_secret JWT has max lifetime of 6 months. Use 5.
     now = int(time.time())
     return pyjwt.encode(
         {
             "iss": settings.apple_team_id,
             "iat": now,
-            "exp": now + 86400 * 180,
-            "aud": "https://appleid.apple.com",
+            "exp": now + 86400 * 150,
+            "aud": _APPLE_ISSUER,
             "sub": settings.apple_client_id,
         },
         settings.apple_private_key,
         algorithm="ES256",
         headers={"kid": settings.apple_key_id},
+    )
+
+
+# JWKS client cache — Apple rotates keys infrequently, PyJWKClient caches per
+# instance. Module-level reuse avoids refetching on every callback.
+_apple_jwks_client: PyJWKClient | None = None
+
+
+def _get_apple_jwks_client() -> PyJWKClient:
+    global _apple_jwks_client
+    if _apple_jwks_client is None:
+        _apple_jwks_client = PyJWKClient(_APPLE_JWKS, cache_keys=True)
+    return _apple_jwks_client
+
+
+def _verify_apple_id_token(token: str, client_id: str) -> dict:
+    # PyJWKClient uses urllib (sync). Wrap to keep the async event loop free.
+    jwks = _get_apple_jwks_client()
+    signing_key = jwks.get_signing_key_from_jwt(token)
+    return pyjwt.decode(
+        token,
+        signing_key.key,
+        algorithms=["RS256"],
+        audience=client_id,
+        issuer=_APPLE_ISSUER,
     )
 
 
@@ -195,32 +228,38 @@ async def apple_callback(
     id_token: str | None = Form(None),
     user: str | None = Form(None),
 ) -> RedirectResponse:
+    # Apple posts back to this endpoint via form_post; the `user` payload (name +
+    # email) is only present on the FIRST authentication. Subsequent sign-ins
+    # only carry `code` and `id_token`. We always exchange `code` with Apple's
+    # token endpoint and verify the returned id_token signature.
     settings = get_settings()
     try:
         user_data = json.loads(user) if user else {}
         name_data = user_data.get("name", {})
         email_from_form: str | None = user_data.get("email")
 
-        id_payload: dict = {}
-        if id_token:
-            id_payload = pyjwt.decode(id_token, options={"verify_signature": False})
+        async with httpx.AsyncClient(timeout=15) as client:
+            tok = await client.post(_APPLE_TOKEN, data={
+                "client_id": settings.apple_client_id,
+                "client_secret": _apple_client_secret(settings),
+                "code": code,
+                "grant_type": "authorization_code",
+                "redirect_uri": f"{settings.api_base_url}/auth/oauth/apple/callback",
+            })
+            tok.raise_for_status()
+            verified_id_token = tok.json().get("id_token", "")
+
+        if not verified_id_token:
+            logger.warning("Apple token exchange returned no id_token")
+            return _error_redirect(settings.frontend_url, "apple_no_id_token")
+
+        # Verify signature, issuer, audience, expiration. JWKS fetch is sync;
+        # run in a worker thread so we don't block the event loop.
+        id_payload = await asyncio.to_thread(
+            _verify_apple_id_token, verified_id_token, settings.apple_client_id
+        )
 
         provider_id: str | None = id_payload.get("sub")
-
-        if not provider_id:
-            async with httpx.AsyncClient(timeout=15) as client:
-                tok = await client.post(_APPLE_TOKEN, data={
-                    "client_id": settings.apple_client_id,
-                    "client_secret": _apple_client_secret(settings),
-                    "code": code,
-                    "grant_type": "authorization_code",
-                    "redirect_uri": f"{settings.api_base_url}/auth/oauth/apple/callback",
-                })
-                tok.raise_for_status()
-                raw = tok.json().get("id_token", "")
-                id_payload = pyjwt.decode(raw, options={"verify_signature": False})
-                provider_id = id_payload.get("sub")
-
         if not provider_id:
             return _error_redirect(settings.frontend_url, "apple_no_subject")
 
@@ -229,7 +268,14 @@ async def apple_callback(
         full_name = f"{first} {last}".strip() or None
         email = email_from_form or id_payload.get("email")
 
-    except Exception:
+    except httpx.HTTPStatusError as e:
+        logger.warning("Apple token exchange failed: %s — %s", e.response.status_code, e.response.text[:200])
+        return _error_redirect(settings.frontend_url, "apple_auth_failed")
+    except pyjwt.InvalidTokenError as e:
+        logger.warning("Apple id_token verification failed: %s", e)
+        return _error_redirect(settings.frontend_url, "apple_invalid_token")
+    except Exception as e:
+        logger.exception("Apple OAuth callback unexpected error: %s", e)
         return _error_redirect(settings.frontend_url, "apple_auth_failed")
 
     info = OAuthUserInfo(

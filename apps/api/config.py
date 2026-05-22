@@ -75,10 +75,20 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     github_client_id: str = ""
     github_client_secret: str = ""
-    apple_client_id: str = ""
-    apple_team_id: str = ""
-    apple_key_id: str = ""
-    apple_private_key: str = ""  # PEM-encoded ES256 private key
+    apple_client_id: str = ""  # Services ID, e.g. com.webhoundsecurity.signin
+    apple_team_id: str = ""    # 10-char Team ID from Apple Developer
+    apple_key_id: str = ""     # 10-char Key ID for the .p8 sign-in key
+    apple_private_key: str = ""  # PEM-encoded ES256 .p8 contents
+
+    @field_validator("apple_private_key", mode="before")
+    @classmethod
+    def normalize_apple_private_key(cls, v: object) -> object:
+        # Railway / Vercel env vars store newlines as the literal two-char
+        # sequence `\n`. PyJWT's ES256 signer needs real newlines in the PEM,
+        # so convert here. Idempotent — real newlines pass through unchanged.
+        if isinstance(v, str) and v and "\\n" in v and "\n" not in v:
+            return v.replace("\\n", "\n")
+        return v
 
     # Public-facing URLs (used in OAuth redirect_uri and post-auth redirects)
     # Production: api_base_url=https://api.webhoundsecurity.com  frontend_url=https://webhoundsecurity.com

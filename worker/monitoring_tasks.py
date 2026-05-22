@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 
+from worker._db import get_async_db_url
 from worker.celery_app import celery
 
 logger = logging.getLogger(__name__)
@@ -35,8 +35,7 @@ async def _dispatch() -> dict:
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
     from worker.scan_tasks import run_scan
 
-    db_url = os.environ["DATABASE_URL"]
-    engine = create_async_engine(db_url)
+    engine = create_async_engine(get_async_db_url())
     factory = async_sessionmaker(engine, expire_on_commit=False)
 
     now = datetime.now(timezone.utc)

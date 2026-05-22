@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import logging
-import os
 import uuid
 from typing import Any
 
@@ -12,6 +11,7 @@ from webhound.core.orchestrator import Scanner
 from webhound.core.scan_profiles import get_profile
 from webhound.models.target import Target
 
+from worker._db import get_async_db_url
 from worker.celery_app import celery
 
 logger = logging.getLogger(__name__)
@@ -93,11 +93,7 @@ async def _execute(
 
     own_engine = None
     if _session_factory is None:
-        db_url = os.getenv(
-            "DATABASE_URL",
-            "postgresql+asyncpg://webhound:webhound@localhost:5432/webhound",
-        )
-        factory, own_engine = _make_factory(db_url)
+        factory, own_engine = _make_factory(get_async_db_url())
     else:
         factory = _session_factory
 
@@ -215,11 +211,7 @@ async def _mark_failed(
 
     own_engine = None
     if _session_factory is None:
-        db_url = os.getenv(
-            "DATABASE_URL",
-            "postgresql+asyncpg://webhound:webhound@localhost:5432/webhound",
-        )
-        factory, own_engine = _make_factory(db_url)
+        factory, own_engine = _make_factory(get_async_db_url())
     else:
         factory = _session_factory
 

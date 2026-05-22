@@ -1,0 +1,14 @@
+# Railway config for the Celery worker service.
+# Point a second Railway service at this file (Settings → Config-as-Code path:
+# `infra/railway.worker.toml`). Use the same DATABASE_URL and REDIS_URL env
+# vars as the API service so the worker drains the queue the API enqueues to.
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "infra/docker/Dockerfile.worker"
+
+[deploy]
+# Workers don't expose an HTTP port — no healthcheck. Restart on crash so a
+# transient scanner failure doesn't take the queue offline.
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

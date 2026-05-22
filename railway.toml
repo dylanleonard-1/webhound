@@ -1,0 +1,9 @@
+[build]
+builder = "dockerfile"
+
+# Railway reads this file to understand multi-service deployments.
+# Each service (api, worker) gets its own Railway service configured
+# with the dockerfile path override in the Railway dashboard.
+#
+# API service:    dockerfile = "infra/docker/Dockerfile.api"
+# Worker service: dockerfile = "infra/docker/Dockerfile.worker"

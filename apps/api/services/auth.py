@@ -99,9 +99,10 @@ async def issue_login_otp(db: AsyncSession, user: User) -> EmailDeliveryResult:
     )
     await db.flush()
     result = await send_login_code_email(user.email, code)
-    # Admins always get the code back inline so they can self-recover if
-    # delivery fails (spam folder, deliverability issue, etc).
-    if user.is_admin and result.dev_value is None:
+    # Safety net for admins only when email delivery actually fails — so we
+    # don't get locked out by a Resend outage. On a successful send the code
+    # stays out of the API response.
+    if user.is_admin and not result.delivered and result.dev_value is None:
         result.dev_value = code
     return result
 

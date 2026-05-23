@@ -11,6 +11,7 @@ from apps.api.models.user import User
 from apps.api.schemas.auth import UserCreate
 from apps.api.security import hash_password, verify_password
 from apps.api.services.email import (
+    EmailDeliveryResult,
     send_login_code_email,
     send_password_reset_email,
     send_verification_email,
@@ -87,16 +88,22 @@ def mask_email(email: str) -> str:
 _LOGIN_OTP_TTL_MINUTES = 10
 
 
-async def issue_login_otp(db: AsyncSession, user: User) -> str | None:
-    # Stores a 6-digit OTP on the user row and emails it. Returns the dev-mode
-    # code when no email provider is configured, otherwise None.
+async def issue_login_otp(db: AsyncSession, user: User) -> EmailDeliveryResult:
+    # Stores a 6-digit OTP on the user row, emails it, and returns the
+    # delivery result. Callers use this to decide whether to surface a
+    # dev_code / delivery hint to the client.
     code = f"{secrets.randbelow(10**6):06d}"
     user.login_otp = code
     user.login_otp_expires_at = (
         datetime.now(timezone.utc) + timedelta(minutes=_LOGIN_OTP_TTL_MINUTES)
     )
     await db.flush()
-    return await send_login_code_email(user.email, code)
+    result = await send_login_code_email(user.email, code)
+    # Admins always get the code back inline so they can self-recover if
+    # delivery fails (spam folder, deliverability issue, etc).
+    if user.is_admin and result.dev_value is None:
+        result.dev_value = code
+    return result
 
 
 async def verify_login_otp(db: AsyncSession, user: User, code: str) -> bool:

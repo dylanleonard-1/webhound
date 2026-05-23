@@ -58,9 +58,11 @@ export interface TokenResponse {
 
 export interface LoginChallenge {
   challenge_token: string
-  email: string       // masked
-  expires_in: number  // seconds
-  dev_code?: string   // present only when no email provider is configured
+  email: string                       // masked
+  expires_in: number                  // seconds
+  delivery?: 'delivered' | 'failed'   // whether email send succeeded
+  dev_code?: string                   // present in dev mode or for admin users
+  delivery_error?: string             // provider error message, admin-only
 }
 
 export interface WebsiteResponse {

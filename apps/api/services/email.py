@@ -63,13 +63,24 @@ def _send_resend(to: str, subject: str, html: str, text: str) -> None:
     import resend  # type: ignore[import-untyped]
     settings = get_settings()
     resend.api_key = settings.resend_api_key
-    resend.Emails.send({
+    response = resend.Emails.send({
         "from": f"{settings.resend_from_name} <{settings.resend_from_email}>",
         "to": [to],
         "subject": subject,
         "html": html,
         "text": text,
     })
+    # The SDK returns a dict — `{"id": "..."}` on success, `{"statusCode", "message", "name"}`
+    # on error (older versions silently returned errors instead of raising).
+    if isinstance(response, dict) and "id" not in response:
+        msg = response.get("message") or response.get("name") or str(response)
+        raise RuntimeError(f"Resend API error: {msg}")
+    logger.info(
+        "Resend accepted email to %s (id=%s, subject=%r)",
+        to,
+        response.get("id") if isinstance(response, dict) else None,
+        subject,
+    )
 
 
 def _send_smtp(to: str, subject: str, html: str, text: str) -> None:
@@ -146,11 +157,26 @@ async def send_password_reset_email(to: str, token: str) -> str | None:
     return None
 
 
-async def send_login_code_email(to: str, code: str) -> str | None:
-    """Sends a 6-digit login verification code. Returns the code in dev mode so callers can surface it."""
+class EmailDeliveryResult:
+    __slots__ = ("delivered", "dev_value", "error")
+
+    def __init__(self, delivered: bool, dev_value: str | None = None, error: str | None = None) -> None:
+        self.delivered = delivered
+        self.dev_value = dev_value
+        self.error = error
+
+
+async def send_login_code_email(to: str, code: str) -> EmailDeliveryResult:
+    """Sends a 6-digit login verification code.
+
+    Returns an EmailDeliveryResult so the caller can distinguish
+    "delivered to inbox", "delivered to dev console", and "failed".
+    """
     settings = get_settings()
-    subject = f"{code} is your WebHound sign-in code"
-    text = f"Your WebHound sign-in code is: {code}\n\nThis code expires in 10 minutes."
+    # Subjects that LEAD with a 6-digit number trip Gmail / Apple Mail spam
+    # heuristics. Keep the number out of the subject.
+    subject = "Your WebHound sign-in code"
+    text = f"Your WebHound sign-in code is {code}.\n\nThis code expires in 10 minutes."
     body_html = (
         '<p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.6">'
         'Use the code below to finish signing in to WebHound. It expires in 10 minutes.</p>'
@@ -161,20 +187,20 @@ async def send_login_code_email(to: str, code: str) -> str | None:
         '<p style="margin:0;color:#94a3b8;font-size:13px;line-height:1.6">'
         "If you didn't try to sign in, you can ignore this email and your account stays safe.</p>"
     )
-    # CTA in the template still points somewhere useful — the dashboard.
     cta_url = f"{settings.frontend_url}/login"
     html = _email_html("Your sign-in code", body_html, cta_url, "Open WebHound")
 
     if not settings.resend_api_key and not settings.smtp_host:
         logger.info("No email provider configured — sign-in code for %s: %s", to, code)
         print(f"\n[EMAIL] Sign-in code for {to}: {code}\n")
-        return code
+        return EmailDeliveryResult(delivered=False, dev_value=code)
 
     try:
         _send_email(to, subject, html, text)
-    except Exception:
+        return EmailDeliveryResult(delivered=True)
+    except Exception as exc:
         logger.exception("Failed to send sign-in code to %s", to)
-    return None
+        return EmailDeliveryResult(delivered=False, error=str(exc))
 
 
 async def send_login_alert(to: str, ip: str, user_agent: str) -> None:

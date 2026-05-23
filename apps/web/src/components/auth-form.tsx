@@ -139,6 +139,11 @@ function LoginCodeStep({
       <h1 className="text-[22px] font-bold text-white tracking-tight mb-1">Enter your code</h1>
       <p className="text-[13px] mb-6 leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>
         We sent a 6-digit code to <span className="text-white">{challenge.email}</span>.
+        {challenge.delivery !== 'failed' && (
+          <span className="block mt-1 text-[11.5px]" style={{ color: 'rgba(255,255,255,0.32)' }}>
+            Check your spam folder if you don&apos;t see it.
+          </span>
+        )}
       </p>
 
       {resentDev && (
@@ -147,8 +152,17 @@ function LoginCodeStep({
           style={{ background: 'rgba(139,255,62,0.05)', border: '1px solid rgba(139,255,62,0.2)' }}
         >
           <span style={{ color: 'rgba(255,255,255,0.6)' }}>
-            Dev code: <span className="font-mono font-bold" style={{ color: '#8BFF3E' }}>{resentDev}</span>
+            Your code: <span className="font-mono font-bold text-[15px]" style={{ color: '#8BFF3E' }}>{resentDev}</span>
           </span>
+        </div>
+      )}
+
+      {challenge.delivery === 'failed' && !resentDev && (
+        <div
+          className="mb-4 p-3 rounded-xl text-[12px]"
+          style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', color: 'rgba(255,255,255,0.7)' }}
+        >
+          We couldn&apos;t send the code. Try the resend button below, or contact support if it keeps failing.
         </div>
       )}
 

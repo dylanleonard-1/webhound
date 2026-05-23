@@ -56,28 +56,27 @@ async def register(data: UserCreate, db: _DB) -> JSONResponse:
 
 
 @router.post("/login", response_model=LoginChallengeResponse)
-async def login(data: UserLogin, db: _DB) -> LoginChallengeResponse:
+async def login(data: UserLogin, db: _DB) -> JSONResponse:
     # Step 1 of 2: validate password, issue a 6-digit email code, and return a
     # short-lived challenge token. The client posts the challenge back to
     # /auth/login/verify along with the code to receive the JWT.
     user = await auth_service.authenticate_user(db, data.email, data.password)
     if user is None:
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    dev_code = await auth_service.issue_login_otp(db, user)
+    delivery = await auth_service.issue_login_otp(db, user)
     await db.commit()
     challenge, ttl = create_login_challenge_token(user.id)
-    response = LoginChallengeResponse(
-        challenge_token=challenge,
-        email=auth_service.mask_email(user.email),
-        expires_in=ttl,
-    )
-    if dev_code:
-        # Surface the code in dev mode so testers don't have to dig through logs.
-        return JSONResponse(
-            content={**response.model_dump(), "dev_code": dev_code},
-            status_code=200,
-        )
-    return response
+    body: dict = {
+        "challenge_token": challenge,
+        "email": auth_service.mask_email(user.email),
+        "expires_in": ttl,
+        "delivery": "delivered" if delivery.delivered else "failed",
+    }
+    if delivery.dev_value:
+        body["dev_code"] = delivery.dev_value
+    if delivery.error and user.is_admin:
+        body["delivery_error"] = delivery.error
+    return JSONResponse(content=body, status_code=200)
 
 
 @router.post("/login/verify", response_model=TokenResponse)
@@ -100,11 +99,16 @@ async def login_resend_code(data: LoginResendRequest, db: _DB) -> dict:
     user = await db.get(User, user_id)
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="Account not found or inactive")
-    dev_code = await auth_service.issue_login_otp(db, user)
+    delivery = await auth_service.issue_login_otp(db, user)
     await db.commit()
-    result: dict = {"message": "Code resent"}
-    if dev_code:
-        result["dev_code"] = dev_code
+    result: dict = {
+        "message": "Code resent",
+        "delivery": "delivered" if delivery.delivered else "failed",
+    }
+    if delivery.dev_value:
+        result["dev_code"] = delivery.dev_value
+    if delivery.error and user.is_admin:
+        result["delivery_error"] = delivery.error
     return result
 
 
@@ -160,6 +164,39 @@ async def forgot_password(data: PasswordResetRequest, db: _DB) -> dict:
     if dev_link:
         response["dev_reset_url"] = dev_link
     return response
+
+
+@router.get("/email-debug")
+async def email_debug(current_user: _CurrentUser) -> dict:
+    # Admin-only: reports active email provider and sends a test message
+    # to the caller. Surfaces the underlying provider error so we can see
+    # exactly why a send is failing (spam, missing domain verification, etc).
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    from apps.api.config import get_settings as _gs
+    from apps.api.services.email import _send_email
+    s = _gs()
+    provider = "resend" if s.resend_api_key else "smtp" if s.smtp_host else "none"
+    test_subject = "WebHound email debug"
+    test_text = "Test message from the /auth/email-debug endpoint."
+    test_html = "<p>Test message from the /auth/email-debug endpoint.</p>"
+    error: str | None = None
+    delivered = False
+    if provider == "none":
+        error = "No email provider configured"
+    else:
+        try:
+            _send_email(current_user.email, test_subject, test_html, test_text)
+            delivered = True
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+    return {
+        "provider": provider,
+        "from_email": s.resend_from_email if provider == "resend" else s.smtp_from_email,
+        "to_email": current_user.email,
+        "delivered": delivered,
+        "error": error,
+    }
 
 
 @router.post("/reset-password")

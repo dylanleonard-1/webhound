@@ -1,6 +1,16 @@
 [build]
 builder = "dockerfile"
 dockerfilePath = "infra/docker/Dockerfile.api"
+# Without watchPatterns Railway was skipping every API deploy because
+# its filter thought no relevant files changed. Trigger on anything
+# under apps/api, the shared scanner package the API imports, the
+# Dockerfile itself, or this config file.
+watchPatterns = [
+    "apps/api/**",
+    "scanner/**",
+    "infra/docker/Dockerfile.api",
+    "railway.toml",
+]
 
 [deploy]
 healthcheckPath = "/health"

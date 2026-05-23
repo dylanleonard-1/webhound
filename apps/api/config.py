@@ -43,6 +43,14 @@ class Settings(BaseSettings):
     ]
     cors_allow_credentials: bool = True
 
+    # Origin regex — matches every Vercel preview deploy for the
+    # webhoundsecurity project plus the production webhound.vercel.app
+    # subdomain. Override with CORS_ORIGIN_REGEX env var if the project
+    # name or Vercel team changes.
+    cors_origin_regex: str = (
+        r"^https://webhound(-[a-z0-9-]+-webhoundsecurity)?\.vercel\.app$"
+    )
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: object) -> list[str]:

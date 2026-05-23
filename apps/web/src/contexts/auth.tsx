@@ -18,10 +18,16 @@ import {
   type UserResponse,
 } from '@/lib/api'
 
+// Returned by initiateLogin: either an OTP challenge (new API) or a fully
+// signed-in flag (legacy API or admin bypass).
+export type LoginStep =
+  | { kind: 'challenge'; challenge: LoginChallenge }
+  | { kind: 'signed_in' }
+
 interface AuthContextValue {
   user: UserResponse | null
   loading: boolean
-  initiateLogin: (email: string, password: string) => Promise<LoginChallenge>
+  initiateLogin: (email: string, password: string) => Promise<LoginStep>
   verifyLoginCode: (challengeToken: string, code: string) => Promise<void>
   resendLoginCode: (challengeToken: string) => Promise<{ devCode?: string }>
   register: (payload: RegisterPayload) => Promise<{ devVerifyUrl?: string }>
@@ -48,8 +54,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false))
   }, [])
 
-  const initiateLogin = useCallback(async (email: string, password: string) => {
-    return api.auth.login(email, password)
+  const initiateLogin = useCallback(async (email: string, password: string): Promise<LoginStep> => {
+    // The new API returns a LoginChallenge; an older API still returns
+    // { access_token, token_type } directly. Handle both so we don't strand
+    // the user on a broken code-entry step when the API is mid-deploy.
+    const res = await api.auth.login(email, password) as LoginChallenge & { access_token?: string }
+    if (res.challenge_token) {
+      return { kind: 'challenge', challenge: res }
+    }
+    if (res.access_token) {
+      setStoredToken(res.access_token)
+      const me = await api.auth.me()
+      setUser(me)
+      return { kind: 'signed_in' }
+    }
+    throw new Error('Unexpected login response shape.')
   }, [])
 
   const verifyLoginCode = useCallback(async (challengeToken: string, code: string) => {

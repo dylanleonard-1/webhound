@@ -258,8 +258,13 @@ export function AuthForm({ mode }: AuthFormProps) {
     setLoading(true)
     try {
       if (isLogin) {
-        const c = await initiateLogin(email, password)
-        setChallenge(c)
+        const step = await initiateLogin(email, password)
+        if (step.kind === 'signed_in') {
+          // Legacy API path — straight to the dashboard, no OTP step.
+          router.replace('/dashboard')
+        } else {
+          setChallenge(step.challenge)
+        }
       } else {
         const { devVerifyUrl } = await register({
           email,

@@ -186,12 +186,9 @@ export function Hero() {
       </div>
 
       {/* ── Globe ─────────────────────────────────────────────── */}
-      <div className="relative h-[80vw] sm:h-[60vw] w-full lg:absolute lg:top-0 lg:h-full lg:w-[68vw] lg:[right:-14vw]">
-        <div
-          aria-hidden
-          className="absolute inset-0 pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse 55% 55% at 44% 50%, rgba(124,255,0,0.03) 0%, transparent 65%)' }}
-        />
+      {/* Mobile: shorter so the headline + CTAs fit above the fold. */}
+      {/* Desktop: absolute-positioned background on the right half. */}
+      <div className="relative h-[42vw] sm:h-[36vw] w-full lg:absolute lg:top-0 lg:h-full lg:w-[62vw] lg:[right:-8vw] -mt-10 lg:mt-0 pointer-events-none">
         <CyberGlobe className="absolute inset-0" />
       </div>
 

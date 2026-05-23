@@ -12,21 +12,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.database import get_db
 from apps.api.models.user import User
 from apps.api.schemas.auth import (
+    AccountDelete,
     LoginChallengeResponse,
     LoginResendRequest,
     LoginVerifyRequest,
+    PasswordChange,
     PasswordResetConfirm,
     PasswordResetRequest,
     TokenResponse,
     UserCreate,
     UserLogin,
     UserResponse,
+    UserUpdate,
 )
 from apps.api.security import (
     create_access_token,
     create_login_challenge_token,
     decode_login_challenge_token,
     get_current_user,
+    hash_password,
+    verify_password,
 )
 from apps.api.services import auth as auth_service
 from apps.api.services.email import send_verification_email
@@ -115,6 +120,57 @@ async def login_resend_code(data: LoginResendRequest, db: _DB) -> dict:
 @router.get("/me", response_model=UserResponse)
 async def me(current_user: _CurrentUser) -> UserResponse:
     return UserResponse.model_validate(current_user)
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_me(
+    data: UserUpdate, current_user: _CurrentUser, db: _DB
+) -> UserResponse:
+    update_data = data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(current_user, field, value)
+    await db.commit()
+    await db.refresh(current_user)
+    return UserResponse.model_validate(current_user)
+
+
+@router.post("/change-password")
+async def change_password(
+    data: PasswordChange, current_user: _CurrentUser, db: _DB
+) -> dict:
+    if current_user.hashed_password is None:
+        raise HTTPException(
+            status_code=400,
+            detail="This account signs in with OAuth and has no password to change.",
+        )
+    if not verify_password(data.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect.")
+    current_user.hashed_password = hash_password(data.new_password)
+    # Invalidate any outstanding login OTP / password reset so a stolen
+    # session can't reuse them after a password change.
+    current_user.login_otp = None
+    current_user.login_otp_expires_at = None
+    current_user.password_reset_token = None
+    current_user.password_reset_expires_at = None
+    await db.commit()
+    return {"message": "Password updated."}
+
+
+@router.delete("/me")
+async def delete_me(
+    data: AccountDelete, current_user: _CurrentUser, db: _DB
+) -> dict:
+    # Password-protected accounts must retype their password. OAuth-only
+    # accounts (no hashed_password) can confirm by hitting this endpoint
+    # at all — they already passed bearer auth.
+    if current_user.hashed_password is not None:
+        if not data.password or not verify_password(
+            data.password, current_user.hashed_password
+        ):
+            raise HTTPException(status_code=400, detail="Password is incorrect.")
+    await db.delete(current_user)
+    await db.commit()
+    return {"message": "Account deleted."}
 
 
 @router.get("/verify-email")

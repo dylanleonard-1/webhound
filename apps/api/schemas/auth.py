@@ -94,6 +94,48 @@ class LoginResendRequest(BaseModel):
     challenge_token: str
 
 
+class UserUpdate(BaseModel):
+    full_name: str | None = None
+    company_name: str | None = None
+    use_case: str | None = None
+
+    @field_validator("full_name", "company_name")
+    @classmethod
+    def strip_optional(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip()
+        return v or None
+
+    @field_validator("use_case")
+    @classmethod
+    def validate_use_case(cls, v: str | None) -> str | None:
+        if v is None or v == "":
+            return None
+        v = v.strip().lower()
+        if v not in _VALID_USE_CASES:
+            raise ValueError(f"use_case must be one of: {sorted(_VALID_USE_CASES)}")
+        return v
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def password_min_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
+
+
+class AccountDelete(BaseModel):
+    # Require the user to retype their password to confirm. OAuth-only users
+    # (no password) can pass an empty string and the server will accept it.
+    password: str = ""
+
+
 class PasswordResetRequest(BaseModel):
     email: str
 

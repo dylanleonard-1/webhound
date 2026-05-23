@@ -384,6 +384,15 @@ export const api = {
 
     me: () => request<UserResponse>('GET', '/auth/me'),
 
+    updateMe: (patch: { full_name?: string | null; company_name?: string | null; use_case?: UseCase | null }) =>
+      request<UserResponse>('PATCH', '/auth/me', patch),
+
+    changePassword: (current_password: string, new_password: string) =>
+      request<{ message: string }>('POST', '/auth/change-password', { current_password, new_password }),
+
+    deleteAccount: (password: string) =>
+      request<{ message: string }>('DELETE', '/auth/me', { password }),
+
     verifyEmail: (token: string) =>
       request<{ message: string }>('GET', `/auth/verify-email?token=${encodeURIComponent(token)}`),
 

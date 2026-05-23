@@ -45,7 +45,7 @@ function StatPill({ value, label }: { value: string; label: string }) {
 
 export function Hero() {
   return (
-    <section className="relative min-h-screen overflow-hidden" style={{ background: '#020617' }}>
+    <section className="relative overflow-hidden pt-16 lg:pt-20" style={{ background: '#020617' }}>
 
       {/* ── Atmospheric layers ──────────────────────────────── */}
       <div aria-hidden className="pointer-events-none absolute inset-0"
@@ -73,14 +73,14 @@ export function Hero() {
       />
 
       {/* ── Main layout ──────────────────────────────────────── */}
-      <div className="relative z-10 min-h-screen flex flex-col lg:flex-row">
+      <div className="relative z-10 lg:min-h-[calc(100vh-5rem)] flex flex-col lg:flex-row">
 
         {/* ── Left: hero content ───────────────────────────── */}
-        <div className="flex flex-col justify-center w-full lg:w-[48%] xl:w-[44%] px-6 sm:px-12 xl:px-20 pt-28 pb-16 lg:pt-0 lg:pb-0">
+        <div className="flex flex-col justify-center w-full lg:w-[48%] xl:w-[44%] px-6 sm:px-12 xl:px-20 pt-8 pb-10 lg:pt-0 lg:pb-0">
 
           {/* Eyebrow */}
           <motion.div
-            className="inline-flex items-center gap-2 mb-8 w-fit"
+            className="inline-flex items-center gap-2 mb-5 w-fit"
             initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.05 }}
           >
@@ -95,8 +95,8 @@ export function Hero() {
 
           {/* Headline */}
           <motion.h1
-            className="font-bold leading-[0.93] tracking-[-0.03em] mb-7"
-            style={{ fontSize: 'clamp(3rem, 5.6vw, 5.4rem)' }}
+            className="font-bold leading-[0.95] tracking-[-0.03em] mb-5"
+            style={{ fontSize: 'clamp(2.5rem, 5.2vw, 4.8rem)' }}
             initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.12 }}
           >
@@ -109,7 +109,7 @@ export function Hero() {
 
           {/* Subtext */}
           <motion.p
-            className="leading-[1.75] max-w-[420px] mb-8 text-[15px]"
+            className="leading-[1.65] max-w-[420px] mb-5 text-[14px]"
             style={{ color: 'rgba(255,255,255,0.40)' }}
             initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.22 }}
@@ -121,7 +121,7 @@ export function Hero() {
 
           {/* Social proof pill */}
           <motion.div
-            className="flex items-center gap-3 px-4 py-2.5 rounded-xl mb-9 w-fit"
+            className="hidden sm:flex items-center gap-3 px-4 py-2.5 rounded-xl mb-5 w-fit"
             style={{
               background: 'rgba(5,10,22,0.7)',
               border: '1px solid rgba(139,255,62,0.12)',
@@ -142,7 +142,7 @@ export function Hero() {
 
           {/* CTA buttons */}
           <motion.div
-            className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-10"
+            className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6"
             initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.38 }}
           >
@@ -186,9 +186,9 @@ export function Hero() {
       </div>
 
       {/* ── Globe ─────────────────────────────────────────────── */}
-      {/* Mobile: shorter so the headline + CTAs fit above the fold. */}
+      {/* Mobile: compact strip below the CTAs. */}
       {/* Desktop: absolute-positioned background on the right half. */}
-      <div className="relative h-[42vw] sm:h-[36vw] w-full lg:absolute lg:top-0 lg:h-full lg:w-[62vw] lg:[right:-8vw] -mt-10 lg:mt-0 pointer-events-none">
+      <div className="relative h-[30vw] sm:h-[26vw] w-full lg:absolute lg:top-0 lg:h-full lg:w-[60vw] lg:[right:-6vw] pointer-events-none">
         <CyberGlobe className="absolute inset-0" />
       </div>
 

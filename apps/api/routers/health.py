@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import os
 from typing import Annotated
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +17,27 @@ router = APIRouter()
 @router.get("/health")
 async def health() -> dict:
     return {"status": "ok"}
+
+
+@router.get("/health/version")
+async def health_version(request: Request) -> dict:
+    # Railway exposes the deployed commit as RAILWAY_GIT_COMMIT_SHA. Surface
+    # it (plus a snapshot of auth routes) so we can verify what's actually
+    # running on prod without shell access.
+    sha = (
+        os.getenv("RAILWAY_GIT_COMMIT_SHA")
+        or os.getenv("GIT_COMMIT_SHA")
+        or "unknown"
+    )
+    auth_routes = sorted(
+        getattr(r, "path", "")
+        for r in request.app.routes
+        if getattr(r, "path", "").startswith("/auth")
+    )
+    return {
+        "commit": sha[:12] if sha != "unknown" else sha,
+        "auth_routes": auth_routes,
+    }
 
 
 @router.get("/health/db")

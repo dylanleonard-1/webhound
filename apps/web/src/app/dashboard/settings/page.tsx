@@ -19,7 +19,7 @@ type SectionId =
 interface Category {
   id: SectionId
   label: string
-  icon: React.FC<{ className?: string }>
+  icon: React.FC<{ className?: string; style?: React.CSSProperties }>
   description: string
 }
 

@@ -37,6 +37,18 @@ EXPOSE 8000
 
 USER webhound
 
-# Migrate then serve. Use exec so uvicorn receives SIGTERM directly.
-# PORT is injected by Railway at runtime; falls back to 8000 for local dev.
-CMD ["sh", "-c", "alembic -c apps/api/alembic.ini upgrade head && exec uvicorn apps.api.main:app --host 0.0.0.0 --port ${PORT:-8000} --log-level $(echo ${LOG_LEVEL:-info} | tr '[:upper:]' '[:lower:]')"]
+# Migrate then serve. Retry alembic up to 5 times so a slow Postgres
+# cold-start doesn't crash the container. Use exec so uvicorn receives
+# SIGTERM directly. PORT is injected by Railway; falls back to 8000 locally.
+CMD ["sh", "-c", "\
+for i in 1 2 3 4 5; do \
+  if alembic -c apps/api/alembic.ini upgrade head; then ok=1; break; fi; \
+  echo \"[boot] alembic upgrade attempt $i failed, retrying in 3s...\" >&2; \
+  sleep 3; \
+done; \
+if [ \"${ok:-0}\" != \"1\" ]; then \
+  echo \"[boot] alembic upgrade failed after 5 attempts; aborting\" >&2; \
+  exit 1; \
+fi; \
+exec uvicorn apps.api.main:app --host 0.0.0.0 --port ${PORT:-8000} --log-level $(echo ${LOG_LEVEL:-info} | tr '[:upper:]' '[:lower:]')\
+"]

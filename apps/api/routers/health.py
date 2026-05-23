@@ -20,10 +20,13 @@ async def health() -> dict:
 
 
 @router.get("/health/version")
-async def health_version(request: Request) -> dict:
-    # Railway exposes the deployed commit as RAILWAY_GIT_COMMIT_SHA. Surface
-    # it (plus a snapshot of auth routes) so we can verify what's actually
-    # running on prod without shell access.
+async def health_version(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    # Surfaces the deployed commit, the live auth routes, and the current
+    # Alembic schema revision. Lets us verify both "did the deploy land?"
+    # and "did migrations run?" without shell access.
     sha = (
         os.getenv("RAILWAY_GIT_COMMIT_SHA")
         or os.getenv("GIT_COMMIT_SHA")
@@ -34,8 +37,14 @@ async def health_version(request: Request) -> dict:
         for r in request.app.routes
         if getattr(r, "path", "").startswith("/auth")
     )
+    try:
+        row = await db.execute(text("SELECT version_num FROM alembic_version"))
+        schema_revision = row.scalar_one_or_none()
+    except Exception as exc:
+        schema_revision = f"error: {exc}"
     return {
         "commit": sha[:12] if sha != "unknown" else sha,
+        "schema_revision": schema_revision,
         "auth_routes": auth_routes,
     }
 

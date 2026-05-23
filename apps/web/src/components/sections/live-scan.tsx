@@ -316,7 +316,7 @@ export function LiveScan() {
   const progressWidth = useTransform(progressValue, v => `${v}%`)
 
   return (
-    <section id="pricing" ref={sectionRef} className="relative overflow-hidden bg-[#020617] py-28 sm:py-36 section-contain">
+    <section id="live-scan" ref={sectionRef} className="relative overflow-hidden bg-[#020617] py-20 sm:py-28 section-contain">
       {/* Top divider */}
       <GradientDivider className="absolute top-0 left-0 right-0" glow />
 

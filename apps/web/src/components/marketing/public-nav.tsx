@@ -21,17 +21,10 @@ const NAV_ITEMS: NavItem[] = [
   {
     label: 'Product',
     children: [
-      { label: 'Scanner',    href: '/scanner',    desc: 'Passive website security scanning'      },
-      { label: 'WADE',       href: '/wade',       desc: 'AI-powered change detection'            },
-      { label: 'Reports',    href: '/reports',    desc: 'CVSS-scored security reports'           },
-      { label: 'Monitoring', href: '/monitoring', desc: '24/7 continuous protection'             },
-    ],
-  },
-  {
-    label: 'Resources',
-    children: [
-      { label: 'How It Works', href: '/how-it-works', desc: 'Our 8-layer scan process'          },
-      { label: 'Features',     href: '/features',     desc: 'Full capability overview'           },
+      { label: 'Scanner',    href: '/scanner',    desc: 'How a scan works'                },
+      { label: 'Monitoring', href: '/monitoring', desc: 'What we watch after the scan'    },
+      { label: 'WADE',       href: '/wade',       desc: 'AI baseline + anomaly detection' },
+      { label: 'Reports',    href: '/reports',    desc: 'What you get in writing'         },
     ],
   },
   { label: 'Pricing', href: '/pricing' },

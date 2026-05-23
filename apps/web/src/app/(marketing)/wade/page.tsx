@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 }
 
 interface Detect {
-  icon: React.FC<{ className?: string }>
+  icon: React.FC<{ className?: string; style?: React.CSSProperties }>
   title: string
   body: string
 }

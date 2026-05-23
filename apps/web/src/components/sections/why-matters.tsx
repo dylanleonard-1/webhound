@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import { ArrowRight, DollarSign, TrendingDown, FileWarning } from 'lucide-react'
 
 interface Stake {
-  icon: React.FC<{ className?: string }>
+  icon: React.FC<{ className?: string; style?: React.CSSProperties }>
   stat: string
   body: string
 }

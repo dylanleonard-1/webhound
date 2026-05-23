@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 }
 
 interface AlertChannel {
-  icon: React.FC<{ className?: string }>
+  icon: React.FC<{ className?: string; style?: React.CSSProperties }>
   name: string
   desc: string
 }

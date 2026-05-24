@@ -18,6 +18,9 @@ from .compromise.injected_js import InjectedJsEngine
 from .compromise.hidden_iframes import HiddenIframesEngine
 from .compromise.seo_spam import SeoSpamEngine
 from .compromise.suspicious_redirects import SuspiciousRedirectsEngine
+from .cms.wordpress import WordpressEngine
+from .cms.shopify import ShopifyEngine
+from .cms.wix import WixEngine
 
 __all__ = [
     "SecurityHeadersEngine",
@@ -41,4 +44,7 @@ __all__ = [
     "HiddenIframesEngine",
     "SeoSpamEngine",
     "SuspiciousRedirectsEngine",
+    "WordpressEngine",
+    "ShopifyEngine",
+    "WixEngine",
 ]

@@ -8,11 +8,20 @@
 # OFFLINE-SAFE BY DEFAULT: the client raises immediately unless the caller
 # passes ``allow_network=True``. Reads the API key from the VIRUSTOTAL_API_KEY
 # env var or the explicit constructor argument.
+#
+# Built-in protections for the VT free tier (4 req/min, 500/day):
+#   - Per-instance in-memory cache (TTL configurable, default 6h) so the
+#     same domain isn't re-queried within a single scan or across pages.
+#   - Token-bucket rate limiter (default 4 calls per 60s) that waits
+#     instead of failing when the budget is exhausted.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
+import time
+from collections import deque
 from datetime import datetime, timezone
 from typing import Any
 
@@ -21,6 +30,34 @@ import httpx
 from .enrichment_service import BaseProvider, ProviderResult
 
 _VT_DOMAIN_API = "https://www.virustotal.com/api/v3/domains/{domain}"
+
+
+class _TokenBucket:
+    """Simple sliding-window rate limiter: at most N calls per window seconds.
+
+    Records the timestamp of each call; before granting a new call, evicts
+    timestamps older than `window` and (if the bucket is full) sleeps until
+    the oldest slot frees up. Thread-safe in a single asyncio loop via an
+    asyncio.Lock.
+    """
+
+    def __init__(self, max_calls: int, window_seconds: float) -> None:
+        self._max = max_calls
+        self._window = window_seconds
+        self._calls: deque[float] = deque()
+        self._lock = asyncio.Lock()
+
+    async def acquire(self) -> None:
+        async with self._lock:
+            while True:
+                now = time.monotonic()
+                while self._calls and now - self._calls[0] > self._window:
+                    self._calls.popleft()
+                if len(self._calls) < self._max:
+                    self._calls.append(now)
+                    return
+                sleep_for = self._window - (now - self._calls[0]) + 0.05
+                await asyncio.sleep(max(0.05, sleep_for))
 
 
 class VirusTotalClient(BaseProvider):
@@ -33,14 +70,39 @@ class VirusTotalClient(BaseProvider):
         api_key: str | None = None,
         *,
         allow_network: bool = False,
-        timeout: float = 6.0,
+        timeout: float = 10.0,
+        rate_limit_calls: int = 4,
+        rate_limit_window: float = 60.0,
+        cache_ttl_seconds: float = 6 * 3600.0,
     ) -> None:
         self._api_key = api_key or os.getenv("VIRUSTOTAL_API_KEY")
         self._allow_network = allow_network
         self._timeout = timeout
+        self._bucket = _TokenBucket(rate_limit_calls, rate_limit_window)
+        self._cache: dict[str, tuple[float, ProviderResult]] = {}
+        self._cache_ttl = cache_ttl_seconds
 
     async def enrich(self, domain: str) -> ProviderResult:
         now = datetime.now(timezone.utc)
+        cache_key = domain.lower().strip()
+
+        # In-memory cache check first — never re-hit VT for the same host.
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            ts, result = cached
+            if time.monotonic() - ts < self._cache_ttl:
+                # Refresh the checked_at stamp so consumers see "current".
+                return ProviderResult(
+                    provider=result.provider, domain=result.domain,
+                    reputation_score=result.reputation_score,
+                    confidence=result.confidence,
+                    categories=result.categories,
+                    is_malicious=result.is_malicious,
+                    is_suspicious=result.is_suspicious,
+                    raw=result.raw, checked_at=now,
+                    error=result.error,
+                )
+
         if not self._allow_network:
             return ProviderResult(
                 provider=self.name, domain=domain,
@@ -57,21 +119,38 @@ class VirusTotalClient(BaseProvider):
                 raw={}, checked_at=now,
                 error="virustotal: no API key (set VIRUSTOTAL_API_KEY)",
             )
+
+        await self._bucket.acquire()
+
         headers = {"x-apikey": self._api_key, "Accept": "application/json"}
         url = _VT_DOMAIN_API.format(domain=domain)
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 resp = await client.get(url, headers=headers)
+            if resp.status_code == 429:
+                # Daily quota exhausted — record but don't hammer further.
+                result = ProviderResult(
+                    provider=self.name, domain=domain,
+                    reputation_score=None, confidence=0.0,
+                    categories=[], is_malicious=None, is_suspicious=None,
+                    raw={}, checked_at=now,
+                    error="virustotal: rate-limited (HTTP 429)",
+                )
+                self._cache[cache_key] = (time.monotonic(), result)
+                return result
             payload = resp.json() if resp.headers.get(
                 "content-type", "").startswith("application/json") else {}
-            return _parse_vt_response(domain, payload, now)
+            result = _parse_vt_response(domain, payload, now)
         except (httpx.HTTPError, json.JSONDecodeError) as exc:
-            return ProviderResult(
+            result = ProviderResult(
                 provider=self.name, domain=domain,
                 reputation_score=None, confidence=0.0,
                 categories=[], is_malicious=None, is_suspicious=None,
                 raw={}, checked_at=now, error=f"virustotal lookup failed: {exc}",
             )
+
+        self._cache[cache_key] = (time.monotonic(), result)
+        return result
 
 
 def _parse_vt_response(
@@ -92,7 +171,6 @@ def _parse_vt_response(
             raw=payload, checked_at=checked_at,
             error="virustotal: no analysis stats in response",
         )
-    # VT-style normalisation: malicious + suspicious detection ratio maps to 0–10.
     detect_ratio = (malicious + suspicious) / total
     rep_score = round(detect_ratio * 10.0, 2)
     categories_dict = data.get("categories") or {}

@@ -29,6 +29,10 @@ from webhound.threat_intel.domain_classifier import (
     DomainClassification,
     DomainClassifier,
 )
+from webhound.threat_intel.enrichment_service import (
+    EnrichmentResult,
+    EnrichmentService,
+)
 
 _ENGINE = "threat_intel"
 
@@ -168,10 +172,15 @@ class ThreatIntelEngine:
 
     NAME = _ENGINE
 
-    def __init__(self, classifier: DomainClassifier | None = None) -> None:
+    def __init__(
+        self,
+        classifier: DomainClassifier | None = None,
+        enrichment_service: EnrichmentService | None = None,
+    ) -> None:
         self._classifier = classifier or DomainClassifier()
+        self._enrichment = enrichment_service
 
-    def analyze(self, artifacts: PageArtifacts) -> list[Finding]:
+    async def analyze(self, artifacts: PageArtifacts) -> list[Finding]:
         hosts = _gather_external_hosts(artifacts)
         if not hosts:
             return []
@@ -179,44 +188,60 @@ class ThreatIntelEngine:
         page_url = artifacts.url
         findings: list[Finding] = []
 
-        # Classify every external host once.
-        classifications: list[tuple[str, DomainClassification, set[str]]] = []
+        # Local classification first (instant, offline).
+        classifications: list[tuple[str, DomainClassification, set[str],
+                                     EnrichmentResult | None]] = []
         for host, kinds in hosts.items():
             cls = self._classifier.classify(host)
-            classifications.append((host, cls, kinds))
+            classifications.append((host, cls, kinds, None))
+
+        # If an enrichment service with providers is registered, call out
+        # to each provider in parallel and merge verdicts. Each provider
+        # has its own rate-limiter and per-instance cache so a 50-host page
+        # is safe on the VT free tier (4 req/min, 500/day).
+        if self._enrichment and self._enrichment.has_external_providers:
+            enriched = await self._run_enrichment(
+                [(h, cls, kinds) for h, cls, kinds, _ in classifications]
+            )
+            classifications = enriched
 
         # ---- Inventory finding (INFO) ----
         by_tier: dict[DomainClass, int] = {}
-        for _, cls, _ in classifications:
-            by_tier[cls.classification] = by_tier.get(cls.classification, 0) + 1
+        for _, cls, _, enr in classifications:
+            final = (enr.final_classification if enr else cls.classification)
+            by_tier[final] = by_tier.get(final, 0) + 1
         findings.append(self._inventory_finding(page_url, classifications, by_tier))
 
         # ---- Per-host high-risk findings ----
-        for host, cls, kinds in classifications:
-            tier = cls.classification
+        for host, cls, kinds, enr in classifications:
+            # Use the merged classification if external providers ran.
+            tier = enr.final_classification if enr else cls.classification
             if tier == DomainClass.MALICIOUS_INDICATOR:
                 findings.append(self._host_finding(
                     host, cls, kinds, page_url,
                     severity=Severity.CRITICAL,
                     framework_key="malicious_indicator",
+                    enrichment=enr,
                 ))
             elif tier == DomainClass.RISKY:
                 findings.append(self._host_finding(
                     host, cls, kinds, page_url,
                     severity=Severity.HIGH,
                     framework_key="risky",
+                    enrichment=enr,
                 ))
             elif tier == DomainClass.SUSPICIOUS:
                 findings.append(self._host_finding(
                     host, cls, kinds, page_url,
                     severity=Severity.MEDIUM,
                     framework_key="suspicious",
+                    enrichment=enr,
                 ))
             else:
                 continue
 
         # ---- Special-case findings driven by individual signals ----
-        for host, cls, kinds in classifications:
+        for host, cls, kinds, _ in classifications:
             if cls.is_url_shortener:
                 findings.append(self._shortener_finding(host, cls, kinds, page_url))
             if cls.is_punycode:
@@ -226,15 +251,41 @@ class ThreatIntelEngine:
 
     # ------------------------------------------------------------------
 
+    async def _run_enrichment(
+        self,
+        items: list[tuple[str, DomainClassification, set[str]]],
+    ) -> list[tuple[str, DomainClassification, set[str],
+                    EnrichmentResult | None]]:
+        """Run all registered providers on each host in parallel."""
+        import asyncio
+        assert self._enrichment is not None
+        coros = [self._enrichment.enrich_domain(h) for h, _, _ in items]
+        results: list[EnrichmentResult | BaseException] = await asyncio.gather(
+            *coros, return_exceptions=True,
+        )
+        out: list[tuple[str, DomainClassification, set[str],
+                         EnrichmentResult | None]] = []
+        for (host, cls, kinds), enr in zip(items, results):
+            out.append((host, cls, kinds,
+                         enr if isinstance(enr, EnrichmentResult) else None))
+        return out
+
     def _inventory_finding(self, page_url: str,
-                           classifications: list[tuple[str, DomainClassification, set[str]]],
+                           classifications: list[tuple[str, DomainClassification, set[str],
+                                                       EnrichmentResult | None]],
                            by_tier: dict[DomainClass, int]) -> Finding:
         host_lines = []
-        for host, cls, kinds in classifications[:30]:
+        for host, cls, kinds, enr in classifications[:30]:
             kinds_str = ",".join(sorted(kinds))
+            verdict = (enr.final_classification.value if enr
+                       else cls.classification.value)
+            ext_note = ""
+            if enr and enr.external:
+                providers = [r.provider for r in enr.external if r.error is None]
+                ext_note = f" providers={','.join(providers)}" if providers else ""
             host_lines.append(
-                f"{host:<48s} [{cls.classification.value:<22s}] "
-                f"score={cls.score:.1f} kinds={kinds_str}"
+                f"{host:<48s} [{verdict:<22s}] "
+                f"score={cls.score:.1f} kinds={kinds_str}{ext_note}"
             )
         if len(classifications) > 30:
             host_lines.append(f"… (+{len(classifications) - 30} more hosts)")
@@ -278,7 +329,8 @@ class ThreatIntelEngine:
 
     def _host_finding(self, host: str, cls: DomainClassification,
                       kinds: set[str], page_url: str,
-                      severity: Severity, framework_key: str) -> Finding:
+                      severity: Severity, framework_key: str,
+                      enrichment: EnrichmentResult | None = None) -> Finding:
         kinds_str = ", ".join(sorted(kinds))
         signal_lines = "\n".join(f"  • {s}" for s in cls.signals)
         title_prefix = {
@@ -304,12 +356,13 @@ class ThreatIntelEngine:
                 evidence_type=EvidenceType.RAW,
                 content=(
                     f"Host: {host}\n"
-                    f"Classification: {cls.classification.value} "
+                    f"Local classification: {cls.classification.value} "
                     f"(score {cls.score:.1f}/10.0, confidence {cls.confidence:.0%})\n"
                     f"Registered: {cls.registerable_domain or '?'}\n"
                     f"TLD: .{cls.tld or '?'}\n"
                     f"Used as: {kinds_str}\n"
                     f"Signals:\n{signal_lines}"
+                    + _format_enrichment(enrichment)
                 ),
                 location=page_url,
                 source_engine=_ENGINE,
@@ -319,6 +372,7 @@ class ThreatIntelEngine:
                     "score": cls.score,
                     "signals": cls.signals,
                     "kinds": sorted(kinds),
+                    **_enrichment_extras(enrichment),
                 },
             )],
             confidence=cls.confidence,
@@ -417,3 +471,52 @@ class ThreatIntelEngine:
             scanner_engine=_ENGINE,
             metadata={"url": page_url, "host": host, "kinds": sorted(kinds)},
         )
+
+
+def _format_enrichment(enr: EnrichmentResult | None) -> str:
+    """Render external-provider verdicts into the evidence content block."""
+    if not enr or not enr.external:
+        return ""
+    lines = ["", "External providers:"]
+    for r in enr.external:
+        if r.error:
+            lines.append(f"  • {r.provider}: error — {r.error}")
+            continue
+        verdict = "malicious" if r.is_malicious else (
+            "suspicious" if r.is_suspicious else "clean"
+        )
+        rep = (f"{r.reputation_score:.1f}/10.0"
+               if r.reputation_score is not None else "n/a")
+        cats = f" categories=[{', '.join(r.categories)}]" if r.categories else ""
+        lines.append(
+            f"  • {r.provider}: {verdict} (rep {rep}, "
+            f"confidence {r.confidence:.0%}){cats}"
+        )
+    lines.append(
+        f"Merged verdict: {enr.final_classification.value} "
+        f"(score {enr.final_score:.1f}/10.0, "
+        f"confidence {enr.final_confidence:.0%})"
+    )
+    return "\n" + "\n".join(lines)
+
+
+def _enrichment_extras(enr: EnrichmentResult | None) -> dict[str, object]:
+    """Return enrichment metadata for the evidence.extra payload."""
+    if not enr or not enr.external:
+        return {}
+    return {
+        "merged_classification": enr.final_classification.value,
+        "merged_score": enr.final_score,
+        "merged_confidence": enr.final_confidence,
+        "external_providers": [
+            {
+                "provider": r.provider,
+                "is_malicious": r.is_malicious,
+                "is_suspicious": r.is_suspicious,
+                "reputation_score": r.reputation_score,
+                "categories": r.categories,
+                "error": r.error,
+            }
+            for r in enr.external
+        ],
+    }

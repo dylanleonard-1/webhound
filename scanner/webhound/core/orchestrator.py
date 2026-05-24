@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -63,10 +64,31 @@ from webhound.wade.baseline_builder import BaselineBuilder, SiteBaseline
 from webhound.wade.classifier import Classifier
 from webhound.wade.confidence import adjust_findings_confidence
 from webhound.wade.diff_engine import DiffEngine
+from webhound.threat_intel.enrichment_service import EnrichmentService
+from webhound.threat_intel.urlhaus_client import UrlhausClient
+from webhound.threat_intel.virustotal_client import VirusTotalClient
 
 
 # Per-engine wall-clock timeout; cancels a hung engine coroutine.
 _ENGINE_TIMEOUT_SECONDS: float = 60.0
+
+
+def _build_enrichment_service() -> EnrichmentService | None:
+    """Construct an EnrichmentService from env-configured providers.
+
+    Returns None when no providers are configured, so ThreatIntelEngine
+    falls back to local-only classification. Reads:
+      VIRUSTOTAL_API_KEY  — enables VirusTotal v3 domain lookups.
+      ENABLE_URLHAUS=1    — enables abuse.ch URLhaus (no key required).
+    """
+    providers = []
+    if os.getenv("VIRUSTOTAL_API_KEY"):
+        providers.append(VirusTotalClient(allow_network=True))
+    if os.getenv("ENABLE_URLHAUS") == "1":
+        providers.append(UrlhausClient(allow_network=True))
+    if not providers:
+        return None
+    return EnrichmentService(providers=providers)
 
 
 # ---------------------------------------------------------------------------
@@ -288,7 +310,9 @@ class Scanner:
         self._shopify = ShopifyEngine()
         self._wix = WixEngine()
         self._endpoint_discovery = EndpointDiscoveryEngine()
-        self._threat_intel = ThreatIntelEngine()
+        self._threat_intel = ThreatIntelEngine(
+            enrichment_service=_build_enrichment_service(),
+        )
 
     # ------------------------------------------------------------------
     # Public entry point

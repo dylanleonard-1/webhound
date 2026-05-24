@@ -22,6 +22,7 @@ from .cms.wordpress import WordpressEngine
 from .cms.shopify import ShopifyEngine
 from .cms.wix import WixEngine
 from .api_discovery.endpoint_discovery import EndpointDiscoveryEngine
+from .threat_intel.external_domains import ThreatIntelEngine
 
 __all__ = [
     "SecurityHeadersEngine",
@@ -49,4 +50,5 @@ __all__ = [
     "ShopifyEngine",
     "WixEngine",
     "EndpointDiscoveryEngine",
+    "ThreatIntelEngine",
 ]

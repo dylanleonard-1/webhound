@@ -7,6 +7,8 @@ from .enrichment_service import (
     EnrichmentService,
     ProviderResult,
 )
+from .urlhaus_client import UrlhausClient
+from .virustotal_client import VirusTotalClient
 
 __all__ = [
     "DomainClass",
@@ -16,4 +18,6 @@ __all__ = [
     "EnrichmentResult",
     "EnrichmentService",
     "ProviderResult",
+    "UrlhausClient",
+    "VirusTotalClient",
 ]

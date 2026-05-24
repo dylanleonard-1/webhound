@@ -64,6 +64,8 @@ class ExtractedScript:
     is_inline: bool
     is_external: bool
     is_external_domain: bool  # src hostname differs from the page hostname
+    integrity: str | None = None  # Raw `integrity=` attribute, if present (SRI hash)
+    crossorigin: str | None = None  # Raw `crossorigin=` attribute, if present
 
 
 @dataclass(frozen=True)
@@ -266,6 +268,8 @@ class Extractor:
                 if not resolved:
                     continue
                 src_host = (urlparse(resolved).hostname or "").lower()
+                integrity_raw = tag.get("integrity")
+                crossorigin_raw = tag.get("crossorigin")
                 scripts.append(
                     ExtractedScript(
                         src=resolved,
@@ -273,6 +277,8 @@ class Extractor:
                         is_inline=False,
                         is_external=True,
                         is_external_domain=(src_host != page_hostname),
+                        integrity=integrity_raw.strip() if isinstance(integrity_raw, str) and integrity_raw.strip() else None,
+                        crossorigin=crossorigin_raw.strip() if isinstance(crossorigin_raw, str) and crossorigin_raw.strip() else None,
                     )
                 )
             else:

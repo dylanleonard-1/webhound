@@ -184,6 +184,78 @@ _PATTERNS: list[_PatternDef] = [
         "Don't compute form action URLs from user input. If the destination needs "
         "to vary, pick from a server-side allowlist keyed by an opaque token.",
     ),
+    # ── Client-side risk patterns added in commit 2/4 ─────────────────────────
+    _PatternDef(
+        "settimeout_string",
+        # setTimeout / setInterval where the first argument is a string literal
+        # (so the runtime will eval() it). Detects both single and double quotes.
+        re.compile(r"\b(?:setTimeout|setInterval)\s*\(\s*['\"]"),
+        Severity.MEDIUM,
+        "Script schedules a string as code (setTimeout/setInterval with string arg)",
+        "An inline script passes a string as the first argument to `setTimeout` "
+        "or `setInterval`. Browsers run that string through eval() at the "
+        "scheduled time — same code-injection risk as eval() itself. If any part "
+        "of the string is built from user input, an attacker can run JavaScript.",
+        "Always pass a function reference, never a string:\n"
+        "  setTimeout(() => doThing(), 1000)   // safe\n"
+        "  setTimeout('doThing()', 1000)        // unsafe\n"
+        "If you genuinely need to schedule code built from input, you're "
+        "almost certainly designing the wrong abstraction.",
+    ),
+    _PatternDef(
+        "dom_xss_sink_hash",
+        # location.hash flowing into a DOM sink. Heuristic: location.hash referenced
+        # within ~120 chars of innerHTML/document.write — likely a sink/source pair.
+        re.compile(
+            r"\.hash\b[^\n]{0,120}?\b(?:innerHTML|outerHTML|document\.write|insertAdjacentHTML)\b"
+            r"|\b(?:innerHTML|outerHTML|document\.write|insertAdjacentHTML)\b[^\n]{0,120}?\.hash\b"
+        ),
+        Severity.HIGH,
+        "Script writes the URL hash directly into the page (DOM XSS)",
+        "An inline script reads `location.hash` (the `#...` part of the URL) and "
+        "writes it into the page using innerHTML or document.write. Anyone can "
+        "craft a URL whose hash contains a `<script>` tag — when a victim "
+        "clicks the link, the script runs on your domain. This is the canonical "
+        "DOM-based XSS pattern.",
+        "Treat `location.hash` (and `location.search`, `document.referrer`, "
+        "`postMessage` data) as untrusted input. Render via `.textContent`, or "
+        "sanitize HTML through DOMPurify before assigning to innerHTML.",
+    ),
+    _PatternDef(
+        "proto_pollution",
+        # Direct assignment to __proto__, Object.assign over user-controlled
+        # source, or use of Object.prototype as a target.
+        re.compile(
+            r"\b__proto__\s*\["
+            r"|\b__proto__\s*\.\s*\w+\s*="
+            r"|\bObject\.prototype\s*\["
+        ),
+        Severity.MEDIUM,
+        "Script touches __proto__ or Object.prototype",
+        "An inline script writes to `__proto__` or `Object.prototype`. If the "
+        "value or key comes from user input (e.g., merging an untrusted JSON "
+        "object into a config), it's a prototype pollution vulnerability — the "
+        "attacker can add or change properties on every object in the page.",
+        "Don't assign to `__proto__` or `Object.prototype`. When merging "
+        "objects with user data, use a hardened merge (lodash.merge >=4.17.21, "
+        "or `Object.create(null)` for plain dicts).",
+    ),
+    _PatternDef(
+        "source_map_url",
+        # //# sourceMappingURL=... — common, but in production a publicly-readable
+        # source map is a meaningful leak (original source, sometimes secrets).
+        re.compile(r"//[#@]\s*sourceMappingURL\s*=\s*\S+", re.I),
+        Severity.LOW,
+        "Inline script links to a source map",
+        "An inline script has a `sourceMappingURL` comment pointing at a `.map` "
+        "file. If that file is publicly readable, anyone can download the "
+        "original (un-minified) source code — including any comments, internal "
+        "API URLs, and sometimes credentials checked in by accident.",
+        "On production builds, strip `sourceMappingURL` from the deployed "
+        "bundles OR make sure the `.map` files aren't served publicly (deny "
+        "them in nginx / your CDN). Most build tools have a `sourcemap: 'hidden'` "
+        "option for this.",
+    ),
 ]
 
 
@@ -202,6 +274,11 @@ _PATTERN_CONFIDENCE: dict[str, float] = {
     "session_storage": 0.40,
     "location_redirect": 0.55,
     "form_action_manip": 0.65,
+    # New patterns from commit 2/4
+    "settimeout_string": 0.85,     # very rare in legit code
+    "dom_xss_sink_hash": 0.7,      # heuristic source-near-sink
+    "proto_pollution": 0.8,        # __proto__ assignment is unambiguous
+    "source_map_url": 0.95,        # syntactic match — only false-positive is intentional
 }
 
 

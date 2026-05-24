@@ -187,11 +187,78 @@ class ThirdPartyDomainEngine:
         page_host = urlparse(artifacts.url).hostname or ""
 
         findings.extend(self._check_script_domains(artifacts, page_host))
+        findings.extend(self._check_external_scripts_without_sri(artifacts))
         findings.extend(self._check_form_action_domains(artifacts, page_host))
         findings.extend(self._check_iframe_domains(artifacts))
         findings.extend(self._check_stylesheet_domains(artifacts))
         findings.extend(self._check_js_request_domains(artifacts))
 
+        return findings
+
+    # ------------------------------------------------------------------
+    # Subresource Integrity (SRI) — external scripts loaded without an
+    # integrity hash can be substituted by a compromised CDN.
+    # ------------------------------------------------------------------
+
+    def _check_external_scripts_without_sri(self, artifacts: PageArtifacts) -> list[Finding]:
+        findings: list[Finding] = []
+        missing: list[tuple[str, str]] = []  # (src, host)
+        for script in artifacts.scripts:
+            if not script.is_external or not script.src or not script.is_external_domain:
+                continue
+            if script.integrity:
+                continue
+            host = urlparse(script.src).hostname or ""
+            missing.append((script.src, host))
+
+        if not missing:
+            return []
+
+        # Single finding per page, listing up to 5 affected scripts in evidence.
+        sample = "\n".join(f"  {src}" for src, _ in missing[:5])
+        if len(missing) > 5:
+            sample += f"\n  …and {len(missing) - 5} more"
+        ev = Evidence(
+            evidence_type=EvidenceType.HTML_ELEMENT,
+            content=(
+                f"{len(missing)} external <script> tag(s) lack `integrity=` SRI hash:\n"
+                f"{sample}"
+            ),
+            location=artifacts.url,
+            source_engine=_ENGINE,
+            extra={"missing_sri_count": len(missing)},
+        )
+        findings.append(Finding(
+            title=f"External scripts loaded without Subresource Integrity ({len(missing)} script{'s' if len(missing) != 1 else ''})",
+            description=(
+                f"This page loads {len(missing)} external script(s) without a "
+                "Subresource Integrity (SRI) hash. If any of those CDNs is "
+                "ever compromised — or just serves a different file by mistake "
+                "— the browser will run whatever the CDN sends. SRI tells the "
+                "browser to verify the script's hash and refuse to run any "
+                "modified version."
+            ),
+            severity=Severity.MEDIUM,
+            category=FindingCategory.JAVASCRIPT,
+            evidence=[ev],
+            confidence=0.95,  # syntactic — either the attribute is there or it isn't
+            remediation=(
+                "Add an `integrity=` attribute to every external <script>. Most "
+                "CDNs publish SRI hashes alongside their assets:\n"
+                "  <script src=\"https://cdn.example.com/lib.js\"\n"
+                "          integrity=\"sha384-...\"\n"
+                "          crossorigin=\"anonymous\"></script>\n"
+                "Generate hashes for files you host yourself with:\n"
+                "  openssl dgst -sha384 -binary file.js | openssl base64 -A"
+            ),
+            framework=FrameworkAlignment(
+                owasp_top10=["A08:2021"],
+                cwe_ids=["CWE-353", "CWE-829"],
+                nist_controls=["SI-7", "SA-12"],
+            ),
+            scanner_engine=_ENGINE,
+            metadata={"url": artifacts.url, "missing_count": len(missing)},
+        ))
         return findings
 
     # ------------------------------------------------------------------

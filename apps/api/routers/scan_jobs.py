@@ -7,6 +7,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.api.billing.quota import (
+    check_concurrent_scan_quota,
+    check_scan_quota,
+    violation_to_dict,
+)
 from apps.api.database import get_db
 from apps.api.pagination import page_meta
 from apps.api.models.enums import ScanProfile, ScanStatus
@@ -37,6 +42,11 @@ def _uid(user: User) -> uuid.UUID | None:
 async def create_scan_job(
     data: ScanJobCreate, db: _DB, current_user: _CurrentUser
 ) -> ScanJobResponse:
+    if not current_user.is_admin:
+        for check in (check_scan_quota, check_concurrent_scan_quota):
+            v = await check(db, current_user)
+            if v is not None:
+                raise HTTPException(status_code=402, detail=violation_to_dict(v))
     try:
         job = await sj_service.create_scan_job(
             db, data, user_id=current_user.id, is_admin=current_user.is_admin

@@ -107,6 +107,11 @@ class Settings(BaseSettings):
     resend_from_email: str = "auth@webhoundsecurity.com"
     resend_from_name: str = "WebHound"
 
+    # Stripe billing — keys live in env, never in repo
+    stripe_secret_key: str = ""              # sk_live_… / sk_test_…
+    stripe_publishable_key: str = ""         # pk_live_… / pk_test_… (frontend reads via NEXT_PUBLIC env)
+    stripe_webhook_secret: str = ""          # whsec_…, used to verify webhook signatures
+
     # Dev overrides — must never be set true in production
     dev_allow_unverified_scans: bool = False
     dev_skip_domain_verification: bool = False

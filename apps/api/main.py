@@ -20,6 +20,7 @@ from apps.api.models.user import User
 from apps.api.routers import (
     auth,
     baselines,
+    billing,
     health,
     notifications,
     oauth,
@@ -87,6 +88,7 @@ app.include_router(scan_results.router)
 app.include_router(baselines.router)
 app.include_router(scan_schedules.router)
 app.include_router(notifications.router)
+app.include_router(billing.router)
 
 
 @app.on_event("startup")

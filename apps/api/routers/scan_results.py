@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.api.billing.quota import check_export_allowed, violation_to_dict
 from apps.api.database import get_db
 from apps.api.pagination import page_meta
 from apps.api.models.enums import ReportFormat
@@ -249,6 +250,10 @@ async def list_reports(
 async def get_report_by_format(
     scan_result_id: uuid.UUID, fmt: ReportFormat, db: _DB, current_user: _CurrentUser
 ) -> ReportResponse:
+    if not current_user.is_admin:
+        v = check_export_allowed(current_user)
+        if v is not None:
+            raise HTTPException(status_code=402, detail=violation_to_dict(v))
     if await sr_service.get_scan_result(db, scan_result_id, user_id=_uid(current_user)) is None:
         raise HTTPException(status_code=404, detail="Scan result not found")
     report = await sr_service.get_report_by_format(db, scan_result_id, fmt.value)

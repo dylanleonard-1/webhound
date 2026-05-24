@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.api.billing.quota import check_monitoring_allowed, violation_to_dict
 from apps.api.database import get_db
 from apps.api.pagination import page_meta
 from apps.api.models.user import User
@@ -32,6 +33,10 @@ def _uid(user: User) -> uuid.UUID | None:
 async def create_scan_schedule(
     data: ScanScheduleCreate, db: _DB, current_user: _CurrentUser
 ) -> ScanScheduleResponse:
+    if not current_user.is_admin:
+        v = check_monitoring_allowed(current_user)
+        if v is not None:
+            raise HTTPException(status_code=402, detail=violation_to_dict(v))
     try:
         schedule = await ss_service.create_schedule(
             db, data, user_id=current_user.id, is_admin=current_user.is_admin

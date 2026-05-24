@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState, type FormEvent } from 'react'
+import Link from 'next/link'
 import { motion } from 'framer-motion'
+import { toast } from 'sonner'
 import {
   User, Lock, Bell, Key, Plug, CreditCard, Users,
   LogOut, AlertTriangle, CheckCircle2, Loader2, ChevronRight,
@@ -470,30 +472,161 @@ function IntegrationsPanel() {
 
 function BillingPanel() {
   const { user } = useAuth()
+  const [sub, setSub] = useState<{
+    plan: string
+    status: string | null
+    current_period_end: string | null
+    cancel_at_period_end: boolean
+    usage: {
+      websites_used: number; websites_limit: number
+      scans_used_30d: number; scans_limit: number
+    }
+  } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [portalBusy, setPortalBusy] = useState(false)
+
+  useEffect(() => {
+    api.billing.subscription()
+      .then(s => setSub(s))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  async function openPortal() {
+    setPortalBusy(true)
+    try {
+      const { url } = await api.billing.portal({})
+      window.location.href = url
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Could not open billing portal.'
+      toast.error(msg)
+    } finally {
+      setPortalBusy(false)
+    }
+  }
+
+  const planLabel: Record<string, string> = {
+    free: 'Free', starter: 'Starter', pro: 'Pro', enterprise: 'Enterprise',
+  }
+  const statusLabel = sub?.status ?? 'free'
+  const periodEnd = sub?.current_period_end
+    ? new Date(sub.current_period_end).toLocaleDateString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric',
+      })
+    : null
+
   return (
     <>
       <SectionHeader title="Plan & Billing" subtitle="Subscription, usage, and invoices." />
-      <Card>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-black tracking-[0.12em] uppercase" style={{ color: 'rgba(255,255,255,0.32)' }}>
-              Current plan
-            </p>
-            <p className="text-[20px] font-bold text-white mt-1">Alpha</p>
-            <p className="text-[12px] mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
-              Free during the preview · billed to {user?.email}
-            </p>
+      {loading ? (
+        <Card>
+          <div className="h-20 bg-white/[0.02] rounded animate-pulse" />
+        </Card>
+      ) : (
+        <Card>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-black tracking-[0.12em] uppercase" style={{ color: 'rgba(255,255,255,0.32)' }}>
+                Current plan
+              </p>
+              <p className="text-[20px] font-bold text-white mt-1">
+                {planLabel[sub?.plan ?? 'free'] ?? 'Free'}
+              </p>
+              <p className="text-[12px] mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                {sub?.cancel_at_period_end
+                  ? `Cancels on ${periodEnd}`
+                  : periodEnd
+                    ? `Renews ${periodEnd}`
+                    : `Billed to ${user?.email ?? '—'}`}
+              </p>
+            </div>
+            <span className="text-[10px] font-black tracking-[0.12em] uppercase px-2 py-1 rounded"
+                  style={{
+                    background: 'rgba(139,255,62,0.1)',
+                    color: '#8BFF3E',
+                    border: '1px solid rgba(139,255,62,0.25)',
+                  }}>
+              {statusLabel}
+            </span>
           </div>
-          <span className="text-[10px] font-black tracking-[0.12em] uppercase px-2 py-1 rounded"
-                style={{ background: 'rgba(139,255,62,0.1)', color: '#8BFF3E', border: '1px solid rgba(139,255,62,0.25)' }}>
-            Active
-          </span>
+        </Card>
+      )}
+
+      {/* Usage meters */}
+      {sub && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+          <UsageMeter
+            label="Websites"
+            used={sub.usage.websites_used}
+            limit={sub.usage.websites_limit}
+          />
+          <UsageMeter
+            label="Scans (last 30 days)"
+            used={sub.usage.scans_used_30d}
+            limit={sub.usage.scans_limit}
+          />
         </div>
-      </Card>
-      <div className="mt-4">
-        <ComingSoon note="Stripe-powered upgrades, seat-based pricing, usage meters, and downloadable invoices." />
+      )}
+
+      {/* Actions */}
+      <div className="flex flex-wrap gap-2 mt-4">
+        <Link
+          href="/pricing"
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[8px] text-[12px] font-semibold transition-colors"
+          style={{
+            background: '#8BFF3E', color: '#020617',
+          }}
+        >
+          {sub?.plan === 'pro' || sub?.plan === 'enterprise'
+            ? 'Change plan'
+            : 'Upgrade plan'}
+        </Link>
+        {sub?.plan !== 'free' && (
+          <button
+            type="button"
+            onClick={openPortal}
+            disabled={portalBusy}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[8px] text-[12px] font-semibold transition-colors disabled:opacity-50"
+            style={{
+              background: 'rgba(255,255,255,0.05)',
+              color: '#fff',
+              border: '1px solid rgba(255,255,255,0.12)',
+            }}
+          >
+            {portalBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Manage subscription'}
+          </button>
+        )}
       </div>
     </>
+  )
+}
+
+function UsageMeter({ label, used, limit }: { label: string; used: number; limit: number }) {
+  const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0
+  const color = pct >= 90 ? '#ef4444' : pct >= 70 ? '#f97316' : '#8BFF3E'
+  return (
+    <div
+      className="rounded-[12px] p-4"
+      style={{
+        background: 'rgba(8,12,22,0.95)',
+        border: '1px solid rgba(255,255,255,0.06)',
+      }}
+    >
+      <div className="flex items-baseline justify-between mb-2">
+        <span className="text-[11px] font-black tracking-[0.12em] uppercase" style={{ color: 'rgba(255,255,255,0.32)' }}>
+          {label}
+        </span>
+        <span className="text-[11px] font-mono" style={{ color: 'rgba(255,255,255,0.55)' }}>
+          {used} / {limit}
+        </span>
+      </div>
+      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+        <div
+          className="h-full rounded-full transition-all duration-300"
+          style={{ width: `${pct}%`, background: color }}
+        />
+      </div>
+    </div>
   )
 }
 

@@ -573,4 +573,64 @@ export const api = {
     history: (websiteId: string, params?: { limit?: number; offset?: number }) =>
       request<WadeHistoryResponse>('GET', `/websites/${websiteId}/wade/history${qs(params)}`),
   },
+
+  billing: {
+    plans: () => request<PlanResponse[]>('GET', '/billing/plans'),
+
+    subscription: () =>
+      request<CurrentSubscriptionResponse>('GET', '/billing/subscription'),
+
+    checkout: (data: {
+      tier: 'starter' | 'pro'
+      cadence?: 'monthly' | 'yearly'
+      success_path?: string
+      cancel_path?: string
+    }) =>
+      request<{ id: string; url: string }>(
+        'POST', '/billing/checkout-session', data,
+      ),
+
+    portal: (data?: { return_path?: string }) =>
+      request<{ id: string; url: string }>(
+        'POST', '/billing/portal-session', data ?? {},
+      ),
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Billing types (mirror apps/api/routers/billing.py)
+// ---------------------------------------------------------------------------
+
+export interface PlanResponse {
+  tier: 'free' | 'starter' | 'pro' | 'enterprise'
+  name: string
+  tagline: string
+  price_usd_monthly: number
+  price_usd_yearly: number
+  max_websites: number
+  scans_per_month: number
+  scan_history_days: number
+  max_concurrent_scans: number
+  monitoring_enabled: boolean
+  exports_enabled: boolean
+  alerts_enabled: boolean
+  threat_intel_external: boolean
+  team_seats: number
+  is_popular: boolean
+  cta_label: string
+  sort_order: number
+  features: { label: string; included: boolean }[]
+}
+
+export interface CurrentSubscriptionResponse {
+  plan: 'free' | 'starter' | 'pro' | 'enterprise'
+  status: string | null
+  current_period_end: string | null
+  cancel_at_period_end: boolean
+  usage: {
+    websites_used: number
+    websites_limit: number
+    scans_used_30d: number
+    scans_limit: number
+  }
 }

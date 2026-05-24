@@ -4,10 +4,12 @@ from apps.api.models.engine_diagnostic import EngineDiagnosticRecord
 from apps.api.models.enums import (
     NotificationSeverity,
     NotificationType,
+    PlanTier,
     ReportFormat,
     ScheduleFrequency,
     ScanProfile,
     ScanStatus,
+    SubscriptionStatus,
     VerificationMethod,
     VerificationStatus,
 )
@@ -18,6 +20,7 @@ from apps.api.models.report import ReportRecord
 from apps.api.models.scan_job import ScanJob
 from apps.api.models.scan_result import ScanResultRecord
 from apps.api.models.scan_schedule import ScanSchedule
+from apps.api.models.subscription import Subscription
 from apps.api.models.user import User
 from apps.api.models.website import DomainVerification, Website
 
@@ -34,6 +37,7 @@ __all__ = [
     "ReportRecord",
     "ScanSchedule",
     "Notification",
+    "Subscription",
     "VerificationStatus",
     "VerificationMethod",
     "ScanStatus",
@@ -42,4 +46,6 @@ __all__ = [
     "ScheduleFrequency",
     "NotificationType",
     "NotificationSeverity",
+    "PlanTier",
+    "SubscriptionStatus",
 ]

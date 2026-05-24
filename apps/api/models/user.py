@@ -10,10 +10,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from apps.api.database import Base
 from apps.api.models._mixins import UpdatedAtMixin
+from apps.api.models.enums import PlanTier
 
 if TYPE_CHECKING:
     from apps.api.models.notification import Notification
     from apps.api.models.scan_schedule import ScanSchedule
+    from apps.api.models.subscription import Subscription
     from apps.api.models.website import Website
 
 
@@ -52,6 +54,15 @@ class User(Base, UpdatedAtMixin):
     phone_otp: Mapped[str | None] = mapped_column(sa.String(10))
     phone_otp_expires_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
 
+    # Billing
+    plan: Mapped[PlanTier] = mapped_column(
+        sa.Enum(PlanTier, name="plantier", values_callable=lambda e: [v.value for v in e]),
+        default=PlanTier.FREE, nullable=False,
+    )
+    stripe_customer_id: Mapped[str | None] = mapped_column(
+        sa.String(64), unique=True, index=True,
+    )
+
     websites: Mapped[list["Website"]] = relationship(
         "Website", back_populates="user", cascade="all, delete-orphan"
     )
@@ -60,4 +71,7 @@ class User(Base, UpdatedAtMixin):
     )
     notifications: Mapped[list["Notification"]] = relationship(
         "Notification", back_populates="user", cascade="all, delete-orphan"
+    )
+    subscriptions: Mapped[list["Subscription"]] = relationship(
+        "Subscription", back_populates="user", cascade="all, delete-orphan",
     )

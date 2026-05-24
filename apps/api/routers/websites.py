@@ -11,6 +11,7 @@ from apps.api.database import get_db
 from apps.api.pagination import page_meta
 from apps.api.models.enums import VerificationStatus
 from apps.api.models.user import User
+from apps.api.target_validation import TargetRejected, validate_target
 from apps.api.schemas.websites import (
     WebsiteCreate,
     WebsiteListResponse,
@@ -39,6 +40,16 @@ async def create_website(
         violation = await check_website_quota(db, current_user)
         if violation is not None:
             raise HTTPException(status_code=402, detail=violation_to_dict(violation))
+    # Block obviously-internal targets at the entry point. Defense-in-depth:
+    # scan_jobs revalidates on submit, and the worker rejects again at scan
+    # time if DNS resolves to a private IP.
+    try:
+        validate_target(str(data.url))
+    except TargetRejected as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"error": exc.code, "message": exc.reason},
+        )
     try:
         website = await ws_service.create_website(db, data, user_id=current_user.id)
     except ValueError as exc:

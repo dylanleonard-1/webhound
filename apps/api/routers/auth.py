@@ -11,6 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.database import get_db
 from apps.api.models.user import User
+from apps.api.rate_limit import (
+    auth_clear,
+    auth_is_locked,
+    auth_record_failure,
+)
 from apps.api.schemas.auth import (
     AccountDelete,
     LoginChallengeResponse,
@@ -65,9 +70,45 @@ async def login(data: UserLogin, db: _DB) -> JSONResponse:
     # Step 1 of 2: validate password, issue a 6-digit email code, and return a
     # short-lived challenge token. The client posts the challenge back to
     # /auth/login/verify along with the code to receive the JWT.
+
+    # Auth lockout: 5 failed attempts within 15 min → lock email for 15 min.
+    locked_remaining = await auth_is_locked(data.email)
+    if locked_remaining > 0:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                "Too many failed login attempts. Try again in "
+                f"{locked_remaining // 60 + 1} minutes, or reset your "
+                "password."
+            ),
+            headers={"Retry-After": str(locked_remaining)},
+        )
+
     user = await auth_service.authenticate_user(db, data.email, data.password)
     if user is None:
+        is_locked, remaining = await auth_record_failure(data.email)
+        if is_locked:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "Too many failed login attempts. This account is "
+                    "locked for 15 minutes. Reset your password if you "
+                    "need to log in sooner."
+                ),
+                headers={"Retry-After": "900"},
+            )
+        # Soft hint at remaining attempts on the last two
+        if remaining <= 2:
+            raise HTTPException(
+                status_code=401,
+                detail=f"Invalid email or password ({remaining} attempts "
+                       "remaining before lockout).",
+            )
         raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    # Successful password — clear the failure counter so a previous run of
+    # near-locked attempts doesn't carry over.
+    await auth_clear(data.email)
     delivery = await auth_service.issue_login_otp(db, user)
     await db.commit()
     challenge, ttl = create_login_challenge_token(user.id)

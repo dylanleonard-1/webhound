@@ -16,6 +16,8 @@ from apps.api.database import get_db
 from apps.api.pagination import page_meta
 from apps.api.models.enums import ScanProfile, ScanStatus
 from apps.api.models.user import User
+from apps.api.rate_limit import cooldown_acquire
+from apps.api.target_validation import TargetRejected, validate_target
 from apps.api.schemas.scan_jobs import (
     ScanJobCreate,
     ScanJobListResponse,
@@ -47,6 +49,23 @@ async def create_scan_job(
             v = await check(db, current_user)
             if v is not None:
                 raise HTTPException(status_code=402, detail=violation_to_dict(v))
+        # Scan cooldown: at most one scan per 60s per (user, website).
+        # Stops users from accidentally hammering their own site or
+        # automated jobs from looping.
+        cd_key = f"scan_cd:{current_user.id}:{data.website_id}"
+        remaining = await cooldown_acquire(cd_key, seconds=60)
+        if remaining > 0:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "scan_cooldown",
+                    "message": f"Another scan was started on this website "
+                               f"{60 - remaining}s ago. Try again in "
+                               f"{remaining}s.",
+                    "retry_after_seconds": remaining,
+                },
+                headers={"Retry-After": str(remaining)},
+            )
     try:
         job = await sj_service.create_scan_job(
             db, data, user_id=current_user.id, is_admin=current_user.is_admin
@@ -55,6 +74,16 @@ async def create_scan_job(
         raise HTTPException(status_code=404, detail=str(exc))
     except sj_service.WebsiteNotVerifiedError as exc:
         raise HTTPException(status_code=403, detail=str(exc))
+    # Validate the final target URL — defense in depth against website
+    # rows that point at private IPs.
+    try:
+        validate_target(job.requested_url)
+    except TargetRejected as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=422,
+            detail={"error": exc.code, "message": exc.reason},
+        )
     try:
         task = run_scan.delay(str(job.id), job.requested_url, job.profile.value)
         job.celery_task_id = task.id

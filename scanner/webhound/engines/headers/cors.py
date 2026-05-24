@@ -11,13 +11,42 @@ from __future__ import annotations
 
 from webhound.core.http_client import HttpResponse
 from webhound.models.evidence import Evidence, EvidenceType
-from webhound.models.finding import Finding, FindingCategory, FrameworkAlignment
+from webhound.models.finding import Exploitability, Finding, FindingCategory, FrameworkAlignment
 from webhound.models.severity import Severity
 
 _ENGINE = "cors"
 
 # Methods that indicate an overly permissive CORS policy.
 _SENSITIVE_METHODS = frozenset({"DELETE", "PUT", "PATCH"})
+
+# Enterprise metadata per CORS finding kind. See security_headers.py for the
+# overall calibration approach.
+_FA: dict[str, FrameworkAlignment] = {
+    "cors_wildcard_with_creds": FrameworkAlignment(
+        owasp_top10=["A07:2021"], cwe_ids=["CWE-942", "CWE-346"], nist_controls=["AC-4"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N", cvss_score=7.5,
+        pci_dss=["6.4.2"], iso_27001=["A.8.2", "A.8.23"], soc2=["CC6.1"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "cors_wildcard": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-942"], nist_controls=["AC-4"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N", cvss_score=5.3,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"], soc2=["CC6.1"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "cors_methods_permissive": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-942"], nist_controls=["AC-4"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=5.4,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "cors_wildcard_headers": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-942"], nist_controls=["AC-4"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N", cvss_score=3.1,
+        iso_27001=["A.8.23"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+}
 
 
 class CorsEngine:
@@ -83,11 +112,7 @@ class CorsEngine:
                     "allowlist of trusted origins and reflect the request `Origin` only when it's "
                     "on the allowlist."
                 ),
-                framework=FrameworkAlignment(
-                    owasp_top10=["A07:2021"],
-                    cwe_ids=["CWE-942", "CWE-346"],
-                    nist_controls=["AC-4"],
-                ),
+                framework=_FA["cors_wildcard_with_creds"],
             )]
 
         if acao_clean == "*":
@@ -108,11 +133,7 @@ class CorsEngine:
                     "Otherwise, replace `*` with an explicit allowlist of trusted origins."
                 ),
                 confidence=0.7,
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"],
-                    cwe_ids=["CWE-942"],
-                    nist_controls=["AC-4"],
-                ),
+                framework=_FA["cors_wildcard"],
             )]
 
         # Non-wildcard origin with credentials is the standard pattern for any
@@ -152,11 +173,7 @@ class CorsEngine:
                     "Restrict allowed methods to only those required. "
                     "Limit DELETE/PUT/PATCH to authenticated, narrowly scoped origins."
                 ),
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"],
-                    cwe_ids=["CWE-942"],
-                    nist_controls=["AC-4"],
-                ),
+                framework=_FA["cors_methods_permissive"],
             )]
 
         return []
@@ -183,11 +200,7 @@ class CorsEngine:
                 remediation=(
                     "Enumerate explicitly allowed headers instead of using a wildcard."
                 ),
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"],
-                    cwe_ids=["CWE-942"],
-                    nist_controls=["AC-4"],
-                ),
+                framework=_FA["cors_wildcard_headers"],
             )]
         return []
 

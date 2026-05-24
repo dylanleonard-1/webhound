@@ -35,6 +35,20 @@ class FindingCategory(str, Enum):
     UNKNOWN = "unknown"
 
 
+class Exploitability(str, Enum):
+    """How concretely a finding can be turned into an attack today.
+
+    `theoretical` — defence-in-depth gap; not directly exploitable on its own.
+    `practical`   — public exploits exist or the path to one is well-known.
+    `known_exploited` — CISA KEV-listed or matched to active in-the-wild abuse.
+    """
+
+    THEORETICAL = "theoretical"
+    PRACTICAL = "practical"
+    KNOWN_EXPLOITED = "known_exploited"
+    UNKNOWN = "unknown"
+
+
 class FrameworkAlignment(BaseModel):
     """References to external security classification frameworks."""
 
@@ -55,6 +69,32 @@ class FrameworkAlignment(BaseModel):
         description="CVSS v3.1 vector string, e.g. 'CVSS:3.1/AV:N/AC:L/...'",
     )
     cvss_score: float | None = Field(default=None, ge=0.0, le=10.0)
+
+    # Compliance framework references. Stored as opaque strings so callers can
+    # use whatever ID format the framework version uses (e.g. PCI DSS 4.0
+    # numbering is different from 3.2.1).
+    pci_dss: list[str] = Field(
+        default_factory=list,
+        description="PCI DSS requirement IDs, e.g. ['6.4.2', '6.5.6']",
+    )
+    iso_27001: list[str] = Field(
+        default_factory=list,
+        description="ISO/IEC 27001:2022 Annex A control IDs, e.g. ['A.8.23', 'A.5.34']",
+    )
+    soc2: list[str] = Field(
+        default_factory=list,
+        description="SOC 2 Trust Service Criteria, e.g. ['CC6.6', 'CC6.7']",
+    )
+    hipaa: list[str] = Field(
+        default_factory=list,
+        description="HIPAA Security Rule references, e.g. ['164.312(e)(1)']",
+    )
+
+    # Triage-relevant exploitability flag.
+    exploitability: Exploitability = Field(
+        default=Exploitability.UNKNOWN,
+        description="How concretely this finding can be turned into an attack today.",
+    )
 
 
 class Finding(BaseModel):

@@ -22,10 +22,87 @@ from typing import Any
 
 from webhound.core.http_client import HttpResponse
 from webhound.models.evidence import Evidence, EvidenceType
-from webhound.models.finding import Finding, FindingCategory, FrameworkAlignment
+from webhound.models.finding import Exploitability, Finding, FindingCategory, FrameworkAlignment
 from webhound.models.severity import Severity
 
 _ENGINE = "csp_engine"
+
+# Enterprise metadata per deep-CSP finding kind. Calibrated against the
+# security_headers.py table.
+_FA: dict[str, FrameworkAlignment] = {
+    "csp_report_only": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-693"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N", cvss_score=3.1,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "csp_no_object_src": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-693"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=4.3,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"], soc2=["CC6.6"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "csp_base_uri_missing": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-693"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=5.4,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"], soc2=["CC6.6"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "csp_base_uri_wildcard": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-693"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=5.4,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"], soc2=["CC6.6"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "csp_form_action_missing": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-693"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=4.7,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"], soc2=["CC6.6"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "csp_form_action_wildcard": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-693"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=4.7,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"], soc2=["CC6.6"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "csp_script_data": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-693", "CWE-79"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N", cvss_score=7.4,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"], soc2=["CC6.6"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "csp_script_blob": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-693", "CWE-79"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N", cvss_score=7.4,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"], soc2=["CC6.6"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "csp_script_http": FrameworkAlignment(
+        owasp_top10=["A02:2021", "A05:2021"], cwe_ids=["CWE-319", "CWE-693"], nist_controls=["SC-8"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:C/C:H/I:H/A:N", cvss_score=7.5,
+        pci_dss=["4.2.1", "6.4.2"], iso_27001=["A.8.24"], soc2=["CC6.7"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "csp_frame_ancestors_wildcard": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-1021"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=5.4,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "csp_frame_ancestors_missing": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-1021"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N", cvss_score=3.1,
+        iso_27001=["A.8.23"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "csp_no_reporting": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-693", "CWE-778"], nist_controls=["AU-2", "SI-4"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:N", cvss_score=0.0,
+        iso_27001=["A.8.15", "A.8.23"], soc2=["CC7.2"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+}
 
 # Source-list values that permit unsafe code execution paths.
 _DATA_URI_RE = re.compile(r"\bdata:", re.I)
@@ -100,7 +177,7 @@ class CspEngine:
                     "`Content-Security-Policy-Report-Only` to `Content-Security-Policy`."
                 ),
                 confidence=0.9,
-                framework=FrameworkAlignment(owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]),
+                framework=_FA["csp_report_only"],
             ))
             return findings
 
@@ -149,10 +226,7 @@ class CspEngine:
             evidence=ev,
             remediation="Add to your Content-Security-Policy: `object-src 'none';`",
             confidence=0.8,
-            framework=FrameworkAlignment(
-                owasp_top10=["A05:2021"],
-                cwe_ids=["CWE-693"],
-            ),
+            framework=_FA["csp_no_object_src"],
         )]
 
     def _check_base_uri(
@@ -174,9 +248,7 @@ class CspEngine:
                 url=url,
                 evidence=ev,
                 remediation="Change base-uri to 'self' or 'none'.",
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
-                ),
+                framework=_FA["csp_base_uri_wildcard"],
             )]
         return [_finding(
             title="CSP missing base-uri directive",
@@ -190,9 +262,7 @@ class CspEngine:
             url=url,
             evidence=ev,
             remediation="Add: base-uri 'self' to your Content-Security-Policy.",
-            framework=FrameworkAlignment(
-                owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
-            ),
+            framework=_FA["csp_base_uri_missing"],
         )]
 
     def _check_form_action(
@@ -214,9 +284,7 @@ class CspEngine:
                 url=url,
                 evidence=ev,
                 remediation="Change form-action to 'self' or an explicit allow-list.",
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
-                ),
+                framework=_FA["csp_form_action_wildcard"],
             )]
         return [_finding(
             title="CSP missing form-action directive",
@@ -229,9 +297,7 @@ class CspEngine:
             url=url,
             evidence=ev,
             remediation="Add: form-action 'self' to your Content-Security-Policy.",
-            framework=FrameworkAlignment(
-                owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
-            ),
+            framework=_FA["csp_form_action_missing"],
         )]
 
     def _check_script_src_data(
@@ -254,9 +320,7 @@ class CspEngine:
                 url=url,
                 evidence=ev,
                 remediation="Remove 'data:' from script-src. Use nonces or hashes instead.",
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
-                ),
+                framework=_FA["csp_script_data"],
             ))
 
         if _src_value_contains(script_sources, _BLOB_URI_RE):
@@ -271,9 +335,7 @@ class CspEngine:
                 url=url,
                 evidence=ev,
                 remediation="Remove 'blob:' from script-src.",
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
-                ),
+                framework=_FA["csp_script_blob"],
             ))
 
         return findings
@@ -299,9 +361,7 @@ class CspEngine:
                 "Remove 'http:' from script-src. Use 'https:' or explicit "
                 "HTTPS origins only."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A02:2021", "A05:2021"], cwe_ids=["CWE-319", "CWE-693"]
-            ),
+            framework=_FA["csp_script_http"],
         )]
 
     def _check_frame_ancestors(
@@ -322,9 +382,7 @@ class CspEngine:
                     url=url,
                     evidence=ev,
                     remediation="Change frame-ancestors to 'self' or 'none'.",
-                    framework=FrameworkAlignment(
-                        owasp_top10=["A05:2021"], cwe_ids=["CWE-1021"]
-                    ),
+                    framework=_FA["csp_frame_ancestors_wildcard"],
                 )]
             return []
         return [_finding(
@@ -342,9 +400,7 @@ class CspEngine:
             remediation=(
                 "Add: frame-ancestors 'self' (or 'none' if framing is not needed)."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A05:2021"], cwe_ids=["CWE-1021"]
-            ),
+            framework=_FA["csp_frame_ancestors_missing"],
         )]
 
 
@@ -379,9 +435,7 @@ class CspEngine:
                 "Services like Sentry, Datadog, and report-uri.com aggregate the reports for you."
             ),
             confidence=0.85,
-            framework=FrameworkAlignment(
-                owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
-            ),
+            framework=_FA["csp_no_reporting"],
         )]
 
 

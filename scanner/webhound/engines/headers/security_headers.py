@@ -11,7 +11,7 @@ from typing import NamedTuple
 
 from webhound.core.http_client import HttpResponse
 from webhound.models.evidence import Evidence, EvidenceType
-from webhound.models.finding import Finding, FindingCategory, FrameworkAlignment
+from webhound.models.finding import Exploitability, Finding, FindingCategory, FrameworkAlignment
 from webhound.models.severity import Severity
 
 _ENGINE = "security_headers"
@@ -32,6 +32,177 @@ _CSP_STRICT_DYNAMIC = re.compile(r"'strict-dynamic'", re.I)
 
 # Referrer-Policy values that leak full URLs to third parties.
 _UNSAFE_REFERRER = frozenset({"unsafe-url", "no-referrer-when-downgrade"})
+
+# ---------------------------------------------------------------------------
+# Enterprise metadata per finding kind
+# ---------------------------------------------------------------------------
+# CVSS scores are calibrated against industry baselines for security-header
+# weaknesses (defence-in-depth controls — usually MEDIUM-LOW base scores,
+# higher when the control gap directly enables XSS or data theft).
+#
+# Compliance mappings target the most-cited public frameworks our buyers
+# care about: PCI DSS 4.0, ISO/IEC 27001:2022, SOC 2 (Trust Services
+# Criteria), and HIPAA Security Rule where applicable.
+#
+# Exploitability triages the finding: THEORETICAL (defence-in-depth gap),
+# PRACTICAL (known attack path), KNOWN_EXPLOITED (active in the wild).
+
+_FA: dict[str, FrameworkAlignment] = {
+    # --- Content-Security-Policy --------------------------------------------
+    "csp_missing": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-693"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=5.4,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"], soc2=["CC6.6"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "csp_wildcard": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-693"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N", cvss_score=7.4,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"], soc2=["CC6.6"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "csp_unsafe_inline": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-693", "CWE-79"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N", cvss_score=6.1,
+        pci_dss=["6.4.2", "6.2.4"], iso_27001=["A.8.23"], soc2=["CC6.6"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "csp_unsafe_eval": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-693", "CWE-95"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=5.4,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"], soc2=["CC6.6"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "csp_no_default_src": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-693"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:N/A:N", cvss_score=4.3,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"], soc2=["CC6.6"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    # --- HSTS ---------------------------------------------------------------
+    "hsts_missing": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-319"], nist_controls=["SC-8", "SC-23"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:H/A:N", cvss_score=5.9,
+        pci_dss=["4.2.1"], iso_27001=["A.8.24"], soc2=["CC6.7"], hipaa=["164.312(e)(1)"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "hsts_max_age_short": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-319"], nist_controls=["SC-8"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=3.7,
+        pci_dss=["4.2.1"], iso_27001=["A.8.24"], soc2=["CC6.7"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "hsts_no_subdomains": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-319"], nist_controls=["SC-8"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N", cvss_score=3.1,
+        pci_dss=["4.2.1"], iso_27001=["A.8.24"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    # --- X-Frame-Options / clickjacking -------------------------------------
+    "xfo_missing": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-1021"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=5.4,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"], soc2=["CC6.6"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "xfo_allow_from": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-1021"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:N/A:N", cvss_score=4.3,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    # --- X-Content-Type-Options ---------------------------------------------
+    "xcto_missing": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-430"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=5.3,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"], soc2=["CC6.6"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "xcto_wrong_value": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-430"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=5.3,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    # --- Referrer-Policy ----------------------------------------------------
+    "referrer_missing": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-200"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:N/A:N", cvss_score=3.7,
+        pci_dss=["3.5.1"], iso_27001=["A.5.34"], soc2=["CC6.1"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "referrer_unsafe": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-200"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:N/A:N", cvss_score=4.3,
+        pci_dss=["3.5.1"], iso_27001=["A.5.34"], soc2=["CC6.1"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    # --- Permissions-Policy -------------------------------------------------
+    "permissions_missing": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-693"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N", cvss_score=3.1,
+        iso_27001=["A.8.23"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    # --- Cross-Origin-* (COOP/COEP/CORP combined) ---------------------------
+    "cross_origin_isolation_missing": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-693"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N", cvss_score=2.8,
+        iso_27001=["A.8.23"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    # --- X-XSS-Protection (legacy) ------------------------------------------
+    "xss_protection_legacy": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-1173"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:N/A:N", cvss_score=3.7,
+        pci_dss=["6.4.2"], iso_27001=["A.8.23"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    # --- Information disclosure ---------------------------------------------
+    "server_version": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-200"], nist_controls=["SC-30"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N", cvss_score=5.3,
+        pci_dss=["6.5.5"], iso_27001=["A.5.34"], soc2=["CC6.1"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "powered_by": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-200"], nist_controls=["SC-30"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N", cvss_score=5.3,
+        pci_dss=["6.5.5"], iso_27001=["A.5.34"], soc2=["CC6.1"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "framework_fingerprint": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-200"], nist_controls=["SC-30"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N", cvss_score=5.3,
+        pci_dss=["6.5.5"], iso_27001=["A.5.34"], soc2=["CC6.1"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    # --- Cache-Control on auth ----------------------------------------------
+    "cache_control_auth": FrameworkAlignment(
+        owasp_top10=["A04:2021"], cwe_ids=["CWE-525", "CWE-200"], nist_controls=["SC-28"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N", cvss_score=5.9,
+        pci_dss=["6.5.6", "8.6.1"], iso_27001=["A.8.4", "A.5.34"], soc2=["CC6.1"], hipaa=["164.312(a)(2)(iii)"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    # --- Legacy / deprecated -----------------------------------------------
+    "hpkp_legacy": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-1059"], nist_controls=["CM-2"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L", cvss_score=4.0,
+        iso_27001=["A.8.32"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "expect_ct_legacy": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-1059"],
+        iso_27001=["A.8.32"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "acma_excessive": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-942"], nist_controls=["AC-4"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=3.7,
+        iso_27001=["A.8.23"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+}
 
 
 class SecurityHeadersEngine:
@@ -87,11 +258,7 @@ class SecurityHeadersEngine:
                     "(Cross-Site Scripting, CWE-79) and data-injection attacks. Start strict and loosen as needed:\n"
                     "  Content-Security-Policy: default-src 'self'"
                 ),
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"],
-                    cwe_ids=["CWE-693"],
-                    nist_controls=["SI-10"],
-                ),
+                framework=_FA["csp_missing"],
             ))
             return findings
 
@@ -117,9 +284,7 @@ class SecurityHeadersEngine:
                     "Replace the wildcard with explicit origins your site actually loads from.\n"
                     f"Observed policy: {csp[:200]!r}"
                 ),
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
-                ),
+                framework=_FA["csp_wildcard"],
             ))
 
         if _CSP_UNSAFE_INLINE.search(csp) and not has_strict_dynamic:
@@ -138,9 +303,7 @@ class SecurityHeadersEngine:
                     "Modern frameworks (Next.js, Rails, Django) generate nonces automatically."
                 ),
                 confidence=0.95,
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693", "CWE-79"]
-                ),
+                framework=_FA["csp_unsafe_inline"],
             ))
 
         if _CSP_UNSAFE_EVAL.search(csp):
@@ -158,9 +321,7 @@ class SecurityHeadersEngine:
                     "with JSON.parse() or a safer parser."
                 ),
                 confidence=0.9,
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693", "CWE-95"]
-                ),
+                framework=_FA["csp_unsafe_eval"],
             ))
 
         if "default-src" not in csp.lower():
@@ -175,9 +336,7 @@ class SecurityHeadersEngine:
                 evidence=ev,
                 remediation="Add a catch-all fallback at the start of the policy: `default-src 'self';`",
                 confidence=0.85,
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
-                ),
+                framework=_FA["csp_no_default_src"],
             ))
 
         return findings
@@ -212,11 +371,7 @@ class SecurityHeadersEngine:
                     "hstspreload.org — but preload is hard to reverse, so only do it when "
                     "every subdomain is HTTPS-ready."
                 ),
-                framework=FrameworkAlignment(
-                    owasp_top10=["A02:2021"],
-                    cwe_ids=["CWE-319"],
-                    nist_controls=["SC-8"],
-                ),
+                framework=_FA["hsts_missing"],
             )]
 
         ev = Evidence.http_header("Strict-Transport-Security", hsts, url, _ENGINE)
@@ -235,9 +390,7 @@ class SecurityHeadersEngine:
                 url=url,
                 evidence=ev,
                 remediation="Set max-age to at least 31536000 (1 year).",
-                framework=FrameworkAlignment(
-                    owasp_top10=["A02:2021"], cwe_ids=["CWE-319"]
-                ),
+                framework=_FA["hsts_max_age_short"],
             ))
 
         if "includesubdomains" not in hsts.lower():
@@ -256,9 +409,7 @@ class SecurityHeadersEngine:
                     "subdomain you own can serve HTTPS — once set, browsers will refuse HTTP."
                 ),
                 confidence=0.7,
-                framework=FrameworkAlignment(
-                    owasp_top10=["A02:2021"], cwe_ids=["CWE-319"]
-                ),
+                framework=_FA["hsts_no_subdomains"],
             ))
 
         return findings
@@ -289,11 +440,7 @@ class SecurityHeadersEngine:
                     "Legacy fallback for older browsers:\n"
                     "  X-Frame-Options: DENY"
                 ),
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"],
-                    cwe_ids=["CWE-1021"],
-                    nist_controls=["SI-10"],
-                ),
+                framework=_FA["xfo_missing"],
             )]
 
         if xfo and xfo.strip().upper().startswith("ALLOW-FROM"):
@@ -311,9 +458,7 @@ class SecurityHeadersEngine:
                     "Replace with: Content-Security-Policy: "
                     "frame-ancestors 'self' https://trusted.example.com"
                 ),
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"], cwe_ids=["CWE-1021"]
-                ),
+                framework=_FA["xfo_allow_from"],
             )]
 
         return []
@@ -337,11 +482,7 @@ class SecurityHeadersEngine:
                 url=url,
                 evidence_content="X-Content-Type-Options: <not present>",
                 remediation="Add to every response: `X-Content-Type-Options: nosniff`",
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"],
-                    cwe_ids=["CWE-430"],
-                    nist_controls=["SI-10"],
-                ),
+                framework=_FA["xcto_missing"],
             )]
 
         if xcto.strip().lower() != "nosniff":
@@ -356,9 +497,7 @@ class SecurityHeadersEngine:
                 url=url,
                 evidence=ev,
                 remediation="Set: X-Content-Type-Options: nosniff",
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"], cwe_ids=["CWE-430"]
-                ),
+                framework=_FA["xcto_wrong_value"],
             )]
 
         return []
@@ -384,9 +523,7 @@ class SecurityHeadersEngine:
                 evidence_content="Referrer-Policy: <not present>",
                 remediation="Add: `Referrer-Policy: strict-origin-when-cross-origin`",
                 confidence=0.85,
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"], cwe_ids=["CWE-200"]
-                ),
+                framework=_FA["referrer_missing"],
             )]
 
         if rp.strip().lower() in _UNSAFE_REFERRER:
@@ -403,9 +540,7 @@ class SecurityHeadersEngine:
                 url=url,
                 evidence=ev,
                 remediation="Change to: `Referrer-Policy: strict-origin-when-cross-origin`",
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"], cwe_ids=["CWE-200"]
-                ),
+                framework=_FA["referrer_unsafe"],
             )]
 
         return []
@@ -435,9 +570,7 @@ class SecurityHeadersEngine:
                     "  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()"
                 ),
                 confidence=0.7,
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
-                ),
+                framework=_FA["permissions_missing"],
             )]
         return []
 
@@ -494,9 +627,7 @@ class SecurityHeadersEngine:
                 "Test thoroughly — these can break embedded third-party content."
             ),
             confidence=0.6,
-            framework=FrameworkAlignment(
-                owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
-            ),
+            framework=_FA["cross_origin_isolation_missing"],
         )]
 
     # Kept as placeholders so the analyze() pipeline doesn't change; the real
@@ -538,10 +669,7 @@ class SecurityHeadersEngine:
                     "  Cloudflare: enabled by default — verify your origin isn't bypassing it."
                 ),
                 confidence=0.95,
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"],
-                    cwe_ids=["CWE-200"],
-                ),
+                framework=_FA["server_version"],
             ))
 
         # X-Powered-By is *always* a disclosure header. The mere presence is
@@ -567,10 +695,7 @@ class SecurityHeadersEngine:
                     "  PHP:      expose_php = Off"
                 ),
                 confidence=0.95,
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"],
-                    cwe_ids=["CWE-200"],
-                ),
+                framework=_FA["powered_by"],
             ))
 
         # Other framework-fingerprint headers seen in the wild.
@@ -590,10 +715,7 @@ class SecurityHeadersEngine:
                     evidence=ev,
                     remediation=f"Remove the `{fp_header}` header at your application or reverse proxy.",
                     confidence=0.9,
-                    framework=FrameworkAlignment(
-                        owasp_top10=["A05:2021"],
-                        cwe_ids=["CWE-200"],
-                    ),
+                    framework=_FA["framework_fingerprint"],
                 ))
 
         return findings
@@ -641,10 +763,7 @@ class SecurityHeadersEngine:
                 "  Cache-Control: private, no-cache"
             ),
             confidence=0.6,  # path heuristic — could be a marketing /login page
-            framework=FrameworkAlignment(
-                owasp_top10=["A04:2021"],
-                cwe_ids=["CWE-525", "CWE-200"],
-            ),
+            framework=_FA["cache_control_auth"],
         )]
 
     # ------------------------------------------------------------------
@@ -676,10 +795,7 @@ class SecurityHeadersEngine:
                     "(crt.sh, Cert Spotter) for the protection HPKP used to provide."
                 ),
                 confidence=0.98,
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"],
-                    cwe_ids=["CWE-1059"],
-                ),
+                framework=_FA["hpkp_legacy"],
             ))
 
         # Expect-CT is deprecated as of Chrome 107 (June 2023). Still works in
@@ -699,10 +815,7 @@ class SecurityHeadersEngine:
                 evidence=ev,
                 remediation="Remove the `Expect-CT` header. Certificate Transparency is now enforced by default.",
                 confidence=0.98,
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"],
-                    cwe_ids=["CWE-1059"],
-                ),
+                framework=_FA["expect_ct_legacy"],
             ))
 
         # Access-Control-Max-Age caps. Some servers set absurdly long values
@@ -733,10 +846,7 @@ class SecurityHeadersEngine:
                         "Chrome already caps at 2 hours; matching its limit is also reasonable."
                     ),
                     confidence=0.85,
-                    framework=FrameworkAlignment(
-                        owasp_top10=["A05:2021"],
-                        cwe_ids=["CWE-942"],
-                    ),
+                    framework=_FA["acma_excessive"],
                 ))
 
         return findings
@@ -774,10 +884,7 @@ class SecurityHeadersEngine:
                 "Then rely on Content-Security-Policy for real XSS protection."
             ),
             confidence=0.95,
-            framework=FrameworkAlignment(
-                owasp_top10=["A05:2021"],
-                cwe_ids=["CWE-1173"],
-            ),
+            framework=_FA["xss_protection_legacy"],
         )]
 
 

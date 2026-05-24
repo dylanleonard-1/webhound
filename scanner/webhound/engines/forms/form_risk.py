@@ -11,25 +11,27 @@ from urllib.parse import urlparse
 
 from webhound.core.extractor import ExtractedForm, PageArtifacts
 from webhound.models.evidence import Evidence, EvidenceType
-from webhound.models.finding import Finding, FindingCategory, FrameworkAlignment
+from webhound.models.finding import (
+    Exploitability,
+    Finding,
+    FindingCategory,
+    FrameworkAlignment,
+)
 from webhound.models.severity import Severity
 
 _ENGINE = "form_risk"
 
-# Input names that suggest a form carries credentials.
 _CREDENTIAL_NAME_RE = re.compile(
     r"\b(?:password|passwd|pass(?:phrase)?|pwd|pin)\b",
     re.I,
 )
 
-# Input names that suggest a payment form.
 _PAYMENT_NAME_RE = re.compile(
     r"\b(?:card(?:_?num(?:ber)?|_?no|holder)?|cc[-_]?num(?:ber)?|"
     r"credit[-_]?card|pan|cvv|cvc2?|expiry|exp[-_]?(?:month|year|date))\b",
     re.I,
 )
 
-# Hidden input names that carry sensitive values (exclude CSRF tokens).
 _HIDDEN_SENSITIVE_NAME_RE = re.compile(
     r"\b(?:password|passwd|secret|api[-_]?key|"
     r"access[-_]?token|private[-_]?key|"
@@ -38,7 +40,6 @@ _HIDDEN_SENSITIVE_NAME_RE = re.compile(
     re.I,
 )
 
-# Action URL patterns that suggest a non-production or risky endpoint.
 _SUSPICIOUS_ACTION_RE = re.compile(
     r"(?:localhost|127\.0\.0\.1|0\.0\.0\.0|::1|"
     r"/debug|/staging|/test(?:ing)?|/dev(?:elopment)?|/internal|"
@@ -47,6 +48,147 @@ _SUSPICIOUS_ACTION_RE = re.compile(
 )
 
 _HIDDEN_INPUTS_THRESHOLD = 7
+
+
+# ---------------------------------------------------------------------------
+# Framework / CVSS / compliance preset table
+# Single source of truth — every finding pulls its `framework=` from here.
+# ---------------------------------------------------------------------------
+
+_FA: dict[str, FrameworkAlignment] = {
+    "password_over_http": FrameworkAlignment(
+        owasp_top10=["A02:2021", "A05:2021"],
+        cwe_ids=["CWE-319", "CWE-523"],
+        nist_controls=["SC-8", "SC-28"],
+        cvss_v3_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+        cvss_v3_score=9.1,
+        pci_dss=["3.7.4", "4.2.1"],
+        iso_27001=["A.8.20", "A.8.24"],
+        soc2=["CC6.1", "CC6.7"],
+        hipaa=["164.312(e)(1)"],
+        exploitability=Exploitability.KNOWN_EXPLOITED,
+    ),
+    "payment_over_http": FrameworkAlignment(
+        owasp_top10=["A02:2021", "A05:2021"],
+        cwe_ids=["CWE-319", "CWE-312"],
+        nist_controls=["SC-8", "SC-28"],
+        cvss_v3_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+        cvss_v3_score=9.1,
+        pci_dss=["3.5.1", "4.2.1"],
+        iso_27001=["A.8.20", "A.8.24"],
+        soc2=["CC6.1", "CC6.7"],
+        hipaa=[],
+        exploitability=Exploitability.KNOWN_EXPLOITED,
+    ),
+    "http_action_downgrade": FrameworkAlignment(
+        owasp_top10=["A02:2021"],
+        cwe_ids=["CWE-319", "CWE-523"],
+        nist_controls=["SC-8"],
+        cvss_v3_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+        cvss_v3_score=8.6,
+        pci_dss=["4.2.1"],
+        iso_27001=["A.8.20"],
+        soc2=["CC6.1"],
+        hipaa=["164.312(e)(1)"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "external_credential_action": FrameworkAlignment(
+        owasp_top10=["A08:2021", "A03:2021"],
+        cwe_ids=["CWE-601", "CWE-200", "CWE-829"],
+        nist_controls=["SI-10", "SC-8"],
+        cvss_v3_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:N",
+        cvss_v3_score=9.0,
+        pci_dss=["6.4.3", "11.6.1"],
+        iso_27001=["A.8.25", "A.8.28"],
+        soc2=["CC7.1", "CC7.2"],
+        hipaa=["164.312(c)(1)"],
+        exploitability=Exploitability.KNOWN_EXPLOITED,
+    ),
+    "external_action": FrameworkAlignment(
+        owasp_top10=["A08:2021"],
+        cwe_ids=["CWE-601", "CWE-829"],
+        nist_controls=["SI-10"],
+        cvss_v3_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+        cvss_v3_score=5.4,
+        pci_dss=["6.4.3"],
+        iso_27001=["A.8.25"],
+        soc2=["CC7.1"],
+        hipaa=[],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "missing_csrf": FrameworkAlignment(
+        owasp_top10=["A01:2021"],
+        cwe_ids=["CWE-352"],
+        nist_controls=["SI-10"],
+        cvss_v3_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:H/A:N",
+        cvss_v3_score=6.5,
+        pci_dss=["6.2.4"],
+        iso_27001=["A.8.28"],
+        soc2=["CC6.1"],
+        hipaa=["164.312(c)(1)"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "get_credentials": FrameworkAlignment(
+        owasp_top10=["A02:2021"],
+        cwe_ids=["CWE-598", "CWE-200"],
+        nist_controls=["IA-5", "SC-8"],
+        cvss_v3_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:N/A:N",
+        cvss_v3_score=6.5,
+        pci_dss=["8.3.1"],
+        iso_27001=["A.5.17", "A.8.20"],
+        soc2=["CC6.1"],
+        hipaa=["164.312(d)"],
+        exploitability=Exploitability.KNOWN_EXPLOITED,
+    ),
+    "file_upload": FrameworkAlignment(
+        owasp_top10=["A04:2021"],
+        cwe_ids=["CWE-434"],
+        nist_controls=["SI-3", "CM-7"],
+        cvss_v3_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:L",
+        cvss_v3_score=6.3,
+        pci_dss=["6.2.4"],
+        iso_27001=["A.8.28"],
+        soc2=["CC6.6"],
+        hipaa=[],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "hidden_sensitive_field": FrameworkAlignment(
+        owasp_top10=["A02:2021", "A05:2021"],
+        cwe_ids=["CWE-200", "CWE-472"],
+        nist_controls=["SC-28"],
+        cvss_v3_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
+        cvss_v3_score=5.4,
+        pci_dss=["8.3.1"],
+        iso_27001=["A.8.5"],
+        soc2=["CC6.1"],
+        hipaa=["164.312(a)(2)(i)"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "excessive_hidden": FrameworkAlignment(
+        owasp_top10=["A05:2021"],
+        cwe_ids=["CWE-200"],
+        nist_controls=["CM-7"],
+        cvss_v3_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+        cvss_v3_score=3.7,
+        pci_dss=[],
+        iso_27001=["A.8.9"],
+        soc2=["CC7.1"],
+        hipaa=[],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "suspicious_action": FrameworkAlignment(
+        owasp_top10=["A05:2021"],
+        cwe_ids=["CWE-200", "CWE-16"],
+        nist_controls=["CM-6"],
+        cvss_v3_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+        cvss_v3_score=4.3,
+        pci_dss=["6.2.4"],
+        iso_27001=["A.8.9", "A.8.31"],
+        soc2=["CC8.1"],
+        hipaa=[],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -111,12 +253,14 @@ def _check_password_over_http(form: ExtractedForm, page_url: str) -> Finding | N
     if _scheme(page_url) != "http":
         return None
     return Finding(
-        title="Password field on HTTP page",
+        title="Login form is served over plain HTTP",
         description=(
-            "A form containing a password field is served over an unencrypted HTTP "
-            "connection. Any credentials entered are transmitted in plaintext and are "
-            "trivially interceptable by a network attacker. This applies regardless of "
-            "whether the form's action URL uses HTTPS."
+            "This page collects a password but is served over http:// instead of "
+            "https://. Anyone on the same network as the user — a coffee-shop Wi-Fi, "
+            "a hotel, an ISP, a corporate proxy — can read the password as it's "
+            "typed and submitted. The form's `action=` attribute doesn't change "
+            "this: the page itself was loaded insecurely, so an attacker can also "
+            "rewrite the form to point anywhere they want."
         ),
         severity=Severity.CRITICAL,
         category=FindingCategory.FORM,
@@ -129,17 +273,60 @@ def _check_password_over_http(form: ExtractedForm, page_url: str) -> Finding | N
         )],
         confidence=0.95,
         remediation=(
-            "Enable HTTPS site-wide and redirect all HTTP traffic to HTTPS. "
-            "Obtain a TLS certificate via Let's Encrypt or a commercial CA. "
-            "Set HSTS to prevent future downgrade attacks."
+            "Serve the entire site over HTTPS and redirect every http:// request to "
+            "https://. Free certificates are available through Let's Encrypt. After "
+            "the redirect is in place, set the HSTS header "
+            "(`Strict-Transport-Security: max-age=31536000; includeSubDomains`) so "
+            "browsers refuse to load the site over plain HTTP again."
         ),
-        framework=FrameworkAlignment(
-            owasp_top10=["A02:2021", "A05:2021"],
-            cwe_ids=["CWE-319", "CWE-523"],
-            nist_controls=["SC-8", "SC-28"],
-        ),
+        framework=_FA["password_over_http"],
         scanner_engine=_ENGINE,
         metadata={"page_url": page_url, "form_action": form.action_url},
+    )
+
+
+def _check_payment_over_http(form: ExtractedForm, page_url: str) -> Finding | None:
+    """Catches payment-card forms on HTTP pages that don't have a password field."""
+    if form.has_password_field:
+        return None  # password check already fires
+    if not _has_payment_input(form):
+        return None
+    if _scheme(page_url) != "http":
+        return None
+    payment_fields = [
+        i.name for i in form.inputs
+        if i.name and _PAYMENT_NAME_RE.search(i.name)
+    ]
+    return Finding(
+        title="Payment form is served over plain HTTP",
+        description=(
+            f"This form collects credit-card data ({', '.join(repr(n) for n in payment_fields[:3])}) "
+            "but the page is served over http:// rather than https://. Card numbers, "
+            "expiry dates, and CVVs are sent in the clear, where anyone on the "
+            "network can capture them. This is also a PCI DSS violation — the "
+            "payment brands prohibit unencrypted transmission of cardholder data "
+            "anywhere on the public internet."
+        ),
+        severity=Severity.CRITICAL,
+        category=FindingCategory.FORM,
+        evidence=[Evidence(
+            evidence_type=EvidenceType.HTML_ELEMENT,
+            content=_form_summary(form),
+            location=page_url,
+            source_engine=_ENGINE,
+            extra={"payment_fields": payment_fields, "page_scheme": "http"},
+        )],
+        confidence=0.95,
+        remediation=(
+            "Move the entire payment flow onto HTTPS — and ideally don't collect "
+            "raw card data at all. Use a tokenisation provider like Stripe Elements, "
+            "Adyen Drop-in, or Braintree Hosted Fields so the card data goes directly "
+            "from the user's browser to the processor, never touching your server. "
+            "This drops the site from PCI DSS scope SAQ A-EP to SAQ A."
+        ),
+        framework=_FA["payment_over_http"],
+        scanner_engine=_ENGINE,
+        metadata={"page_url": page_url, "payment_fields": payment_fields},
     )
 
 
@@ -150,15 +337,18 @@ def _check_http_action_downgrade(form: ExtractedForm, page_url: str) -> Finding 
         return None
     if _scheme(form.action_url) != "http":
         return None
-    if not form.has_password_field:
+    if not (form.has_password_field or _has_payment_input(form)):
         return None
+    data_type = "password" if form.has_password_field else "card data"
     return Finding(
-        title="HTTPS page submits password form to HTTP endpoint",
+        title=f"Secure page submits {data_type} to an insecure HTTP URL",
         description=(
-            f"The form action '{form.action_url}' uses HTTP, causing credentials "
-            "submitted from this HTTPS page to be sent unencrypted. The secure page "
-            "origin provides a false sense of security — the POST body is exposed in "
-            "transit once the request leaves the browser."
+            f"The page itself loaded over HTTPS, but the form's action attribute "
+            f"points to '{form.action_url}' — plain HTTP. The padlock in the "
+            "browser is misleading: as soon as the user clicks submit, the form "
+            "data leaves the encrypted page and travels in the clear. This is "
+            "often a deployment mistake where one environment was upgraded to "
+            "HTTPS but the endpoint URL wasn't updated."
         ),
         severity=Severity.HIGH,
         category=FindingCategory.FORM,
@@ -171,14 +361,12 @@ def _check_http_action_downgrade(form: ExtractedForm, page_url: str) -> Finding 
         )],
         confidence=0.95,
         remediation=(
-            "Change the form action URL to use HTTPS. Ensure the receiving endpoint "
-            "only accepts HTTPS connections and redirects or rejects HTTP submissions."
+            "Change the form's `action=` attribute to https://. Make sure the "
+            "receiving endpoint only accepts HTTPS — otherwise an attacker can "
+            "still force the downgrade. A common fix is using a protocol-relative "
+            "or root-relative URL (e.g. `/login` instead of `http://example.com/login`)."
         ),
-        framework=FrameworkAlignment(
-            owasp_top10=["A02:2021"],
-            cwe_ids=["CWE-319", "CWE-523"],
-            nist_controls=["SC-8"],
-        ),
+        framework=_FA["http_action_downgrade"],
         scanner_engine=_ENGINE,
         metadata={"page_url": page_url, "action_url": form.action_url},
     )
@@ -196,14 +384,17 @@ def _check_external_action(form: ExtractedForm, page_url: str) -> Finding | None
     is_payment = _has_payment_input(form)
 
     if is_credential or is_payment:
-        data_type = "credentials" if is_credential else "payment card data"
+        data_type = "credentials" if is_credential else "card data"
         return Finding(
-            title=f"Login/payment form submits {data_type} to external domain",
+            title=f"Form posts {data_type} to a different domain",
             description=(
-                f"The form posts {data_type} to '{form.action_url}', which is on a "
-                f"different domain than the page ('{page_host}'). This is a strong "
-                "indicator of a payment skimmer or credential-harvesting injection. "
-                "Legitimate forms on this page should post to the same origin."
+                f"This form takes {data_type} but submits to '{form.action_url}' — "
+                f"a different hostname than the page itself ('{page_host}'). That "
+                "pattern is the textbook fingerprint of a card-skimmer or "
+                "credential harvester. Legitimate payment processors like Stripe, "
+                "Adyen, and Braintree use iframed forms on their own domain — they "
+                "never accept a POST directly from a merchant page that contains "
+                "raw card numbers."
             ),
             severity=Severity.CRITICAL,
             category=FindingCategory.FORM,
@@ -221,27 +412,26 @@ def _check_external_action(form: ExtractedForm, page_url: str) -> Finding | None
             )],
             confidence=0.85,
             remediation=(
-                "Verify this form action is intentional. If unexpected, investigate "
-                "for JavaScript injection or a compromised template. Legitimate third-party "
-                "payment processors (Stripe, PayPal) should use their own hosted forms, "
-                "not forms that POST card data directly to their domain."
+                "Treat this as an incident until proven otherwise. Check the page "
+                "template, recently merged CMS changes, and any third-party scripts "
+                "that ran on this page. If the destination domain is unfamiliar, "
+                "look it up — many skimmer domains are registered days before they "
+                "appear. Compare the form's HTML against a known-good template."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A08:2021", "A03:2021"],
-                cwe_ids=["CWE-601", "CWE-200"],
-                nist_controls=["SI-10", "SC-8"],
-            ),
+            framework=_FA["external_credential_action"],
             scanner_engine=_ENGINE,
             metadata={"page_url": page_url, "action_url": form.action_url, "action_host": action_host},
         )
 
     return Finding(
-        title="Form submits data to external domain",
+        title="Form submits to a different domain",
         description=(
-            f"The form posts to '{form.action_url}', a domain different from "
-            f"the page origin ('{page_host}'). While cross-origin form actions are "
-            "sometimes legitimate (third-party services), unrecognised external "
-            "destinations may indicate injected data-harvesting forms."
+            f"The form posts to '{form.action_url}', which is a different host "
+            f"than the page itself ('{page_host}'). Cross-origin form actions are "
+            "sometimes legitimate — newsletter signups, search engines, embedded "
+            "third-party tools — but unrecognised destinations are worth a manual "
+            "review. Attackers often inject a hidden form pointing to an exfiltration "
+            "endpoint, then trigger its submission from JavaScript on the page."
         ),
         severity=Severity.HIGH,
         category=FindingCategory.FORM,
@@ -254,15 +444,12 @@ def _check_external_action(form: ExtractedForm, page_url: str) -> Finding | None
         )],
         confidence=0.7,
         remediation=(
-            "Review whether this external form action is intentional. "
-            "Audit your site for injected forms or compromised third-party scripts "
-            "that may have introduced this element."
+            "Confirm the destination domain is on your approved-vendor list. If "
+            "you don't recognise it, audit the page source for injected `<form>` "
+            "tags and check the change history for the template. Consider locking "
+            "down `form-action` in your Content Security Policy."
         ),
-        framework=FrameworkAlignment(
-            owasp_top10=["A08:2021"],
-            cwe_ids=["CWE-601"],
-            nist_controls=["SI-10"],
-        ),
+        framework=_FA["external_action"],
         scanner_engine=_ENGINE,
         metadata={"page_url": page_url, "action_url": form.action_url, "action_host": action_host},
     )
@@ -276,13 +463,15 @@ def _check_missing_csrf(form: ExtractedForm, page_url: str) -> Finding | None:
     if not _has_substantive_inputs(form):
         return None
     return Finding(
-        title="POST form lacks observable CSRF protection",
+        title="POST form has no visible CSRF token",
         description=(
-            "No CSRF token field was detected in this POST form. Without a CSRF token, "
-            "an attacker can craft a malicious page that silently submits this form on "
-            "behalf of an authenticated user. Note: token-based protections delivered "
-            "via cookies (SameSite=Strict/Lax) or custom headers may not be visible "
-            "in static HTML analysis."
+            "This form submits via POST but doesn't include a hidden CSRF token "
+            "field that we can see. Without one, an attacker can host a malicious "
+            "page that auto-submits this form using the visitor's logged-in cookies — "
+            "changing the victim's email, transferring funds, or anything else "
+            "this form does. Note: if the app uses SameSite=Strict cookies or "
+            "validates a custom request header, that protection is invisible to a "
+            "static HTML scan and the finding may be a false positive."
         ),
         severity=Severity.MEDIUM,
         category=FindingCategory.FORM,
@@ -295,16 +484,14 @@ def _check_missing_csrf(form: ExtractedForm, page_url: str) -> Finding | None:
         )],
         confidence=0.7,
         remediation=(
-            "Implement CSRF protection using the Synchronizer Token Pattern: include a "
-            "cryptographically random hidden field (e.g., '_csrf_token') unique per session. "
-            "Alternatively, use SameSite=Strict or SameSite=Lax cookies combined with "
-            "custom request headers."
+            "Add a hidden input containing a per-session cryptographically-random "
+            "token (commonly named `_csrf` or `authenticity_token`) and verify it "
+            "server-side on every state-changing request. Most modern frameworks "
+            "(Django, Rails, Laravel, ASP.NET) ship this protection built-in — "
+            "make sure it's enabled rather than disabled per-route. Combine with "
+            "`SameSite=Lax` or `Strict` cookies for defence in depth."
         ),
-        framework=FrameworkAlignment(
-            owasp_top10=["A01:2021"],
-            cwe_ids=["CWE-352"],
-            nist_controls=["SI-10"],
-        ),
+        framework=_FA["missing_csrf"],
         scanner_engine=_ENGINE,
         metadata={"page_url": page_url, "form_action": form.action_url},
     )
@@ -316,12 +503,14 @@ def _check_get_credentials(form: ExtractedForm, page_url: str) -> Finding | None
     if not _has_credential_input(form):
         return None
     return Finding(
-        title="Credential field submitted via GET method",
+        title="Password is sent in the URL via GET",
         description=(
-            "A form with a password or credential-like field uses the GET method, "
-            "causing the submitted value to appear in the URL query string. "
-            "Passwords in URLs are logged by web servers, proxies, and browser history, "
-            "and may be leaked in Referer headers to third parties."
+            "This login-style form uses GET, which means the submitted password "
+            "ends up in the URL itself (e.g. `…/login?password=hunter2`). URLs "
+            "are logged by web-server access logs, CDN logs, proxy servers, browser "
+            "history, and bookmarks — and they're leaked to any external site the "
+            "page links to via the Referer header. Treat any password that's ever "
+            "been transmitted this way as compromised."
         ),
         severity=Severity.HIGH,
         category=FindingCategory.FORM,
@@ -334,15 +523,12 @@ def _check_get_credentials(form: ExtractedForm, page_url: str) -> Finding | None
         )],
         confidence=0.9,
         remediation=(
-            "Change the form method to POST. Credential and authentication forms "
-            "must always use POST to prevent secrets from appearing in URLs, "
-            "server logs, browser history, or Referer headers."
+            "Change `method=\"GET\"` to `method=\"POST\"`. The server side must also "
+            "reject password parameters arriving in the query string. After deploying "
+            "the fix, rotate any passwords that may have been transmitted by GET in "
+            "the past, and scrub the credential values from log retention systems."
         ),
-        framework=FrameworkAlignment(
-            owasp_top10=["A02:2021"],
-            cwe_ids=["CWE-598", "CWE-200"],
-            nist_controls=["IA-5", "SC-8"],
-        ),
+        framework=_FA["get_credentials"],
         scanner_engine=_ENGINE,
         metadata={"page_url": page_url, "form_method": "GET"},
     )
@@ -354,12 +540,15 @@ def _check_file_upload(form: ExtractedForm, page_url: str) -> Finding | None:
         return None
     field_names = [i.name or "(unnamed)" for i in upload_inputs]
     return Finding(
-        title="File upload form detected",
+        title="Form accepts file uploads",
         description=(
-            "The form includes a file upload input, allowing arbitrary files to be "
-            "submitted to the server. Without strict server-side validation of file "
-            "type, size, and content, upload forms are a common vector for malware "
-            "upload, path traversal, and stored XSS."
+            "The page exposes a `<input type=\"file\">` field that lets visitors "
+            "upload arbitrary files to the server. File uploads are one of the most "
+            "exploited features on the web — without strict server-side checks, "
+            "attackers use them to upload web shells, serve malware to other "
+            "visitors, or store cross-site scripting payloads inside SVG/HTML files. "
+            "This is informational: the actual risk depends on what the server does "
+            "with the file after it lands."
         ),
         severity=Severity.MEDIUM,
         category=FindingCategory.FORM,
@@ -372,15 +561,16 @@ def _check_file_upload(form: ExtractedForm, page_url: str) -> Finding | None:
         )],
         confidence=0.9,
         remediation=(
-            "Validate uploaded files server-side: check MIME type (not just extension), "
-            "enforce maximum file size, strip metadata, and store files outside the web "
-            "root with randomized names. Do not trust client-supplied content-type headers."
+            "Confirm the server side: (1) validates file content by magic bytes, "
+            "not just by extension or the client-supplied Content-Type; (2) enforces "
+            "a maximum file size; (3) stores uploads outside the web root with a "
+            "random filename so they can't be requested directly; (4) sets "
+            "`Content-Disposition: attachment` and a restrictive Content-Type "
+            "header when serving them back; and (5) strips EXIF/metadata. For "
+            "user avatars, re-encode the image rather than storing the upload "
+            "byte-for-byte."
         ),
-        framework=FrameworkAlignment(
-            owasp_top10=["A04:2021"],
-            cwe_ids=["CWE-434"],
-            nist_controls=["SI-3", "CM-7"],
-        ),
+        framework=_FA["file_upload"],
         scanner_engine=_ENGINE,
         metadata={"page_url": page_url, "upload_field_names": field_names},
     )
@@ -395,13 +585,13 @@ def _check_hidden_sensitive_fields(form: ExtractedForm, page_url: str) -> Findin
         return None
     names = [i.name for i in sensitive if i.name]
     return Finding(
-        title="Sensitive data in hidden form field",
+        title="Hidden form fields contain names that look like secrets",
         description=(
-            f"The form contains hidden input fields with names suggesting sensitive data: "
-            f"{', '.join(repr(n) for n in names[:5])}. "
-            "Hidden fields are visible in the page source and can be tampered with by "
-            "the client. Sensitive values like tokens, keys, or credentials should not "
-            "be placed in hidden form fields."
+            f"Hidden inputs with sensitive-sounding names were found in this form: "
+            f"{', '.join(repr(n) for n in names[:5])}. Hidden doesn't mean private — "
+            "any user can view the page source or open browser dev tools and read "
+            "(or change) the value. If the server trusts that value when the form "
+            "comes back, an attacker can tamper with it freely."
         ),
         severity=Severity.MEDIUM,
         category=FindingCategory.FORM,
@@ -414,16 +604,13 @@ def _check_hidden_sensitive_fields(form: ExtractedForm, page_url: str) -> Findin
         )],
         confidence=0.75,
         remediation=(
-            "Store sensitive state server-side (session) rather than in hidden HTML fields. "
-            "Hidden fields are trivially read and modified by users and browser extensions. "
-            "For CSRF tokens, this is acceptable only if the value is unpredictable and "
-            "validated server-side."
+            "Keep the actual secret server-side, in the session. Pass an opaque "
+            "session reference if you must round-trip something through the form. "
+            "CSRF tokens are the one legitimate exception to the rule — they're "
+            "supposed to be unpredictable and validated on submit, so seeing a "
+            "field named `_csrf` or similar is fine."
         ),
-        framework=FrameworkAlignment(
-            owasp_top10=["A02:2021", "A05:2021"],
-            cwe_ids=["CWE-200", "CWE-472"],
-            nist_controls=["SC-28"],
-        ),
+        framework=_FA["hidden_sensitive_field"],
         scanner_engine=_ENGINE,
         metadata={"page_url": page_url, "hidden_fields": names},
     )
@@ -435,12 +622,14 @@ def _check_excessive_hidden_inputs(form: ExtractedForm, page_url: str) -> Findin
         return None
     names = [i.name for i in hidden if i.name]
     return Finding(
-        title="Unusually high number of hidden form inputs",
+        title="Unusually many hidden form inputs",
         description=(
-            f"The form contains {len(hidden)} hidden input fields. "
-            "Legitimate forms rarely require this many hidden fields. "
-            "Excessive hidden inputs may indicate injected tracking payloads, "
-            "data-harvesting scripts, or poorly designed state management."
+            f"This form has {len(hidden)} hidden inputs. Most forms only need a "
+            "handful (CSRF token, a record ID or two). A long list of hidden "
+            "fields can be a sign of an injected analytics or tracking payload "
+            "that's harvesting data the user didn't intend to submit, or an "
+            "over-broad framework defaulting to client-side state. Worth a quick "
+            "look at what each one is for."
         ),
         severity=Severity.LOW,
         category=FindingCategory.FORM,
@@ -453,15 +642,12 @@ def _check_excessive_hidden_inputs(form: ExtractedForm, page_url: str) -> Findin
         )],
         confidence=0.65,
         remediation=(
-            "Review whether all hidden fields are necessary. Replace client-side "
-            "hidden state with server-side session storage where appropriate. "
-            "Audit the page for injected scripts that may be appending hidden fields."
+            "Audit each hidden field: confirm it's required, it's not echoing "
+            "personal data, and the server validates rather than trusts it. Move "
+            "client-side state into the session where you can. Check the page "
+            "source for unexpected third-party scripts that may have inserted them."
         ),
-        framework=FrameworkAlignment(
-            owasp_top10=["A05:2021"],
-            cwe_ids=["CWE-200"],
-            nist_controls=["CM-7"],
-        ),
+        framework=_FA["excessive_hidden"],
         scanner_engine=_ENGINE,
         metadata={"page_url": page_url, "hidden_count": len(hidden)},
     )
@@ -473,11 +659,15 @@ def _check_suspicious_action_url(form: ExtractedForm, page_url: str) -> Finding 
     if not _SUSPICIOUS_ACTION_RE.search(form.action_url):
         return None
     return Finding(
-        title="Form action URL points to suspicious or non-production endpoint",
+        title="Form points at a debug, staging, or internal URL",
         description=(
-            f"The form action '{form.action_url}' appears to target a non-production, "
-            "debug, or internal endpoint. Forms in production deployments should not "
-            "submit data to localhost, staging, or debug paths."
+            f"The form's action is '{form.action_url}', which contains a "
+            "non-production marker (localhost, /staging, /debug, /test, /internal, "
+            "etc). In production this is almost always a configuration leak — "
+            "either an environment variable wasn't substituted at build time, or "
+            "a developer left a hard-coded URL in. Submissions may silently fail, "
+            "land in the wrong environment, or expose an internal endpoint to the "
+            "public."
         ),
         severity=Severity.MEDIUM,
         category=FindingCategory.FORM,
@@ -490,14 +680,12 @@ def _check_suspicious_action_url(form: ExtractedForm, page_url: str) -> Finding 
         )],
         confidence=0.8,
         remediation=(
-            "Update the form action to point to the correct production endpoint. "
-            "Ensure CI/CD pipelines replace environment-specific URLs at deploy time."
+            "Wire the form action through an environment-aware config rather than "
+            "a hard-coded URL. Add a CI check that fails the build when "
+            "non-production hostnames appear in production artifacts. Confirm "
+            "the affected endpoint can't be reached from the internet at all."
         ),
-        framework=FrameworkAlignment(
-            owasp_top10=["A05:2021"],
-            cwe_ids=["CWE-200", "CWE-16"],
-            nist_controls=["CM-6"],
-        ),
+        framework=_FA["suspicious_action"],
         scanner_engine=_ENGINE,
         metadata={"page_url": page_url, "action_url": form.action_url},
     )
@@ -509,6 +697,7 @@ def _check_suspicious_action_url(form: ExtractedForm, page_url: str) -> Finding 
 
 _FORM_CHECKS = [
     _check_password_over_http,
+    _check_payment_over_http,
     _check_http_action_downgrade,
     _check_external_action,
     _check_missing_csrf,

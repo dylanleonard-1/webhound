@@ -12,11 +12,76 @@ from dataclasses import dataclass
 from webhound.core.http_client import HttpResponse, SafeHttpClient
 from webhound.core.scope import ScopeChecker
 from webhound.models.evidence import Evidence, EvidenceType
-from webhound.models.finding import Finding, FindingCategory, FrameworkAlignment
+from webhound.models.finding import Exploitability, Finding, FindingCategory, FrameworkAlignment
 from webhound.models.severity import Severity
 from webhound.models.target import Target
 
 _ENGINE = "sensitive_paths"
+
+# Enterprise metadata per finding category. Severity-driven calibration with
+# heavy compliance mapping — exposed secrets / config files trip nearly every
+# major framework's data-protection clauses.
+def _build_fa(category: str, severity: Severity) -> FrameworkAlignment:
+    if category == "config":
+        return FrameworkAlignment(
+            owasp_top10=["A05:2021", "A01:2021"],
+            cwe_ids=["CWE-538", "CWE-200", "CWE-540"],
+            nist_controls=["CM-6", "CM-7", "AC-3"],
+            cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+            cvss_score=9.1,
+            pci_dss=["3.5.1", "6.5.5", "8.6.1"],
+            iso_27001=["A.8.4", "A.5.34"],
+            soc2=["CC6.1", "CC6.3"],
+            hipaa=["164.312(a)(2)(iii)"],
+            exploitability=Exploitability.KNOWN_EXPLOITED,
+        )
+    if category == "scm":
+        return FrameworkAlignment(
+            owasp_top10=["A05:2021"],
+            cwe_ids=["CWE-527", "CWE-200"],
+            nist_controls=["CM-6", "SA-15"],
+            cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+            cvss_score=7.5,
+            pci_dss=["6.5.5", "8.6.1"],
+            iso_27001=["A.8.4", "A.8.32"],
+            soc2=["CC6.1"],
+            exploitability=Exploitability.KNOWN_EXPLOITED,
+        )
+    if category == "backup":
+        return FrameworkAlignment(
+            owasp_top10=["A05:2021"],
+            cwe_ids=["CWE-530", "CWE-200", "CWE-538"],
+            nist_controls=["CM-6", "MP-2"],
+            cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+            cvss_score=7.5,
+            pci_dss=["3.4.1", "9.4.1"],
+            iso_27001=["A.8.4", "A.5.33"],
+            soc2=["CC6.1"], hipaa=["164.310(d)(2)(iv)"],
+            exploitability=Exploitability.KNOWN_EXPLOITED,
+        )
+    if category == "admin":
+        return FrameworkAlignment(
+            owasp_top10=["A05:2021", "A01:2021"],
+            cwe_ids=["CWE-284", "CWE-200"],
+            nist_controls=["AC-3", "CM-6"],
+            cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N", cvss_score=6.5,
+            pci_dss=["6.5.5", "8.3.1"], iso_27001=["A.5.15", "A.8.32"], soc2=["CC6.6"],
+            exploitability=Exploitability.PRACTICAL,
+        )
+    if category == "info_disclosure":
+        return FrameworkAlignment(
+            owasp_top10=["A05:2021"], cwe_ids=["CWE-200"], nist_controls=["CM-6"],
+            cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N", cvss_score=5.3,
+            pci_dss=["6.5.5"], iso_27001=["A.5.34"], soc2=["CC6.1"],
+            exploitability=Exploitability.PRACTICAL,
+        )
+    # debug / generic
+    return FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-200"], nist_controls=["CM-6"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N", cvss_score=4.3,
+        pci_dss=["6.5.5"], iso_27001=["A.5.34"],
+        exploitability=Exploitability.THEORETICAL,
+    )
 
 
 @dataclass(frozen=True)
@@ -28,24 +93,89 @@ class _PathDef:
 
 
 _PATHS: list[_PathDef] = [
-    _PathDef("/.env",          "Environment variable file",  Severity.CRITICAL, ("=", "PASSWORD", "SECRET", "KEY", "TOKEN", "DB_", "APP_")),
-    _PathDef("/.git/config",   "Git repository config",      Severity.CRITICAL, ("[core]", "repositoryformatversion", "bare =")),
-    _PathDef("/.git/",         "Git repository listing",     Severity.CRITICAL, ("HEAD", "config", "objects", "COMMIT")),
-    _PathDef("/wp-config.php", "WordPress config file",      Severity.CRITICAL, ("DB_PASSWORD", "DB_HOST", "table_prefix", "<?php")),
-    _PathDef("/config.php",    "PHP application config",     Severity.CRITICAL, ("<?php", "define(", "password", "database")),
-    _PathDef("/phpinfo.php",   "PHP info disclosure",        Severity.MEDIUM,   ("phpinfo()", "PHP Version", "<title>phpinfo")),
-    _PathDef("/backup.zip",    "Backup archive",             Severity.HIGH,     ()),
-    _PathDef("/backup.sql",    "SQL database backup",        Severity.HIGH,     ("CREATE TABLE", "INSERT INTO", "-- MySQL", "DUMP")),
-    _PathDef("/database.sql",  "SQL database dump",          Severity.HIGH,     ("CREATE TABLE", "INSERT INTO", "-- MySQL", "DUMP")),
-    _PathDef("/db.sql",        "SQL database dump",          Severity.HIGH,     ("CREATE TABLE", "INSERT INTO", "-- MySQL", "DUMP")),
-    _PathDef("/admin",         "Admin panel",                Severity.MEDIUM,   ()),
-    _PathDef("/login",         "Login page",                 Severity.LOW,      ()),
-    _PathDef("/debug",         "Debug endpoint",             Severity.MEDIUM,   ()),
-    _PathDef("/staging",       "Staging environment",        Severity.MEDIUM,   ()),
-    _PathDef("/test",          "Test endpoint",              Severity.LOW,      ()),
-    _PathDef("/old",           "Legacy content",             Severity.LOW,      ()),
-    _PathDef("/backup",        "Backup directory",           Severity.MEDIUM,   ()),
-    _PathDef("/uploads",       "Uploads directory",          Severity.MEDIUM,   ()),
+    # ── Environment / secrets files (CRITICAL — direct credential exposure) ──
+    _PathDef("/.env",            "Environment variable file",  Severity.CRITICAL, ("=", "PASSWORD", "SECRET", "KEY", "TOKEN", "DB_", "APP_")),
+    _PathDef("/.env.local",      "Local environment file",     Severity.CRITICAL, ("=", "PASSWORD", "SECRET", "KEY", "TOKEN")),
+    _PathDef("/.env.production", "Production env file",        Severity.CRITICAL, ("=", "PASSWORD", "SECRET", "KEY", "TOKEN")),
+    _PathDef("/.env.backup",     "Env backup file",            Severity.CRITICAL, ("=", "PASSWORD", "SECRET", "KEY")),
+    _PathDef("/.aws/credentials","AWS credentials file",       Severity.CRITICAL, ("aws_access_key_id", "aws_secret_access_key", "[default]")),
+    _PathDef("/.ssh/id_rsa",     "SSH private key",            Severity.CRITICAL, ("PRIVATE KEY", "-----BEGIN")),
+    _PathDef("/.htpasswd",       "Apache password file",       Severity.CRITICAL, (":", "$apr1$", "$2y$")),
+    _PathDef("/.npmrc",          "npm credentials file",       Severity.HIGH,     ("_authToken", "registry=")),
+    # ── Source-control exposure (CRITICAL — full code reconstruction) ──
+    _PathDef("/.git/config",     "Git repository config",      Severity.CRITICAL, ("[core]", "repositoryformatversion", "bare =")),
+    _PathDef("/.git/HEAD",       "Git HEAD pointer",           Severity.CRITICAL, ("ref:", "refs/heads")),
+    _PathDef("/.git/",           "Git repository listing",     Severity.CRITICAL, ("HEAD", "config", "objects", "COMMIT")),
+    _PathDef("/.svn/entries",    "Subversion entries file",    Severity.CRITICAL, ("dir", "file", "svn:")),
+    _PathDef("/.svn/wc.db",      "Subversion working copy DB", Severity.CRITICAL, ()),
+    _PathDef("/.hg/store",       "Mercurial store",            Severity.CRITICAL, ()),
+    # ── Framework configs (CRITICAL — DB credentials + secret keys) ──
+    _PathDef("/wp-config.php",   "WordPress config file",      Severity.CRITICAL, ("DB_PASSWORD", "DB_HOST", "table_prefix", "<?php")),
+    _PathDef("/wp-config.php.bak","WordPress config backup",   Severity.CRITICAL, ("DB_PASSWORD", "DB_HOST", "table_prefix")),
+    _PathDef("/config.php",      "PHP application config",     Severity.CRITICAL, ("<?php", "define(", "password", "database")),
+    _PathDef("/config/database.yml", "Rails database config",  Severity.CRITICAL, ("adapter:", "password:", "database:")),
+    _PathDef("/web.config",      "IIS web.config",             Severity.HIGH,     ("<configuration", "<connectionStrings", "<appSettings")),
+    _PathDef("/.htaccess",       "Apache htaccess",            Severity.LOW,      ("RewriteRule", "Deny from", "AuthType")),
+    # ── Server status / info endpoints ──
+    _PathDef("/server-status",   "Apache server-status",       Severity.HIGH,     ("Apache Server Status", "Server Version", "Current Time")),
+    _PathDef("/server-info",     "Apache server-info",         Severity.HIGH,     ("Apache Server Information", "Module Name")),
+    _PathDef("/phpinfo.php",     "PHP info disclosure",        Severity.MEDIUM,   ("phpinfo()", "PHP Version", "<title>phpinfo")),
+    _PathDef("/info.php",        "PHP info disclosure",        Severity.MEDIUM,   ("phpinfo()", "PHP Version")),
+    _PathDef("/test.php",        "Test PHP file",              Severity.LOW,      ("phpinfo", "<?php", "echo")),
+    _PathDef("/.DS_Store",       "macOS Finder metadata",      Severity.LOW,      ("Bud1",)),
+    # ── Dependency manifests (low individually but useful for recon) ──
+    _PathDef("/package.json",    "npm package manifest",       Severity.LOW,      ("\"name\"", "\"dependencies\"", "\"scripts\"")),
+    _PathDef("/composer.json",   "Composer manifest",          Severity.LOW,      ("\"name\"", "\"require\"")),
+    _PathDef("/composer.lock",   "Composer lock file",         Severity.LOW,      ("\"_readme\"", "\"packages\"")),
+    _PathDef("/Gemfile",         "Bundler Gemfile",            Severity.LOW,      ("source ", "gem ")),
+    _PathDef("/Gemfile.lock",    "Bundler lockfile",           Severity.LOW,      ("GEM", "specs:", "BUNDLED WITH")),
+    _PathDef("/yarn.lock",       "Yarn lockfile",              Severity.LOW,      ("# yarn lockfile", "version \"")),
+    _PathDef("/requirements.txt", "Python requirements",       Severity.LOW,      ("==", ">=")),
+    # ── Backups (HIGH — entire database / source contents possible) ──
+    _PathDef("/backup.zip",      "Backup archive",             Severity.HIGH,     ()),
+    _PathDef("/backup.tar",      "Backup tar archive",         Severity.HIGH,     ()),
+    _PathDef("/backup.tar.gz",   "Backup tarball",             Severity.HIGH,     ()),
+    _PathDef("/site-backup.zip", "Site backup",                Severity.HIGH,     ()),
+    _PathDef("/backup.sql",      "SQL database backup",        Severity.HIGH,     ("CREATE TABLE", "INSERT INTO", "-- MySQL", "DUMP")),
+    _PathDef("/dump.sql",        "SQL database dump",          Severity.HIGH,     ("CREATE TABLE", "INSERT INTO", "-- MySQL", "DUMP")),
+    _PathDef("/database.sql",    "SQL database dump",          Severity.HIGH,     ("CREATE TABLE", "INSERT INTO", "-- MySQL", "DUMP")),
+    _PathDef("/db.sql",          "SQL database dump",          Severity.HIGH,     ("CREATE TABLE", "INSERT INTO", "-- MySQL", "DUMP")),
+    _PathDef("/error_log",       "Server error log",           Severity.MEDIUM,   ("PHP Warning", "PHP Fatal", "[error]", "ERROR")),
+    _PathDef("/.bash_history",   "Shell history",              Severity.HIGH,     ("cd ", "sudo ", "ssh ", "history")),
+    # ── Legacy / Flash policy ──
+    _PathDef("/crossdomain.xml", "Flash cross-domain policy",  Severity.LOW,      ("<cross-domain-policy", "<allow-access-from")),
+    _PathDef("/clientaccesspolicy.xml", "Silverlight policy",  Severity.LOW,      ("<access-policy", "<allow-from")),
+    # ── Cert / key files ──
+    _PathDef("/server.key",      "Server private key",         Severity.CRITICAL, ("BEGIN PRIVATE KEY", "BEGIN RSA PRIVATE")),
+    _PathDef("/server.pem",      "Server certificate / key",   Severity.CRITICAL, ("BEGIN CERTIFICATE", "BEGIN PRIVATE")),
+    _PathDef("/cert.pem",        "Certificate file",           Severity.LOW,      ("BEGIN CERTIFICATE",)),
+    # ── Admin / dev / staging paths ──
+    _PathDef("/admin",           "Admin panel",                Severity.MEDIUM,   ()),
+    _PathDef("/administrator",   "Joomla admin panel",         Severity.MEDIUM,   ()),
+    _PathDef("/wp-admin/",       "WordPress admin",            Severity.MEDIUM,   ()),
+    _PathDef("/wp-login.php",    "WordPress login",            Severity.LOW,      ("WordPress", "wp-login")),
+    _PathDef("/phpmyadmin",      "phpMyAdmin panel",           Severity.HIGH,     ("phpMyAdmin", "pma_")),
+    _PathDef("/adminer",         "Adminer DB tool",            Severity.HIGH,     ("Adminer", "Login")),
+    _PathDef("/login",           "Login page",                 Severity.LOW,      ()),
+    _PathDef("/debug",           "Debug endpoint",              Severity.MEDIUM,  ()),
+    _PathDef("/_debug",          "Debug endpoint",              Severity.MEDIUM,  ()),
+    _PathDef("/staging",         "Staging environment",         Severity.MEDIUM,  ()),
+    _PathDef("/dev",             "Dev environment",             Severity.MEDIUM,  ()),
+    _PathDef("/test",            "Test endpoint",               Severity.LOW,     ()),
+    _PathDef("/old",             "Legacy content",              Severity.LOW,     ()),
+    _PathDef("/install.php",     "Installer script",            Severity.HIGH,    ("install", "Setup", "Database")),
+    _PathDef("/setup.php",       "Setup script",                Severity.HIGH,    ("setup", "install")),
+    # ── API documentation ──
+    _PathDef("/swagger.json",    "Swagger / OpenAPI spec",     Severity.LOW,      ("\"swagger\"", "\"openapi\"")),
+    _PathDef("/openapi.json",    "OpenAPI spec",               Severity.LOW,      ("\"openapi\"", "\"info\"", "\"paths\"")),
+    _PathDef("/api-docs",        "API documentation",          Severity.LOW,      ("Swagger UI", "openapi", "swagger")),
+    _PathDef("/graphql",         "GraphQL endpoint",           Severity.MEDIUM,   ("\"data\"", "\"errors\"", "{__schema")),
+    _PathDef("/graphiql",        "GraphiQL IDE",               Severity.MEDIUM,   ("GraphiQL", "graphql")),
+    # ── Misc ──
+    _PathDef("/backup",          "Backup directory",            Severity.MEDIUM,  ()),
+    _PathDef("/uploads",         "Uploads directory",           Severity.MEDIUM,  ()),
+    _PathDef("/log",             "Log directory",               Severity.MEDIUM,  ()),
+    _PathDef("/logs",            "Log directory",               Severity.MEDIUM,  ()),
 ]
 
 _BINARY_CONTENT_TYPES: frozenset[str] = frozenset({
@@ -189,15 +319,44 @@ def _remediation(spec: _PathDef) -> str:
 
 
 def _cwe_ids(spec: _PathDef) -> list[str]:
-    if spec.path in ("/.env", "/wp-config.php", "/config.php"):
-        return _CWE_MAP["config"]
-    if "git" in spec.path:
-        return _CWE_MAP["scm"]
-    if spec.path in ("/backup.zip", "/backup.sql", "/database.sql", "/db.sql"):
-        return _CWE_MAP["backup"]
-    if spec.path in ("/admin", "/login", "/staging", "/debug", "/backup"):
-        return _CWE_MAP["admin"]
+    cat = _category(spec)
+    if cat == "config":          return _CWE_MAP["config"]
+    if cat == "scm":             return _CWE_MAP["scm"]
+    if cat == "backup":          return _CWE_MAP["backup"]
+    if cat == "admin":           return _CWE_MAP["admin"]
+    if cat == "info_disclosure": return _CWE_MAP["debug"]
     return _CWE_MAP["debug"]
+
+
+def _category(spec: _PathDef) -> str:
+    """Classify a path into one of the FA-table categories."""
+    p = spec.path.lower()
+    # Config / secrets
+    if any(seg in p for seg in (".env", "wp-config", "config.php", "credentials",
+                                 "id_rsa", ".htpasswd", ".npmrc", "server.key",
+                                 "server.pem", "database.yml")):
+        return "config"
+    # Source control
+    if any(seg in p for seg in (".git", ".svn", ".hg")):
+        return "scm"
+    # Backups
+    if any(seg in p for seg in ("backup", "dump.sql", "database.sql", "db.sql",
+                                 "error_log", "bash_history")):
+        return "backup"
+    # Admin / login pages
+    if any(seg in p for seg in ("admin", "login", "phpmyadmin", "adminer",
+                                 "install", "setup", "graphql", "graphiql",
+                                 "wp-login")):
+        return "admin"
+    # Info disclosure
+    if any(seg in p for seg in ("phpinfo", "info.php", "test.php", "ds_store",
+                                 "package.json", "composer", "gemfile",
+                                 "yarn.lock", "requirements.txt", "server-status",
+                                 "server-info", "swagger", "openapi", "api-docs",
+                                 "crossdomain", "clientaccesspolicy",
+                                 "cert.pem", ".htaccess", "web.config")):
+        return "info_disclosure"
+    return "debug"
 
 
 class SensitivePathsEngine:
@@ -285,11 +444,7 @@ class SensitivePathsEngine:
             )],
             confidence=_confidence(body, spec),
             remediation=_remediation(spec),
-            framework=FrameworkAlignment(
-                owasp_top10=["A05:2021"],
-                cwe_ids=_cwe_ids(spec),
-                nist_controls=["CM-6", "CM-7"],
-            ),
+            framework=_build_fa(_category(spec), spec.severity),
             scanner_engine=_ENGINE,
             metadata={"url": url, "path": spec.path, "status_code": response.status_code},
         )
@@ -324,11 +479,7 @@ class SensitivePathsEngine:
                 f"Consider removing '{spec.path}' entirely rather than relying on access "
                 "controls alone. A file that should not exist should not exist — not be hidden."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A05:2021"],
-                cwe_ids=["CWE-200"],
-                nist_controls=["CM-6"],
-            ),
+            framework=_build_fa("info_disclosure", Severity.LOW),
             scanner_engine=_ENGINE,
             metadata={"url": url, "path": spec.path, "status_code": response.status_code},
         )

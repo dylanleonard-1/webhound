@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Download, FileJson, FileText, FileCode, Table } from 'lucide-react'
+import { Download, FileJson, FileText, FileCode, Table, FileType2 } from 'lucide-react'
 import { api, type ReportResponse, type ReportFormat } from '@/lib/api'
 import { Card } from '@/components/ui/card'
 import { LoadingState } from '@/components/loading-state'
@@ -16,14 +16,23 @@ const FORMAT_META: Record<ReportFormat, {
   ext: string
   mime: string
   description: string
+  binary?: boolean
 }> = {
   json:     { label: 'JSON',     icon: FileJson, ext: 'json',   mime: 'application/json',  description: 'Full machine-readable data' },
   sarif:    { label: 'SARIF',    icon: FileCode, ext: 'sarif',  mime: 'application/json',  description: 'For GitHub / VS Code' },
-  csv:      { label: 'CSV',      icon: Table,    ext: 'csv',    mime: 'text/csv',           description: 'For spreadsheets' },
-  markdown: { label: 'Markdown', icon: FileText, ext: 'md',     mime: 'text/markdown',      description: 'Human-readable report' },
+  csv:      { label: 'CSV',      icon: Table,    ext: 'csv',    mime: 'text/csv',          description: 'For spreadsheets' },
+  markdown: { label: 'Markdown', icon: FileText, ext: 'md',     mime: 'text/markdown',     description: 'Human-readable report' },
+  pdf:      { label: 'PDF',      icon: FileType2, ext: 'pdf',   mime: 'application/pdf',   description: 'Branded executive summary', binary: true },
 }
 
-function extractContent(report: ReportResponse): string {
+function base64ToBytes(base64: string): Uint8Array {
+  const bin = atob(base64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return bytes
+}
+
+function extractTextContent(report: ReportResponse): string {
   if (!report.content_json) return ''
   if (report.format === 'csv' || report.format === 'markdown') {
     if (typeof (report.content_json as { content?: unknown }).content === 'string') {
@@ -33,8 +42,26 @@ function extractContent(report: ReportResponse): string {
   return JSON.stringify(report.content_json, null, 2)
 }
 
-function triggerDownload(content: string, filename: string, mime: string) {
-  const blob = new Blob([content], { type: mime })
+function extractBinaryContent(report: ReportResponse): Uint8Array | null {
+  const raw = (report.content_json as { content_b64?: unknown; content?: unknown } | null)
+  if (!raw) return null
+  const b64 = typeof raw.content_b64 === 'string'
+    ? raw.content_b64
+    : typeof raw.content === 'string'
+      ? raw.content
+      : null
+  if (!b64) return null
+  try {
+    return base64ToBytes(b64)
+  } catch {
+    return null
+  }
+}
+
+function triggerDownload(
+  content: string | Uint8Array, filename: string, mime: string,
+) {
+  const blob = new Blob([content as BlobPart], { type: mime })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -60,9 +87,16 @@ export function ReportDownloads({ scanResultId }: ReportDownloadsProps) {
     try {
       const fresh = await api.scanResults.reportByFormat(scanResultId, report.format)
       const meta = FORMAT_META[fresh.format] ?? FORMAT_META.json
-      const content = extractContent(fresh)
-      if (!content) return
-      triggerDownload(content, `webhound-${scanResultId.slice(0, 8)}.${meta.ext}`, meta.mime)
+      const filename = `webhound-${scanResultId.slice(0, 8)}.${meta.ext}`
+      if (meta.binary) {
+        const bytes = extractBinaryContent(fresh)
+        if (!bytes) return
+        triggerDownload(bytes, filename, meta.mime)
+      } else {
+        const content = extractTextContent(fresh)
+        if (!content) return
+        triggerDownload(content, filename, meta.mime)
+      }
     } catch {
       // silently ignore — user sees the button re-enable
     } finally {
@@ -94,7 +128,7 @@ export function ReportDownloads({ scanResultId }: ReportDownloadsProps) {
         <span className="text-[11px] text-gray-500">Share results with your team or developer</span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 p-4">
         {reports.map(report => {
           const meta = FORMAT_META[report.format] ?? FORMAT_META.json
           const Icon = meta.icon

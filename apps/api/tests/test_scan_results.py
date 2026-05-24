@@ -607,9 +607,18 @@ async def test_get_report_by_format_not_found(client, seeded):
     assert r.status_code == 404
 
 
-async def test_get_report_by_invalid_format(client, seeded):
+async def test_get_report_by_pdf_format_not_found(client, seeded):
+    # PDF is a valid format but the seed fixture only seeds a JSON report,
+    # so this 404s on "no PDF report available" — not on "invalid format".
     r = await client.get(
         f"/scan-results/{seeded['scan_result_id']}/reports/pdf"
+    )
+    assert r.status_code == 404
+
+
+async def test_get_report_by_invalid_format(client, seeded):
+    r = await client.get(
+        f"/scan-results/{seeded['scan_result_id']}/reports/yaml"
     )
     assert r.status_code == 422
 

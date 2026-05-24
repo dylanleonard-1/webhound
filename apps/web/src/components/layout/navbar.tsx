@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Shield } from 'lucide-react'
+import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NAV_LINKS = [
@@ -19,12 +20,15 @@ const NAV_LINKS = [
 function Logo() {
   return (
     <div className="flex items-center gap-2.5 group">
-      <div
-        className="w-8 h-8 rounded-[8px] flex items-center justify-center flex-shrink-0 transition-shadow duration-300 group-hover:shadow-[0_0_18px_rgba(139,255,62,0.5)]"
-        style={{ background: '#8BFF3E', boxShadow: '0 0 12px rgba(139,255,62,0.28)' }}
-      >
-        <Shield className="w-4 h-4 text-[#020617]" strokeWidth={2.5} />
-      </div>
+      <Image
+        src="/logo.png"
+        alt="WebHound"
+        width={36}
+        height={36}
+        priority
+        className="flex-shrink-0 select-none transition-transform duration-300 group-hover:scale-110"
+        style={{ width: 36, height: 36, objectFit: 'contain' }}
+      />
       <span className="hidden sm:block text-white font-bold text-[13px] tracking-[0.18em] uppercase select-none">
         WebHound
       </span>

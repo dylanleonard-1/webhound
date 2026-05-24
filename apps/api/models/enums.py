@@ -36,6 +36,7 @@ class ReportFormat(str, enum.Enum):
     SARIF = "sarif"
     CSV = "csv"
     MARKDOWN = "markdown"
+    PDF = "pdf"
 
 
 class ScheduleFrequency(str, enum.Enum):

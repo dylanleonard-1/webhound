@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Shield } from 'lucide-react'
+import Image from 'next/image'
 
 const COLS = [
   {
@@ -45,12 +45,14 @@ export function Footer() {
           {/* Brand */}
           <div className="col-span-2 sm:col-span-1">
             <Link href="/" className="flex items-center gap-2.5 mb-4 group w-fit">
-              <div
-                className="w-[30px] h-[30px] rounded-[9px] flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:shadow-[0_0_18px_rgba(139,255,62,0.5)]"
-                style={{ background: '#8BFF3E', boxShadow: '0 0 12px rgba(139,255,62,0.28)' }}
-              >
-                <Shield className="w-[15px] h-[15px] text-[#020617]" strokeWidth={2.5} />
-              </div>
+              <Image
+                src="/logo.png"
+                alt="WebHound"
+                width={34}
+                height={34}
+                className="flex-shrink-0 select-none transition-transform duration-300 group-hover:scale-110"
+                style={{ width: 34, height: 34, objectFit: 'contain' }}
+              />
               <span className="text-white font-bold text-sm tracking-[0.14em] uppercase">WebHound</span>
             </Link>
             <p className="text-[13px] leading-relaxed max-w-[200px]" style={{ color: 'rgba(255,255,255,0.32)' }}>

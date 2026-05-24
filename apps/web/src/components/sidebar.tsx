@@ -3,9 +3,10 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect } from 'react'
+import Image from 'next/image'
 import {
   LayoutDashboard, Globe, ScanLine, Activity, Bell,
-  Settings, LogOut, Shield, X,
+  Settings, LogOut, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth'
@@ -94,12 +95,15 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
           style={{ borderBottom: '1px solid rgba(255,255,255,0.055)' }}
         >
           <Link href="/dashboard" className="flex items-center gap-2.5">
-            <div
-              className="w-[28px] h-[28px] rounded-[7px] flex items-center justify-center flex-shrink-0"
-              style={{ background: '#8BFF3E', boxShadow: '0 0 14px rgba(139,255,62,0.45)' }}
-            >
-              <Shield className="w-[14px] h-[14px] text-[#020617]" strokeWidth={2.5} />
-            </div>
+            <Image
+              src="/logo.png"
+              alt="WebHound"
+              width={32}
+              height={32}
+              priority
+              className="flex-shrink-0 select-none"
+              style={{ width: 32, height: 32, objectFit: 'contain' }}
+            />
             <span className="font-bold text-white text-[13.5px] tracking-[-0.01em]">WebHound</span>
           </Link>
           <button

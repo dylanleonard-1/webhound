@@ -39,6 +39,7 @@ from webhound.reporting.cli_formatter import (
 from webhound.reporting.csv_report import CsvReport
 from webhound.reporting.json_report import JsonReport
 from webhound.reporting.markdown_report import MarkdownReport
+from webhound.reporting.pdf_report import PdfReport
 from webhound.reporting.sarif_report import SarifReport
 from webhound.reporting.summary_builder import SummaryBuilder
 from webhound.wade.baseline_store import BaselineStore
@@ -46,12 +47,13 @@ from webhound.wade.baseline_store import BaselineStore
 _REPORTS_DIR = Path(__file__).parent / "reports"
 _BAR_WIDTH = 60
 
-_ALL_FORMATS: frozenset[str] = frozenset({"json", "sarif", "csv", "markdown"})
+_ALL_FORMATS: frozenset[str] = frozenset({"json", "sarif", "csv", "markdown", "pdf"})
 _FORMAT_EXTENSION: dict[str, str] = {
     "json": ".json",
     "sarif": ".sarif",
     "csv": ".csv",
     "markdown": ".md",
+    "pdf": ".pdf",
 }
 
 
@@ -112,7 +114,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--format",
-        choices=["json", "sarif", "csv", "markdown", "all"],
+        choices=["json", "sarif", "csv", "markdown", "pdf", "all"],
         action="append",
         dest="formats",
         metavar="FORMAT",
@@ -402,6 +404,11 @@ async def _run(args: argparse.Namespace) -> int:
             ),
             encoding="utf-8",
         )
+        written.append(path)
+
+    if "pdf" in formats:
+        path = output_dir / f"{stem}.pdf"
+        path.write_bytes(PdfReport().build(result))
         written.append(path)
 
     risk_score = result.metadata.get("risk_score", "—")

@@ -259,7 +259,7 @@ export interface EngineDiagnosticResponse {
   created_at: string
 }
 
-export type ReportFormat = 'json' | 'sarif' | 'csv' | 'markdown'
+export type ReportFormat = 'json' | 'sarif' | 'csv' | 'markdown' | 'pdf'
 export type ScheduleFrequency = 'daily' | 'weekly' | 'monthly'
 
 export interface ScanScheduleResponse {

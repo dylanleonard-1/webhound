@@ -4,5 +4,7 @@ httpx
 dnspython
 tldextract
 pydantic
+reportlab
+pillow
 pytest
 pytest-asyncio

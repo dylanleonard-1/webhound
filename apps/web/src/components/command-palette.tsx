@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { Command } from 'cmdk'
 import {
   LayoutDashboard, Globe, ScanLine, Activity, Bell, Settings,
-  FileText, Search, Zap, LogOut, Plus, ArrowRight, Shield,
+  FileText, Search, Zap, LogOut, Plus, ArrowRight,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth'
 
@@ -150,9 +151,14 @@ export function CommandPalette() {
             style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}
           >
             <div className="flex items-center gap-1.5">
-              <div className="w-4 h-4 rounded-[4px] flex items-center justify-center" style={{ background: '#8BFF3E' }}>
-                <Shield className="w-2.5 h-2.5 text-[#020617]" strokeWidth={2.5} />
-              </div>
+              <Image
+                src="/logo.png"
+                alt="WebHound"
+                width={16}
+                height={16}
+                className="flex-shrink-0 select-none"
+                style={{ width: 16, height: 16, objectFit: 'contain' }}
+              />
               <span className="text-[10px] font-bold tracking-wide" style={{ color: 'rgba(255,255,255,0.28)' }}>
                 WebHound
               </span>

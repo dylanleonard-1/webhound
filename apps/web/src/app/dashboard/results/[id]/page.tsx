@@ -4,7 +4,10 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Globe, Calendar, Zap, AlertCircle, CheckCircle, Info } from 'lucide-react'
+import {
+  ArrowLeft, Globe, Calendar, Zap, AlertCircle, CheckCircle,
+  BarChart3, Scale, ShieldAlert, Activity, Globe2, Settings2, Download,
+} from 'lucide-react'
 import { api, type ScanResultDetail } from '@/lib/api'
 import { LoadingState } from '@/components/loading-state'
 import { ErrorState } from '@/components/error-state'
@@ -13,6 +16,8 @@ import { SeverityBreakdownCard } from '@/components/results/severity-breakdown-c
 import { PerformanceSummary } from '@/components/results/performance-summary'
 import { WADESummary } from '@/components/results/wade-summary'
 import { ExternalDomainsSection } from '@/components/results/external-domains-section'
+import { ThreatIntelDomainsSection } from '@/components/results/threat-intel-domains-section'
+import { ComplianceSummary } from '@/components/results/compliance-summary'
 import { GroupedFindingsTable } from '@/components/results/grouped-findings-table'
 import { EngineDiagnosticsTable } from '@/components/results/engine-diagnostics-table'
 import { ReportDownloads } from '@/components/results/report-downloads'
@@ -76,6 +81,37 @@ function ScanSummaryBanner({ result }: { result: ScanResultDetail }) {
   )
 }
 
+/**
+ * SectionHeader — visual separator that introduces each topic block.
+ * Keeps the results page readable when there are 6+ sections stacked.
+ */
+function SectionHeader({
+  icon: Icon, title, subtitle, accent = 'rgba(255,255,255,0.5)',
+}: {
+  icon: React.FC<{ className?: string; style?: React.CSSProperties }>
+  title: string
+  subtitle?: string
+  accent?: string
+}) {
+  return (
+    <div className="flex items-center gap-3 mt-2 mb-1">
+      <div
+        className="w-7 h-7 rounded-[8px] flex items-center justify-center flex-shrink-0"
+        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+      >
+        <Icon className="w-3.5 h-3.5" style={{ color: accent }} />
+      </div>
+      <div className="min-w-0">
+        <h2 className="text-[13px] font-semibold text-white tracking-tight">{title}</h2>
+        {subtitle && (
+          <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.4)' }}>{subtitle}</p>
+        )}
+      </div>
+      <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
+    </div>
+  )
+}
+
 export default function ScanResultPage() {
   const { id } = useParams<{ id: string }>()
   const [result, setResult] = useState<ScanResultDetail | null>(null)
@@ -100,7 +136,7 @@ export default function ScanResultPage() {
 
   return (
     <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-      <div className="max-w-[1100px] mx-auto px-4 py-5 sm:px-6 sm:py-8 space-y-5">
+      <div className="max-w-[1100px] mx-auto px-4 py-5 sm:px-6 sm:py-8 space-y-6">
 
         {/* Back + header */}
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
@@ -145,51 +181,148 @@ export default function ScanResultPage() {
           <ScanSummaryBanner result={result} />
         </motion.div>
 
-        {/* Top stat row */}
+        {/* ============================================================ */}
+        {/* Section: Overview — risk / severity / performance            */}
+        {/* ============================================================ */}
         <motion.div
-          className="grid grid-cols-1 md:grid-cols-3 gap-4"
+          className="space-y-3"
           initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.1 }}
         >
-          <RiskScoreCard score={result.risk_score} level={result.risk_level} />
-          <SeverityBreakdownCard
-            breakdown={result.severity_breakdown}
-            actionable={result.actionable_findings}
-            total={result.total_findings}
+          <SectionHeader
+            icon={BarChart3}
+            title="Overview"
+            subtitle="Risk score, severity breakdown, and scan-run performance."
+            accent="#8BFF3E"
           />
-          <PerformanceSummary
-            pagesCrawled={result.pages_crawled}
-            durationSeconds={result.duration_seconds}
-            totalFindings={result.total_findings}
-            scanProfile={scanProfile}
-            externalScriptDomainCount={result.scanner_metadata?.external_script_domain_count as number | undefined}
-          />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <RiskScoreCard score={result.risk_score} level={result.risk_level} />
+            <SeverityBreakdownCard
+              breakdown={result.severity_breakdown}
+              actionable={result.actionable_findings}
+              total={result.total_findings}
+            />
+            <PerformanceSummary
+              pagesCrawled={result.pages_crawled}
+              durationSeconds={result.duration_seconds}
+              totalFindings={result.total_findings}
+              scanProfile={scanProfile}
+              externalScriptDomainCount={result.scanner_metadata?.external_script_domain_count as number | undefined}
+            />
+          </div>
         </motion.div>
 
-        {/* Findings */}
-        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.15 }}>
+        {/* ============================================================ */}
+        {/* Section: Compliance & Standards Coverage                     */}
+        {/* ============================================================ */}
+        <motion.div
+          className="space-y-3"
+          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.12 }}
+        >
+          <SectionHeader
+            icon={Scale}
+            title="Compliance &amp; Standards"
+            subtitle="How findings map to PCI DSS, ISO 27001, SOC 2, HIPAA, OWASP, NIST, and CWE."
+            accent="#a78bfa"
+          />
+          <ComplianceSummary scanResultId={id} />
+        </motion.div>
+
+        {/* ============================================================ */}
+        {/* Section: Threat Intelligence — suspicious external domains   */}
+        {/* ============================================================ */}
+        <motion.div
+          className="space-y-3"
+          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.14 }}
+        >
+          <SectionHeader
+            icon={ShieldAlert}
+            title="Threat Intelligence"
+            subtitle="External domains scored against local classifier and (when enabled) VirusTotal / URLhaus."
+            accent="#f97316"
+          />
+          <ThreatIntelDomainsSection scanResultId={id} />
+        </motion.div>
+
+        {/* ============================================================ */}
+        {/* Section: Findings — the full sortable / filterable table     */}
+        {/* ============================================================ */}
+        <motion.div
+          className="space-y-3"
+          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.16 }}
+        >
+          <SectionHeader
+            icon={AlertCircle}
+            title="Findings"
+            subtitle="All security issues, grouped by type. Click any row to see what it means and how to fix it."
+            accent="#ef4444"
+          />
           <GroupedFindingsTable scanResultId={id} />
         </motion.div>
 
-        {/* Behavioral analysis */}
-        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.2 }}>
+        {/* ============================================================ */}
+        {/* Section: Behavioral Analysis (WADE)                          */}
+        {/* ============================================================ */}
+        <motion.div
+          className="space-y-3"
+          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.18 }}
+        >
+          <SectionHeader
+            icon={Activity}
+            title="Behavioral Analysis"
+            subtitle="WADE baseline-vs-current comparison: what changed since last scan."
+            accent="#4F9CF9"
+          />
           <WADESummary metadata={result.scanner_metadata} />
         </motion.div>
 
-        {/* External domains */}
-        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.22 }}>
+        {/* ============================================================ */}
+        {/* Section: External-Domain Inventory                            */}
+        {/* ============================================================ */}
+        <motion.div
+          className="space-y-3"
+          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.2 }}
+        >
+          <SectionHeader
+            icon={Globe2}
+            title="Third-Party Inventory"
+            subtitle="Every external domain the page touches, grouped by recognised vendor category."
+            accent="#22d3ee"
+          />
           <ExternalDomainsSection
             scriptDomains={(result.scanner_metadata?.external_script_domains as string[] | undefined) ?? []}
             linkDomains={(result.scanner_metadata?.external_domains as string[] | undefined) ?? []}
           />
         </motion.div>
 
-        {/* Engine diagnostics */}
-        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.24 }}>
+        {/* ============================================================ */}
+        {/* Section: Engine Diagnostics                                  */}
+        {/* ============================================================ */}
+        <motion.div
+          className="space-y-3"
+          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.22 }}
+        >
+          <SectionHeader
+            icon={Settings2}
+            title="Engine Diagnostics"
+            subtitle="Per-engine timings, outcomes, and skipped reasons."
+            accent="rgba(255,255,255,0.5)"
+          />
           <EngineDiagnosticsTable scanResultId={id} />
         </motion.div>
 
-        {/* Report downloads */}
-        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.26 }}>
+        {/* ============================================================ */}
+        {/* Section: Reports                                              */}
+        {/* ============================================================ */}
+        <motion.div
+          className="space-y-3"
+          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.24 }}
+        >
+          <SectionHeader
+            icon={Download}
+            title="Reports"
+            subtitle="Download the scan as PDF, JSON, CSV, or SARIF."
+            accent="#8BFF3E"
+          />
           <ReportDownloads scanResultId={id} />
         </motion.div>
       </div>

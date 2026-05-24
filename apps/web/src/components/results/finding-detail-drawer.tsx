@@ -37,8 +37,26 @@ const FRAMEWORK_LABELS: Record<string, string> = {
   cwe_ids: 'CWE',
   nist_controls: 'NIST',
   sans_top25: 'SANS',
-  pci_dss: 'PCI',
+  pci_dss: 'PCI DSS',
+  iso_27001: 'ISO 27001',
+  soc2: 'SOC 2',
+  hipaa: 'HIPAA',
   gdpr: 'GDPR',
+}
+
+const EXPLOITABILITY_STYLE: Record<string, { label: string; cls: string }> = {
+  known_exploited: { label: 'Known Exploited', cls: 'bg-red-500/15 text-red-300 border-red-500/40' },
+  practical:       { label: 'Practical',       cls: 'bg-orange-500/15 text-orange-300 border-orange-500/40' },
+  theoretical:     { label: 'Theoretical',     cls: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/40' },
+  unknown:         { label: 'Exploitability Unknown', cls: 'bg-gray-500/10 text-gray-400 border-gray-500/20' },
+}
+
+function cvssTier(score: number | null | undefined): string {
+  if (score === null || score === undefined) return 'text-gray-400'
+  if (score >= 9.0) return 'text-red-400'
+  if (score >= 7.0) return 'text-orange-400'
+  if (score >= 4.0) return 'text-yellow-400'
+  return 'text-blue-400'
 }
 
 interface FindingDetailDrawerProps {
@@ -108,8 +126,16 @@ export function FindingDetailDrawer({ finding, scanResultId, onClose }: FindingD
   const sampleEvidence = detail?.sample_evidence ?? []
   const frameworks = active.framework ?? {}
   const frameworkEntries = Object.entries(frameworks).filter(
-    ([, v]) => Array.isArray(v) && v.length > 0,
-  )
+    ([k, v]) =>
+      Array.isArray(v) && v.length > 0 &&
+      !['cvss_vector', 'cvss_score', 'exploitability'].includes(k),
+  ) as [string, string[]][]
+  const cvssScore = (frameworks.cvss_score as number | null | undefined) ?? null
+  const cvssVector = (frameworks.cvss_vector as string | null | undefined) ?? null
+  const exploit = (frameworks.exploitability as string | null | undefined) ?? null
+  const exploitCfg = exploit ? EXPLOITABILITY_STYLE[exploit] : null
+  const hasEnterpriseMeta = cvssScore !== null || cvssVector !== null || exploit !== null
+    || frameworkEntries.length > 0
 
   return (
     <>
@@ -258,13 +284,57 @@ export function FindingDetailDrawer({ finding, scanResultId, onClose }: FindingD
             </section>
           )}
 
+          {/* CVSS + Exploitability block */}
+          {(cvssScore !== null || exploit !== null) && (
+            <section>
+              <div className="flex items-center gap-2 mb-2">
+                <Code2 className="w-3.5 h-3.5 text-gray-400" />
+                <h3 className="text-xs font-medium text-gray-300 uppercase tracking-wider">
+                  Risk Metrics
+                </h3>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {cvssScore !== null && (
+                  <div className="bg-app-card rounded-lg p-3">
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">CVSS v3.1</p>
+                    <p className={cn('text-2xl font-mono font-bold leading-none', cvssTier(cvssScore))}>
+                      {cvssScore.toFixed(1)}
+                    </p>
+                    {cvssVector && (
+                      <p className="text-[9px] font-mono text-gray-500 mt-1.5 break-all leading-snug">
+                        {cvssVector}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {exploitCfg && (
+                  <div className="bg-app-card rounded-lg p-3">
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Exploitability</p>
+                    <Badge className={cn('text-[11px] font-semibold', exploitCfg.cls)}>
+                      {exploitCfg.label}
+                    </Badge>
+                    <p className="text-[10px] text-gray-500 mt-2 leading-snug">
+                      {exploit === 'known_exploited'
+                        ? 'Working exploits exist in the wild.'
+                        : exploit === 'practical'
+                          ? 'Exploitable with standard offensive tooling.'
+                          : exploit === 'theoretical'
+                            ? 'Conceivable attack path; no known working exploit.'
+                            : 'No exploitability assessment available.'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
           {/* Framework mappings */}
           {frameworkEntries.length > 0 && (
             <section>
               <div className="flex items-center gap-2 mb-2">
                 <Code2 className="w-3.5 h-3.5 text-gray-400" />
                 <h3 className="text-xs font-medium text-gray-300 uppercase tracking-wider">
-                  Compliance Mappings
+                  Compliance &amp; Standards
                 </h3>
               </div>
               <div className="space-y-1.5">
@@ -272,7 +342,7 @@ export function FindingDetailDrawer({ finding, scanResultId, onClose }: FindingD
                   const label = FRAMEWORK_LABELS[key] ?? key.toUpperCase().replace(/_/g, ' ')
                   return (
                     <div key={key} className="flex items-start gap-3 bg-app-card rounded-lg px-3 py-2">
-                      <span className="text-[10px] font-mono text-gray-500 w-12 flex-shrink-0 mt-0.5 uppercase">
+                      <span className="text-[10px] font-mono text-gray-500 w-16 flex-shrink-0 mt-0.5 uppercase">
                         {label}
                       </span>
                       <div className="flex flex-wrap gap-1">
@@ -293,7 +363,7 @@ export function FindingDetailDrawer({ finding, scanResultId, onClose }: FindingD
           )}
 
           {/* Empty state when detail loaded but nothing extra to show */}
-          {!loadingDetail && !description && sampleEvidence.length === 0 && frameworkEntries.length === 0 && !finding.remediation && !finding.affected_urls?.length && (
+          {!loadingDetail && !description && sampleEvidence.length === 0 && !hasEnterpriseMeta && !finding.remediation && !finding.affected_urls?.length && (
             <p className="text-xs text-gray-600 text-center py-4">
               No additional detail available for this finding.
             </p>

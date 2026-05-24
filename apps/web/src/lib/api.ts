@@ -186,6 +186,22 @@ export interface ScanResultDetail {
   website: WebsiteSummaryInResult
 }
 
+export interface FrameworkAlignmentPayload {
+  owasp_top10?: string[]
+  cwe_ids?: string[]
+  nist_controls?: string[]
+  sans_top25?: string[]
+  pci_dss?: string[]
+  iso_27001?: string[]
+  soc2?: string[]
+  hipaa?: string[]
+  gdpr?: string[]
+  cvss_vector?: string | null
+  cvss_score?: number | null
+  exploitability?: string | null
+  [key: string]: unknown
+}
+
 export interface GroupedFindingResponse {
   id: string
   title: string
@@ -198,7 +214,7 @@ export interface GroupedFindingResponse {
   confidence: number | null
   description: string | null
   remediation: string | null
-  framework: Record<string, string[]> | null
+  framework: FrameworkAlignmentPayload | null
   finding_ids: string[] | null
   created_at: string
 }
@@ -226,7 +242,7 @@ export interface FindingResponse {
   description: string | null
   remediation: string | null
   evidence: unknown[] | null
-  framework: Record<string, string[]> | null
+  framework: FrameworkAlignmentPayload | null
   created_at: string
 }
 

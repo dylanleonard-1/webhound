@@ -34,6 +34,13 @@ class DnsRecords:
         txt: TXT records for the domain itself.
         ns: NS records (nameserver hostnames).
         dmarc_txt: TXT records at ``_dmarc.{domain}``.
+        caa: CAA records — controls which CAs may issue certs for the domain.
+        dnskey: DNSKEY records — presence indicates DNSSEC signing.
+        mta_sts_txt: TXT records at ``_mta-sts.{domain}``.
+        tls_rpt_txt: TXT records at ``_smtp._tls.{domain}``.
+        dkim_selectors_seen: List of selectors (e.g. "google", "default")
+            for which we found a non-empty DKIM TXT record at
+            ``{selector}._domainkey.{domain}``.
         resolution_error: Set if no A/AAAA/CNAME could be resolved.
     """
 
@@ -46,6 +53,13 @@ class DnsRecords:
     txt: list[str] = field(default_factory=list)
     ns: list[str] = field(default_factory=list)
     dmarc_txt: list[str] = field(default_factory=list)
+
+    # Extended record types
+    caa: list[str] = field(default_factory=list)
+    dnskey: list[str] = field(default_factory=list)
+    mta_sts_txt: list[str] = field(default_factory=list)
+    tls_rpt_txt: list[str] = field(default_factory=list)
+    dkim_selectors_seen: list[str] = field(default_factory=list)
 
     resolution_error: str | None = None
 
@@ -60,6 +74,18 @@ class DnsRecords:
     @property
     def has_dmarc(self) -> bool:
         return any(r.strip('"').lower().startswith("v=dmarc1") for r in self.dmarc_txt)
+
+    @property
+    def has_dnssec(self) -> bool:
+        return bool(self.dnskey)
+
+    @property
+    def has_mta_sts(self) -> bool:
+        return any(r.strip('"').lower().startswith("v=stsv1") for r in self.mta_sts_txt)
+
+    @property
+    def has_tls_rpt(self) -> bool:
+        return any(r.strip('"').lower().startswith("v=tlsrptv1") for r in self.tls_rpt_txt)
 
 
 def resolve_dns(domain: str, timeout: float = 5.0) -> DnsRecords:
@@ -100,12 +126,82 @@ def resolve_dns(domain: str, timeout: float = 5.0) -> DnsRecords:
     records.ns = _query(domain, "NS")
     records.dmarc_txt = _query(f"_dmarc.{domain}", "TXT")
 
+    # Extended records — DNSSEC, CAA, mail-TLS policy
+    records.caa = _query(domain, "CAA")
+    records.dnskey = _query(domain, "DNSKEY")
+    records.mta_sts_txt = _query(f"_mta-sts.{domain}", "TXT")
+    records.tls_rpt_txt = _query(f"_smtp._tls.{domain}", "TXT")
+
+    # DKIM: we don't know the selector, but we can probe the well-known
+    # selectors used by major mail providers. Anything non-empty proves
+    # at least one provider is configured.
+    for selector in _COMMON_DKIM_SELECTORS:
+        if _query(f"{selector}._domainkey.{domain}", "TXT"):
+            records.dkim_selectors_seen.append(selector)
+
     if not records.has_a_or_aaaa and not records.cname:
         records.resolution_error = (
             f"No A, AAAA, or CNAME records found for '{domain}'"
         )
 
     return records
+
+
+# Common DKIM selectors used by major mail providers. Probing every conceivable
+# selector would take forever, so we restrict to a curated list. The order
+# matters only for the "first match wins" early-exit in the test.
+_COMMON_DKIM_SELECTORS: tuple[str, ...] = (
+    "google",           # Google Workspace
+    "selector1",        # Microsoft 365
+    "selector2",        # Microsoft 365 (rotation)
+    "mailo",            # Microsoft 365 (alternate)
+    "default",          # generic
+    "mail",             # generic
+    "k1",               # MailChimp / Mandrill / various
+    "k2",               # MailChimp rotation
+    "s1",               # SendGrid
+    "s2",               # SendGrid rotation
+    "amazonses",        # SES
+    "scph0124",         # CleverReach / SparkPost (date-based)
+    "pm",               # Postmark
+    "mta1", "mta2",     # Postmark / Mandrill
+    "dkim",             # generic
+    "fdkim1",           # Fastmail
+)
+
+# Subdomain-takeover candidate targets — CNAME tails that, if the underlying
+# service was deprovisioned, an attacker could re-register. Each entry is a
+# (domain_suffix, vendor_name) pair so we can name the risk in the finding.
+_TAKEOVER_CANDIDATES: tuple[tuple[str, str], ...] = (
+    (".herokudns.com",       "Heroku"),
+    (".herokuapp.com",       "Heroku"),
+    (".s3.amazonaws.com",    "AWS S3"),
+    (".s3-website",          "AWS S3"),
+    (".cloudfront.net",      "AWS CloudFront"),
+    (".github.io",           "GitHub Pages"),
+    (".azurewebsites.net",   "Azure App Service"),
+    (".trafficmanager.net",  "Azure Traffic Manager"),
+    (".cloudapp.azure.com",  "Azure Cloud Services"),
+    (".pantheonsite.io",     "Pantheon"),
+    (".myshopify.com",       "Shopify"),
+    (".tumblr.com",          "Tumblr"),
+    (".wordpress.com",       "WordPress.com"),
+    (".surge.sh",             "Surge.sh"),
+    (".netlify.app",         "Netlify"),
+    (".netlify.com",         "Netlify"),
+    (".vercel.app",          "Vercel"),
+    (".readthedocs.io",      "Read the Docs"),
+    (".helpjuice.com",       "Helpjuice"),
+    (".helpscoutdocs.com",   "Help Scout Docs"),
+    (".uservoice.com",       "UserVoice"),
+    (".zendesk.com",         "Zendesk"),
+    (".freshdesk.com",       "Freshdesk"),
+    (".tictail.com",         "Tictail (defunct)"),
+    (".campaignmonitor.com", "Campaign Monitor"),
+    (".tilda.ws",            "Tilda"),
+    (".strikinglydns.com",   "Strikingly"),
+    (".webflow.io",          "Webflow"),
+)
 
 
 def _stdlib_resolve(domain: str, timeout: float) -> DnsRecords:
@@ -144,9 +240,14 @@ class DnsCheckerEngine:
         findings.extend(self._check_spf_missing(records, url))
         findings.extend(self._check_spf_risky(records, url))
         findings.extend(self._check_dmarc_missing(records, url))
+        findings.extend(self._check_dkim_missing(records, url))
         findings.extend(self._check_mx_missing(records, url))
         findings.extend(self._check_ns_count(records, url))
         findings.extend(self._check_cname_chain(records, url))
+        findings.extend(self._check_dnssec(records, url))
+        findings.extend(self._check_caa(records, url))
+        findings.extend(self._check_mta_sts(records, url))
+        findings.extend(self._check_takeover_candidates(records, url))
 
         return findings
 
@@ -388,6 +489,52 @@ class DnsCheckerEngine:
         )]
 
     # ------------------------------------------------------------------
+    # DKIM (best-effort selector probing)
+    # ------------------------------------------------------------------
+
+    def _check_dkim_missing(self, records: DnsRecords, url: str) -> list[Finding]:
+        # Only flag if the domain sends email (has MX records) AND we didn't
+        # find DKIM at any of the common selectors. False negatives are
+        # possible — the org might use a custom selector we don't probe.
+        if records.resolution_error or not records.mx:
+            return []
+        if records.dkim_selectors_seen:
+            return []
+        ev = _dns_ev(
+            "DKIM",
+            f"No DKIM TXT record found at any of {len(_COMMON_DKIM_SELECTORS)} common selectors",
+            url,
+        )
+        return [_finding(
+            title=f"No DKIM signature found for {records.domain}",
+            description=(
+                "DKIM puts a cryptographic signature on every outgoing email so "
+                "receiving servers can verify it really came from you. We checked the "
+                "well-known selectors used by Google Workspace, Microsoft 365, SendGrid, "
+                "and similar providers and didn't find any. Your mail may pass SPF but "
+                "still get filtered as spam by stricter receivers, and a strict DMARC "
+                "policy will reject it outright."
+            ),
+            severity=Severity.MEDIUM,
+            url=url,
+            evidence=ev,
+            confidence=0.65,  # we only probe common selectors
+            remediation=(
+                "Set up DKIM at your email provider:\n"
+                "  - Google Workspace: Apps -> Google Workspace -> Gmail -> Authenticate email.\n"
+                "  - Microsoft 365: Security -> Email & collaboration -> DKIM.\n"
+                "  - SendGrid / Postmark / etc: their docs walk through CNAME setup.\n"
+                "If you use a less-common selector and DKIM is actually configured, this "
+                "finding is a false negative — let us know."
+            ),
+            framework=FrameworkAlignment(
+                owasp_top10=["A05:2021"],
+                cwe_ids=["CWE-290"],
+                nist_controls=["SC-20", "SI-8"],
+            ),
+        )]
+
+    # ------------------------------------------------------------------
     # CNAME chain depth
     # ------------------------------------------------------------------
 
@@ -421,6 +568,173 @@ class DnsCheckerEngine:
                 owasp_top10=["A05:2021"],
                 cwe_ids=["CWE-350"],
                 nist_controls=["SC-20"],
+            ),
+        )]
+
+
+    # ------------------------------------------------------------------
+    # DNSSEC
+    # ------------------------------------------------------------------
+
+    def _check_dnssec(self, records: DnsRecords, url: str) -> list[Finding]:
+        if records.resolution_error or records.has_dnssec:
+            return []
+        ev = _dns_ev("DNSKEY", "No DNSKEY record found", url)
+        return [_finding(
+            title=f"DNSSEC isn't enabled for {records.domain}",
+            description=(
+                "DNSSEC cryptographically signs your DNS records so that resolvers can "
+                "verify they haven't been tampered with in transit. Without it, attackers "
+                "controlling any network between visitors and your DNS provider can "
+                "redirect traffic by spoofing DNS responses — a class of attack called "
+                "DNS cache poisoning."
+            ),
+            severity=Severity.LOW,
+            url=url,
+            evidence=ev,
+            confidence=0.85,
+            remediation=(
+                "Most modern DNS providers (Cloudflare, Route 53, NS1, DNSimple) offer "
+                "one-click DNSSEC. After enabling it at the provider, add the DS record "
+                "they generate to your registrar so the chain of trust is complete. "
+                "Verify with: dig +dnssec @8.8.8.8 yourdomain.com"
+            ),
+            framework=FrameworkAlignment(
+                owasp_top10=["A02:2021"],
+                cwe_ids=["CWE-345"],
+                nist_controls=["SC-20", "SC-21"],
+            ),
+        )]
+
+    # ------------------------------------------------------------------
+    # CAA records
+    # ------------------------------------------------------------------
+
+    def _check_caa(self, records: DnsRecords, url: str) -> list[Finding]:
+        if records.resolution_error or records.caa:
+            return []
+        ev = _dns_ev("CAA", "No CAA record found", url)
+        return [_finding(
+            title=f"No CAA record — any CA can issue certificates for {records.domain}",
+            description=(
+                "A CAA (Certification Authority Authorization) record tells the world "
+                "which certificate authorities are allowed to issue certificates for "
+                "your domain. Without one, any CA on the planet can issue a cert for "
+                "your name — including a compromised or malicious CA. CAA is a "
+                "PCI DSS 4.0 requirement and standard practice for any production domain."
+            ),
+            severity=Severity.LOW,
+            url=url,
+            evidence=ev,
+            remediation=(
+                "Publish a CAA record listing only the CA(s) you actually use. Examples:\n"
+                "  yourdomain.com.  CAA  0 issue \"letsencrypt.org\"\n"
+                "  yourdomain.com.  CAA  0 issuewild \";\"   # block wildcard issuance\n"
+                "  yourdomain.com.  CAA  0 iodef \"mailto:security@yourdomain.com\"\n"
+                "Cloudflare, Google Workspace, and most managed DNS providers expose "
+                "this in the UI."
+            ),
+            framework=FrameworkAlignment(
+                owasp_top10=["A02:2021"],
+                cwe_ids=["CWE-295"],
+                nist_controls=["SC-17"],
+            ),
+        )]
+
+    # ------------------------------------------------------------------
+    # MTA-STS / TLS-RPT
+    # ------------------------------------------------------------------
+
+    def _check_mta_sts(self, records: DnsRecords, url: str) -> list[Finding]:
+        # Only relevant for domains that receive mail.
+        if records.resolution_error or not records.mx:
+            return []
+        # Only flag if neither MTA-STS nor TLS-RPT is published.
+        if records.has_mta_sts or records.has_tls_rpt:
+            return []
+        ev = _dns_ev(
+            "MTA-STS",
+            "No MTA-STS (_mta-sts.{domain}) or TLS-RPT (_smtp._tls.{domain}) records",
+            url,
+        )
+        return [_finding(
+            title=f"No mail-transport encryption policy ({records.domain})",
+            description=(
+                "MTA-STS tells other mail servers that they must use TLS when delivering "
+                "to you, and TLS-RPT collects reports when TLS fails. Without either, "
+                "mail to your domain can be downgraded to plain text by a network attacker "
+                "between sender and your MX, and you'd never know."
+            ),
+            severity=Severity.LOW,
+            url=url,
+            evidence=ev,
+            confidence=0.85,
+            remediation=(
+                f"Publish a TXT record at `_mta-sts.{records.domain}`:\n"
+                "  v=STSv1; id=20260101\n"
+                f"Host a policy file at https://mta-sts.{records.domain}/.well-known/mta-sts.txt:\n"
+                f"  version: STSv1\n  mode: testing\n  mx: *.{records.domain}\n  max_age: 86400\n"
+                f"And add a TLS-RPT record at `_smtp._tls.{records.domain}`:\n"
+                f"  v=TLSRPTv1; rua=mailto:tlsrpt@{records.domain}\n"
+                "Start with mode=testing for two weeks before switching to enforce."
+            ),
+            framework=FrameworkAlignment(
+                owasp_top10=["A02:2021"],
+                cwe_ids=["CWE-319"],
+                nist_controls=["SC-8", "SC-20"],
+            ),
+        )]
+
+    # ------------------------------------------------------------------
+    # Subdomain takeover candidates
+    # ------------------------------------------------------------------
+
+    def _check_takeover_candidates(self, records: DnsRecords, url: str) -> list[Finding]:
+        # The classic dangling-CNAME pattern: CNAME points to a SaaS / hosting
+        # service, but the service-side name doesn't exist anymore. Detection:
+        # the resolver returned a CNAME chain that ends at one of our known
+        # takeover-candidate suffixes, AND the final A/AAAA lookup failed
+        # (resolution_error set).
+        if not records.cname or not records.resolution_error:
+            return []
+        # Find the deepest CNAME target (last in chain).
+        tail = records.cname[-1].rstrip(".")
+        matched_vendor: str | None = None
+        for suffix, vendor in _TAKEOVER_CANDIDATES:
+            if tail.lower().endswith(suffix):
+                matched_vendor = vendor
+                break
+        if matched_vendor is None:
+            return []
+        ev = _dns_ev(
+            "CNAME",
+            f"CNAME for {records.domain} points to {tail} but does not resolve",
+            url,
+        )
+        return [_finding(
+            title=f"Subdomain takeover risk: orphan CNAME to {matched_vendor}",
+            description=(
+                f"`{records.domain}` has a CNAME pointing at `{tail}`, which is on "
+                f"{matched_vendor}'s service domain — but the name doesn't resolve "
+                "anymore, meaning the underlying app / bucket / page was probably "
+                f"deleted. An attacker can register the same name on {matched_vendor} "
+                f"and immediately receive all traffic to `{records.domain}`, complete "
+                "with valid TLS via the vendor's edge."
+            ),
+            severity=Severity.HIGH,
+            url=url,
+            evidence=ev,
+            confidence=0.85,
+            remediation=(
+                f"Either: re-provision the resource on {matched_vendor} so the CNAME "
+                f"target exists again, OR delete the orphan CNAME at your DNS provider "
+                f"if you no longer use {matched_vendor}. Treat this as urgent — these "
+                "takeovers are typically claimed within hours by automated tooling."
+            ),
+            framework=FrameworkAlignment(
+                owasp_top10=["A05:2021"],
+                cwe_ids=["CWE-350"],
+                nist_controls=["SC-20", "CM-7"],
             ),
         )]
 

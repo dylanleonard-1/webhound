@@ -7,8 +7,10 @@
 
 from __future__ import annotations
 
+import shutil
 import socket
 import ssl
+import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
@@ -128,6 +130,17 @@ class TlsCertInfo:
     supports_tls_1_0: bool = False
     supports_tls_1_1: bool = False
 
+    # OCSP stapling state — set by probe_tls via an openssl s_client subprocess.
+    # `None` means we couldn't determine (openssl not on PATH, host unreachable, etc).
+    ocsp_stapled: bool | None = None
+
+    # Weak-cipher acceptance — separate handshakes restrict the offered cipher
+    # suite to known-weak families. True if the server completes the handshake.
+    accepts_rc4: bool = False
+    accepts_3des: bool = False
+    accepts_null_cipher: bool = False
+    accepts_export_grade: bool = False
+
     is_self_signed: bool = False
     is_expired: bool = False
     is_not_yet_valid: bool = False
@@ -214,7 +227,114 @@ def probe_tls(domain: str, port: int = 443, timeout: float = 10.0) -> TlsCertInf
         info.supports_tls_1_0 = _probe_protocol_supported(domain, port, ssl.TLSVersion.TLSv1,   timeout=3.0)
         info.supports_tls_1_1 = _probe_protocol_supported(domain, port, ssl.TLSVersion.TLSv1_1, timeout=3.0)
 
+        # OCSP stapling check — uses openssl s_client because Python's stdlib
+        # `ssl` module doesn't surface the stapled response.
+        info.ocsp_stapled = _probe_ocsp_stapling(domain, port, timeout=5.0)
+
+        # Weak-cipher enumeration: each handshake restricts the cipher list to
+        # a known-weak family. If the server completes any of them, it accepts
+        # that family.
+        info.accepts_rc4         = _probe_cipher_family(domain, port, "RC4",         timeout=3.0)
+        info.accepts_3des        = _probe_cipher_family(domain, port, "3DES:DES",    timeout=3.0)
+        info.accepts_null_cipher = _probe_cipher_family(domain, port, "NULL:eNULL",  timeout=3.0)
+        info.accepts_export_grade= _probe_cipher_family(domain, port, "EXPORT:LOW",  timeout=3.0)
+
     return info
+
+
+def _probe_ocsp_stapling(domain: str, port: int, *, timeout: float) -> bool | None:
+    """Detect OCSP stapling by running openssl s_client -status.
+
+    Returns:
+      True  — handshake carried a valid OCSP staple
+      False — handshake completed but no staple was attached
+      None  — could not determine (openssl missing, connection failed, etc)
+
+    This is a one-shot subprocess: we send a single newline to close stdin so
+    s_client exits after the handshake instead of waiting for HTTP.
+    """
+    openssl = shutil.which("openssl")
+    if not openssl:
+        return None
+    try:
+        result = subprocess.run(
+            [
+                openssl, "s_client",
+                "-connect", f"{domain}:{port}",
+                "-servername", domain,
+                "-status",
+            ],
+            input=b"\n",
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    stdout = result.stdout.decode("utf-8", errors="replace")
+    if not stdout:
+        return None
+    # The status section starts with "OCSP response:" — there are three cases:
+    #   "OCSP response: no response sent"           → no staple
+    #   "OCSP response: \n======================...\nOCSP Response Status: successful" → stapled
+    #   absent entirely                              → couldn't tell
+    if "OCSP response: no response sent" in stdout:
+        return False
+    if "OCSP Response Status: successful" in stdout:
+        return True
+    return None
+
+
+# Mapping of weak cipher family → OpenSSL cipher list string.
+# Each family is exclusive: setting `-cipher RC4` forces the client to offer
+# only RC4-based suites. If the server accepts, it supports RC4.
+def _probe_cipher_family(domain: str, port: int, cipher_spec: str, *, timeout: float) -> bool:
+    """Return True if the server completes a handshake restricted to the given
+    OpenSSL cipher spec (e.g. "RC4", "3DES:DES", "NULL:eNULL", "EXPORT:LOW").
+
+    Uses openssl s_client because Python's stdlib only exposes the modern,
+    safe cipher list — `ctx.set_ciphers("RC4")` raises on most builds.
+    """
+    openssl = shutil.which("openssl")
+    if not openssl:
+        return False
+    try:
+        # `-cipher` for TLS 1.2 and below; `-ciphersuites` would be for 1.3.
+        # We deliberately don't pass -tls1_3 — weak ciphers exist only in older
+        # versions, so a 1.3-only server should refuse and we'd correctly
+        # return False.
+        result = subprocess.run(
+            [
+                openssl, "s_client",
+                "-connect", f"{domain}:{port}",
+                "-servername", domain,
+                "-cipher", cipher_spec,
+                "-tls1_2",
+            ],
+            input=b"\n",
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+    stderr = result.stderr.decode("utf-8", errors="replace")
+    stdout = result.stdout.decode("utf-8", errors="replace")
+    # Successful handshake includes a "Cipher    : XYZ" line in stdout with a
+    # non-zero cipher name. Failure prints a "no ciphers available" or
+    # "handshake failure" error in stderr.
+    if "no cipher match" in stderr.lower() or "no ciphers available" in stderr.lower():
+        return False
+    if "handshake failure" in stderr.lower() or "alert handshake failure" in stdout.lower():
+        return False
+    # Look for an actual negotiated cipher line.
+    for line in stdout.splitlines():
+        line = line.strip()
+        if line.startswith("Cipher") and ":" in line:
+            value = line.split(":", 1)[1].strip()
+            if value and value not in ("0000", "(NONE)", "0x00"):
+                return True
+    return False
 
 
 def _probe_protocol_supported(
@@ -297,8 +417,8 @@ class TlsCheckerEngine:
         findings.extend(self._check_legacy_protocol_supported(cert_info, url))
         findings.extend(self._check_weak_key(cert_info, url))
         findings.extend(self._check_weak_signature(cert_info, url))
-        # OCSP stapling detection is gated until we can reliably detect it
-        # from the handshake — see _check_ocsp_stapling for the limitation.
+        findings.extend(self._check_ocsp_stapling(cert_info, url))
+        findings.extend(self._check_weak_ciphers(cert_info, url))
         findings.extend(
             self._check_https_redirect(cert_info, response_url, redirect_chain)
         )
@@ -659,14 +779,102 @@ class TlsCheckerEngine:
         )]
 
     # ------------------------------------------------------------------
-    # OCSP stapling (disabled — see note)
+    # OCSP stapling — real detection via openssl s_client subprocess.
     # ------------------------------------------------------------------
-    # Python's stdlib `ssl` module doesn't expose whether the handshake
-    # carried a stapled OCSP response. Until we add a reliable detection
-    # path (cryptography.x509.ocsp parsing of the TLS CertificateStatus
-    # extension, or an openssl s_client -status subprocess), we don't
-    # fire — better to omit the check than to surface a false-positive on
-    # every site. Method removed.
+
+    def _check_ocsp_stapling(self, cert_info: TlsCertInfo, url: str) -> list[Finding]:
+        # Skip when there's nothing to staple (no successful handshake) or
+        # when we couldn't determine state (openssl missing, etc).
+        if cert_info.connection_failed or cert_info.is_self_signed or cert_info.is_expired:
+            return []
+        if cert_info.ocsp_stapled is None or cert_info.ocsp_stapled is True:
+            return []
+        ev = _cert_ev(cert_info, url, "OCSP staple absent from TLS handshake (verified via openssl s_client -status)")
+        return [_finding(
+            title="OCSP stapling isn't enabled",
+            description=(
+                "Your server isn't attaching its OCSP response — the proof that "
+                "the certificate hasn't been revoked — to the TLS handshake. "
+                "Without stapling, each visitor's browser must contact your CA's "
+                "OCSP server itself, which slows page loads and leaks browsing "
+                "patterns to the CA."
+            ),
+            severity=Severity.LOW,
+            url=url,
+            evidence=ev,
+            confidence=0.95,
+            remediation=(
+                "Enable OCSP stapling at your server. Examples:\n"
+                "  nginx:  ssl_stapling on; ssl_stapling_verify on;\n"
+                "  Apache: SSLUseStapling on; SSLStaplingCache shmcb:logs/stapling-cache(128000);\n"
+                "  Cloudflare / Fastly / Vercel: enabled by default — no action needed.\n"
+                "Verify with: openssl s_client -connect host:443 -status"
+            ),
+            framework=FrameworkAlignment(
+                owasp_top10=["A02:2021"],
+                cwe_ids=["CWE-299"],
+                nist_controls=["SC-23"],
+                cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N",
+                cvss_score=2.6,
+                pci_dss=["4.2.1"],
+                iso_27001=["A.8.24"],
+                soc2=["CC6.7"],
+                exploitability=Exploitability.THEORETICAL,
+            ),
+        )]
+
+    # ------------------------------------------------------------------
+    # Weak cipher acceptance — server agrees to negotiate broken ciphers.
+    # ------------------------------------------------------------------
+
+    def _check_weak_ciphers(self, cert_info: TlsCertInfo, url: str) -> list[Finding]:
+        accepted: list[str] = []
+        if cert_info.accepts_rc4:          accepted.append("RC4")
+        if cert_info.accepts_3des:         accepted.append("3DES")
+        if cert_info.accepts_null_cipher:  accepted.append("NULL (no encryption)")
+        if cert_info.accepts_export_grade: accepted.append("EXPORT-grade (FREAK-vulnerable)")
+        if not accepted:
+            return []
+        ev = _cert_ev(
+            cert_info, url,
+            f"Server accepts handshakes with weak cipher families: {', '.join(accepted)}",
+        )
+        return [_finding(
+            title=f"Server accepts broken cipher suites ({', '.join(accepted)})",
+            description=(
+                f"Your TLS server still agrees to negotiate {', '.join(accepted)} "
+                "cipher suites. These have known cryptographic weaknesses with "
+                "public attacks (Bar Mitzvah / Invariance for RC4, SWEET32 for "
+                "3DES, FREAK for EXPORT). Modern browsers refuse them, but "
+                "older clients and downgrade-style attackers can force them, "
+                "exposing the session to decryption."
+            ),
+            severity=Severity.HIGH,
+            url=url,
+            evidence=ev,
+            confidence=0.95,
+            remediation=(
+                "Disable these cipher families on your server. Modern OpenSSL "
+                "cipher-string defaults (`HIGH:!aNULL:!MD5:!3DES:!RC4:!EXPORT`) "
+                "or the Mozilla 'intermediate' configuration both drop all of "
+                "the above. Examples:\n"
+                "  nginx:  ssl_ciphers 'ECDHE+AESGCM:ECDHE+CHACHA20:!RC4:!3DES';\n"
+                "  Apache: SSLCipherSuite HIGH:!aNULL:!MD5:!3DES:!RC4:!EXPORT\n"
+                "  Cloudflare / AWS ELB / Azure: change the security policy to "
+                "the strictest available."
+            ),
+            framework=FrameworkAlignment(
+                owasp_top10=["A02:2021"],
+                cwe_ids=["CWE-326", "CWE-327"],
+                nist_controls=["SC-8", "SC-13"],
+                cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N",
+                cvss_score=7.4,
+                pci_dss=["4.2.1.1"],
+                iso_27001=["A.8.24"],
+                soc2=["CC6.7"],
+                exploitability=Exploitability.KNOWN_EXPLOITED,
+            ),
+        )]
 
     # ------------------------------------------------------------------
     # HTTP → HTTPS redirect

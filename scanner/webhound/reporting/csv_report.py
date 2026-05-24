@@ -29,8 +29,19 @@ GROUPED_HEADERS: list[str] = [
     "confidence",
     "remediation",
     "evidence_count",
+    # OWASP / CWE / NIST
     "owasp_top10",
     "cwe_ids",
+    "nist_controls",
+    # Compliance framework refs
+    "pci_dss",
+    "iso_27001",
+    "soc2",
+    "hipaa",
+    # CVSS + exploitability
+    "cvss_score",
+    "cvss_vector",
+    "exploitability",
     "status",
 ]
 
@@ -46,6 +57,14 @@ RAW_HEADERS: list[str] = [
     "evidence_count",
     "owasp_top10",
     "cwe_ids",
+    "nist_controls",
+    "pci_dss",
+    "iso_27001",
+    "soc2",
+    "hipaa",
+    "cvss_score",
+    "cvss_vector",
+    "exploitability",
 ]
 
 
@@ -87,6 +106,7 @@ class CsvReport:
         writer.writeheader()
         for gf in result.grouped_findings:
             first_url = gf.affected_urls[0] if gf.affected_urls else ""
+            fa = gf.framework
             writer.writerow({
                 "title": gf.title,
                 "severity": gf.severity.value,
@@ -97,8 +117,16 @@ class CsvReport:
                 "confidence": round(gf.confidence, 4),
                 "remediation": gf.remediation or "",
                 "evidence_count": gf.evidence_count,
-                "owasp_top10": ";".join(gf.framework.owasp_top10),
-                "cwe_ids": ";".join(gf.framework.cwe_ids),
+                "owasp_top10": ";".join(fa.owasp_top10),
+                "cwe_ids": ";".join(fa.cwe_ids),
+                "nist_controls": ";".join(fa.nist_controls),
+                "pci_dss": ";".join(fa.pci_dss),
+                "iso_27001": ";".join(fa.iso_27001),
+                "soc2": ";".join(fa.soc2),
+                "hipaa": ";".join(fa.hipaa),
+                "cvss_score": fa.cvss_score if fa.cvss_score is not None else "",
+                "cvss_vector": fa.cvss_vector or "",
+                "exploitability": fa.exploitability.value if fa.exploitability else "",
                 "status": "active",
             })
 
@@ -112,6 +140,7 @@ class CsvReport:
         writer.writeheader()
         for f in result.active_findings:
             loc = f.evidence[0].location if f.evidence else ""
+            fa = f.framework
             writer.writerow({
                 "title": f.title,
                 "severity": f.severity.value,
@@ -121,6 +150,14 @@ class CsvReport:
                 "confidence": round(f.confidence, 4),
                 "remediation": f.remediation or "",
                 "evidence_count": f.evidence_count,
-                "owasp_top10": ";".join(f.framework.owasp_top10),
-                "cwe_ids": ";".join(f.framework.cwe_ids),
+                "owasp_top10": ";".join(fa.owasp_top10),
+                "cwe_ids": ";".join(fa.cwe_ids),
+                "nist_controls": ";".join(fa.nist_controls),
+                "pci_dss": ";".join(fa.pci_dss),
+                "iso_27001": ";".join(fa.iso_27001),
+                "soc2": ";".join(fa.soc2),
+                "hipaa": ";".join(fa.hipaa),
+                "cvss_score": fa.cvss_score if fa.cvss_score is not None else "",
+                "cvss_vector": fa.cvss_vector or "",
+                "exploitability": fa.exploitability.value if fa.exploitability else "",
             })

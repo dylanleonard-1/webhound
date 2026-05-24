@@ -122,10 +122,10 @@ class MarkdownReport:
                 reverse=True,
             )
             lines.append(
-                "| Title | Severity | Category | Engine | URL | Confidence |"
+                "| Title | Severity | CVSS | Category | Engine | URL | Confidence |"
             )
             lines.append(
-                "|-------|----------|----------|--------|-----|------------|"
+                "|-------|----------|------|----------|--------|-----|------------|"
             )
             for gf in ordered[:_MAX_FINDINGS_TABLE]:
                 url = gf.affected_urls[0] if gf.affected_urls else "—"
@@ -134,9 +134,14 @@ class MarkdownReport:
                     if gf.affected_url_count > 1
                     else ""
                 )
+                cvss = (
+                    f"{gf.framework.cvss_score:.1f}"
+                    if gf.framework.cvss_score is not None else "—"
+                )
                 lines.append(
                     f"| {_esc(gf.title)} "
                     f"| {gf.severity.value.upper()} "
+                    f"| {cvss} "
                     f"| {gf.category.value} "
                     f"| {gf.scanner_engine} "
                     f"| {_esc(url)}{count_note} "
@@ -154,16 +159,21 @@ class MarkdownReport:
                 reverse=True,
             )
             lines.append(
-                "| Title | Severity | Category | Engine | URL | Confidence |"
+                "| Title | Severity | CVSS | Category | Engine | URL | Confidence |"
             )
             lines.append(
-                "|-------|----------|----------|--------|-----|------------|"
+                "|-------|----------|------|----------|--------|-----|------------|"
             )
             for f in ordered_raw[:_MAX_FINDINGS_TABLE]:
                 url = f.evidence[0].location if f.evidence else "—"
+                cvss = (
+                    f"{f.framework.cvss_score:.1f}"
+                    if f.framework.cvss_score is not None else "—"
+                )
                 lines.append(
                     f"| {_esc(f.title)} "
                     f"| {f.severity.value.upper()} "
+                    f"| {cvss} "
                     f"| {f.category.value} "
                     f"| {f.scanner_engine} "
                     f"| {_esc(url)} "
@@ -173,7 +183,53 @@ class MarkdownReport:
             lines.append("*No findings recorded.*")
 
         lines.append("")
+        self._compliance_summary(result, lines)
+        lines.append("")
         lines.append("---")
+
+    def _compliance_summary(self, result: ScanResult, lines: list[str]) -> None:
+        """Per-framework counts of findings — PCI / ISO / SOC / HIPAA."""
+        if not result.grouped_findings:
+            return
+        frameworks = [
+            ("PCI DSS 4.0",  "pci_dss"),
+            ("ISO 27001",    "iso_27001"),
+            ("SOC 2",        "soc2"),
+            ("HIPAA",        "hipaa"),
+            ("OWASP Top 10", "owasp_top10"),
+            ("NIST 800-53",  "nist_controls"),
+        ]
+        rows: list[tuple[str, int, int]] = []  # (label, findings, unique_refs)
+        for label, attr in frameworks:
+            total = 0
+            refs: set[str] = set()
+            for gf in result.grouped_findings:
+                values = getattr(gf.framework, attr, None) or []
+                if values:
+                    total += 1
+                    refs.update(values)
+            if total > 0:
+                rows.append((label, total, len(refs)))
+        if not rows:
+            return
+        known_exploited = sum(
+            1 for gf in result.grouped_findings
+            if gf.framework.exploitability
+            and gf.framework.exploitability.value == "known_exploited"
+        )
+        lines.append("")
+        lines.append("### Compliance &amp; Standards Coverage")
+        lines.append("")
+        lines.append("| Framework | Findings | Unique Refs |")
+        lines.append("|-----------|----------|-------------|")
+        for label, total, refs in rows:
+            lines.append(f"| {label} | {total} | {refs} |")
+        if known_exploited > 0:
+            lines.append("")
+            lines.append(
+                f"**{known_exploited}** finding(s) flagged as "
+                "`KNOWN_EXPLOITED` — working exploits exist in the wild."
+            )
 
     def _recommended_actions(self, result: ScanResult, lines: list[str]) -> None:
         actionable = [

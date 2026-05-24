@@ -92,44 +92,93 @@ def _rule_from_finding(rule_id: str, f: Finding) -> dict[str, Any]:
     return rule
 
 
+def _framework_properties(fa: Any) -> dict[str, Any]:
+    """Flatten a FrameworkAlignment into SARIF result.properties payload.
+
+    SARIF readers (GitHub Code Scanning, Defender) treat result.properties
+    as an open bag, so we emit every non-empty field. Exploitability lives
+    under properties so SIEM/SOAR rules can filter on `known_exploited`.
+    """
+    props: dict[str, Any] = {}
+    if fa.owasp_top10:
+        props["owasp_top10"] = fa.owasp_top10
+    if fa.cwe_ids:
+        props["cwe_ids"] = fa.cwe_ids
+    if fa.nist_controls:
+        props["nist_controls"] = fa.nist_controls
+    if fa.pci_dss:
+        props["pci_dss"] = fa.pci_dss
+    if fa.iso_27001:
+        props["iso_27001"] = fa.iso_27001
+    if fa.soc2:
+        props["soc2"] = fa.soc2
+    if fa.hipaa:
+        props["hipaa"] = fa.hipaa
+    if fa.cvss_vector:
+        # security-severity is SARIF's standard 0-10 numeric scale used by
+        # GitHub Code Scanning to compute the alert severity badge.
+        props["cvss_vector"] = fa.cvss_vector
+    if fa.cvss_score is not None:
+        props["cvss_score"] = fa.cvss_score
+        props["security-severity"] = f"{fa.cvss_score:.1f}"
+    if fa.exploitability:
+        props["exploitability"] = fa.exploitability.value
+    return props
+
+
+def _exploit_tags(fa: Any) -> list[str]:
+    tags: list[str] = []
+    if fa.exploitability and fa.exploitability.value == "known_exploited":
+        tags.append("known-exploited")
+    if fa.cvss_score is not None and fa.cvss_score >= 9.0:
+        tags.append("cvss-critical")
+    return tags
+
+
 def _result_from_grouped(
     rule_id: str, gf: GroupedFinding, url: str
 ) -> dict[str, Any]:
     level = _SARIF_LEVEL.get(gf.severity.value.lower(), "warning")
+    props = {
+        "severity": gf.severity.value,
+        "category": gf.category.value,
+        "confidence": gf.confidence,
+        "engine": gf.scanner_engine,
+        "evidence_count": gf.evidence_count,
+        "affected_url_count": gf.affected_url_count,
+        **_framework_properties(gf.framework),
+    }
+    tags = _exploit_tags(gf.framework)
+    if tags:
+        props["tags"] = tags
     return {
         "ruleId": rule_id,
         "level": level,
         "message": {"text": gf.description},
         "locations": [_location(url)],
-        "properties": {
-            "severity": gf.severity.value,
-            "category": gf.category.value,
-            "confidence": gf.confidence,
-            "engine": gf.scanner_engine,
-            "owasp_top10": gf.framework.owasp_top10,
-            "cwe_ids": gf.framework.cwe_ids,
-            "evidence_count": gf.evidence_count,
-            "affected_url_count": gf.affected_url_count,
-        },
+        "properties": props,
     }
 
 
 def _result_from_finding(rule_id: str, f: Finding, url: str) -> dict[str, Any]:
     level = _SARIF_LEVEL.get(f.severity.value.lower(), "warning")
+    props = {
+        "severity": f.severity.value,
+        "category": f.category.value,
+        "confidence": f.confidence,
+        "engine": f.scanner_engine,
+        "evidence_count": f.evidence_count,
+        **_framework_properties(f.framework),
+    }
+    tags = _exploit_tags(f.framework)
+    if tags:
+        props["tags"] = tags
     return {
         "ruleId": rule_id,
         "level": level,
         "message": {"text": f.description},
         "locations": [_location(url)],
-        "properties": {
-            "severity": f.severity.value,
-            "category": f.category.value,
-            "confidence": f.confidence,
-            "engine": f.scanner_engine,
-            "owasp_top10": f.framework.owasp_top10,
-            "cwe_ids": f.framework.cwe_ids,
-            "evidence_count": f.evidence_count,
-        },
+        "properties": props,
     }
 
 

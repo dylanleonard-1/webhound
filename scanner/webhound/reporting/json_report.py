@@ -96,10 +96,11 @@ class JsonReport:
             }
             if f.remediation:
                 item["remediation"] = f.remediation
-            if f.framework.owasp_top10:
-                item["owasp_top10"] = f.framework.owasp_top10
-            if f.framework.cwe_ids:
-                item["cwe_ids"] = f.framework.cwe_ids
+            # Full framework alignment (OWASP/CWE/NIST + PCI/ISO/SOC/HIPAA
+            # + CVSS vector + score + exploitability). Pydantic emits empty
+            # lists and None for unset fields; the full dump is included so
+            # downstream SIEM ingestion never has to guess at schema.
+            item["framework"] = f.framework.model_dump(mode="json")
             if f.evidence:
                 item["evidence_location"] = f.evidence[0].location
             findings_out.append(item)
@@ -165,10 +166,7 @@ class JsonReport:
                     "evidence_count": gf.evidence_count,
                     "confidence": gf.confidence,
                     "anomaly_score": gf.anomaly_score,
-                    "framework": {
-                        "owasp_top10": gf.framework.owasp_top10,
-                        "cwe_ids": gf.framework.cwe_ids,
-                    },
+                    "framework": gf.framework.model_dump(mode="json"),
                     "finding_ids": gf.finding_ids,
                 }
                 for gf in result.grouped_findings

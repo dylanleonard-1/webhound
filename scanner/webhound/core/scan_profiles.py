@@ -4,8 +4,11 @@
 # All profiles enforce safe-mode constraints:
 #   - GET / HEAD only (no POST, no form submission)
 #   - No JavaScript execution
-#   - No external threat-intel calls
 #   - rate_limit_rps ≤ 2.0 (polite crawling)
+#
+# External threat-intel providers (VirusTotal, URLhaus) are opt-in via
+# env vars (VIRUSTOTAL_API_KEY, ENABLE_URLHAUS=1) and are independent of
+# the profile choice — they apply uniformly to whichever profile is run.
 #
 # Usage::
 #

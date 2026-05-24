@@ -52,6 +52,7 @@ class SecurityHeadersEngine:
         findings.extend(self._check_coop(h, url))
         findings.extend(self._check_coep(h, url))
         findings.extend(self._check_corp(h, url))
+        findings.extend(self._check_xss_protection(h, url))
 
         return findings
 
@@ -402,7 +403,8 @@ class SecurityHeadersEngine:
 
     def _check_permissions(self, h: dict[str, str], url: str) -> list[Finding]:
         pp = h.get("permissions-policy")
-        if not pp:
+        # Treat absent OR empty value as the same thing — both mean "no policy".
+        if not pp or not pp.strip():
             return [_finding(
                 title="No Permissions-Policy — browser features are wide open",
                 description=(
@@ -413,7 +415,7 @@ class SecurityHeadersEngine:
                 ),
                 severity=Severity.INFO,
                 url=url,
-                evidence_content="Permissions-Policy: <not present>",
+                evidence_content=f"Permissions-Policy: {pp!r}" if pp is not None else "Permissions-Policy: <not present>",
                 remediation=(
                     "List the features you don't use and disable them. Example for a typical "
                     "marketing site:\n"
@@ -435,29 +437,42 @@ class SecurityHeadersEngine:
     # finding listing whichever are missing.
 
     def _check_coop(self, h: dict[str, str], url: str) -> list[Finding]:
-        missing: list[str] = []
-        if not h.get("cross-origin-opener-policy"):
-            missing.append("Cross-Origin-Opener-Policy")
-        if not h.get("cross-origin-embedder-policy"):
-            missing.append("Cross-Origin-Embedder-Policy")
-        if not h.get("cross-origin-resource-policy"):
-            missing.append("Cross-Origin-Resource-Policy")
+        # Aggregate over the three cross-origin isolation headers. Validate the
+        # value when present — `unsafe-none` is the lax default and is treated
+        # the same as the header being absent.
+        coop  = (h.get("cross-origin-opener-policy")    or "").strip().lower()
+        coep  = (h.get("cross-origin-embedder-policy")  or "").strip().lower()
+        corp  = (h.get("cross-origin-resource-policy")  or "").strip().lower()
 
-        if len(missing) == 0:
+        problems: list[str] = []
+        # COOP safe: same-origin, same-origin-allow-popups, noopener-allow-popups.
+        # COOP lax/no-op: unsafe-none, empty, absent.
+        if coop in ("", "unsafe-none"):
+            problems.append(f"Cross-Origin-Opener-Policy: {coop or '<not present>'}")
+        # COEP safe: require-corp, credentialless. Lax: unsafe-none / empty.
+        if coep in ("", "unsafe-none"):
+            problems.append(f"Cross-Origin-Embedder-Policy: {coep or '<not present>'}")
+        # CORP safe: same-origin, same-site. cross-origin is permissive but
+        # explicitly required for genuinely public CDN-served assets — don't flag.
+        if corp == "":
+            problems.append(f"Cross-Origin-Resource-Policy: <not present>")
+
+        if not problems:
             return []
 
         return [_finding(
             title="Cross-origin isolation headers not set",
             description=(
-                f"Your site doesn't set {len(missing)} of the 3 cross-origin isolation "
-                "headers. These protect against advanced cross-origin attacks (XS-Leaks, "
-                "Spectre-style side channels) and are required for some browser features "
-                "like SharedArrayBuffer. Most sites that don't use those features can ignore "
-                "this — set them only if you handle sensitive data or need full isolation."
+                f"Your site doesn't set {len(problems)} of the 3 cross-origin isolation "
+                "headers (or they're set to the lax default). These protect against "
+                "advanced cross-origin attacks (XS-Leaks, Spectre-style side channels) "
+                "and are required for some browser features like SharedArrayBuffer. "
+                "Most sites that don't use those features can ignore this — set them "
+                "only if you handle sensitive data or need full isolation."
             ),
             severity=Severity.INFO,
             url=url,
-            evidence_content=", ".join(f"{name}: <not present>" for name in missing),
+            evidence_content="\n".join(problems),
             remediation=(
                 "If you want full cross-origin isolation, add:\n"
                 "  Cross-Origin-Opener-Policy: same-origin\n"
@@ -478,6 +493,45 @@ class SecurityHeadersEngine:
 
     def _check_corp(self, h: dict[str, str], url: str) -> list[Finding]:
         return []
+
+    # ------------------------------------------------------------------
+    # X-XSS-Protection (legacy)
+    # ------------------------------------------------------------------
+
+    def _check_xss_protection(self, h: dict[str, str], url: str) -> list[Finding]:
+        # Modern guidance (OWASP, Chrome, Firefox): set X-XSS-Protection to 0 or
+        # don't set it at all. The legacy `1; mode=block` filter has known XSS
+        # bugs of its own and was removed from Chrome 78 / Edge / Firefox.
+        # We only flag if the site is actively re-enabling it.
+        xss = (h.get("x-xss-protection") or "").strip().lower()
+        if not xss:
+            return []
+        # Anything starting with "0" is fine.
+        if xss.startswith("0"):
+            return []
+        ev = Evidence.http_header("X-XSS-Protection", xss, url, _ENGINE)
+        return [_finding(
+            title="X-XSS-Protection enables a deprecated, vulnerable filter",
+            description=(
+                "Your site sets `X-XSS-Protection: 1`, which turns on a legacy browser XSS "
+                "filter that has been deprecated and removed from modern browsers. The filter "
+                "itself had bugs that introduced new XSS vulnerabilities in the past. Old "
+                "security guides still recommend this header — they're out of date."
+            ),
+            severity=Severity.LOW,
+            url=url,
+            evidence=ev,
+            remediation=(
+                "Either drop the header entirely or explicitly disable the legacy filter:\n"
+                "  X-XSS-Protection: 0\n"
+                "Then rely on Content-Security-Policy for real XSS protection."
+            ),
+            confidence=0.95,
+            framework=FrameworkAlignment(
+                owasp_top10=["A05:2021"],
+                cwe_ids=["CWE-1173"],
+            ),
+        )]
 
 
 # ---------------------------------------------------------------------------

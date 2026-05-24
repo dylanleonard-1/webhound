@@ -234,23 +234,44 @@ def resolve_dns(domain: str, timeout: float = 5.0) -> DnsRecords:
 # Common DKIM selectors used by major mail providers. Probing every conceivable
 # selector would take forever, so we restrict to a curated list. The order
 # matters only for the "first match wins" early-exit in the test.
+#
+# Expanded in gap-close 4: covers Google Workspace, Microsoft 365 (multiple
+# rotation slots), all major ESPs (SendGrid, Mailgun, Postmark, Mailchimp,
+# SES, SparkPost, Klaviyo, HubSpot, Marketo, Salesforce, ActiveCampaign,
+# Constant Contact, ConvertKit, Customer.io), regional providers (Fastmail,
+# ProtonMail, Zoho), plus the generic catch-all conventions.
 _COMMON_DKIM_SELECTORS: tuple[str, ...] = (
-    "google",           # Google Workspace
-    "selector1",        # Microsoft 365
-    "selector2",        # Microsoft 365 (rotation)
-    "mailo",            # Microsoft 365 (alternate)
-    "default",          # generic
-    "mail",             # generic
-    "k1",               # MailChimp / Mandrill / various
-    "k2",               # MailChimp rotation
-    "s1",               # SendGrid
-    "s2",               # SendGrid rotation
-    "amazonses",        # SES
-    "scph0124",         # CleverReach / SparkPost (date-based)
-    "pm",               # Postmark
-    "mta1", "mta2",     # Postmark / Mandrill
-    "dkim",             # generic
-    "fdkim1",           # Fastmail
+    # Google / Microsoft 365 — the two biggest by share
+    "google", "google-mail",
+    "selector1", "selector2",                   # Microsoft 365
+    "mailo",                                    # Microsoft 365 (alternate)
+    # Major ESPs
+    "k1", "k2", "k3",                           # MailChimp / Mandrill rotation
+    "s1", "s2",                                 # SendGrid
+    "scph0124", "scph0125", "scph0224",         # SparkPost (date-based selectors)
+    "pm", "pm1", "pm-bounces",                  # Postmark
+    "mta1", "mta2", "mta3", "mta4",             # Postmark / Mandrill
+    "amazonses",                                # SES
+    "mailgun", "smtpapi",                       # Mailgun / SendGrid v1
+    "selector",                                 # SendinBlue / Brevo
+    "klaviyo1", "klaviyo2",                     # Klaviyo
+    "hs1-12345678",                             # HubSpot pattern stem (won't match exact but catches some)
+    "hs1", "hs2",                               # HubSpot rotation
+    "200608", "200707",                         # Marketo (year-based)
+    "salesforce", "krs",                        # Salesforce / Pardot
+    "ac1", "ac2",                               # ActiveCampaign
+    "cm",                                       # Campaign Monitor
+    "ctct1", "ctct2",                           # Constant Contact
+    "convertkit", "ck1",                        # ConvertKit
+    "customerio", "ci1",                        # Customer.io
+    # Regional / smaller providers
+    "fdkim1",                                   # Fastmail
+    "protonmail", "protonmail2", "protonmail3", # ProtonMail rotation
+    "zoho", "zmail",                            # Zoho
+    "yandex",                                   # Yandex
+    "key1", "key2",                             # generic GoDaddy / shared hosting
+    # Catch-all conventions
+    "default", "mail", "dkim", "mail1", "mail2",
 )
 
 # Subdomain-takeover candidate targets — CNAME tails that, if the underlying

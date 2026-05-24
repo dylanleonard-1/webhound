@@ -230,7 +230,7 @@ class SecurityHeadersEngine:
         findings.extend(self._check_corp(h, url))
         findings.extend(self._check_xss_protection(h, url))
         findings.extend(self._check_info_disclosure(h, url))
-        findings.extend(self._check_cache_control_auth(h, url))
+        findings.extend(self._check_cache_control_auth(h, url, response))
         findings.extend(self._check_legacy_headers(h, url))
 
         return findings
@@ -724,18 +724,22 @@ class SecurityHeadersEngine:
     # Cache-Control on sensitive endpoints
     # ------------------------------------------------------------------
 
-    def _check_cache_control_auth(self, h: dict[str, str], url: str) -> list[Finding]:
-        # Only flag if this URL looks like an auth / account / billing path AND
-        # the Cache-Control header allows public/shared caching. We don't have
-        # auth context here, so we use path heuristics.
+    def _check_cache_control_auth(
+        self, h: dict[str, str], url: str, response: HttpResponse | None = None
+    ) -> list[Finding]:
+        # Two-signal check: the URL looks auth-related AND the Cache-Control
+        # header doesn't prevent shared caching. When we also have the page
+        # body, cross-check for password-form indicators — that lifts the
+        # finding from a path-heuristic guess to a high-confidence call.
         path_lc = url.lower()
-        if not any(seg in path_lc for seg in (
+        path_matches = any(seg in path_lc for seg in (
             "/login", "/signin", "/sign-in", "/logout", "/signout",
             "/account", "/profile", "/settings", "/admin",
             "/billing", "/checkout", "/payment", "/orders",
             "/api/me", "/auth/", "/oauth/", "/sso/",
             "/dashboard",
-        )):
+        ))
+        if not path_matches:
             return []
 
         cc = (h.get("cache-control") or "").strip().lower()
@@ -743,17 +747,49 @@ class SecurityHeadersEngine:
         safe_tokens = ("no-store", "private", "max-age=0")
         if cc and any(tok in cc for tok in safe_tokens):
             return []
-        # Explicitly public is bad on these paths.
+
+        # Content cross-check — look for a password input or unmistakable
+        # authentication-form markers. Lifts confidence from 0.6 to 0.9.
+        body = (response.body if response is not None else "") or ""
+        body_lc = body.lower()
+        content_signals_auth = (
+            'type="password"' in body_lc
+            or "type='password'" in body_lc
+            or "type=password" in body_lc
+            or "<input type=\"password\"" in body_lc
+            or "autocomplete=\"current-password\"" in body_lc
+            or "name=\"csrf" in body_lc and "name=\"password" in body_lc
+        )
+
         ev = Evidence.http_header("Cache-Control", cc or "<not present>", url, _ENGINE)
+        if content_signals_auth:
+            description = (
+                "This URL is an authenticated endpoint — we found a password "
+                "field or auth-form marker in the response body — but its "
+                "`Cache-Control` header doesn't prevent shared caching. A "
+                "CDN, corporate proxy, or even the browser back/forward "
+                "cache may store the response intended for one user and "
+                "serve it to another."
+            )
+            confidence = 0.9
+            severity = Severity.MEDIUM
+        else:
+            description = (
+                "This URL looks like an authenticated endpoint based on its "
+                "path, but its `Cache-Control` header doesn't prevent "
+                "caching. A shared cache (CDN, corporate proxy, browser "
+                "back/forward) may store a response intended for one user "
+                "and serve it to another. (Path-only match — if this is a "
+                "marketing /login page rather than a real auth endpoint, "
+                "ignore this finding.)"
+            )
+            confidence = 0.6
+            severity = Severity.LOW
+
         return [_finding(
             title="Sensitive endpoint may be cached publicly",
-            description=(
-                "This URL looks like an authenticated endpoint (account, login, billing, etc.) "
-                "but its `Cache-Control` header doesn't prevent caching. A shared cache (CDN, "
-                "corporate proxy, browser back/forward cache) may store a response intended for "
-                "one user and serve it to another."
-            ),
-            severity=Severity.MEDIUM,
+            description=description,
+            severity=severity,
             url=url,
             evidence=ev,
             remediation=(
@@ -762,7 +798,7 @@ class SecurityHeadersEngine:
                 "If you genuinely want browser caching but no shared caching:\n"
                 "  Cache-Control: private, no-cache"
             ),
-            confidence=0.6,  # path heuristic — could be a marketing /login page
+            confidence=confidence,
             framework=_FA["cache_control_auth"],
         )]
 

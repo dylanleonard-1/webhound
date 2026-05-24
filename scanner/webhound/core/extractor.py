@@ -116,6 +116,12 @@ class PageArtifacts:
     inline_css_import_urls: list[str] = field(default_factory=list)
     inline_js_request_urls: list[str] = field(default_factory=list)
 
+    # Inline HTML event-handler attribute values (onclick, onmouseover, etc).
+    # Stored as `(tag_name, attribute_name, value)` triples. JavaScript pattern
+    # engines analyse these the same way they analyse <script> bodies — a
+    # `javascript:` URL or eval() inside an onclick is no less dangerous.
+    event_handlers: list[tuple[str, str, str]] = field(default_factory=list)
+
 
 # Regex patterns used by the V2 extraction methods.
 _CSS_IMPORT_RE = re.compile(
@@ -213,6 +219,7 @@ class Extractor:
             external_stylesheet_urls=self._extract_external_stylesheets(soup, base_url, page_hostname),
             inline_css_import_urls=self._extract_css_imports(soup),
             inline_js_request_urls=self._extract_js_request_urls(scripts),
+            event_handlers=self._extract_event_handlers(soup),
         )
 
     # ------------------------------------------------------------------
@@ -498,6 +505,40 @@ class Extractor:
                         seen.add(url)
                         urls.append(url)
         return urls
+
+    # ------------------------------------------------------------------
+    # HTML event-handler attributes
+    # ------------------------------------------------------------------
+
+    def _extract_event_handlers(self, soup: BeautifulSoup) -> list[tuple[str, str, str]]:
+        """Collect inline `on*=...` attribute values across the page.
+
+        Returns triples of `(tag_name, attribute_name, value)`. We capture the
+        attribute *value* — the JS-pattern engine analyses these the same way
+        it analyses <script> bodies. Attribute names are lower-cased so
+        downstream consumers don't have to.
+        """
+        out: list[tuple[str, str, str]] = []
+        for tag in soup.find_all(True):  # all tags
+            if not isinstance(tag, Tag) or not tag.attrs:
+                continue
+            for attr, value in tag.attrs.items():
+                if not isinstance(attr, str):
+                    continue
+                attr_lc = attr.lower()
+                # Standard DOM event handlers all start with "on" + lowercase letter.
+                if not (attr_lc.startswith("on") and len(attr_lc) > 2 and attr_lc[2].isalpha()):
+                    continue
+                # Attribute values may be lists when BeautifulSoup parses an
+                # attribute spelled multiple times — collapse to a string.
+                if isinstance(value, list):
+                    val_str = " ".join(str(v) for v in value).strip()
+                else:
+                    val_str = str(value).strip() if value is not None else ""
+                if not val_str:
+                    continue
+                out.append((tag.name.lower(), attr_lc, val_str))
+        return out
 
 
 # ---------------------------------------------------------------------------

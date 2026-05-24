@@ -396,9 +396,6 @@ class JsAnalyzerEngine:
     NAME = _ENGINE
 
     def analyze(self, artifacts: PageArtifacts) -> list[Finding]:
-        if not artifacts.inline_scripts:
-            return []
-
         findings: list[Finding] = []
         # Deduplicate: at most one finding per (pattern, script) pair.
         seen: set[tuple[str, int]] = set()
@@ -438,6 +435,71 @@ class JsAnalyzerEngine:
                     metadata={"url": artifacts.url},
                 ))
 
+        findings.extend(self._analyze_event_handlers(artifacts))
+        return findings
+
+    # ------------------------------------------------------------------
+    # Inline HTML event handlers (onclick="...", onmouseover="...", etc).
+    # These run as JavaScript when the event fires — same risk surface as
+    # an inline <script>, so we feed each one through the same pattern set.
+    # ------------------------------------------------------------------
+
+    def _analyze_event_handlers(self, artifacts: PageArtifacts) -> list[Finding]:
+        handlers = getattr(artifacts, "event_handlers", None) or []
+        if not handlers:
+            return []
+        findings: list[Finding] = []
+        # Per (pattern, handler-index) dedup so a page with 200 onclick
+        # handlers each calling alert() emits one finding per handler.
+        seen: set[tuple[str, int]] = set()
+        for idx, (tag_name, attr_name, value) in enumerate(handlers):
+            for pat in _PATTERNS:
+                key = (pat.name, idx)
+                if key in seen:
+                    continue
+                m = pat.pattern.search(value)
+                if not m:
+                    continue
+                seen.add(key)
+                ev = Evidence(
+                    evidence_type=EvidenceType.HTML_ELEMENT,
+                    content=f"<{tag_name} {attr_name}=\"{value[:200]}\">",
+                    location=artifacts.url,
+                    source_engine=_ENGINE,
+                    extra={
+                        "pattern": pat.name,
+                        "tag": tag_name,
+                        "attribute": attr_name,
+                    },
+                )
+                confidence = _PATTERN_CONFIDENCE.get(pat.name, 0.65)
+                findings.append(Finding(
+                    title=f"Inline {attr_name} handler matches {pat.name} pattern",
+                    description=(
+                        f"An inline `{attr_name}` attribute on a `<{tag_name}>` element "
+                        f"contains a `{pat.name}` pattern. " + pat.description +
+                        " Inline event handlers run as JavaScript when the event fires; "
+                        "if any part of the attribute value is built from user input, "
+                        "the same XSS / injection risk applies as for inline scripts."
+                    ),
+                    severity=pat.severity,
+                    category=FindingCategory.JAVASCRIPT,
+                    evidence=[ev],
+                    confidence=confidence,
+                    remediation=(
+                        "Move the handler out of HTML and into JavaScript using "
+                        "`addEventListener()`. Inline event handlers also conflict with "
+                        "strict Content-Security-Policy — moving them out is required "
+                        "for a CSP without `'unsafe-inline'`. " + pat.remediation
+                    ),
+                    framework=_FA.get(pat.name, FrameworkAlignment(
+                        owasp_top10=["A03:2021"],
+                        cwe_ids=["CWE-79"],
+                        nist_controls=["SI-10"],
+                    )),
+                    scanner_engine=_ENGINE,
+                    metadata={"url": artifacts.url, "tag": tag_name, "attr": attr_name},
+                ))
         return findings
 
 

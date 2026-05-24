@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from webhound.models.evidence import Evidence, EvidenceType
-from webhound.models.finding import Finding, FindingCategory, FrameworkAlignment
+from webhound.models.finding import Exploitability, Finding, FindingCategory, FrameworkAlignment
 from webhound.models.severity import Severity
 
 _ENGINE = "tls_checker"
@@ -23,6 +23,79 @@ _EXPIRY_HIGH_DAYS = 14
 _EXPIRY_MEDIUM_DAYS = 30
 
 _WEAK_PROTOCOLS = frozenset({"SSLV2", "SSLV3", "TLSV1", "TLSV1.0", "TLSV1.1"})
+
+# Enterprise metadata per finding kind. See engines/headers/security_headers.py
+# for the calibration approach. TLS findings cluster around A02:2021
+# (Cryptographic Failures) and map to PCI DSS 4.0 §4 (encryption in transit),
+# ISO/IEC 27001:2022 A.8.24 (cryptography), and SOC 2 CC6.7 (encryption).
+_FA: dict[str, FrameworkAlignment] = {
+    "connection_failed": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-319"], nist_controls=["SC-8"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L", cvss_score=3.1,
+        pci_dss=["4.2.1"], iso_27001=["A.8.24"], soc2=["CC6.7"],
+        exploitability=Exploitability.UNKNOWN,
+    ),
+    "cert_expired": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-298"], nist_controls=["SC-8", "SC-17"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H", cvss_score=8.6,
+        pci_dss=["4.2.1"], iso_27001=["A.8.24"], soc2=["CC6.7"], hipaa=["164.312(e)(1)"],
+        exploitability=Exploitability.KNOWN_EXPLOITED,
+    ),
+    "cert_not_yet_valid": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-298"], nist_controls=["SC-8", "SC-17"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N", cvss_score=7.4,
+        pci_dss=["4.2.1"], iso_27001=["A.8.24"], soc2=["CC6.7"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "cert_expiring_soon": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-298"], nist_controls=["SC-8", "SC-17"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:H", cvss_score=6.5,
+        pci_dss=["4.2.1"], iso_27001=["A.8.24"], soc2=["CC6.7"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "cert_self_signed": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-295"], nist_controls=["SC-8", "SC-17"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N", cvss_score=7.4,
+        pci_dss=["4.2.1"], iso_27001=["A.8.24"], soc2=["CC6.7"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "cert_hostname_mismatch": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-297"], nist_controls=["SC-8", "SC-17"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N", cvss_score=7.4,
+        pci_dss=["4.2.1"], iso_27001=["A.8.24"], soc2=["CC6.7"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "weak_protocol": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-326", "CWE-327"], nist_controls=["SC-8", "SC-13"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N", cvss_score=7.4,
+        pci_dss=["4.2.1.1"], iso_27001=["A.8.24"], soc2=["CC6.7"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "legacy_protocol_supported": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-326", "CWE-327"], nist_controls=["SC-8", "SC-13"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N", cvss_score=7.4,
+        pci_dss=["4.2.1.1"], iso_27001=["A.8.24"], soc2=["CC6.7"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "weak_key": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-326"], nist_controls=["SC-13"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N", cvss_score=7.4,
+        pci_dss=["4.2.1.1"], iso_27001=["A.8.24"], soc2=["CC6.7"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "weak_signature": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-327", "CWE-328"], nist_controls=["SC-13"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:H/A:N", cvss_score=7.1,
+        pci_dss=["4.2.1.1"], iso_27001=["A.8.24"], soc2=["CC6.7"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "http_no_redirect": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-319"], nist_controls=["SC-8"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:H/A:N", cvss_score=5.9,
+        pci_dss=["4.2.1"], iso_27001=["A.8.24"], soc2=["CC6.7"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+}
 
 
 @dataclass
@@ -259,11 +332,7 @@ class TlsCheckerEngine:
                 "from the internet. If this is intermittent, the issue is likely outside "
                 "WebHound — check your CDN, load balancer, or origin firewall."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A02:2021"],
-                cwe_ids=["CWE-319"],
-                nist_controls=["SC-8"],
-            ),
+            framework=_FA["connection_failed"],
         )]
 
     # ------------------------------------------------------------------
@@ -292,11 +361,7 @@ class TlsCheckerEngine:
                 "Let's Encrypt (free) or your hosting provider's auto-renew feature both "
                 "prevent this from recurring. The Certbot tool can handle most setups."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A02:2021"],
-                cwe_ids=["CWE-298"],
-                nist_controls=["SC-8", "SC-17"],
-            ),
+            framework=_FA["cert_expired"],
         )]
 
     def _check_not_yet_valid(self, cert_info: TlsCertInfo, url: str) -> list[Finding]:
@@ -324,11 +389,7 @@ class TlsCheckerEngine:
                 "fine, the certificate was issued with a wrong notBefore date and needs "
                 "to be reissued."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A02:2021"],
-                cwe_ids=["CWE-298"],
-                nist_controls=["SC-8", "SC-17"],
-            ),
+            framework=_FA["cert_not_yet_valid"],
         )]
 
     def _check_expiry_warning(self, cert_info: TlsCertInfo, url: str) -> list[Finding]:
@@ -372,11 +433,7 @@ class TlsCheckerEngine:
                 "  - Commercial CA (DigiCert, Sectigo) — usually has an auto-renew option.\n"
                 "Alert internally at least 14 days before expiry."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A02:2021"],
-                cwe_ids=["CWE-298"],
-                nist_controls=["SC-8", "SC-17"],
-            ),
+            framework=_FA["cert_expiring_soon"],
         )]
 
     # ------------------------------------------------------------------
@@ -407,11 +464,7 @@ class TlsCheckerEngine:
                 "options: Let's Encrypt (via Certbot), Cloudflare's edge certs, or "
                 "your hosting provider's built-in TLS."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A02:2021"],
-                cwe_ids=["CWE-295"],
-                nist_controls=["SC-8", "SC-17"],
-            ),
+            framework=_FA["cert_self_signed"],
         )]
 
     # ------------------------------------------------------------------
@@ -447,11 +500,7 @@ class TlsCheckerEngine:
                 "Alternative Name (SAN) field — both `example.com` and `www.example.com`, "
                 "or a wildcard like `*.example.com`."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A02:2021"],
-                cwe_ids=["CWE-297"],
-                nist_controls=["SC-8", "SC-17"],
-            ),
+            framework=_FA["cert_hostname_mismatch"],
         )]
 
     # ------------------------------------------------------------------
@@ -485,11 +534,7 @@ class TlsCheckerEngine:
                 "  Apache: SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1\n"
                 "  Cloudflare: Settings -> SSL/TLS -> Edge Certificates -> Minimum TLS Version"
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A02:2021"],
-                cwe_ids=["CWE-326"],
-                nist_controls=["SC-8"],
-            ),
+            framework=_FA["weak_protocol"],
         )]
 
     # ------------------------------------------------------------------
@@ -533,11 +578,7 @@ class TlsCheckerEngine:
                 "  Cloudflare: Settings -> SSL/TLS -> Edge Certificates -> Minimum TLS Version = 1.2\n"
                 "  AWS ALB: change the security policy to one that drops 1.0/1.1."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A02:2021"],
-                cwe_ids=["CWE-326", "CWE-327"],
-                nist_controls=["SC-8", "SC-13"],
-            ),
+            framework=_FA["legacy_protocol_supported"],
         )]
 
     # ------------------------------------------------------------------
@@ -578,11 +619,7 @@ class TlsCheckerEngine:
                 "If you control the CSR, regenerate the private key with the new size and "
                 "submit a new CSR to your CA."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A02:2021"],
-                cwe_ids=["CWE-326"],
-                nist_controls=["SC-13"],
-            ),
+            framework=_FA["weak_key"],
         )]
 
     # ------------------------------------------------------------------
@@ -618,11 +655,7 @@ class TlsCheckerEngine:
                 "CAs and ACME automation already use SHA-256 by default. If you run a "
                 "private CA, update the CA configuration before reissuing leaf certs."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A02:2021"],
-                cwe_ids=["CWE-327", "CWE-328"],
-                nist_controls=["SC-13"],
-            ),
+            framework=_FA["weak_signature"],
         )]
 
     # ------------------------------------------------------------------
@@ -679,11 +712,7 @@ class TlsCheckerEngine:
                 "header on the HTTPS side so browsers refuse the HTTP version after the "
                 "first visit."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A02:2021"],
-                cwe_ids=["CWE-319"],
-                nist_controls=["SC-8"],
-            ),
+            framework=_FA["http_no_redirect"],
         )]
 
 

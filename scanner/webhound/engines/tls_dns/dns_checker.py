@@ -12,13 +12,97 @@ import socket
 from dataclasses import dataclass, field
 
 from webhound.models.evidence import Evidence, EvidenceType
-from webhound.models.finding import Finding, FindingCategory, FrameworkAlignment
+from webhound.models.finding import Exploitability, Finding, FindingCategory, FrameworkAlignment
 from webhound.models.severity import Severity
 
 _ENGINE = "dns_checker"
 
 _SPF_PLUS_ALL = re.compile(r"\+all\b", re.I)
 _SPF_NEUTRAL_ALL = re.compile(r"\?all\b", re.I)
+
+# Enterprise metadata per finding kind. DNS findings cluster around
+# A05:2021 (Security Misconfiguration) for email-auth + delegation issues
+# and A02:2021 (Cryptographic Failures) for DNSSEC / CAA / MTA-STS.
+_FA: dict[str, FrameworkAlignment] = {
+    "resolution_failure": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-350"], nist_controls=["SC-20"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H", cvss_score=7.5,
+        pci_dss=["A1.2.1"], iso_27001=["A.8.32"],
+        exploitability=Exploitability.UNKNOWN,
+    ),
+    "spf_missing": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-290"], nist_controls=["SC-20", "SI-8"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:H/A:N", cvss_score=6.5,
+        pci_dss=["5.4.1"], iso_27001=["A.5.14", "A.8.23"], soc2=["CC6.1"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "spf_plus_all": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-290"], nist_controls=["SC-20", "SI-8"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:H/A:N", cvss_score=6.5,
+        pci_dss=["5.4.1"], iso_27001=["A.5.14", "A.8.23"], soc2=["CC6.1"],
+        exploitability=Exploitability.KNOWN_EXPLOITED,
+    ),
+    "spf_neutral": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-290"], nist_controls=["SC-20", "SI-8"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=3.7,
+        pci_dss=["5.4.1"], iso_27001=["A.5.14", "A.8.23"], soc2=["CC6.1"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "dmarc_missing": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-290"], nist_controls=["SC-20", "SI-8"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=5.4,
+        pci_dss=["5.4.1"], iso_27001=["A.5.14", "A.8.23"], soc2=["CC6.1"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "dkim_missing": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-290"], nist_controls=["SC-20", "SI-8"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=3.1,
+        pci_dss=["5.4.1"], iso_27001=["A.5.14", "A.8.23"], soc2=["CC6.1"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "mx_missing_with_spf": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-350"], nist_controls=["SC-20"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L", cvss_score=3.1,
+        iso_27001=["A.8.32"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "ns_single": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-350"], nist_controls=["SC-20"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L", cvss_score=3.1,
+        iso_27001=["A.8.14"], soc2=["CC9.1"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "cname_chain_long": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-350"], nist_controls=["SC-20"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:L/A:L", cvss_score=4.3,
+        iso_27001=["A.8.32"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "dnssec_missing": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-345"], nist_controls=["SC-20", "SC-21"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:H/A:N", cvss_score=5.9,
+        pci_dss=["4.2.1"], iso_27001=["A.8.24"], soc2=["CC6.7"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "caa_missing": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-295"], nist_controls=["SC-17"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=3.1,
+        pci_dss=["4.2.1"], iso_27001=["A.8.24"], soc2=["CC6.7"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "mta_sts_missing": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-319"], nist_controls=["SC-8", "SC-20"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=3.1,
+        pci_dss=["4.2.1"], iso_27001=["A.5.14", "A.8.24"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "takeover_candidate": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-350"], nist_controls=["SC-20", "CM-7"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H", cvss_score=10.0,
+        pci_dss=["6.4.2"], iso_27001=["A.5.14", "A.8.9"], soc2=["CC7.1"],
+        exploitability=Exploitability.KNOWN_EXPLOITED,
+    ),
+}
 
 
 @dataclass
@@ -278,11 +362,7 @@ class DnsCheckerEngine:
                 "records for the domain. If you just changed DNS recently, allow "
                 "up to 48 hours for propagation."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A05:2021"],
-                cwe_ids=["CWE-350"],
-                nist_controls=["SC-20"],
-            ),
+            framework=_FA["resolution_failure"],
         )]
 
     # ------------------------------------------------------------------
@@ -316,11 +396,7 @@ class DnsCheckerEngine:
                 "(Google: _spf.google.com, Microsoft 365: spf.protection.outlook.com, "
                 "etc.). Use `-all` for strict reject, `~all` for soft-fail during rollout."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A05:2021"],
-                cwe_ids=["CWE-290"],
-                nist_controls=["SC-20", "SI-8"],
-            ),
+            framework=_FA["spf_missing"],
         )]
 
     def _check_spf_risky(self, records: DnsRecords, url: str) -> list[Finding]:
@@ -348,11 +424,7 @@ class DnsCheckerEngine:
                         "email provider's include, marketing platform, etc) before the "
                         "`all` term."
                     ),
-                    framework=FrameworkAlignment(
-                        owasp_top10=["A05:2021"],
-                        cwe_ids=["CWE-290"],
-                        nist_controls=["SC-20", "SI-8"],
-                    ),
+                    framework=_FA["spf_plus_all"],
                 ))
             elif _SPF_NEUTRAL_ALL.search(spf):
                 ev = _dns_ev("SPF", spf, url)
@@ -373,11 +445,7 @@ class DnsCheckerEngine:
                         "`all` term — Google Workspace, Microsoft 365, your transactional "
                         "email vendor (SendGrid, Postmark, Mailgun), etc."
                     ),
-                    framework=FrameworkAlignment(
-                        owasp_top10=["A05:2021"],
-                        cwe_ids=["CWE-290"],
-                        nist_controls=["SC-20", "SI-8"],
-                    ),
+                    framework=_FA["spf_neutral"],
                 ))
         return findings
 
@@ -411,11 +479,7 @@ class DnsCheckerEngine:
                 f"  v=DMARC1; p=none; rua=mailto:dmarc-reports@{records.domain}\n"
                 "Once reports look clean, tighten to `p=quarantine` then `p=reject`."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A05:2021"],
-                cwe_ids=["CWE-290"],
-                nist_controls=["SC-20", "SI-8"],
-            ),
+            framework=_FA["dmarc_missing"],
         )]
 
     # ------------------------------------------------------------------
@@ -447,11 +511,7 @@ class DnsCheckerEngine:
                 "If not, publish a null MX record (RFC 7505): '0 .' "
                 "to explicitly indicate no mail acceptance."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A05:2021"],
-                cwe_ids=["CWE-350"],
-                nist_controls=["SC-20"],
-            ),
+            framework=_FA["mx_missing_with_spf"],
         )]
 
     # ------------------------------------------------------------------
@@ -481,11 +541,7 @@ class DnsCheckerEngine:
                 "Configure at least two geographically diverse nameservers. "
                 "RFC 1034 requires a minimum of two NS records."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A05:2021"],
-                cwe_ids=["CWE-350"],
-                nist_controls=["SC-20"],
-            ),
+            framework=_FA["ns_single"],
         )]
 
     # ------------------------------------------------------------------
@@ -527,11 +583,7 @@ class DnsCheckerEngine:
                 "If you use a less-common selector and DKIM is actually configured, this "
                 "finding is a false negative — let us know."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A05:2021"],
-                cwe_ids=["CWE-290"],
-                nist_controls=["SC-20", "SI-8"],
-            ),
+            framework=_FA["dkim_missing"],
         )]
 
     # ------------------------------------------------------------------
@@ -564,11 +616,7 @@ class DnsCheckerEngine:
                 "vendor you no longer use, remove the orphan CNAME at your DNS "
                 "provider. Where possible, flatten the chain to one or two hops."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A05:2021"],
-                cwe_ids=["CWE-350"],
-                nist_controls=["SC-20"],
-            ),
+            framework=_FA["cname_chain_long"],
         )]
 
 
@@ -599,11 +647,7 @@ class DnsCheckerEngine:
                 "they generate to your registrar so the chain of trust is complete. "
                 "Verify with: dig +dnssec @8.8.8.8 yourdomain.com"
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A02:2021"],
-                cwe_ids=["CWE-345"],
-                nist_controls=["SC-20", "SC-21"],
-            ),
+            framework=_FA["dnssec_missing"],
         )]
 
     # ------------------------------------------------------------------
@@ -634,11 +678,7 @@ class DnsCheckerEngine:
                 "Cloudflare, Google Workspace, and most managed DNS providers expose "
                 "this in the UI."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A02:2021"],
-                cwe_ids=["CWE-295"],
-                nist_controls=["SC-17"],
-            ),
+            framework=_FA["caa_missing"],
         )]
 
     # ------------------------------------------------------------------
@@ -678,11 +718,7 @@ class DnsCheckerEngine:
                 f"  v=TLSRPTv1; rua=mailto:tlsrpt@{records.domain}\n"
                 "Start with mode=testing for two weeks before switching to enforce."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A02:2021"],
-                cwe_ids=["CWE-319"],
-                nist_controls=["SC-8", "SC-20"],
-            ),
+            framework=_FA["mta_sts_missing"],
         )]
 
     # ------------------------------------------------------------------
@@ -731,11 +767,7 @@ class DnsCheckerEngine:
                 f"if you no longer use {matched_vendor}. Treat this as urgent — these "
                 "takeovers are typically claimed within hours by automated tooling."
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A05:2021"],
-                cwe_ids=["CWE-350"],
-                nist_controls=["SC-20", "CM-7"],
-            ),
+            framework=_FA["takeover_candidate"],
         )]
 
 

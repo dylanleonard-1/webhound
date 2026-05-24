@@ -24,6 +24,11 @@ _CSP_UNSAFE_INLINE = re.compile(r"'unsafe-inline'", re.I)
 _CSP_UNSAFE_EVAL = re.compile(r"'unsafe-eval'", re.I)
 # A bare wildcard (*) as a fetch directive value.
 _CSP_WILDCARD_SRC = re.compile(r"(?:^|\s)\*(?:\s|;|$)")
+# strict-dynamic: when present, browsers IGNORE host-source allowlists,
+# `*`, `'self'`, and `'unsafe-inline'` in script-src. The protection
+# comes entirely from the nonce/hash chain instead. We use this to
+# avoid flagging policies that are actually well-designed.
+_CSP_STRICT_DYNAMIC = re.compile(r"'strict-dynamic'", re.I)
 
 # Referrer-Policy values that leak full URLs to third parties.
 _UNSAFE_REFERRER = frozenset({"unsafe-url", "no-referrer-when-downgrade"})
@@ -53,6 +58,9 @@ class SecurityHeadersEngine:
         findings.extend(self._check_coep(h, url))
         findings.extend(self._check_corp(h, url))
         findings.extend(self._check_xss_protection(h, url))
+        findings.extend(self._check_info_disclosure(h, url))
+        findings.extend(self._check_cache_control_auth(h, url))
+        findings.extend(self._check_legacy_headers(h, url))
 
         return findings
 
@@ -88,8 +96,13 @@ class SecurityHeadersEngine:
             return findings
 
         ev = Evidence.http_header("Content-Security-Policy", csp, url, _ENGINE)
+        # If strict-dynamic is in script-src, browsers that support it ignore
+        # the host allowlist (including `*`) and 'unsafe-inline' for scripts.
+        # Don't flag those when the policy is using the modern nonce/hash
+        # pattern.
+        has_strict_dynamic = bool(_CSP_STRICT_DYNAMIC.search(csp))
 
-        if _CSP_WILDCARD_SRC.search(csp):
+        if _CSP_WILDCARD_SRC.search(csp) and not has_strict_dynamic:
             findings.append(_finding(
                 title="CSP allows any origin (wildcard)",
                 description=(
@@ -109,7 +122,7 @@ class SecurityHeadersEngine:
                 ),
             ))
 
-        if _CSP_UNSAFE_INLINE.search(csp):
+        if _CSP_UNSAFE_INLINE.search(csp) and not has_strict_dynamic:
             findings.append(_finding(
                 title="CSP allows inline scripts",
                 description=(
@@ -493,6 +506,240 @@ class SecurityHeadersEngine:
 
     def _check_corp(self, h: dict[str, str], url: str) -> list[Finding]:
         return []
+
+    # ------------------------------------------------------------------
+    # Information disclosure: Server / X-Powered-By
+    # ------------------------------------------------------------------
+
+    def _check_info_disclosure(self, h: dict[str, str], url: str) -> list[Finding]:
+        findings: list[Finding] = []
+
+        # Server: only flag values that reveal version info. "nginx" alone is
+        # fine; "nginx/1.18.0" leaks a CVE-checkable version. Same for Apache,
+        # gunicorn, etc.
+        server = (h.get("server") or "").strip()
+        if server and any(c.isdigit() for c in server):
+            ev = Evidence.http_header("Server", server, url, _ENGINE)
+            findings.append(_finding(
+                title="Server software version is publicly visible",
+                description=(
+                    f"Your server is advertising its software version: `{server}`. Attackers run "
+                    "automated tools that match version strings against known vulnerabilities. "
+                    "Even when you're patched, this gives them a free starting point."
+                ),
+                severity=Severity.LOW,
+                url=url,
+                evidence=ev,
+                remediation=(
+                    "Strip the version from the Server header at your reverse proxy. Examples:\n"
+                    "  nginx:   server_tokens off;\n"
+                    "  Apache:  ServerTokens Prod\n"
+                    "  IIS:     remove via URL Rewrite or `Remove-Item ...:::ServerHeader`\n"
+                    "  Cloudflare: enabled by default — verify your origin isn't bypassing it."
+                ),
+                confidence=0.95,
+                framework=FrameworkAlignment(
+                    owasp_top10=["A05:2021"],
+                    cwe_ids=["CWE-200"],
+                ),
+            ))
+
+        # X-Powered-By is *always* a disclosure header. The mere presence is
+        # noteworthy because it's never required and is set by default by
+        # several frameworks (Express, ASP.NET).
+        xpb = (h.get("x-powered-by") or "").strip()
+        if xpb:
+            ev = Evidence.http_header("X-Powered-By", xpb, url, _ENGINE)
+            findings.append(_finding(
+                title="Framework / runtime is advertised in headers",
+                description=(
+                    f"Your site sends `X-Powered-By: {xpb}`. This header serves no functional "
+                    "purpose and tells attackers exactly which framework / runtime to target. "
+                    "Several frameworks (Express, ASP.NET) set it by default."
+                ),
+                severity=Severity.LOW,
+                url=url,
+                evidence=ev,
+                remediation=(
+                    "Disable the header in your framework:\n"
+                    "  Express:  app.disable('x-powered-by')\n"
+                    "  ASP.NET:  remove via Web.config or Startup.cs\n"
+                    "  PHP:      expose_php = Off"
+                ),
+                confidence=0.95,
+                framework=FrameworkAlignment(
+                    owasp_top10=["A05:2021"],
+                    cwe_ids=["CWE-200"],
+                ),
+            ))
+
+        # Other framework-fingerprint headers seen in the wild.
+        for fp_header in ("x-aspnet-version", "x-aspnetmvc-version", "x-drupal-cache", "x-generator", "x-pingback"):
+            val = (h.get(fp_header) or "").strip()
+            if val:
+                ev = Evidence.http_header(fp_header.title(), val, url, _ENGINE)
+                findings.append(_finding(
+                    title=f"Framework fingerprint header `{fp_header}` exposed",
+                    description=(
+                        f"Your site sends `{fp_header}: {val}`. This header is set by specific "
+                        "frameworks and helps attackers fingerprint your stack. It has no "
+                        "functional value to clients."
+                    ),
+                    severity=Severity.LOW,
+                    url=url,
+                    evidence=ev,
+                    remediation=f"Remove the `{fp_header}` header at your application or reverse proxy.",
+                    confidence=0.9,
+                    framework=FrameworkAlignment(
+                        owasp_top10=["A05:2021"],
+                        cwe_ids=["CWE-200"],
+                    ),
+                ))
+
+        return findings
+
+    # ------------------------------------------------------------------
+    # Cache-Control on sensitive endpoints
+    # ------------------------------------------------------------------
+
+    def _check_cache_control_auth(self, h: dict[str, str], url: str) -> list[Finding]:
+        # Only flag if this URL looks like an auth / account / billing path AND
+        # the Cache-Control header allows public/shared caching. We don't have
+        # auth context here, so we use path heuristics.
+        path_lc = url.lower()
+        if not any(seg in path_lc for seg in (
+            "/login", "/signin", "/sign-in", "/logout", "/signout",
+            "/account", "/profile", "/settings", "/admin",
+            "/billing", "/checkout", "/payment", "/orders",
+            "/api/me", "/auth/", "/oauth/", "/sso/",
+            "/dashboard",
+        )):
+            return []
+
+        cc = (h.get("cache-control") or "").strip().lower()
+        # Safe values include any of these directives.
+        safe_tokens = ("no-store", "private", "max-age=0")
+        if cc and any(tok in cc for tok in safe_tokens):
+            return []
+        # Explicitly public is bad on these paths.
+        ev = Evidence.http_header("Cache-Control", cc or "<not present>", url, _ENGINE)
+        return [_finding(
+            title="Sensitive endpoint may be cached publicly",
+            description=(
+                "This URL looks like an authenticated endpoint (account, login, billing, etc.) "
+                "but its `Cache-Control` header doesn't prevent caching. A shared cache (CDN, "
+                "corporate proxy, browser back/forward cache) may store a response intended for "
+                "one user and serve it to another."
+            ),
+            severity=Severity.MEDIUM,
+            url=url,
+            evidence=ev,
+            remediation=(
+                "Add to every response from authenticated endpoints:\n"
+                "  Cache-Control: no-store\n"
+                "If you genuinely want browser caching but no shared caching:\n"
+                "  Cache-Control: private, no-cache"
+            ),
+            confidence=0.6,  # path heuristic — could be a marketing /login page
+            framework=FrameworkAlignment(
+                owasp_top10=["A04:2021"],
+                cwe_ids=["CWE-525", "CWE-200"],
+            ),
+        )]
+
+    # ------------------------------------------------------------------
+    # Legacy / deprecated security headers still in use
+    # ------------------------------------------------------------------
+
+    def _check_legacy_headers(self, h: dict[str, str], url: str) -> list[Finding]:
+        findings: list[Finding] = []
+
+        # HPKP: deprecated by Chrome (2018) and removed. If still present, it's
+        # either dead config or — worse — actively risking a denial-of-service
+        # bricking if a pinned key is lost.
+        if h.get("public-key-pins") or h.get("public-key-pins-report-only"):
+            val = h.get("public-key-pins") or h.get("public-key-pins-report-only", "")
+            ev = Evidence.http_header("Public-Key-Pins", val[:200], url, _ENGINE)
+            findings.append(_finding(
+                title="HPKP header is deprecated and risky",
+                description=(
+                    "Your site sets a `Public-Key-Pins` header. HPKP was removed from Chrome in 2018 "
+                    "and is no longer enforced by any major browser — but more importantly, if you "
+                    "ever lose access to a pinned certificate key, the header can permanently lock "
+                    "users out of your site (DoS). The risk now outweighs any benefit."
+                ),
+                severity=Severity.MEDIUM,
+                url=url,
+                evidence=ev,
+                remediation=(
+                    "Remove the `Public-Key-Pins` header. Use Certificate Transparency monitoring "
+                    "(crt.sh, Cert Spotter) for the protection HPKP used to provide."
+                ),
+                confidence=0.98,
+                framework=FrameworkAlignment(
+                    owasp_top10=["A05:2021"],
+                    cwe_ids=["CWE-1059"],
+                ),
+            ))
+
+        # Expect-CT is deprecated as of Chrome 107 (June 2023). Still works in
+        # some browsers but no longer enforced anywhere by default.
+        if h.get("expect-ct"):
+            val = h.get("expect-ct", "")
+            ev = Evidence.http_header("Expect-CT", val, url, _ENGINE)
+            findings.append(_finding(
+                title="Expect-CT header is deprecated",
+                description=(
+                    "Your site sets an `Expect-CT` header. Expect-CT was deprecated in 2023 because "
+                    "Certificate Transparency is now enforced unconditionally by all major browsers. "
+                    "The header no longer has any effect and just adds bytes to every response."
+                ),
+                severity=Severity.INFO,
+                url=url,
+                evidence=ev,
+                remediation="Remove the `Expect-CT` header. Certificate Transparency is now enforced by default.",
+                confidence=0.98,
+                framework=FrameworkAlignment(
+                    owasp_top10=["A05:2021"],
+                    cwe_ids=["CWE-1059"],
+                ),
+            ))
+
+        # Access-Control-Max-Age caps. Some servers set absurdly long values
+        # (a year) to "improve performance", which means that if you fix a
+        # misconfigured CORS policy later, clients will use the cached version
+        # for up to the max-age. Chrome caps at 2h regardless, but Firefox /
+        # Safari respect longer values.
+        acma = h.get("access-control-max-age")
+        if acma and acma.strip().isdigit():
+            seconds = int(acma.strip())
+            if seconds > 86400:  # > 24h
+                ev = Evidence.http_header("Access-Control-Max-Age", acma, url, _ENGINE)
+                findings.append(_finding(
+                    title="CORS preflight cache lifetime is excessive",
+                    description=(
+                        f"Your server tells browsers to cache CORS preflight results for "
+                        f"{seconds:,} seconds ({seconds // 86400} days). If you change a CORS "
+                        "policy in the future, some browsers will keep using the old policy for "
+                        "the entire cache lifetime — meaning a security fix won't take effect "
+                        "until the cache expires."
+                    ),
+                    severity=Severity.LOW,
+                    url=url,
+                    evidence=ev,
+                    remediation=(
+                        "Cap the value at 24 hours or less:\n"
+                        "  Access-Control-Max-Age: 86400\n"
+                        "Chrome already caps at 2 hours; matching its limit is also reasonable."
+                    ),
+                    confidence=0.85,
+                    framework=FrameworkAlignment(
+                        owasp_top10=["A05:2021"],
+                        cwe_ids=["CWE-942"],
+                    ),
+                ))
+
+        return findings
 
     # ------------------------------------------------------------------
     # X-XSS-Protection (legacy)

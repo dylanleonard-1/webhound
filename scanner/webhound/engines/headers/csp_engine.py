@@ -120,6 +120,7 @@ class CspEngine:
         findings.extend(self._check_script_src_data(directives, url, ev))
         findings.extend(self._check_script_src_http(directives, url, ev))
         findings.extend(self._check_frame_ancestors(directives, url, ev))
+        findings.extend(self._check_reporting(directives, url, ev))
 
         return findings
 
@@ -343,6 +344,43 @@ class CspEngine:
             ),
             framework=FrameworkAlignment(
                 owasp_top10=["A05:2021"], cwe_ids=["CWE-1021"]
+            ),
+        )]
+
+
+    def _check_reporting(
+        self, d: dict[str, list[str]], url: str, ev: Evidence
+    ) -> list[Finding]:
+        # A CSP without report-uri or report-to (and a matching Reporting-Endpoints
+        # header) silently drops violation reports. The team will never know if
+        # a real attacker triggers a block — or if a deploy is breaking the page
+        # for visitors.
+        has_report_uri = "report-uri" in d
+        has_report_to  = "report-to"  in d
+        if has_report_uri or has_report_to:
+            return []
+        return [_finding(
+            title="CSP isn't reporting violations anywhere",
+            description=(
+                "Your CSP is in place but doesn't include `report-uri` or `report-to`. That means "
+                "you never see when the policy blocks something — neither real attacks nor your "
+                "own deployments that break the page. Without reports, tuning the policy is "
+                "guesswork."
+            ),
+            severity=Severity.LOW,
+            url=url,
+            evidence=ev,
+            remediation=(
+                "Add a reporting endpoint:\n"
+                "  Content-Security-Policy: default-src 'self'; report-uri /csp-violation;\n"
+                "Or the modern equivalent, which requires a matching Reporting-Endpoints header:\n"
+                "  Reporting-Endpoints: csp-endpoint=\"/csp-violation\"\n"
+                "  Content-Security-Policy: default-src 'self'; report-to csp-endpoint;\n"
+                "Services like Sentry, Datadog, and report-uri.com aggregate the reports for you."
+            ),
+            confidence=0.85,
+            framework=FrameworkAlignment(
+                owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
             ),
         )]
 

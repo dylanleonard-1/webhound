@@ -85,14 +85,16 @@ async def check_scan_quota(
     """Enforce scans_per_month — called before queueing a new ScanJob.
 
     Rolling 30-day window, not calendar month — matches the way usage caps
-    work on most modern SaaS billing (Stripe metered, Vercel, etc).
+    work on most modern SaaS billing (Stripe metered, Vercel, etc). Scan
+    ownership flows through Website (ScanJob has no direct user_id).
     """
     plan = _plan_of(user)
     window_start = datetime.now(timezone.utc) - timedelta(days=30)
     count = await db.scalar(
         sa.select(sa.func.count())
         .select_from(ScanJob)
-        .where(ScanJob.user_id == user.id)
+        .join(Website, ScanJob.website_id == Website.id)
+        .where(Website.user_id == user.id)
         .where(ScanJob.created_at >= window_start)
     ) or 0
     if count >= plan.scans_per_month:
@@ -120,7 +122,8 @@ async def check_concurrent_scan_quota(
     count = await db.scalar(
         sa.select(sa.func.count())
         .select_from(ScanJob)
-        .where(ScanJob.user_id == user.id)
+        .join(Website, ScanJob.website_id == Website.id)
+        .where(Website.user_id == user.id)
         .where(ScanJob.status.in_(active))
     ) or 0
     if count >= plan.max_concurrent_scans:

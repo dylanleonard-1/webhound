@@ -131,7 +131,8 @@ async def get_current_subscription(
     ) or 0
     scans_used = await db.scalar(
         sa.select(sa.func.count()).select_from(ScanJob)
-        .where(ScanJob.user_id == current_user.id)
+        .join(Website, ScanJob.website_id == Website.id)
+        .where(Website.user_id == current_user.id)
         .where(ScanJob.created_at >= window_start)
     ) or 0
 

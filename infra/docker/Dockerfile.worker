@@ -38,4 +38,8 @@ ENV PYTHONUNBUFFERED=1
 USER webhound
 
 # WORKER_CONCURRENCY defaults to 2; override via environment variable.
-CMD ["sh", "-c", "exec celery -A worker.celery_app:celery worker --loglevel=info --concurrency=${WORKER_CONCURRENCY:-2}"]
+# Set CELERY_BEAT=1 on EXACTLY ONE worker instance to enable the periodic
+# scheduler (otherwise scheduled scans won't fire). With multiple worker
+# instances, beat must run on only one of them to avoid duplicate
+# dispatches.
+CMD ["sh", "-c", "exec celery -A worker.celery_app:celery worker --loglevel=info --concurrency=${WORKER_CONCURRENCY:-2} ${CELERY_BEAT:+--beat --scheduler celery.beat:PersistentScheduler --schedule=/tmp/celerybeat-schedule}"]

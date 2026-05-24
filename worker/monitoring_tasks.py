@@ -11,17 +11,20 @@ logger = logging.getLogger(__name__)
 
 @celery.task(name="worker.monitoring_tasks.heartbeat")
 def heartbeat() -> dict:
-    """Periodic liveness ping — scheduled via celery beat in a future phase."""
+    """Periodic liveness ping — fires every 5 min via celery beat."""
     logger.debug("worker heartbeat")
     return {"status": "alive"}
 
 
 @celery.task(name="worker.monitoring_tasks.dispatch_scheduled_scans")
 def dispatch_scheduled_scans() -> dict:
-    """Find all due scan schedules, create ScanJobs, and enqueue scan tasks."""
+    """Find all due scan schedules, create ScanJobs, and enqueue scan tasks.
+
+    Triggered every minute by celery beat. Returns a summary suitable for
+    logging / metrics.
+    """
     try:
-        result = asyncio.run(_dispatch())
-        return result
+        return asyncio.run(_dispatch())
     except Exception:
         logger.exception("dispatch_scheduled_scans failed")
         raise
@@ -41,16 +44,29 @@ async def _dispatch() -> dict:
     now = datetime.now(timezone.utc)
     try:
         async with factory() as db:
-            job_ids = await dispatch_due_schedules(db, now=now)
+            dispatched = await dispatch_due_schedules(db, now=now)
             await db.commit()
     finally:
         await engine.dispose()
 
-    for job_id in job_ids:
+    enqueued = 0
+    for entry in dispatched:
         try:
-            run_scan.delay(str(job_id), "", "standard")
+            run_scan.delay(entry["job_id"], entry["url"], entry["profile"])
+            enqueued += 1
         except Exception:
-            logger.warning("failed to enqueue scan task for job %s", job_id)
+            logger.warning(
+                "failed to enqueue scan task for job %s (%s)",
+                entry["job_id"], entry["url"],
+            )
 
-    logger.info("dispatched %d scheduled scans", len(job_ids))
-    return {"dispatched": len(job_ids), "job_ids": [str(j) for j in job_ids]}
+    if dispatched:
+        logger.info(
+            "scheduled scans: dispatched=%d enqueued=%d",
+            len(dispatched), enqueued,
+        )
+    return {
+        "dispatched": len(dispatched),
+        "enqueued": enqueued,
+        "jobs": [d["job_id"] for d in dispatched],
+    }

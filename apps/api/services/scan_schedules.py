@@ -116,10 +116,17 @@ async def delete_schedule(
 
 async def dispatch_due_schedules(
     db: AsyncSession, *, now: datetime | None = None
-) -> list[uuid.UUID]:
+) -> list[dict]:
     """Enqueue scan jobs for all enabled schedules whose next_run_at is due.
 
-    Returns the list of scan job IDs that were created.
+    Returns a list of dicts suitable for celery dispatch:
+        [{"job_id": str, "url": str, "profile": str}, …]
+
+    Quota enforcement is intentionally NOT applied to scheduled runs — the
+    user already committed to running these by setting up the schedule, and
+    a quota-blocked scheduled run would silently disappear with no UI
+    surface for the user to see. If we want to enforce quotas on
+    scheduled runs in the future, do it here.
     """
     from apps.api.models.enums import ScanStatus
 
@@ -134,28 +141,43 @@ async def dispatch_due_schedules(
     )
     due = list(schedules.all())
 
-    created_job_ids: list[uuid.UUID] = []
+    dispatched: list[dict] = []
     for schedule in due:
+        website = await db.get(Website, schedule.website_id)
+        if website is None:
+            # Orphaned schedule — disable it so it doesn't loop forever.
+            schedule.is_enabled = False
+            continue
         job = ScanJob(
             website_id=schedule.website_id,
             profile=schedule.profile,
-            requested_url=(await db.get(Website, schedule.website_id)).url,  # type: ignore[union-attr]
+            requested_url=website.url,
             status=ScanStatus.QUEUED,
             use_latest_baseline=schedule.use_latest_baseline,
             save_baseline=schedule.save_baseline,
         )
         db.add(job)
         await db.flush()
-        created_job_ids.append(job.id)
+        dispatched.append({
+            "job_id": str(job.id),
+            "url": website.url,
+            "profile": schedule.profile.value,
+        })
 
         schedule.last_run_at = now
         schedule.next_run_at = _next_run(schedule.frequency, now)
 
     await db.flush()
-    return created_job_ids
+    return dispatched
 
 
 def _next_run(frequency: str, from_dt: datetime) -> datetime:
+    """Compute next run time, handling month-end correctly.
+
+    Monthly: if the source day doesn't exist in the target month
+    (e.g. Jan 31 → Feb), clamps to the last day of the target month.
+    """
+    from calendar import monthrange
     from datetime import timedelta
 
     from apps.api.models.enums import ScheduleFrequency
@@ -164,7 +186,12 @@ def _next_run(frequency: str, from_dt: datetime) -> datetime:
         return from_dt + timedelta(days=1)
     if frequency == ScheduleFrequency.WEEKLY:
         return from_dt + timedelta(weeks=1)
-    return from_dt.replace(
-        month=from_dt.month % 12 + 1,
-        year=from_dt.year + (1 if from_dt.month == 12 else 0),
-    )
+    # Monthly
+    target_month = from_dt.month + 1
+    target_year = from_dt.year
+    if target_month > 12:
+        target_month = 1
+        target_year += 1
+    last_day = monthrange(target_year, target_month)[1]
+    target_day = min(from_dt.day, last_day)
+    return from_dt.replace(year=target_year, month=target_month, day=target_day)

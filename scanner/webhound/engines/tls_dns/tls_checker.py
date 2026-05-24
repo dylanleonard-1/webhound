@@ -41,6 +41,19 @@ class TlsCertInfo:
     not_after: datetime | None = None
 
     protocol_version: str | None = None  # e.g. "TLSv1.3"
+    cipher_suite: str | None = None      # negotiated cipher (e.g. "TLS_AES_256_GCM_SHA384")
+
+    # Public key info
+    key_type: str | None = None    # e.g. "rsa", "ec"
+    key_bits: int | None = None    # e.g. 2048, 256
+
+    # Signature algorithm on the leaf certificate
+    signature_algorithm: str | None = None  # e.g. "sha256WithRSAEncryption"
+
+    # Supported-protocol enumeration: which legacy versions does the server
+    # *still accept*, separate from the one we negotiated?
+    supports_tls_1_0: bool = False
+    supports_tls_1_1: bool = False
 
     is_self_signed: bool = False
     is_expired: bool = False
@@ -63,48 +76,123 @@ def probe_tls(domain: str, port: int = 443, timeout: float = 10.0) -> TlsCertInf
     Safe-mode: read-only, standard TLS handshake only.
     On certificate validation errors, falls back to a lenient context to
     collect what information is available without verifying the chain.
+
+    Also probes whether the server still accepts TLS 1.0 / 1.1 — important
+    even when the negotiated version is modern, because servers often retain
+    backward-compatible legacy protocols that browsers and pen-test tools
+    will silently downgrade to.
     """
     strict_ctx = ssl.create_default_context()
     ssl_error: str | None = None
+    info: TlsCertInfo | None = None
 
     try:
         with socket.create_connection((domain, port), timeout=timeout) as sock:
             with strict_ctx.wrap_socket(sock, server_hostname=domain) as ssock:
                 cert = ssock.getpeercert()
-                return _parse_cert_dict(domain, cert, ssock.version())
+                info = _parse_cert_dict(domain, cert, ssock.version())
+                # Cipher: getcipher() returns (cipher_name, protocol, secret_bits)
+                cipher = ssock.cipher()
+                if cipher:
+                    info.cipher_suite = cipher[0]
+                # Public key + signature algorithm from the binary DER form.
+                der = ssock.getpeercert(True)
+                if der:
+                    _fill_key_and_sig(info, der)
     except (ssl.SSLCertVerificationError, ssl.CertificateError) as exc:
         ssl_error = str(exc)
     except (socket.timeout, TimeoutError, ConnectionRefusedError, OSError) as exc:
         return TlsCertInfo(domain=domain, error=str(exc), connection_failed=True)
 
-    err_lower = ssl_error.lower()
-    is_expired = "certificate has expired" in err_lower
-    is_self_signed = "self signed" in err_lower or "self-signed" in err_lower
-    hostname_mismatch = (
-        "hostname" in err_lower
-        or "doesn't match" in err_lower
-        or "does not match" in err_lower
-    )
+    if info is None:
+        # Strict context failed — parse what we can from the error string and
+        # do a lenient handshake just to learn the protocol version.
+        err_lower = (ssl_error or "").lower()
+        is_expired = "certificate has expired" in err_lower
+        is_self_signed = "self signed" in err_lower or "self-signed" in err_lower
+        hostname_mismatch = (
+            "hostname" in err_lower
+            or "doesn't match" in err_lower
+            or "does not match" in err_lower
+        )
+        lenient_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        lenient_ctx.check_hostname = False
+        lenient_ctx.verify_mode = ssl.CERT_NONE
+        protocol_version: str | None = None
+        try:
+            with socket.create_connection((domain, port), timeout=timeout) as sock:
+                with lenient_ctx.wrap_socket(sock, server_hostname=domain) as ssock:
+                    protocol_version = ssock.version()
+        except Exception:
+            pass
+        info = TlsCertInfo(
+            domain=domain,
+            is_expired=is_expired,
+            is_self_signed=is_self_signed,
+            hostname_mismatch=hostname_mismatch,
+            protocol_version=protocol_version,
+            error=ssl_error,
+        )
 
-    lenient_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    lenient_ctx.check_hostname = False
-    lenient_ctx.verify_mode = ssl.CERT_NONE
-    protocol_version: str | None = None
+    # Legacy protocol enumeration — separate handshakes, short timeout each.
+    # We only probe if the strict path got a usable handshake; otherwise the
+    # earlier failure tells us more than the legacy probe would.
+    if not info.connection_failed:
+        info.supports_tls_1_0 = _probe_protocol_supported(domain, port, ssl.TLSVersion.TLSv1,   timeout=3.0)
+        info.supports_tls_1_1 = _probe_protocol_supported(domain, port, ssl.TLSVersion.TLSv1_1, timeout=3.0)
+
+    return info
+
+
+def _probe_protocol_supported(
+    domain: str, port: int, version: ssl.TLSVersion, *, timeout: float
+) -> bool:
+    """Returns True if the server completes a handshake with *exactly* version.
+
+    Best-effort — older OpenSSL builds and Python interpreters compiled
+    against post-3.0 OpenSSL will refuse to even initiate TLS 1.0 / 1.1
+    handshakes on the client side, in which case we return False (we can't
+    prove the server supports it, so we don't flag it).
+    """
     try:
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        ctx.minimum_version = version
+        ctx.maximum_version = version
         with socket.create_connection((domain, port), timeout=timeout) as sock:
-            with lenient_ctx.wrap_socket(sock, server_hostname=domain) as ssock:
-                protocol_version = ssock.version()
+            with ctx.wrap_socket(sock, server_hostname=domain):
+                return True
     except Exception:
-        pass
+        return False
 
-    return TlsCertInfo(
-        domain=domain,
-        is_expired=is_expired,
-        is_self_signed=is_self_signed,
-        hostname_mismatch=hostname_mismatch,
-        protocol_version=protocol_version,
-        error=ssl_error,
-    )
+
+def _fill_key_and_sig(info: "TlsCertInfo", der_bytes: bytes) -> None:
+    """Populate key_type / key_bits / signature_algorithm from a DER cert.
+
+    Uses `cryptography` if available; silently skips if it isn't.
+    """
+    try:
+        from cryptography import x509
+        from cryptography.hazmat.primitives.asymmetric import rsa, ec
+        cert = x509.load_der_x509_certificate(der_bytes)
+        pubkey = cert.public_key()
+        if isinstance(pubkey, rsa.RSAPublicKey):
+            info.key_type = "rsa"
+            info.key_bits = pubkey.key_size
+        elif isinstance(pubkey, ec.EllipticCurvePublicKey):
+            info.key_type = "ec"
+            info.key_bits = pubkey.curve.key_size
+        else:
+            info.key_type = type(pubkey).__name__
+            info.key_bits = getattr(pubkey, "key_size", None)
+        # signature_algorithm_oid._name is the human-readable name on
+        # modern cryptography releases.
+        sig = cert.signature_algorithm_oid
+        info.signature_algorithm = getattr(sig, "_name", None) or sig.dotted_string
+    except Exception:
+        # cryptography missing or DER unparseable — leave fields as None.
+        pass
 
 
 class TlsCheckerEngine:
@@ -133,6 +221,11 @@ class TlsCheckerEngine:
         findings.extend(self._check_self_signed(cert_info, url))
         findings.extend(self._check_hostname_mismatch(cert_info, url))
         findings.extend(self._check_weak_protocol(cert_info, url))
+        findings.extend(self._check_legacy_protocol_supported(cert_info, url))
+        findings.extend(self._check_weak_key(cert_info, url))
+        findings.extend(self._check_weak_signature(cert_info, url))
+        # OCSP stapling detection is gated until we can reliably detect it
+        # from the handshake — see _check_ocsp_stapling for the limitation.
         findings.extend(
             self._check_https_redirect(cert_info, response_url, redirect_chain)
         )
@@ -398,6 +491,149 @@ class TlsCheckerEngine:
                 nist_controls=["SC-8"],
             ),
         )]
+
+    # ------------------------------------------------------------------
+    # Legacy protocol enumeration (server still ACCEPTS TLS 1.0 / 1.1)
+    # ------------------------------------------------------------------
+
+    def _check_legacy_protocol_supported(
+        self, cert_info: TlsCertInfo, url: str
+    ) -> list[Finding]:
+        supported_legacy: list[str] = []
+        if cert_info.supports_tls_1_0:
+            supported_legacy.append("TLS 1.0")
+        if cert_info.supports_tls_1_1:
+            supported_legacy.append("TLS 1.1")
+        if not supported_legacy:
+            return []
+        # Don't double-fire when the negotiated version is also legacy —
+        # _check_weak_protocol already handled that.
+        if cert_info.protocol_version and cert_info.protocol_version.upper() in _WEAK_PROTOCOLS:
+            return []
+        ev = _cert_ev(
+            cert_info, url,
+            f"Negotiated {cert_info.protocol_version} but server also accepts {', '.join(supported_legacy)}",
+        )
+        return [_finding(
+            title=f"Server still accepts obsolete TLS versions ({', '.join(supported_legacy)})",
+            description=(
+                f"When we connected normally, your server picked a modern version "
+                f"({cert_info.protocol_version}). But when we asked specifically for "
+                f"{', '.join(supported_legacy)}, the server agreed. Attackers can force "
+                "vulnerable clients to negotiate the weaker version, exposing them to "
+                "known attacks (POODLE, BEAST). PCI DSS 4.0 requires TLS 1.2+."
+            ),
+            severity=Severity.HIGH,
+            url=url,
+            evidence=ev,
+            remediation=(
+                "Disable TLS 1.0 and TLS 1.1 on the server. Examples:\n"
+                "  nginx:    ssl_protocols TLSv1.2 TLSv1.3;\n"
+                "  Apache:   SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1\n"
+                "  Cloudflare: Settings -> SSL/TLS -> Edge Certificates -> Minimum TLS Version = 1.2\n"
+                "  AWS ALB: change the security policy to one that drops 1.0/1.1."
+            ),
+            framework=FrameworkAlignment(
+                owasp_top10=["A02:2021"],
+                cwe_ids=["CWE-326", "CWE-327"],
+                nist_controls=["SC-8", "SC-13"],
+            ),
+        )]
+
+    # ------------------------------------------------------------------
+    # Weak public-key strength
+    # ------------------------------------------------------------------
+
+    def _check_weak_key(self, cert_info: TlsCertInfo, url: str) -> list[Finding]:
+        if not cert_info.key_type or not cert_info.key_bits:
+            return []
+        # NIST SP 800-57 / Mozilla guidance: RSA <2048 weak, EC <256 weak.
+        weak = False
+        if cert_info.key_type == "rsa" and cert_info.key_bits < 2048:
+            weak = True
+        elif cert_info.key_type == "ec" and cert_info.key_bits < 256:
+            weak = True
+        if not weak:
+            return []
+        ev = _cert_ev(
+            cert_info, url,
+            f"Public key: {cert_info.key_type.upper()} {cert_info.key_bits}-bit",
+        )
+        return [_finding(
+            title=f"TLS certificate uses a weak {cert_info.key_type.upper()} key ({cert_info.key_bits}-bit)",
+            description=(
+                f"Your certificate's public key is {cert_info.key_bits}-bit "
+                f"{cert_info.key_type.upper()}, below the modern minimum "
+                f"({'2048 for RSA' if cert_info.key_type == 'rsa' else '256 for elliptic curves'}). "
+                "Government and industry guidance (NIST SP 800-57, Mozilla, PCI DSS) "
+                "consider keys this size weak against a well-resourced attacker."
+            ),
+            severity=Severity.HIGH,
+            url=url,
+            evidence=ev,
+            remediation=(
+                "Reissue the certificate with a stronger key. Recommended modern values:\n"
+                "  - RSA: 2048-bit minimum, 3072-bit for new keys, 4096-bit for long-lived.\n"
+                "  - EC:  P-256 (256-bit) or P-384 (384-bit).\n"
+                "If you control the CSR, regenerate the private key with the new size and "
+                "submit a new CSR to your CA."
+            ),
+            framework=FrameworkAlignment(
+                owasp_top10=["A02:2021"],
+                cwe_ids=["CWE-326"],
+                nist_controls=["SC-13"],
+            ),
+        )]
+
+    # ------------------------------------------------------------------
+    # Weak signature algorithm
+    # ------------------------------------------------------------------
+
+    def _check_weak_signature(self, cert_info: TlsCertInfo, url: str) -> list[Finding]:
+        sig = (cert_info.signature_algorithm or "").lower()
+        if not sig:
+            return []
+        # SHA-1 signed certs have been distrusted since 2017 but still appear
+        # in internal / self-managed PKI.
+        is_weak = ("sha1" in sig and "rsa" in sig) or sig.startswith("md5") or "md2" in sig
+        if not is_weak:
+            return []
+        ev = _cert_ev(
+            cert_info, url, f"Signature algorithm: {cert_info.signature_algorithm}"
+        )
+        return [_finding(
+            title="TLS certificate uses a broken signature algorithm",
+            description=(
+                f"Your certificate was signed with `{cert_info.signature_algorithm}`. "
+                "SHA-1 and MD5 are cryptographically broken — collisions can be generated, "
+                "making it possible to forge a certificate that browsers would trust. "
+                "Major browsers have distrusted SHA-1 certs since 2017 (and MD5 since "
+                "2008), so users may already see warnings."
+            ),
+            severity=Severity.HIGH,
+            url=url,
+            evidence=ev,
+            remediation=(
+                "Reissue the certificate with SHA-256 (or stronger) signing. Modern "
+                "CAs and ACME automation already use SHA-256 by default. If you run a "
+                "private CA, update the CA configuration before reissuing leaf certs."
+            ),
+            framework=FrameworkAlignment(
+                owasp_top10=["A02:2021"],
+                cwe_ids=["CWE-327", "CWE-328"],
+                nist_controls=["SC-13"],
+            ),
+        )]
+
+    # ------------------------------------------------------------------
+    # OCSP stapling (disabled — see note)
+    # ------------------------------------------------------------------
+    # Python's stdlib `ssl` module doesn't expose whether the handshake
+    # carried a stapled OCSP response. Until we add a reliable detection
+    # path (cryptography.x509.ocsp parsing of the TLS CertificateStatus
+    # extension, or an openssl s_client -status subprocess), we don't
+    # fire — better to omit the check than to surface a false-positive on
+    # every site. Method removed.
 
     # ------------------------------------------------------------------
     # HTTP → HTTPS redirect

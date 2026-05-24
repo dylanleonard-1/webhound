@@ -26,10 +26,19 @@ const COLS = [
   {
     heading: 'Company',
     links: [
-      { label: 'Privacy Policy',   href: '/privacy'  },
-      { label: 'Terms of Service', href: '/terms'    },
-      { label: 'Security',         href: '/security' },
-      { label: 'Contact',          href: 'mailto:hello@webhoundsecurity.com' },
+      { label: 'Security',  href: '/security' },
+      { label: 'Contact',   href: '/contact'  },
+      { label: 'Docs',      href: '/docs'     },
+    ],
+  },
+  {
+    heading: 'Legal',
+    links: [
+      { label: 'Terms of Service',     href: '/terms'           },
+      { label: 'Privacy Policy',       href: '/privacy'         },
+      { label: 'Acceptable Use',       href: '/acceptable-use'  },
+      { label: 'Disclaimer',           href: '/disclaimer'      },
+      { label: 'Data Retention',       href: '/data-retention'  },
     ],
   },
 ]
@@ -114,11 +123,12 @@ export function Footer() {
           <span className="text-[12px]" style={{ color: 'rgba(255,255,255,0.18)' }}>
             © {new Date().getFullYear()} WebHound Security. All rights reserved.
           </span>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-6 flex-wrap">
             {[
-              { label: 'Security', href: '/security' },
-              { label: 'Privacy', href: '/privacy' },
               { label: 'Terms', href: '/terms' },
+              { label: 'Privacy', href: '/privacy' },
+              { label: 'Acceptable Use', href: '/acceptable-use' },
+              { label: 'Contact', href: '/contact' },
             ].map(({ label, href }) => (
               <Link
                 key={label}

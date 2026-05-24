@@ -21,6 +21,7 @@ from .compromise.suspicious_redirects import SuspiciousRedirectsEngine
 from .cms.wordpress import WordpressEngine
 from .cms.shopify import ShopifyEngine
 from .cms.wix import WixEngine
+from .api_discovery.endpoint_discovery import EndpointDiscoveryEngine
 
 __all__ = [
     "SecurityHeadersEngine",
@@ -47,4 +48,5 @@ __all__ = [
     "WordpressEngine",
     "ShopifyEngine",
     "WixEngine",
+    "EndpointDiscoveryEngine",
 ]

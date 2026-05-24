@@ -27,6 +27,7 @@ from webhound.engines.compromise.hidden_iframes import HiddenIframesEngine
 from webhound.engines.compromise.injected_js import InjectedJsEngine
 from webhound.engines.compromise.seo_spam import SeoSpamEngine
 from webhound.engines.compromise.suspicious_redirects import SuspiciousRedirectsEngine
+from webhound.engines.api_discovery.endpoint_discovery import EndpointDiscoveryEngine
 from webhound.engines.cms.shopify import ShopifyEngine
 from webhound.engines.cms.wix import WixEngine
 from webhound.engines.cms.wordpress import WordpressEngine
@@ -285,6 +286,7 @@ class Scanner:
         self._wordpress = WordpressEngine()
         self._shopify = ShopifyEngine()
         self._wix = WixEngine()
+        self._endpoint_discovery = EndpointDiscoveryEngine()
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -463,6 +465,7 @@ class Scanner:
         _add_findings(ctx, await _safe(ctx, self._wordpress.NAME, self._wordpress.analyze, artifacts))
         _add_findings(ctx, await _safe(ctx, self._shopify.NAME, self._shopify.analyze, artifacts, html_body=html_body))
         _add_findings(ctx, await _safe(ctx, self._wix.NAME, self._wix.analyze, artifacts))
+        _add_findings(ctx, await _safe(ctx, self._endpoint_discovery.NAME, self._endpoint_discovery.analyze, artifacts))
 
     # ------------------------------------------------------------------
     # WADE — Website Anomaly Detection Engine

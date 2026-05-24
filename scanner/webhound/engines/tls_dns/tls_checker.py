@@ -150,18 +150,21 @@ class TlsCheckerEngine:
             return []
         ev = _cert_ev(cert_info, url, f"Connection error: {cert_info.error}")
         return [_finding(
-            title=f"TLS connection failed for {cert_info.domain}",
+            title=f"We couldn't reach {cert_info.domain} over HTTPS",
             description=(
-                f"Unable to establish a TLS connection to '{cert_info.domain}'. "
-                "The site may not support HTTPS, or the port may be unreachable. "
-                f"Error: {cert_info.error}"
+                f"We tried to open an HTTPS connection to '{cert_info.domain}' and the "
+                "connection failed. This can mean the site doesn't run HTTPS at all, the "
+                "server is temporarily down, or a firewall is blocking us. It can also "
+                f"just be a transient network glitch.\nError: {cert_info.error}"
             ),
-            severity=Severity.HIGH,
+            severity=Severity.MEDIUM,
             url=url,
             evidence=ev,
+            confidence=0.7,  # could be transient
             remediation=(
-                "Ensure the server is configured to accept TLS connections on port 443. "
-                "Verify the host is reachable and the firewall permits port 443."
+                "Verify the server accepts TLS connections on port 443 and is reachable "
+                "from the internet. If this is intermittent, the issue is likely outside "
+                "WebHound — check your CDN, load balancer, or origin firewall."
             ),
             framework=FrameworkAlignment(
                 owasp_top10=["A02:2021"],
@@ -182,18 +185,19 @@ class TlsCheckerEngine:
         )
         ev = _cert_ev(cert_info, url, f"Certificate expired{detail}")
         return [_finding(
-            title=f"TLS certificate expired for {cert_info.domain}",
+            title=f"Your SSL certificate has already expired",
             description=(
-                f"The TLS certificate for '{cert_info.domain}' has expired{detail}. "
-                "Browsers display a security warning and refuse the connection. "
-                "The site is effectively unavailable over HTTPS."
+                f"The certificate for '{cert_info.domain}' expired{detail}. Every visitor "
+                "now sees a giant red warning page from their browser saying the site is "
+                "unsafe. Most leave immediately. This is a site-down emergency."
             ),
             severity=Severity.CRITICAL,
             url=url,
             evidence=ev,
             remediation=(
-                "Renew the TLS certificate immediately. "
-                "Consider automated renewal via Let's Encrypt / ACME protocol."
+                "Renew the certificate right now. Long-term: set up automated renewal — "
+                "Let's Encrypt (free) or your hosting provider's auto-renew feature both "
+                "prevent this from recurring. The Certbot tool can handle most setups."
             ),
             framework=FrameworkAlignment(
                 owasp_top10=["A02:2021"],
@@ -206,23 +210,26 @@ class TlsCheckerEngine:
         if not cert_info.is_not_yet_valid:
             return []
         detail = (
-            f" (valid from {cert_info.not_before.date()})"
+            f" (starts {cert_info.not_before.date()})"
             if cert_info.not_before
             else ""
         )
         ev = _cert_ev(cert_info, url, f"Certificate not yet valid{detail}")
         return [_finding(
-            title=f"TLS certificate is not yet valid for {cert_info.domain}",
+            title=f"Your certificate's start date is in the future",
             description=(
-                f"The TLS certificate for '{cert_info.domain}' has a notBefore date "
-                f"in the future{detail}. Browsers will reject this certificate."
+                f"The certificate says it doesn't start being valid until "
+                f"{detail.replace('(starts ', '').replace(')', '')}. Browsers reject "
+                "certificates dated in the future. Almost always this is a server-clock "
+                "drift issue rather than an actual problem with the certificate."
             ),
             severity=Severity.HIGH,
             url=url,
             evidence=ev,
             remediation=(
-                "Verify the server clock is accurate (NTP sync). "
-                "Reissue the certificate with a correct notBefore date."
+                "Check that the server's clock is correct (NTP sync). If the clock is "
+                "fine, the certificate was issued with a wrong notBefore date and needs "
+                "to be reissued."
             ),
             framework=FrameworkAlignment(
                 owasp_top10=["A02:2021"],
@@ -255,18 +262,22 @@ class TlsCheckerEngine:
             f"Certificate expires in {label} ({expiry_str})",
         )
         return [_finding(
-            title=f"TLS certificate expiring soon: {label} remaining",
+            title=f"SSL certificate expires in {label}",
             description=(
-                f"The TLS certificate for '{cert_info.domain}' expires in {label} "
-                f"(on {expiry_str}). Failure to renew before expiry will cause browser "
-                "security warnings and interrupt HTTPS connections."
+                f"Your certificate for '{cert_info.domain}' expires on {expiry_str} — "
+                f"{label} from now. When it expires, browsers will show a red warning to "
+                "every visitor and most will leave. Set up automatic renewal so this can't "
+                "happen by accident."
             ),
             severity=sev,
             url=url,
             evidence=ev,
             remediation=(
-                "Renew the certificate before it expires. "
-                "Set up automated renewal (Let's Encrypt / ACME) to prevent recurrence."
+                "Renew the certificate before the expiry date. Set up automated renewal:\n"
+                "  - Let's Encrypt + Certbot — free, the standard for self-hosted.\n"
+                "  - Cloudflare / Vercel / Netlify — handle renewal automatically.\n"
+                "  - Commercial CA (DigiCert, Sectigo) — usually has an auto-renew option.\n"
+                "Alert internally at least 14 days before expiry."
             ),
             framework=FrameworkAlignment(
                 owasp_top10=["A02:2021"],
@@ -287,18 +298,21 @@ class TlsCheckerEngine:
             cert_info, url, f"Self-signed certificate: issuer='{issuer_label}'"
         )
         return [_finding(
-            title=f"Self-signed TLS certificate for {cert_info.domain}",
+            title=f"Your certificate isn't signed by a trusted authority",
             description=(
-                f"The TLS certificate for '{cert_info.domain}' is self-signed and "
-                "not issued by a trusted Certificate Authority. Browsers display a "
-                "security warning and users cannot verify the server's identity."
+                f"The certificate for '{cert_info.domain}' is self-signed — the same "
+                "entity issued it and signed it. Browsers don't trust it. Every visitor "
+                "sees a giant red warning and most leave. Free, browser-trusted "
+                "certificates are available from Let's Encrypt."
             ),
             severity=Severity.HIGH,
             url=url,
             evidence=ev,
+            confidence=0.85,  # self-signed detection from error parsing is solid
             remediation=(
-                "Replace the self-signed certificate with one from a trusted CA. "
-                "Free certificates are available via Let's Encrypt."
+                "Get a real certificate from a trusted certificate authority. Free "
+                "options: Let's Encrypt (via Certbot), Cloudflare's edge certs, or "
+                "your hosting provider's built-in TLS."
             ),
             framework=FrameworkAlignment(
                 owasp_top10=["A02:2021"],
@@ -323,19 +337,22 @@ class TlsCheckerEngine:
             f"Hostname '{cert_info.domain}' not in certificate CN or SANs (CN='{cn_label}')",
         )
         return [_finding(
-            title=f"TLS certificate hostname mismatch for {cert_info.domain}",
+            title=f"Your certificate isn't valid for this domain",
             description=(
-                f"The TLS certificate does not cover the hostname '{cert_info.domain}'. "
-                f"Certificate CN: '{cn_label}'. "
-                "This prevents server identity verification and allows "
-                "man-in-the-middle attacks."
+                f"The certificate served on '{cert_info.domain}' was issued for a "
+                f"different name (it says '{cn_label}'). Browsers will refuse the "
+                "connection. This often happens when a www subdomain serves a cert "
+                "issued only for the apex domain, or vice versa."
             ),
             severity=Severity.HIGH,
             url=url,
             evidence=ev,
+            confidence=0.85,
             remediation=(
-                "Obtain a certificate that lists the correct domain in the Subject "
-                "Alternative Names (SAN) field."
+                "Get a new certificate that includes every domain you serve. With "
+                "Let's Encrypt or most CAs, you list each hostname in the Subject "
+                "Alternative Name (SAN) field — both `example.com` and `www.example.com`, "
+                "or a wildcard like `*.example.com`."
             ),
             framework=FrameworkAlignment(
                 owasp_top10=["A02:2021"],
@@ -357,18 +374,23 @@ class TlsCheckerEngine:
             cert_info, url, f"Protocol version: {cert_info.protocol_version}"
         )
         return [_finding(
-            title=f"Weak TLS protocol version: {cert_info.protocol_version}",
+            title=f"Server is still negotiating an obsolete TLS version ({cert_info.protocol_version})",
             description=(
-                f"The connection negotiated {cert_info.protocol_version}, which is "
-                "deprecated and has known cryptographic weaknesses (POODLE, BEAST, "
-                "CRIME). TLS 1.2 is the minimum acceptable; TLS 1.3 is recommended."
+                f"Your server agreed to communicate using {cert_info.protocol_version}. "
+                "This version has known cryptographic weaknesses with public attacks "
+                "(POODLE, BEAST, CRIME). Modern browsers refuse to load sites that "
+                "negotiate this version, so visitors using up-to-date Chrome / Firefox / "
+                "Safari may see an error instead of your site."
             ),
             severity=Severity.HIGH,
             url=url,
             evidence=ev,
             remediation=(
-                "Disable TLS 1.0 and 1.1 server-side. Configure the server to support "
-                "only TLS 1.2 and TLS 1.3."
+                "Disable TLS 1.0 and TLS 1.1 on your server. Support only TLS 1.2 and "
+                "TLS 1.3. Configuration examples:\n"
+                "  nginx:  ssl_protocols TLSv1.2 TLSv1.3;\n"
+                "  Apache: SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1\n"
+                "  Cloudflare: Settings -> SSL/TLS -> Edge Certificates -> Minimum TLS Version"
             ),
             framework=FrameworkAlignment(
                 owasp_top10=["A02:2021"],
@@ -405,18 +427,21 @@ class TlsCheckerEngine:
             source_engine=_ENGINE,
         )
         return [_finding(
-            title=f"HTTP does not redirect to HTTPS for {cert_info.domain}",
+            title=f"Your site serves HTTP without redirecting to HTTPS",
             description=(
-                f"An HTTP request to '{first_url}' was not redirected to HTTPS. "
-                "Users accessing the site over HTTP communicate without encryption. "
-                "Combined with missing HSTS, this enables downgrade attacks."
+                f"A visitor who types '{first_url}' (or follows an old link) is served "
+                "over plain HTTP and never sent to the HTTPS version. Their entire "
+                "session — including any login form they submit on that page — can be "
+                "read or modified by anyone on the same network (open WiFi, ISPs, etc)."
             ),
             severity=Severity.MEDIUM,
             url=url,
             evidence=ev,
             remediation=(
-                "Configure the server to issue a 301 redirect from all HTTP URLs to "
-                "their HTTPS equivalent. Also add Strict-Transport-Security (HSTS)."
+                "Configure your server (or CDN) to issue a 301 redirect from every HTTP "
+                "URL to its HTTPS equivalent, then add a Strict-Transport-Security "
+                "header on the HTTPS side so browsers refuse the HTTP version after the "
+                "first visit."
             ),
             framework=FrameworkAlignment(
                 owasp_top10=["A02:2021"],
@@ -474,7 +499,14 @@ def _finding(
 
 
 def _parse_cert_dict(domain: str, cert: dict, version: str | None) -> TlsCertInfo:
-    """Parse a getpeercert() dict into TlsCertInfo."""
+    """Parse a getpeercert() dict into TlsCertInfo.
+
+    Reached only after the *strict* TLS context has succeeded — so the chain
+    validated, the host matched, and the cert is in date. We therefore do NOT
+    re-derive is_expired / is_self_signed / hostname_mismatch from the parsed
+    fields here; setting them would be dead code that contradicts the strict-
+    success precondition.
+    """
     subject = dict(x[0] for x in cert.get("subject", ()))
     issuer = dict(x[0] for x in cert.get("issuer", ()))
 
@@ -495,14 +527,6 @@ def _parse_cert_dict(domain: str, cert: dict, version: str | None) -> TlsCertInf
             tzinfo=timezone.utc
         )
 
-    now = datetime.now(timezone.utc)
-    is_expired = not_after is not None and not_after < now
-    is_not_yet_valid = not_before is not None and not_before > now
-    is_self_signed = bool(
-        subject_cn and issuer_cn and subject_cn == issuer_cn and not issuer_o
-    )
-    hostname_mismatch = not _hostname_matches(domain, subject_cn, sans)
-
     return TlsCertInfo(
         domain=domain,
         subject_cn=subject_cn,
@@ -511,10 +535,9 @@ def _parse_cert_dict(domain: str, cert: dict, version: str | None) -> TlsCertInf
         issuer_o=issuer_o,
         not_before=not_before,
         not_after=not_after,
-        is_expired=is_expired,
-        is_not_yet_valid=is_not_yet_valid,
-        is_self_signed=is_self_signed,
-        hostname_mismatch=hostname_mismatch,
+        # Strict context succeeded — these are all False by definition. Leaving
+        # the defaults (False) on TlsCertInfo so we don't accidentally re-derive
+        # them from the parsed CN / DN with a fragile heuristic.
         protocol_version=version,
     )
 

@@ -161,18 +161,21 @@ class DnsCheckerEngine:
             return []
         ev = _dns_ev("A/AAAA", records.resolution_error, url)
         return [_finding(
-            title=f"DNS resolution failed for {records.domain}",
+            title=f"DNS for {records.domain} doesn't resolve",
             description=(
-                f"DNS resolution returned no usable records for '{records.domain}': "
-                f"{records.resolution_error}. "
-                "The domain may not exist, be misconfigured, or have been removed."
+                f"We can't find any IP addresses for '{records.domain}'. The domain "
+                "isn't pointing anywhere — visitors typing the name into a browser "
+                "won't reach your site at all.\n"
+                f"Error: {records.resolution_error}"
             ),
             severity=Severity.HIGH,
             url=url,
             evidence=ev,
             remediation=(
-                "Verify the domain's DNS configuration. Ensure A/AAAA records are "
-                "published by the authoritative nameserver."
+                "Check your DNS settings at your registrar / DNS provider. Your "
+                "authoritative nameserver should return A (IPv4) or AAAA (IPv6) "
+                "records for the domain. If you just changed DNS recently, allow "
+                "up to 48 hours for propagation."
             ),
             framework=FrameworkAlignment(
                 owasp_top10=["A05:2021"],
@@ -188,20 +191,29 @@ class DnsCheckerEngine:
     def _check_spf_missing(self, records: DnsRecords, url: str) -> list[Finding]:
         if records.resolution_error or records.spf_records:
             return []
+        # If the domain has no MX records, it can't receive email — and SPF on
+        # a non-sending domain is genuinely optional. Downgrade severity and
+        # confidence in that case.
+        domain_sends_email = bool(records.mx)
         ev = _dns_ev("SPF", "No TXT record starting with 'v=spf1' found", url)
         return [_finding(
-            title=f"SPF record missing for {records.domain}",
+            title=f"No SPF record — anyone can forge email from {records.domain}",
             description=(
-                f"No SPF (Sender Policy Framework) TXT record was found for "
-                f"'{records.domain}'. Without SPF, attackers can forge email from "
-                "this domain, enabling phishing and spam campaigns."
+                "SPF (Sender Policy Framework) is a DNS record that tells the world "
+                f"which servers are allowed to send email from '{records.domain}'. "
+                "Without it, anyone can send mail that says it came from your domain — "
+                "the basis of most phishing campaigns that impersonate brands."
             ),
-            severity=Severity.MEDIUM,
+            severity=Severity.MEDIUM if domain_sends_email else Severity.LOW,
             url=url,
             evidence=ev,
+            confidence=0.95 if domain_sends_email else 0.7,
             remediation=(
-                "Add an SPF TXT record. Example: "
-                "v=spf1 include:_spf.yourdomain.com -all"
+                "Add an SPF TXT record at the domain root:\n"
+                "  v=spf1 include:_spf.yourprovider.com -all\n"
+                "Where `_spf.yourprovider.com` is your email provider's SPF include "
+                "(Google: _spf.google.com, Microsoft 365: spf.protection.outlook.com, "
+                "etc.). Use `-all` for strict reject, `~all` for soft-fail during rollout."
             ),
             framework=FrameworkAlignment(
                 owasp_top10=["A05:2021"],
@@ -216,20 +228,24 @@ class DnsCheckerEngine:
             if _SPF_PLUS_ALL.search(spf):
                 ev = _dns_ev("SPF", spf, url)
                 findings.append(_finding(
-                    title=f"SPF record uses '+all' (pass all) for {records.domain}",
+                    title="Your SPF record allows anyone to send mail as you",
                     description=(
-                        f"The SPF record '{spf}' ends with '+all', which instructs "
-                        "receiving mail servers to accept email from ANY sender "
-                        "on behalf of this domain. This completely negates SPF "
-                        "protection and trivially enables email spoofing."
+                        f"The SPF record for '{records.domain}' ends with `+all`, which "
+                        "tells mail servers to ACCEPT email claiming to be from your "
+                        "domain no matter where it came from. This completely cancels "
+                        "SPF's protection — anyone in the world can send phishing email "
+                        "that appears to come from you."
                     ),
                     severity=Severity.HIGH,
                     url=url,
                     evidence=ev,
                     remediation=(
-                        "Change '+all' to '-all' to reject all unauthorised senders, "
-                        "or '~all' (softfail) as an intermediate step. "
-                        "List all legitimate sending IPs/includes before 'all'."
+                        "Replace `+all` with `-all` (strict reject). If you're worried "
+                        "about breaking legitimate mail during the transition, use `~all` "
+                        "(soft-fail) for a week while you watch DMARC reports, then "
+                        "switch to `-all`. List every legitimate sending source (your "
+                        "email provider's include, marketing platform, etc) before the "
+                        "`all` term."
                     ),
                     framework=FrameworkAlignment(
                         owasp_top10=["A05:2021"],
@@ -240,18 +256,21 @@ class DnsCheckerEngine:
             elif _SPF_NEUTRAL_ALL.search(spf):
                 ev = _dns_ev("SPF", spf, url)
                 findings.append(_finding(
-                    title=f"SPF record uses '?all' (neutral) for {records.domain}",
+                    title="Your SPF record doesn't actually reject anything",
                     description=(
-                        f"The SPF record '{spf}' uses '?all' (neutral), which does "
-                        "not prevent unauthorised senders. Mail from unlisted senders "
-                        "is treated as neither pass nor fail."
+                        f"The SPF record for '{records.domain}' uses `?all` (neutral). "
+                        "Receivers treat unlisted senders as neither pass nor fail — "
+                        "which means spoofed mail mostly gets delivered anyway. SPF is "
+                        "running but not protecting you."
                     ),
                     severity=Severity.MEDIUM,
                     url=url,
                     evidence=ev,
                     remediation=(
-                        "Change '?all' to '-all' (hard fail) or '~all' (softfail). "
-                        "Enumerate all legitimate sending sources first."
+                        "Change `?all` to `-all` (hard fail) or `~all` (soft-fail). "
+                        "Make sure every legitimate sending source is listed before the "
+                        "`all` term — Google Workspace, Microsoft 365, your transactional "
+                        "email vendor (SendGrid, Postmark, Mailgun), etc."
                     ),
                     framework=FrameworkAlignment(
                         owasp_top10=["A05:2021"],
@@ -274,19 +293,22 @@ class DnsCheckerEngine:
             url,
         )
         return [_finding(
-            title=f"DMARC record missing for {records.domain}",
+            title=f"No DMARC record — you can't tell when mail gets spoofed",
             description=(
-                f"No DMARC record was found at '_dmarc.{records.domain}'. "
-                "Without DMARC, there is no policy to reject or quarantine spoofed "
-                "email and no visibility into abuse of the domain."
+                f"DMARC is the policy that tells receiving servers what to do with "
+                f"email from '{records.domain}' that fails SPF or DKIM. Without it, "
+                "those servers fall back to their own guess (usually 'accept anyway'), "
+                "and you have no visibility into how often anyone tries to spoof your "
+                "domain."
             ),
             severity=Severity.MEDIUM,
             url=url,
             evidence=ev,
             remediation=(
-                "Add a DMARC TXT record at _dmarc.{domain}. Start with monitoring: "
-                "v=DMARC1; p=none; rua=mailto:dmarc@yourdomain.com. "
-                "Progressively tighten to p=quarantine then p=reject."
+                f"Add a DMARC TXT record at `_dmarc.{records.domain}`. Start in "
+                "monitoring mode for 2-4 weeks to see what's happening:\n"
+                f"  v=DMARC1; p=none; rua=mailto:dmarc-reports@{records.domain}\n"
+                "Once reports look clean, tighten to `p=quarantine` then `p=reject`."
             ),
             framework=FrameworkAlignment(
                 owasp_top10=["A05:2021"],
@@ -370,24 +392,30 @@ class DnsCheckerEngine:
     # ------------------------------------------------------------------
 
     def _check_cname_chain(self, records: DnsRecords, url: str) -> list[Finding]:
-        if len(records.cname) <= 1:
+        # 2-hop chains are normal for SaaS (app.heroku.com -> ec2 -> ip). Only
+        # fire at 3+ hops where it starts looking unusual.
+        if len(records.cname) < 3:
             return []
         chain = " -> ".join(records.cname)
         ev = _dns_ev("CNAME", f"CNAME chain ({len(records.cname)} hops): {chain}", url)
         return [_finding(
-            title=f"Long CNAME chain for {records.domain}",
+            title=f"DNS lookup for {records.domain} goes through many redirects",
             description=(
-                f"The domain '{records.domain}' resolves through "
-                f"{len(records.cname)} CNAME records ({chain}). "
-                "Long chains increase DNS lookup latency and may indicate subdomain "
-                "takeover risk if any intermediate target becomes unregistered."
+                f"DNS resolution for '{records.domain}' walks through "
+                f"{len(records.cname)} CNAME records before reaching an IP "
+                f"({chain}). Long chains slow page loads and increase the risk of "
+                "subdomain takeover — if any link in the chain is owned by a vendor "
+                "you stopped using, an attacker can claim that name and intercept "
+                "your traffic."
             ),
-            severity=Severity.LOW,
+            severity=Severity.INFO,
             url=url,
             evidence=ev,
+            confidence=0.6,
             remediation=(
-                "Flatten the CNAME chain where possible. Verify all intermediate "
-                "targets are actively maintained to prevent subdomain takeover."
+                "Check each link in the chain. If any points at a SaaS / hosting "
+                "vendor you no longer use, remove the orphan CNAME at your DNS "
+                "provider. Where possible, flatten the chain to one or two hops."
             ),
             framework=FrameworkAlignment(
                 owasp_top10=["A05:2021"],

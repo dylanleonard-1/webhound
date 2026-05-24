@@ -78,24 +78,28 @@ class CspEngine:
         if not csp_enforce and not csp_report_only:
             return []
 
-        # If only report-only is present, flag the missing enforcement header.
+        # If only report-only is present, flag at INFO. Running report-only is the
+        # standard CSP rollout pattern — deploy, watch reports, then enforce.
+        # We surface it so the team knows enforcement is still pending; we do
+        # not punish a healthy rollout with a MEDIUM.
         if not csp_enforce and csp_report_only:
             findings.append(_finding(
-                title="CSP enforcement header missing (report-only only)",
+                title="CSP is in report-only mode (not blocking attacks yet)",
                 description=(
-                    "A Content-Security-Policy-Report-Only header is present but "
-                    "there is no enforced Content-Security-Policy header. "
-                    "Report-Only mode collects violation data but does not block "
-                    "any malicious content — it provides no active XSS protection."
+                    "Your site has a Content-Security-Policy in report-only mode. That's the "
+                    "right pattern when you're rolling CSP out — it collects violation reports "
+                    "without breaking pages. But until you graduate to the enforcing header, "
+                    "the policy doesn't actually block anything."
                 ),
-                severity=Severity.MEDIUM,
+                severity=Severity.INFO,
                 url=url,
                 evidence_content=f"Content-Security-Policy-Report-Only: {csp_report_only[:200]}",
                 remediation=(
-                    "Graduate the policy to enforcement mode: use "
-                    "Content-Security-Policy instead of (or alongside) "
-                    "Content-Security-Policy-Report-Only."
+                    "When the reports from your report-only deployment have stopped flagging "
+                    "legitimate page behaviour, switch the header name from "
+                    "`Content-Security-Policy-Report-Only` to `Content-Security-Policy`."
                 ),
+                confidence=0.9,
                 framework=FrameworkAlignment(owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]),
             ))
             return findings
@@ -131,17 +135,19 @@ class CspEngine:
         if obj and "'none'" in [s.lower() for s in obj]:
             return []
         return [_finding(
-            title="CSP missing restrictive object-src directive",
+            title="CSP doesn't block <object> and <embed> tags",
             description=(
-                "The Content-Security-Policy does not restrict object-src to "
-                "'none'. Without this, <object>, <embed>, and <applet> tags can "
-                "load plugins (Flash, Java) which execute arbitrary code and "
-                "bypass all other CSP directives."
+                "Your CSP doesn't include `object-src 'none'`. If an attacker can inject an "
+                "`<object>` or `<embed>` tag (via XSS or HTML injection), it can load legacy "
+                "plugin content that bypasses CSP. Modern browsers no longer run Flash or Java "
+                "plugins, so the practical risk is lower than it used to be — but locking this "
+                "down costs nothing."
             ),
-            severity=Severity.HIGH,
+            severity=Severity.MEDIUM,
             url=url,
             evidence=ev,
-            remediation="Add: object-src 'none' to your Content-Security-Policy.",
+            remediation="Add to your Content-Security-Policy: `object-src 'none';`",
+            confidence=0.8,
             framework=FrameworkAlignment(
                 owasp_top10=["A05:2021"],
                 cwe_ids=["CWE-693"],

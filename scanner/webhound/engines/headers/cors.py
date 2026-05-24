@@ -62,27 +62,26 @@ class CorsEngine:
         acao_clean = acao.strip()
 
         if acao_clean == "*" and acac == "true":
-            # Per RFC 6454 browsers should block this combination, but servers
-            # that set it may be working around CORS via custom headers or
-            # non-browser clients — still a significant misconfiguration.
+            # Per the CORS spec, browsers reject ACAO=* with credentials. A server
+            # that emits this combination is misconfigured; non-browser clients
+            # may still honour it.
             ev = _header_ev("Access-Control-Allow-Origin", acao_clean, url)
             return [_finding(
-                title="CORS wildcard origin with credentials enabled",
+                title="CORS is broken: wildcard origin + credentials",
                 description=(
-                    "Access-Control-Allow-Origin: * is combined with "
-                    "Access-Control-Allow-Credentials: true. "
-                    "This combination is rejected by browsers per spec, but "
-                    "signals a serious CORS misconfiguration that may expose "
-                    "authenticated resources to cross-origin attackers using "
-                    "non-browser clients or future spec changes."
+                    "Your server sends `Access-Control-Allow-Origin: *` together with "
+                    "`Access-Control-Allow-Credentials: true`. Browsers reject this combination, "
+                    "so credentialed cross-origin requests will fail silently — but the "
+                    "configuration also signals a server that doesn't understand CORS, which "
+                    "often hides bigger access-control bugs."
                 ),
                 severity=Severity.HIGH,
                 url=url,
                 evidence=ev,
                 remediation=(
-                    "Never combine ACAO: * with ACAC: true. "
-                    "Maintain an explicit allowlist of trusted origins and "
-                    "reflect only those origins dynamically."
+                    "Never set the wildcard origin with credentials. Maintain a server-side "
+                    "allowlist of trusted origins and reflect the request `Origin` only when it's "
+                    "on the allowlist."
                 ),
                 framework=FrameworkAlignment(
                     owasp_top10=["A07:2021"],
@@ -94,19 +93,21 @@ class CorsEngine:
         if acao_clean == "*":
             ev = _header_ev("Access-Control-Allow-Origin", acao_clean, url)
             return [_finding(
-                title="CORS policy allows any origin (wildcard)",
+                title="CORS allows any website to read this resource",
                 description=(
-                    "Access-Control-Allow-Origin: * permits any origin to make "
-                    "cross-origin requests to this resource. If the resource "
-                    "returns sensitive data, this may expose it to malicious sites."
+                    "`Access-Control-Allow-Origin: *` lets any site on the internet read responses "
+                    "from this endpoint via cross-origin requests. That's fine for genuinely public "
+                    "data (a CDN, a public API). It's a leak for anything with PII, billing, or "
+                    "authenticated content."
                 ),
                 severity=Severity.MEDIUM,
                 url=url,
                 evidence=ev,
                 remediation=(
-                    "Replace the wildcard with an explicit allowlist of trusted "
-                    "origins. If the resource is truly public, document the intent."
+                    "If this resource is intentionally public, no action needed — document it. "
+                    "Otherwise, replace `*` with an explicit allowlist of trusted origins."
                 ),
+                confidence=0.7,
                 framework=FrameworkAlignment(
                     owasp_top10=["A05:2021"],
                     cwe_ids=["CWE-942"],
@@ -114,32 +115,10 @@ class CorsEngine:
                 ),
             )]
 
-        # Non-wildcard origin present with credentials — normal but notable.
-        if acac == "true":
-            ev = _header_ev("Access-Control-Allow-Origin", acao_clean, url)
-            return [_finding(
-                title="CORS allows credentials for specific origin",
-                description=(
-                    f"Access-Control-Allow-Credentials: true is set for origin "
-                    f"{acao_clean!r}. Credentials (cookies, auth headers) will be "
-                    "sent in cross-origin requests from this origin. Verify the "
-                    "origin is intentionally trusted."
-                ),
-                severity=Severity.LOW,
-                url=url,
-                evidence=ev,
-                remediation=(
-                    "Ensure only intentionally trusted origins appear in "
-                    "Access-Control-Allow-Origin when credentials are enabled. "
-                    "Validate the Origin header server-side."
-                ),
-                framework=FrameworkAlignment(
-                    owasp_top10=["A07:2021"],
-                    cwe_ids=["CWE-942"],
-                    nist_controls=["AC-4"],
-                ),
-            )]
-
+        # Non-wildcard origin with credentials is the standard pattern for any
+        # cookie-authenticated cross-origin API. It is not by itself a finding —
+        # the noise this used to generate (one LOW per authenticated endpoint)
+        # was the single biggest source of dashboard clutter from this engine.
         return []
 
     # ------------------------------------------------------------------

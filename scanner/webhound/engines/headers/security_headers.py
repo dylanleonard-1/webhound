@@ -65,18 +65,18 @@ class SecurityHeadersEngine:
 
         if not csp:
             findings.append(_finding(
-                title="Content-Security-Policy header missing",
+                title="No Content-Security-Policy",
                 description=(
-                    "No Content-Security-Policy (CSP) header was found. "
-                    "CSP is a critical defence-in-depth mechanism that limits the impact "
-                    "of cross-site scripting (XSS) and data injection attacks."
+                    "Your site doesn't tell browsers which scripts and styles are allowed to run. "
+                    "Without this guardrail, a single injected script tag can run on every page."
                 ),
                 severity=Severity.MEDIUM,
                 url=url,
                 evidence_content="Content-Security-Policy: <not present>",
                 remediation=(
-                    "Add a strict Content-Security-Policy header. "
-                    "Start with: Content-Security-Policy: default-src 'self'"
+                    "Add a Content-Security-Policy header — a defence-in-depth mechanism against XSS "
+                    "(Cross-Site Scripting, CWE-79) and data-injection attacks. Start strict and loosen as needed:\n"
+                    "  Content-Security-Policy: default-src 'self'"
                 ),
                 framework=FrameworkAlignment(
                     owasp_top10=["A05:2021"],
@@ -90,16 +90,19 @@ class SecurityHeadersEngine:
 
         if _CSP_WILDCARD_SRC.search(csp):
             findings.append(_finding(
-                title="CSP allows wildcard (*) source",
+                title="CSP allows any origin (wildcard)",
                 description=(
-                    f"The Content-Security-Policy contains a bare wildcard (*) source "
-                    f"directive, which negates the policy's XSS protection entirely. "
-                    f"Value: {csp!r}"
+                    "Your Content-Security-Policy contains a `*` directive, which lets browsers "
+                    "load scripts and styles from anywhere. That removes most of the protection "
+                    "the header was meant to provide."
                 ),
                 severity=Severity.HIGH,
                 url=url,
                 evidence=ev,
-                remediation="Replace wildcard sources with explicit allowed origins.",
+                remediation=(
+                    "Replace the wildcard with explicit origins your site actually loads from.\n"
+                    f"Observed policy: {csp[:200]!r}"
+                ),
                 framework=FrameworkAlignment(
                     owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
                 ),
@@ -107,51 +110,57 @@ class SecurityHeadersEngine:
 
         if _CSP_UNSAFE_INLINE.search(csp):
             findings.append(_finding(
-                title="CSP contains 'unsafe-inline'",
+                title="CSP allows inline scripts",
                 description=(
-                    "'unsafe-inline' in the Content-Security-Policy permits inline "
-                    "scripts and styles, bypassing the XSS protection that CSP provides."
+                    "Your CSP permits inline `<script>` and `<style>` tags. An attacker who injects "
+                    "even one tag can run code on your visitors' browsers."
                 ),
                 severity=Severity.HIGH,
                 url=url,
                 evidence=ev,
                 remediation=(
-                    "Remove 'unsafe-inline'. Use nonces or hashes for legitimate "
-                    "inline code: script-src 'nonce-{random}'"
+                    "Remove `'unsafe-inline'`. For inline scripts you control, use a nonce or hash:\n"
+                    "  script-src 'self' 'nonce-{random-per-response}'\n"
+                    "Modern frameworks (Next.js, Rails, Django) generate nonces automatically."
                 ),
+                confidence=0.95,
                 framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
+                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693", "CWE-79"]
                 ),
             ))
 
         if _CSP_UNSAFE_EVAL.search(csp):
             findings.append(_finding(
-                title="CSP contains 'unsafe-eval'",
+                title="CSP allows eval()",
                 description=(
-                    "'unsafe-eval' allows the use of eval() and related functions "
-                    "which can execute attacker-controlled strings as code."
+                    "Your CSP allows JavaScript `eval()` and related functions. If any user-supplied "
+                    "string reaches eval(), it runs as code."
                 ),
                 severity=Severity.MEDIUM,
                 url=url,
                 evidence=ev,
-                remediation="Remove 'unsafe-eval'. Refactor code to avoid eval().",
+                remediation=(
+                    "Remove `'unsafe-eval'` from script-src. Most uses of eval() can be replaced "
+                    "with JSON.parse() or a safer parser."
+                ),
+                confidence=0.9,
                 framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
+                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693", "CWE-95"]
                 ),
             ))
 
         if "default-src" not in csp.lower():
             findings.append(_finding(
-                title="CSP missing default-src directive",
+                title="CSP is missing a default fallback",
                 description=(
-                    "The Content-Security-Policy does not include a 'default-src' "
-                    "fallback directive. Resources not covered by an explicit directive "
-                    "will be allowed from any origin."
+                    "Your CSP lists rules for specific resource types (scripts, images, etc.) but has "
+                    "no `default-src`. Any resource type you forgot to mention is allowed from anywhere."
                 ),
                 severity=Severity.MEDIUM,
                 url=url,
                 evidence=ev,
-                remediation="Add 'default-src' as a catch-all fallback, e.g. default-src 'self'.",
+                remediation="Add a catch-all fallback at the start of the policy: `default-src 'self';`",
+                confidence=0.85,
                 framework=FrameworkAlignment(
                     owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
                 ),
@@ -173,18 +182,21 @@ class SecurityHeadersEngine:
 
         if not hsts:
             return [_finding(
-                title="Strict-Transport-Security (HSTS) header missing",
+                title="No HSTS — browsers can still talk to your site over plain HTTP",
                 description=(
-                    "The HTTPS response does not include a Strict-Transport-Security "
-                    "header. Without HSTS, browsers may allow downgrade attacks that "
-                    "redirect users to an unencrypted HTTP version of the site."
+                    "Your site is on HTTPS but doesn't tell browsers to refuse the HTTP version. "
+                    "On public WiFi, an attacker can intercept the first connection and downgrade "
+                    "your visitors to an unencrypted version of your site."
                 ),
                 severity=Severity.MEDIUM,
                 url=url,
                 evidence_content="Strict-Transport-Security: <not present>",
                 remediation=(
-                    "Add: Strict-Transport-Security: max-age=31536000; "
-                    "includeSubDomains; preload"
+                    "Add to every HTTPS response:\n"
+                    "  Strict-Transport-Security: max-age=31536000; includeSubDomains\n\n"
+                    "Once you're confident, you can also add `preload` and submit to "
+                    "hstspreload.org — but preload is hard to reverse, so only do it when "
+                    "every subdomain is HTTPS-ready."
                 ),
                 framework=FrameworkAlignment(
                     owasp_top10=["A02:2021"],
@@ -216,16 +228,20 @@ class SecurityHeadersEngine:
 
         if "includesubdomains" not in hsts.lower():
             findings.append(_finding(
-                title="HSTS does not include subdomains",
+                title="HSTS doesn't cover subdomains",
                 description=(
-                    "The Strict-Transport-Security header is missing "
-                    "'includeSubDomains'. Subdomains remain vulnerable to downgrade "
-                    "attacks even when the main domain is protected."
+                    "Your HSTS header protects the main domain but not subdomains. If you host "
+                    "anything on a subdomain (mail, app, api), they remain vulnerable to downgrade "
+                    "attacks. Skip this only if a subdomain genuinely needs to stay HTTP."
                 ),
-                severity=Severity.LOW,
+                severity=Severity.INFO,
                 url=url,
                 evidence=ev,
-                remediation="Add 'includeSubDomains' to the HSTS header.",
+                remediation=(
+                    "Add `includeSubDomains` to the HSTS header. Confirm first that every "
+                    "subdomain you own can serve HTTPS — once set, browsers will refuse HTTP."
+                ),
+                confidence=0.7,
                 framework=FrameworkAlignment(
                     owasp_top10=["A02:2021"], cwe_ids=["CWE-319"]
                 ),
@@ -244,18 +260,20 @@ class SecurityHeadersEngine:
 
         if not xfo and not has_frame_ancestors:
             return [_finding(
-                title="X-Frame-Options header missing",
+                title="Page can be embedded in any iframe (clickjacking risk)",
                 description=(
-                    "Neither X-Frame-Options nor a CSP frame-ancestors directive was "
-                    "found. The page may be embedded in an iframe on an attacker-"
-                    "controlled site (clickjacking)."
+                    "Your site doesn't tell browsers whether other sites are allowed to put it inside "
+                    "an iframe. An attacker can embed your login or checkout page on their own domain "
+                    "and trick visitors into clicking buttons they think are theirs (clickjacking)."
                 ),
                 severity=Severity.MEDIUM,
                 url=url,
                 evidence_content="X-Frame-Options: <not present>",
                 remediation=(
-                    "Add: X-Frame-Options: DENY\n"
-                    "Or use CSP: Content-Security-Policy: frame-ancestors 'none'"
+                    "Pick one. Modern: add to your CSP:\n"
+                    "  Content-Security-Policy: frame-ancestors 'none'\n"
+                    "Legacy fallback for older browsers:\n"
+                    "  X-Frame-Options: DENY"
                 ),
                 framework=FrameworkAlignment(
                     owasp_top10=["A05:2021"],
@@ -295,16 +313,16 @@ class SecurityHeadersEngine:
 
         if not xcto:
             return [_finding(
-                title="X-Content-Type-Options header missing",
+                title="Browsers may misinterpret file types served by your site",
                 description=(
-                    "The X-Content-Type-Options header is absent. Without 'nosniff', "
-                    "browsers may interpret responses with incorrect MIME types, "
-                    "enabling MIME-sniffing attacks."
+                    "Without `X-Content-Type-Options: nosniff`, browsers guess the type of files "
+                    "they receive. An attacker who can upload a file (an image, a PDF) can sometimes "
+                    "trick the browser into running it as a script — that's called a MIME-sniffing attack."
                 ),
                 severity=Severity.MEDIUM,
                 url=url,
                 evidence_content="X-Content-Type-Options: <not present>",
-                remediation="Add: X-Content-Type-Options: nosniff",
+                remediation="Add to every response: `X-Content-Type-Options: nosniff`",
                 framework=FrameworkAlignment(
                     owasp_top10=["A05:2021"],
                     cwe_ids=["CWE-430"],
@@ -340,16 +358,18 @@ class SecurityHeadersEngine:
 
         if not rp:
             return [_finding(
-                title="Referrer-Policy header missing",
+                title="No Referrer-Policy — full URLs may leak to third parties",
                 description=(
-                    "No Referrer-Policy header was found. Browsers default to "
-                    "'no-referrer-when-downgrade', potentially leaking full URL "
-                    "paths to third-party sites via the Referer header."
+                    "When a visitor clicks a link to another site (or your page loads a third-party "
+                    "script), the browser sends the URL they came from. Without a Referrer-Policy, "
+                    "URL paths and query strings — which often contain tokens, IDs, or session info — "
+                    "can leak to advertisers, analytics, and other sites."
                 ),
                 severity=Severity.LOW,
                 url=url,
                 evidence_content="Referrer-Policy: <not present>",
-                remediation="Add: Referrer-Policy: strict-origin-when-cross-origin",
+                remediation="Add: `Referrer-Policy: strict-origin-when-cross-origin`",
+                confidence=0.85,
                 framework=FrameworkAlignment(
                     owasp_top10=["A05:2021"], cwe_ids=["CWE-200"]
                 ),
@@ -358,16 +378,17 @@ class SecurityHeadersEngine:
         if rp.strip().lower() in _UNSAFE_REFERRER:
             ev = Evidence.http_header("Referrer-Policy", rp, url, _ENGINE)
             return [_finding(
-                title="Referrer-Policy is overly permissive",
+                title="Referrer-Policy leaks full URLs to other sites",
                 description=(
-                    f"Referrer-Policy: {rp!r} sends the full URL (including path and "
-                    "query parameters) as a Referer header to third-party sites. "
-                    "This may leak sensitive URL parameters."
+                    f"Your Referrer-Policy is set to {rp!r}, which sends the entire URL "
+                    "(including the path and query string) to other sites your visitors click "
+                    "through to. If URLs contain session tokens, password reset tokens, or "
+                    "personal data, that's a leak."
                 ),
                 severity=Severity.LOW,
                 url=url,
                 evidence=ev,
-                remediation="Use: Referrer-Policy: strict-origin-when-cross-origin",
+                remediation="Change to: `Referrer-Policy: strict-origin-when-cross-origin`",
                 framework=FrameworkAlignment(
                     owasp_top10=["A05:2021"], cwe_ids=["CWE-200"]
                 ),
@@ -383,19 +404,22 @@ class SecurityHeadersEngine:
         pp = h.get("permissions-policy")
         if not pp:
             return [_finding(
-                title="Permissions-Policy header missing",
+                title="No Permissions-Policy — browser features are wide open",
                 description=(
-                    "No Permissions-Policy header was found. Without it, all browser "
-                    "features (camera, microphone, geolocation, etc.) default to their "
-                    "browser-specified policy, which may be permissive."
+                    "Your site doesn't explicitly disable powerful browser features it doesn't use "
+                    "(camera, microphone, geolocation, etc). Modern browsers default to safe behaviour, "
+                    "so this is rarely exploited — but locking it down is best practice and required "
+                    "for some compliance frameworks."
                 ),
-                severity=Severity.LOW,
+                severity=Severity.INFO,
                 url=url,
                 evidence_content="Permissions-Policy: <not present>",
                 remediation=(
-                    "Add a Permissions-Policy header restricting unused features. "
-                    "Example: Permissions-Policy: camera=(), microphone=(), geolocation=()"
+                    "List the features you don't use and disable them. Example for a typical "
+                    "marketing site:\n"
+                    "  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()"
                 ),
+                confidence=0.7,
                 framework=FrameworkAlignment(
                     owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
                 ),
@@ -405,62 +429,54 @@ class SecurityHeadersEngine:
     # ------------------------------------------------------------------
     # Cross-Origin-* headers (COOP, COEP, CORP)
     # ------------------------------------------------------------------
+    # Combined into a single INFO finding. These are advanced cross-origin
+    # isolation headers — most sites don't need them, and three separate LOW
+    # findings on every page was producing dashboard noise. We only fire one
+    # finding listing whichever are missing.
 
     def _check_coop(self, h: dict[str, str], url: str) -> list[Finding]:
+        missing: list[str] = []
         if not h.get("cross-origin-opener-policy"):
-            return [_finding(
-                title="Cross-Origin-Opener-Policy (COOP) header missing",
-                description=(
-                    "COOP prevents cross-origin windows from retaining a reference to "
-                    "this page, protecting against cross-origin attacks such as "
-                    "XS-Leaks."
-                ),
-                severity=Severity.LOW,
-                url=url,
-                evidence_content="Cross-Origin-Opener-Policy: <not present>",
-                remediation="Add: Cross-Origin-Opener-Policy: same-origin",
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
-                ),
-            )]
-        return []
-
-    def _check_coep(self, h: dict[str, str], url: str) -> list[Finding]:
+            missing.append("Cross-Origin-Opener-Policy")
         if not h.get("cross-origin-embedder-policy"):
-            return [_finding(
-                title="Cross-Origin-Embedder-Policy (COEP) header missing",
-                description=(
-                    "COEP prevents a document from loading cross-origin resources "
-                    "that don't explicitly grant permission. Required to enable "
-                    "powerful features like SharedArrayBuffer."
-                ),
-                severity=Severity.LOW,
-                url=url,
-                evidence_content="Cross-Origin-Embedder-Policy: <not present>",
-                remediation="Add: Cross-Origin-Embedder-Policy: require-corp",
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
-                ),
-            )]
+            missing.append("Cross-Origin-Embedder-Policy")
+        if not h.get("cross-origin-resource-policy"):
+            missing.append("Cross-Origin-Resource-Policy")
+
+        if len(missing) == 0:
+            return []
+
+        return [_finding(
+            title="Cross-origin isolation headers not set",
+            description=(
+                f"Your site doesn't set {len(missing)} of the 3 cross-origin isolation "
+                "headers. These protect against advanced cross-origin attacks (XS-Leaks, "
+                "Spectre-style side channels) and are required for some browser features "
+                "like SharedArrayBuffer. Most sites that don't use those features can ignore "
+                "this — set them only if you handle sensitive data or need full isolation."
+            ),
+            severity=Severity.INFO,
+            url=url,
+            evidence_content=", ".join(f"{name}: <not present>" for name in missing),
+            remediation=(
+                "If you want full cross-origin isolation, add:\n"
+                "  Cross-Origin-Opener-Policy: same-origin\n"
+                "  Cross-Origin-Embedder-Policy: require-corp\n"
+                "  Cross-Origin-Resource-Policy: same-origin\n"
+                "Test thoroughly — these can break embedded third-party content."
+            ),
+            confidence=0.6,
+            framework=FrameworkAlignment(
+                owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
+            ),
+        )]
+
+    # Kept as placeholders so the analyze() pipeline doesn't change; the real
+    # logic now lives in _check_coop above.
+    def _check_coep(self, h: dict[str, str], url: str) -> list[Finding]:
         return []
 
     def _check_corp(self, h: dict[str, str], url: str) -> list[Finding]:
-        if not h.get("cross-origin-resource-policy"):
-            return [_finding(
-                title="Cross-Origin-Resource-Policy (CORP) header missing",
-                description=(
-                    "CORP restricts which origins may embed this resource. Without it, "
-                    "any site can embed this page's resources, enabling Spectre-style "
-                    "side-channel reads."
-                ),
-                severity=Severity.LOW,
-                url=url,
-                evidence_content="Cross-Origin-Resource-Policy: <not present>",
-                remediation="Add: Cross-Origin-Resource-Policy: same-origin",
-                framework=FrameworkAlignment(
-                    owasp_top10=["A05:2021"], cwe_ids=["CWE-693"]
-                ),
-            )]
         return []
 
 

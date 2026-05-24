@@ -75,19 +75,23 @@ class ObfuscationDetectorEngine:
         blob_len = len(m.group())
         ev = _js_ev(f"Base64 blob ({blob_len} chars): {m.group()[:60]}…", url, idx)
         return [_finding(
-            title="Large base64 blob in inline script",
+            title="Large base64 chunk inside an inline script",
             description=(
-                f"An inline script contains a base64-encoded blob of {blob_len} "
-                "characters. Large base64 strings in inline scripts often carry "
-                "obfuscated payloads (shellcode, packed JavaScript, exfiltration data)."
+                f"An inline script contains a {blob_len}-character base64 blob. "
+                "Legitimate uses exist (inlined images, source maps), but blobs "
+                "this size are also the way attackers hide malicious payloads "
+                "from scanners — the suspect string is encoded so static checks "
+                "can't see what it actually does."
             ),
             severity=Severity.MEDIUM,
             url=url,
             evidence=ev,
             confidence=0.6,
             remediation=(
-                "Investigate the source of the base64 string. "
-                "Decode and review its content. Remove if unexpected or injected."
+                "Trace where this script came from. If it's your own bundle, "
+                "no action needed — the blob is likely an inlined font / image / "
+                "source map. If you don't recognise it, decode the base64 to see "
+                "what's inside before deciding whether to keep it."
             ),
         )]
 
@@ -105,19 +109,22 @@ class ObfuscationDetectorEngine:
         count = run.count("\\x")
         ev = _js_ev(f"{count} consecutive hex escapes: {run[:60]}…", url, idx)
         return [_finding(
-            title="Dense hex-escape encoding in inline script",
+            title="Run of hex-escaped characters in inline script",
             description=(
-                f"An inline script contains a run of {count} consecutive hex escape "
-                "sequences (\\xNN). This encoding pattern is commonly used to "
-                "obfuscate malicious strings and evade static keyword detection."
+                f"An inline script contains a run of {count} consecutive `\\xNN` "
+                "hex escape sequences. This pattern is used to disguise strings "
+                "(URLs, function names, payload commands) so that simple keyword "
+                "search and AV signatures don't match. Modern minifiers don't "
+                "usually emit this — when you see it, suspect injected code."
             ),
             severity=Severity.MEDIUM,
             url=url,
             evidence=ev,
             confidence=0.65,
             remediation=(
-                "Investigate the script for injected content. "
-                "Decode the hex-encoded strings and review their purpose."
+                "Decode the hex run to see what it spells. If it's an unfamiliar "
+                "URL, keyword, or shellcode-like sequence, treat the script as a "
+                "compromise indicator and remove it."
             ),
         )]
 
@@ -132,21 +139,23 @@ class ObfuscationDetectorEngine:
         snippet = content[m.start():min(len(content), m.start() + 80)]
         ev = _js_ev(f"Packer pattern: {snippet}…", url, idx)
         return [_finding(
-            title="JavaScript packer/obfuscator pattern detected",
+            title="Inline script is packed by a known JavaScript packer",
             description=(
-                "An inline script matches the signature of a JavaScript packer "
-                "(e.g., Dean Edwards p,a,c,k,e,r). Packed scripts hide their true "
-                "content until runtime, making static analysis difficult and "
-                "indicating potential malicious obfuscation."
+                "An inline script matches the signature of the Dean Edwards / "
+                "p,a,c,k,e,r obfuscator. Packers hide a script's real contents "
+                "behind an unpacker function that runs at page load. Modern build "
+                "tools don't use this — when you see it on a production site, "
+                "it's almost always either a long-dead third-party library or "
+                "injected malware."
             ),
             severity=Severity.HIGH,
             url=url,
             evidence=ev,
             confidence=0.8,
             remediation=(
-                "Unpack and review the script content. "
-                "Legitimate packed scripts can be replaced with minified originals. "
-                "Remove if the source is unknown."
+                "Identify what's actually in the script. Online unpackers like "
+                "beautifier.io can reverse the obfuscation. If you don't recognise "
+                "the unpacked content, remove the script — it's likely injected."
             ),
         )]
 
@@ -157,24 +166,31 @@ class ObfuscationDetectorEngine:
     def _check_multi_eval(self, content: str, url: str, idx: int) -> list[Finding]:
         matches = _EVAL_CALL.findall(content)
         count = len(matches)
-        if count < 3:
+        # Threshold bumped from 3 to 5 — legacy frameworks (some older
+        # jQuery plugins, AMD shims) legitimately call eval a few times
+        # for module loading. Five or more in one inline script is
+        # genuinely unusual.
+        if count < 5:
             return []
         ev = _js_ev(f"{count} eval() calls in one script", url, idx)
         return [_finding(
-            title=f"Multiple eval() calls detected ({count}×) in inline script",
+            title=f"Inline script calls eval() {count} times",
             description=(
-                f"An inline script contains {count} eval() calls. "
-                "Multiple eval() invocations in a single script are a strong "
-                "indicator of obfuscated or malicious code that executes "
-                "dynamically constructed payloads."
+                f"An inline script contains {count} separate `eval()` calls. "
+                "One or two eval() calls can be a code smell; this many is "
+                "almost always either a packer's runtime unpacker or "
+                "deliberately obfuscated malicious code that builds and runs "
+                "its payload in pieces."
             ),
             severity=Severity.HIGH,
             url=url,
             evidence=ev,
             confidence=0.75,
             remediation=(
-                "Audit all eval() usage. Legitimate code rarely needs more than "
-                "one eval(). Investigate for injected or obfuscated payloads."
+                "Identify what each eval() is doing. If this is a third-party "
+                "library you can't audit, replace it with a maintained "
+                "alternative. If you don't recognise the script at all, "
+                "treat it as a compromise indicator."
             ),
         )]
 
@@ -194,20 +210,24 @@ class ObfuscationDetectorEngine:
             idx,
         )
         return [_finding(
-            title=f"High-entropy inline script (entropy={entropy:.2f})",
+            title="Inline script has unusually random-looking content",
             description=(
                 f"An inline script has a Shannon entropy of {entropy:.2f} bits per "
-                f"character, above the {_ENTROPY_THRESHOLD} threshold. "
-                "Packed, compressed, or obfuscated code typically exhibits high "
-                "character entropy that exceeds normal source code."
+                f"character — above the {_ENTROPY_THRESHOLD} threshold. Modern "
+                "minifiers (Webpack, esbuild, Terser) can produce code that "
+                "approaches this, so the signal alone is weak. Combined with "
+                "any of the other obfuscation findings on the same script, it "
+                "becomes a stronger indicator of injected or packed code."
             ),
-            severity=Severity.MEDIUM,
+            severity=Severity.LOW,
             url=url,
             evidence=ev,
-            confidence=0.5,
+            confidence=0.45,
             remediation=(
-                "Review the script for packed or obfuscated content. "
-                "High entropy alone is not conclusive — combine with other indicators."
+                "If this script is a known minified bundle from your build "
+                "pipeline, no action needed. Otherwise check what other findings "
+                "exist on the same script — high entropy plus eval / base64 / "
+                "packer patterns together is the real signal."
             ),
         )]
 

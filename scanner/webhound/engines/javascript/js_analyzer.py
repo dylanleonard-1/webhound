@@ -35,117 +35,154 @@ _PATTERNS: list[_PatternDef] = [
         "eval_call",
         re.compile(r"\beval\s*\("),
         Severity.LOW,
-        "eval() call detected",
-        "eval() executes arbitrary string content as JavaScript code. "
-        "If attacker-controlled input reaches eval(), it enables XSS or remote code execution.",
-        "Avoid eval(). Use JSON.parse() for data, or refactor to static function definitions.",
+        "Script uses eval() to run code from strings",
+        "An inline script calls `eval()`. eval() runs whatever string you give it as "
+        "JavaScript code. If even one of those strings can be influenced by user input "
+        "(a URL parameter, a cookie, a form field), it becomes a way to inject code "
+        "into your page.",
+        "Replace eval() with safer alternatives: `JSON.parse()` for parsing data, "
+        "or explicit function definitions for everything else. Most modern code has "
+        "no legitimate need for eval().",
     ),
     _PatternDef(
         "new_function",
         re.compile(r"\bnew\s+Function\s*\("),
         Severity.MEDIUM,
-        "new Function() constructor detected",
-        "new Function() constructs and executes code from strings, equivalent to eval(). "
-        "Attacker-controlled input reaching this pattern enables code injection.",
-        "Replace with static function definitions. Avoid runtime code construction.",
+        "Script builds functions from strings at runtime",
+        "An inline script uses the `new Function(...)` constructor, which compiles "
+        "JavaScript from a string at runtime — same security risk as eval(). If the "
+        "string contains anything from user input, an attacker can inject code.",
+        "Use ordinary function declarations or arrow functions. There's almost never "
+        "a legitimate reason to build a function body from a string in production code.",
     ),
     _PatternDef(
         "document_write",
         re.compile(r"\bdocument\s*\.\s*write\s*\("),
         Severity.LOW,
-        "document.write() call detected",
-        "document.write() is deprecated and can cause DOM-based XSS if user-supplied "
-        "content is passed without sanitization.",
-        "Use DOM APIs (createElement, textContent) instead of document.write().",
+        "Script uses the deprecated document.write()",
+        "An inline script calls `document.write()`. Browsers have effectively "
+        "deprecated this API — it can rewrite arbitrary HTML into the page, which "
+        "is a classic source of DOM-based XSS bugs.",
+        "Replace with modern DOM APIs: `createElement()` + `appendChild()`, "
+        "`textContent` for plain text, or template literals. Frameworks (React, "
+        "Vue, etc.) handle this automatically.",
     ),
     _PatternDef(
         "innerhtml_assign",
         re.compile(r"\.innerHTML\s*="),
         Severity.LOW,
-        "innerHTML assignment detected",
-        "Assignment to innerHTML renders HTML and can cause XSS if the value "
-        "originates from attacker-controllable input.",
-        "Use textContent for plain text. Sanitize HTML with DOMPurify before "
-        "assigning to innerHTML.",
+        "Script assigns HTML directly via innerHTML",
+        "An inline script writes to `.innerHTML`. Anything assigned this way is "
+        "parsed as HTML — including any `<script>` tags or event handlers. If the "
+        "value comes from user input, that's a textbook cross-site scripting bug.",
+        "Use `.textContent` for plain text (never interprets HTML). If you need to "
+        "render user-supplied HTML, sanitize with DOMPurify first: "
+        "`el.innerHTML = DOMPurify.sanitize(userInput)`.",
     ),
     _PatternDef(
         "atob_call",
         re.compile(r"\batob\s*\("),
         Severity.LOW,
-        "atob() base64 decode detected",
-        "atob() decodes base64-encoded data. Used legitimately, but commonly present "
-        "in obfuscated malicious scripts to hide payloads.",
-        "Review whether base64 decoding is necessary here. "
-        "Investigate if combined with eval() or dynamic code execution.",
+        "Script decodes base64 (atob)",
+        "An inline script calls `atob()`, which decodes base64 strings. Used "
+        "legitimately (e.g., for source maps, data URLs). It's flagged here only "
+        "because it's also one of the building blocks attackers use to hide "
+        "payloads from static scanners.",
+        "If this is your own code, no action needed. If you don't recognise this "
+        "script and it also matches the obfuscation patterns (eval, fromCharCode), "
+        "investigate as a possible injection.",
     ),
     _PatternDef(
         "from_char_code",
         re.compile(r"\bfromCharCode\s*\("),
         Severity.LOW,
-        "String.fromCharCode() detected",
-        "fromCharCode() converts character codes to strings. Frequently used in "
-        "obfuscated scripts to encode malicious payloads and evade static detection.",
-        "Review scripts using fromCharCode for obfuscation indicators. "
-        "Investigate if combined with eval() or atob().",
+        "Script builds strings from character codes",
+        "An inline script uses `String.fromCharCode(...)`, which assembles strings "
+        "from numeric codes. Legitimate uses are rare in modern code; this is more "
+        "commonly seen in obfuscated payloads that hide URLs or keywords from "
+        "static analysis.",
+        "If this is your own minified code, no action needed. If unrecognised, "
+        "decode the surrounding numeric arrays to see what strings are being built.",
     ),
     _PatternDef(
         "unescape_call",
         re.compile(r"\bunescape\s*\("),
         Severity.LOW,
-        "unescape() call detected",
-        "unescape() is deprecated and commonly used in obfuscated scripts to decode "
+        "Script uses the deprecated unescape()",
+        "An inline script calls `unescape()`, which was deprecated in JavaScript a "
+        "long time ago. It's still seen in obfuscated code that decodes "
         "percent-encoded payloads.",
-        "Replace with decodeURIComponent(). Investigate scripts using unescape() "
-        "for obfuscation patterns.",
+        "Replace with `decodeURIComponent()`. If you didn't write this script, "
+        "treat it as suspicious.",
     ),
     _PatternDef(
         "cookie_access",
         re.compile(r"\bdocument\s*\.\s*cookie\b"),
         Severity.LOW,
-        "document.cookie access detected",
-        "Script reads or writes document.cookie. In a malicious script this may "
-        "indicate cookie exfiltration. Cookies should be HttpOnly where possible.",
-        "Mark session cookies as HttpOnly to prevent JavaScript access. "
-        "Review whether client-side cookie access is required here.",
+        "Script reads or writes document.cookie",
+        "An inline script accesses `document.cookie`. In a legitimate app this is "
+        "usually fine, but if an attacker can inject script onto the page (XSS), "
+        "this is how session cookies get stolen. Cookies marked HttpOnly are "
+        "invisible to JavaScript, which closes this door.",
+        "Mark session cookies as `HttpOnly` so JavaScript can't read them. If you "
+        "need a cookie value in JavaScript, store the non-sensitive part separately "
+        "from the session cookie.",
     ),
     _PatternDef(
         "local_storage",
         re.compile(r"\blocalStorage\b"),
         Severity.INFO,
-        "localStorage access detected",
-        "Script accesses localStorage. Sensitive data (tokens, PII) stored in "
-        "localStorage is accessible to any script on the page and persists across sessions.",
-        "Avoid storing session tokens or sensitive PII in localStorage. "
-        "Use HttpOnly cookies for authentication tokens.",
+        "Script uses localStorage",
+        "An inline script accesses `localStorage`. Anything stored there is "
+        "visible to every script on the page (including malicious ones if XSS "
+        "happens) and persists across browser sessions.",
+        "Don't store session tokens, API keys, or personal data in localStorage. "
+        "Use HttpOnly cookies for authentication and keep PII server-side.",
     ),
     _PatternDef(
         "session_storage",
         re.compile(r"\bsessionStorage\b"),
         Severity.INFO,
-        "sessionStorage access detected",
-        "Script accesses sessionStorage. Sensitive data stored here is accessible "
-        "to any script on the page for the duration of the session.",
-        "Avoid storing session tokens or sensitive PII in sessionStorage.",
+        "Script uses sessionStorage",
+        "An inline script accesses `sessionStorage`. Same XSS exposure as "
+        "localStorage but scoped to the current tab.",
+        "Same rule as localStorage: no tokens, keys, or PII.",
     ),
     _PatternDef(
         "location_redirect",
         re.compile(r"\b(?:window\.)?location(?:\.href)?\s*=\s*"),
         Severity.LOW,
-        "Dynamic redirect via location assignment",
-        "Script assigns to window.location or location.href, performing a redirect. "
-        "If the target URL is derived from attacker-controllable input, open redirect "
-        "or DOM-based XSS may be possible.",
-        "Validate redirect targets against an allowlist. "
-        "Never build redirect URLs from unvalidated user input.",
+        "Script does a JavaScript-based redirect",
+        "An inline script assigns to `window.location` or `location.href` to "
+        "redirect the browser. If the destination URL is built from a URL "
+        "parameter, hash, or other user-controllable input, attackers can "
+        "redirect your visitors to phishing pages.",
+        "Validate redirect destinations against an allowlist of known-safe URLs. "
+        "Never build a redirect URL by concatenating user input.",
     ),
     _PatternDef(
         "form_action_manip",
-        re.compile(r"\.action\s*=\s*"),
+        # Require the property owner to look form-related: an identifier that
+        # contains 'form' (case-insensitive) anywhere, a `forms[...]` index, or
+        # a standard DOM getter. The previous bare `\.action\s*=\s*` produced
+        # false positives on unrelated objects (reducer.action, myObj.action) —
+        # especially Redux-style code where `.action` is an everyday property.
+        re.compile(
+            r"(?:"
+            r"\b\w*[Ff]orm\w*"                                 # *form*-named var
+            r"|\bforms\[[^\]]+\]"                              # document.forms[..]
+            r"|\bgetElementById\([^)]+\)"                      # DOM lookup
+            r"|\bquerySelector\([^)]+\)"                       # DOM lookup
+            r")(?:\s*\.\s*\w+)*\.action\s*="
+        ),
         Severity.MEDIUM,
-        "Dynamic form.action manipulation detected",
-        "Script dynamically sets a form's action attribute. If the target URL is "
-        "attacker-controllable, form submissions could be redirected to a malicious endpoint.",
-        "Validate form action targets. Avoid setting form.action from user-supplied input.",
+        "Script changes a form's submit destination at runtime",
+        "An inline script reassigns a form's `.action` attribute — the URL the "
+        "form posts to. If the new value comes from user input, an attacker can "
+        "redirect form submissions (including passwords, payment data) to a server "
+        "they control.",
+        "Don't compute form action URLs from user input. If the destination needs "
+        "to vary, pick from a server-side allowlist keyed by an opaque token.",
     ),
 ]
 

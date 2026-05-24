@@ -225,21 +225,25 @@ class ThirdPartyDomainEngine:
                 extra={"domain": host, "script_src": script.src},
             )
             findings.append(Finding(
-                title=f"Third-party script loaded from {host} ({label})",
+                title=f"Your site loads a script from {host} ({label})",
                 description=(
-                    f"A script is loaded from the third-party domain '{host}'. "
-                    "Third-party scripts run with full page privileges. "
-                    "A compromised or malicious third-party script can steal "
-                    "credentials, exfiltrate data, or inject malicious content."
+                    f"Your page pulls in JavaScript from `{host}`. Once that script "
+                    "runs on your page, it has the same privileges your own code does "
+                    "— it can read forms, modify the DOM, steal cookies, and talk to "
+                    "any domain. If the third party gets compromised (or always was "
+                    "malicious), your visitors are the victims."
                 ),
                 severity=severity,
                 category=FindingCategory.JAVASCRIPT,
                 evidence=[ev],
-                confidence=0.8,
+                confidence=0.7,
                 remediation=(
-                    "Audit all third-party scripts. Use Subresource Integrity (SRI) "
-                    "hashes on <script> tags to detect tampering. "
-                    "Host critical scripts on your own infrastructure where possible."
+                    "Audit every external script your page loads. For each one, add "
+                    "a Subresource Integrity (SRI) hash so the browser refuses to "
+                    "run a tampered version:\n"
+                    f"  <script src=\"https://{host}/...\" integrity=\"sha384-...\" crossorigin=\"anonymous\"></script>\n"
+                    "For anything you can self-host, do that instead of trusting the "
+                    "third party indefinitely."
                 ),
                 framework=FrameworkAlignment(
                     owasp_top10=["A08:2021"],
@@ -284,22 +288,24 @@ class ThirdPartyDomainEngine:
                 extra={"domain": action_host, "action_url": form.action_url},
             )
             findings.append(Finding(
-                title=f"Form submits data to external domain: {action_host}",
+                title=f"A form on this page posts to {action_host}",
                 description=(
-                    f"A form's action attribute points to '{action_host}', an "
-                    "external domain. Form data (including credentials or PII) "
-                    "submitted via this form is sent to a third party. "
-                    "This may be intentional (payment provider) or indicate "
-                    "form hijacking."
+                    f"One of the forms on this page submits to `{action_host}` "
+                    "instead of your own domain. Anything the visitor types — "
+                    "name, email, password, payment details — gets sent to that "
+                    "third party. Sometimes this is intentional (a payment "
+                    "processor); sometimes it's how form hijacking attackers "
+                    "exfiltrate credentials."
                 ),
                 severity=Severity.MEDIUM,
                 category=FindingCategory.JAVASCRIPT,
                 evidence=[ev],
                 confidence=0.75,
                 remediation=(
-                    "Verify the external form action is intentional and the "
-                    "destination is a trusted service provider. "
-                    "Ensure the form uses HTTPS and that the target is legitimate."
+                    "Confirm the destination is a service you intentionally use "
+                    "(Stripe, PayPal, HubSpot forms, etc). If not, search your "
+                    "templates for the action URL and remove it. Always require "
+                    "HTTPS on form destinations that handle sensitive data."
                 ),
                 framework=FrameworkAlignment(
                     owasp_top10=["A08:2021"],

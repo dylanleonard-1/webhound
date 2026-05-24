@@ -12,10 +12,113 @@ from typing import NamedTuple
 
 from webhound.core.extractor import PageArtifacts
 from webhound.models.evidence import Evidence, EvidenceType
-from webhound.models.finding import Finding, FindingCategory, FrameworkAlignment
+from webhound.models.finding import Exploitability, Finding, FindingCategory, FrameworkAlignment
 from webhound.models.severity import Severity
 
 _ENGINE = "js_analyzer"
+
+# Enterprise metadata per pattern. Keys match _PATTERNS[].name. JS dynamic-
+# code patterns cluster around OWASP A03:2021 (Injection) and CWE-79 / 95.
+# CVSS scores reflect that most patterns are "code smell that may enable
+# XSS in a hostile context" rather than confirmed-exploitable issues.
+_FA: dict[str, FrameworkAlignment] = {
+    "eval_call": FrameworkAlignment(
+        owasp_top10=["A03:2021"], cwe_ids=["CWE-79", "CWE-95"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=3.7,
+        pci_dss=["6.2.4"], iso_27001=["A.8.28"], soc2=["CC6.6"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "new_function": FrameworkAlignment(
+        owasp_top10=["A03:2021"], cwe_ids=["CWE-79", "CWE-95"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=5.4,
+        pci_dss=["6.2.4"], iso_27001=["A.8.28"], soc2=["CC6.6"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "document_write": FrameworkAlignment(
+        owasp_top10=["A03:2021"], cwe_ids=["CWE-79"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=3.7,
+        pci_dss=["6.2.4"], iso_27001=["A.8.28"], soc2=["CC6.6"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "innerhtml_assign": FrameworkAlignment(
+        owasp_top10=["A03:2021"], cwe_ids=["CWE-79"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=3.7,
+        pci_dss=["6.2.4"], iso_27001=["A.8.28"], soc2=["CC6.6"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "atob_call": FrameworkAlignment(
+        owasp_top10=["A03:2021"], cwe_ids=["CWE-506"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:N/I:L/A:N", cvss_score=2.6,
+        iso_27001=["A.8.28"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "from_char_code": FrameworkAlignment(
+        owasp_top10=["A03:2021"], cwe_ids=["CWE-506"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:N/I:L/A:N", cvss_score=2.6,
+        iso_27001=["A.8.28"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "unescape_call": FrameworkAlignment(
+        owasp_top10=["A03:2021"], cwe_ids=["CWE-506"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:N/I:L/A:N", cvss_score=2.6,
+        iso_27001=["A.8.28"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "cookie_access": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-1004"], nist_controls=["SC-23"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N", cvss_score=3.1,
+        pci_dss=["6.2.4"], iso_27001=["A.8.24"], soc2=["CC6.1"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "local_storage": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-922"], nist_controls=["SC-28"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N", cvss_score=3.1,
+        iso_27001=["A.8.24"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "session_storage": FrameworkAlignment(
+        owasp_top10=["A02:2021"], cwe_ids=["CWE-922"], nist_controls=["SC-28"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N", cvss_score=3.1,
+        iso_27001=["A.8.24"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "location_redirect": FrameworkAlignment(
+        owasp_top10=["A01:2021"], cwe_ids=["CWE-601"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:L/A:N", cvss_score=4.3,
+        iso_27001=["A.8.28"], soc2=["CC6.6"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "form_action_manip": FrameworkAlignment(
+        owasp_top10=["A01:2021"], cwe_ids=["CWE-601", "CWE-352"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=5.4,
+        pci_dss=["6.2.4"], iso_27001=["A.8.28"], soc2=["CC6.6"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "settimeout_string": FrameworkAlignment(
+        owasp_top10=["A03:2021"], cwe_ids=["CWE-95"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=5.4,
+        pci_dss=["6.2.4"], iso_27001=["A.8.28"], soc2=["CC6.6"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "dom_xss_sink_hash": FrameworkAlignment(
+        owasp_top10=["A03:2021"], cwe_ids=["CWE-79"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=6.1,
+        pci_dss=["6.2.4"], iso_27001=["A.8.28"], soc2=["CC6.6"],
+        exploitability=Exploitability.KNOWN_EXPLOITED,
+    ),
+    "proto_pollution": FrameworkAlignment(
+        owasp_top10=["A03:2021"], cwe_ids=["CWE-1321"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:L", cvss_score=4.7,
+        pci_dss=["6.2.4"], iso_27001=["A.8.28"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "source_map_url": FrameworkAlignment(
+        owasp_top10=["A05:2021"], cwe_ids=["CWE-540", "CWE-200"], nist_controls=["SC-30"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N", cvss_score=5.3,
+        iso_27001=["A.5.34"], soc2=["CC6.1"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+}
 
 # Maximum snippet length to include as evidence context.
 _SNIPPET_LEN = 150
@@ -326,11 +429,11 @@ class JsAnalyzerEngine:
                     evidence=[ev],
                     confidence=confidence,
                     remediation=pat.remediation,
-                    framework=FrameworkAlignment(
+                    framework=_FA.get(pat.name, FrameworkAlignment(
                         owasp_top10=["A03:2021"],
                         cwe_ids=["CWE-79"],
                         nist_controls=["SI-10"],
-                    ),
+                    )),
                     scanner_engine=_ENGINE,
                     metadata={"url": artifacts.url},
                 ))

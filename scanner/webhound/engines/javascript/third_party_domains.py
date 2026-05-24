@@ -13,10 +13,52 @@ import tldextract
 
 from webhound.core.extractor import PageArtifacts
 from webhound.models.evidence import Evidence, EvidenceType
-from webhound.models.finding import Finding, FindingCategory, FrameworkAlignment
+from webhound.models.finding import Exploitability, Finding, FindingCategory, FrameworkAlignment
 from webhound.models.severity import Severity
 
 _ENGINE = "third_party_domains"
+
+# Enterprise metadata per third-party finding kind. All these cluster around
+# OWASP A08:2021 (Software & Data Integrity Failures) — the third-party
+# supply chain.
+_FA: dict[str, FrameworkAlignment] = {
+    "script_third_party": FrameworkAlignment(
+        owasp_top10=["A08:2021"], cwe_ids=["CWE-829"], nist_controls=["SI-10", "SA-12"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=5.4,
+        pci_dss=["6.3.2", "6.4.3"], iso_27001=["A.8.28", "A.5.21"], soc2=["CC7.1"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "script_missing_sri": FrameworkAlignment(
+        owasp_top10=["A08:2021"], cwe_ids=["CWE-353", "CWE-829"], nist_controls=["SI-7", "SA-12"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:H/I:H/A:N", cvss_score=5.9,
+        pci_dss=["11.6.1"], iso_27001=["A.8.28"], soc2=["CC7.1"],
+        exploitability=Exploitability.KNOWN_EXPLOITED,
+    ),
+    "form_external_action": FrameworkAlignment(
+        owasp_top10=["A08:2021"], cwe_ids=["CWE-829", "CWE-601"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:N/A:N", cvss_score=6.5,
+        pci_dss=["6.3.2", "8.6.1"], iso_27001=["A.8.28", "A.5.34"], soc2=["CC6.1"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "iframe_external": FrameworkAlignment(
+        owasp_top10=["A08:2021"], cwe_ids=["CWE-829"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N", cvss_score=3.1,
+        iso_27001=["A.8.28"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "stylesheet_external": FrameworkAlignment(
+        owasp_top10=["A08:2021"], cwe_ids=["CWE-829"], nist_controls=["SI-10", "SA-12"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=3.7,
+        iso_27001=["A.8.28"], soc2=["CC7.1"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "js_request_external": FrameworkAlignment(
+        owasp_top10=["A08:2021"], cwe_ids=["CWE-829"], nist_controls=["SI-10", "SC-8"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N", cvss_score=3.1,
+        iso_27001=["A.5.34", "A.8.28"], soc2=["CC6.1"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+}
 
 # ---------------------------------------------------------------------------
 # Domain categorization
@@ -251,11 +293,7 @@ class ThirdPartyDomainEngine:
                 "Generate hashes for files you host yourself with:\n"
                 "  openssl dgst -sha384 -binary file.js | openssl base64 -A"
             ),
-            framework=FrameworkAlignment(
-                owasp_top10=["A08:2021"],
-                cwe_ids=["CWE-353", "CWE-829"],
-                nist_controls=["SI-7", "SA-12"],
-            ),
+            framework=_FA["script_missing_sri"],
             scanner_engine=_ENGINE,
             metadata={"url": artifacts.url, "missing_count": len(missing)},
         ))
@@ -312,11 +350,7 @@ class ThirdPartyDomainEngine:
                     "For anything you can self-host, do that instead of trusting the "
                     "third party indefinitely."
                 ),
-                framework=FrameworkAlignment(
-                    owasp_top10=["A08:2021"],
-                    cwe_ids=["CWE-829"],
-                    nist_controls=["SI-10", "SA-12"],
-                ),
+                framework=_FA["script_third_party"],
                 scanner_engine=_ENGINE,
                 metadata={"url": artifacts.url, "domain": host},
             ))
@@ -374,11 +408,7 @@ class ThirdPartyDomainEngine:
                     "templates for the action URL and remove it. Always require "
                     "HTTPS on form destinations that handle sensitive data."
                 ),
-                framework=FrameworkAlignment(
-                    owasp_top10=["A08:2021"],
-                    cwe_ids=["CWE-829"],
-                    nist_controls=["SI-10"],
-                ),
+                framework=_FA["form_external_action"],
                 scanner_engine=_ENGINE,
                 metadata={"url": artifacts.url, "domain": action_host},
             ))
@@ -429,11 +459,7 @@ class ThirdPartyDomainEngine:
                     "Apply a CSP frame-src directive and use the sandbox attribute to "
                     "restrict iframe capabilities."
                 ),
-                framework=FrameworkAlignment(
-                    owasp_top10=["A08:2021"],
-                    cwe_ids=["CWE-829"],
-                    nist_controls=["SI-10"],
-                ),
+                framework=_FA["iframe_external"],
                 scanner_engine=_ENGINE,
                 metadata={"url": artifacts.url, "domain": host},
             ))
@@ -482,11 +508,7 @@ class ThirdPartyDomainEngine:
                     "Host critical CSS on your own infrastructure. "
                     "Restrict with CSP style-src."
                 ),
-                framework=FrameworkAlignment(
-                    owasp_top10=["A08:2021"],
-                    cwe_ids=["CWE-829"],
-                    nist_controls=["SI-10", "SA-12"],
-                ),
+                framework=_FA["stylesheet_external"],
                 scanner_engine=_ENGINE,
                 metadata={"url": artifacts.url, "domain": host},
             ))
@@ -539,11 +561,7 @@ class ThirdPartyDomainEngine:
                     "Restrict outbound connections using CSP connect-src. "
                     "Review data sent in each request for PII or sensitive information."
                 ),
-                framework=FrameworkAlignment(
-                    owasp_top10=["A08:2021"],
-                    cwe_ids=["CWE-829"],
-                    nist_controls=["SI-10", "SC-8"],
-                ),
+                framework=_FA["js_request_external"],
                 scanner_engine=_ENGINE,
                 metadata={"url": artifacts.url, "domain": host},
             ))

@@ -13,10 +13,46 @@ from collections import Counter
 
 from webhound.core.extractor import PageArtifacts
 from webhound.models.evidence import Evidence, EvidenceType
-from webhound.models.finding import Finding, FindingCategory, FrameworkAlignment
+from webhound.models.finding import Exploitability, Finding, FindingCategory, FrameworkAlignment
 from webhound.models.severity import Severity
 
 _ENGINE = "obfuscation_detector"
+
+# Enterprise metadata per check. Obfuscation findings are compromise
+# indicators rather than vulnerabilities, so they cluster around CWE-506
+# (embedded malicious code) and OWASP A03 / A08.
+_FA: dict[str, FrameworkAlignment] = {
+    "base64_blob": FrameworkAlignment(
+        owasp_top10=["A03:2021"], cwe_ids=["CWE-506", "CWE-116"], nist_controls=["SI-10", "SI-4"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=3.7,
+        iso_27001=["A.8.28"], soc2=["CC7.1"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+    "hex_escape_run": FrameworkAlignment(
+        owasp_top10=["A03:2021"], cwe_ids=["CWE-506"], nist_controls=["SI-10", "SI-4"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=3.7,
+        iso_27001=["A.8.28"], soc2=["CC7.1"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "packer": FrameworkAlignment(
+        owasp_top10=["A03:2021", "A08:2021"], cwe_ids=["CWE-506", "CWE-829"], nist_controls=["SI-10", "SI-4"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N", cvss_score=7.1,
+        pci_dss=["11.5.1"], iso_27001=["A.8.28"], soc2=["CC7.1"],
+        exploitability=Exploitability.KNOWN_EXPLOITED,
+    ),
+    "multi_eval": FrameworkAlignment(
+        owasp_top10=["A03:2021"], cwe_ids=["CWE-95", "CWE-506"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N", cvss_score=5.4,
+        iso_27001=["A.8.28"], soc2=["CC7.1"],
+        exploitability=Exploitability.PRACTICAL,
+    ),
+    "high_entropy": FrameworkAlignment(
+        owasp_top10=["A03:2021"], cwe_ids=["CWE-506"], nist_controls=["SI-10"],
+        cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N", cvss_score=2.6,
+        iso_27001=["A.8.28"],
+        exploitability=Exploitability.THEORETICAL,
+    ),
+}
 
 # A sequence of 80+ consecutive valid base64 characters is likely a payload blob.
 _BASE64_BLOB = re.compile(r"[A-Za-z0-9+/]{80,}={0,2}")
@@ -93,6 +129,7 @@ class ObfuscationDetectorEngine:
                 "source map. If you don't recognise it, decode the base64 to see "
                 "what's inside before deciding whether to keep it."
             ),
+            kind="base64_blob",
         )]
 
     # ------------------------------------------------------------------
@@ -126,6 +163,7 @@ class ObfuscationDetectorEngine:
                 "URL, keyword, or shellcode-like sequence, treat the script as a "
                 "compromise indicator and remove it."
             ),
+            kind="hex_escape_run",
         )]
 
     # ------------------------------------------------------------------
@@ -157,6 +195,7 @@ class ObfuscationDetectorEngine:
                 "beautifier.io can reverse the obfuscation. If you don't recognise "
                 "the unpacked content, remove the script — it's likely injected."
             ),
+            kind="packer",
         )]
 
     # ------------------------------------------------------------------
@@ -192,6 +231,7 @@ class ObfuscationDetectorEngine:
                 "alternative. If you don't recognise the script at all, "
                 "treat it as a compromise indicator."
             ),
+            kind="multi_eval",
         )]
 
     # ------------------------------------------------------------------
@@ -229,6 +269,7 @@ class ObfuscationDetectorEngine:
                 "exist on the same script — high entropy plus eval / base64 / "
                 "packer patterns together is the real signal."
             ),
+            kind="high_entropy",
         )]
 
 
@@ -264,6 +305,7 @@ def _finding(
     evidence: Evidence,
     confidence: float = 0.6,
     remediation: str | None = None,
+    kind: str = "high_entropy",
 ) -> Finding:
     return Finding(
         title=title,
@@ -273,11 +315,7 @@ def _finding(
         evidence=[evidence],
         confidence=confidence,
         remediation=remediation,
-        framework=FrameworkAlignment(
-            owasp_top10=["A03:2021"],
-            cwe_ids=["CWE-116"],
-            nist_controls=["SI-10"],
-        ),
+        framework=_FA[kind],
         scanner_engine=_ENGINE,
         metadata={"url": url},
     )

@@ -52,8 +52,17 @@ _CurrentUser = Annotated[User, Depends(get_current_user)]
 async def register(data: UserCreate, db: _DB) -> JSONResponse:
     try:
         user, dev_link = await auth_service.create_user(db, data)
-    except auth_service.DuplicateEmailError as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
+    except auth_service.DuplicateEmailError:
+        # Generic, non-confirming message. (A determined attacker can still
+        # infer existence from the 201-vs-409 distinction; fully closing that
+        # requires a verify-first flow that drops register auto-login.)
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "We couldn't complete registration with those details. If you "
+                "already have an account, sign in or reset your password."
+            ),
+        )
     await db.commit()
     # Account creation issues a session immediately so users land in the
     # verify-email flow signed in. Subsequent explicit logins go through the
@@ -87,25 +96,19 @@ async def login(data: UserLogin, db: _DB) -> JSONResponse:
 
     user = await auth_service.authenticate_user(db, data.email, data.password)
     if user is None:
-        is_locked, remaining = await auth_record_failure(data.email)
+        is_locked, _remaining = await auth_record_failure(data.email)
         if is_locked:
+            # Generic rate-limit message — doesn't confirm the email exists
+            # (failures are tracked for any email) or expose attempt counts.
             raise HTTPException(
                 status_code=429,
                 detail=(
-                    "Too many failed login attempts. This account is "
-                    "locked for 15 minutes. Reset your password if you "
-                    "need to log in sooner."
+                    "Too many failed login attempts. Try again in 15 minutes, "
+                    "or reset your password."
                 ),
                 headers={"Retry-After": "900"},
             )
-        # Soft hint at remaining attempts on the last two
-        if remaining <= 2:
-            raise HTTPException(
-                status_code=401,
-                detail=f"Invalid email or password ({remaining} attempts "
-                       "remaining before lockout).",
-            )
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
 
     # Successful password — clear the failure counter so a previous run of
     # near-locked attempts doesn't carry over.

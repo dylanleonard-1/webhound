@@ -31,7 +31,9 @@ def _make_verification_token() -> tuple[str, datetime]:
 async def create_user(db: AsyncSession, data: UserCreate) -> tuple[User, str | None]:
     existing = await db.scalar(sa.select(User).where(User.email == data.email))
     if existing is not None:
-        raise DuplicateEmailError(f"Email already registered: {data.email}")
+        # Don't echo the email back — keep the reason out of the exception so
+        # the route can return a generic, non-enumerating response.
+        raise DuplicateEmailError("email_in_use")
     token, expires = _make_verification_token()
     is_admin = data.email.strip().lower() in get_settings().admin_emails
     # New registrations always agree to T&C in the form before they can

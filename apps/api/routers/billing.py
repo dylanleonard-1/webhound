@@ -70,6 +70,8 @@ class PlanResponse(BaseModel):
     scans_per_month: int
     scan_history_days: int
     max_concurrent_scans: int
+    engines_allowed: list[str] | None
+    scan_profiles_allowed: list[str]
     monitoring_enabled: bool
     monitoring_min_frequency: str
     exports_enabled: bool

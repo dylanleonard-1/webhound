@@ -6,6 +6,7 @@ import { PageTransition } from '@/components/effects/page-transition'
 import { HomepageNav } from '@/components/layout/homepage-nav'
 import { QueryProvider } from '@/providers/query'
 import { Toaster } from 'sonner'
+import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 const inter = Inter({
@@ -90,6 +91,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             />
           </AuthProvider>
         </QueryProvider>
+        <Analytics />
       </body>
     </html>
   )

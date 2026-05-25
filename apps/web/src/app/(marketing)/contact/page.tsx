@@ -1,11 +1,7 @@
-import type { Metadata } from 'next'
+'use client'
+
 import Link from 'next/link'
 import { Mail, Lock, ShieldAlert, Briefcase, FileText, AlertTriangle } from 'lucide-react'
-
-export const metadata: Metadata = {
-  title: 'Contact',
-  description: 'How to reach WebHound for support, security disclosures, sales, abuse, and legal.',
-}
 
 const channels = [
   {

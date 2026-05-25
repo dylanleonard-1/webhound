@@ -128,15 +128,40 @@ async def _ensure_default_schedule(db: AsyncSession, website: Website) -> None:
 
 
 async def _check_dns(hostname: str, token: str) -> bool:
+    """Look up _webhound-verify.<hostname> TXT and match the expected token.
+
+    Uses Cloudflare (1.1.1.1) + Google (8.8.8.8) public resolvers explicitly
+    rather than the system DNS — bypasses local NXDOMAIN caching that can
+    delay verification by 5+ minutes after a record is added. Per-query
+    timeout 4s, total lifetime 8s.
+
+    Some DNS providers split long TXT values into multiple chunks per
+    record; we concatenate the chunks before comparing.
+    """
     import dns.asyncresolver  # type: ignore[import-untyped]
+
+    resolver = dns.asyncresolver.Resolver(configure=False)
+    resolver.nameservers = ["1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4"]
+    resolver.timeout = 4.0
+    resolver.lifetime = 8.0
+
+    record = f"_webhound-verify.{hostname}"
     try:
-        answers = await dns.asyncresolver.resolve(f"_webhound-verify.{hostname}", "TXT")
-        for rdata in answers:
-            for txt in rdata.strings:
-                if txt.decode("utf-8", errors="ignore") == token:
-                    return True
+        answers = await resolver.resolve(record, "TXT")
     except Exception:
-        pass
+        return False
+
+    for rdata in answers:
+        # rdata.strings is a tuple of bytes chunks for one TXT record.
+        # Match either each individual chunk OR the concatenation, since
+        # some providers split values at 255-char boundaries.
+        chunks = [
+            s.decode("utf-8", errors="ignore") for s in rdata.strings
+        ]
+        if token in chunks:
+            return True
+        if "".join(chunks) == token:
+            return True
     return False
 
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useParams } from 'next/navigation'
 import {
@@ -47,6 +47,20 @@ function VerificationCard({ site, onVerified }: { site: WebsiteResponse; onVerif
   const [step, setStep] = useState<'pick' | 'instructions' | 'checking' | 'failed'>('pick')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [pollElapsed, setPollElapsed] = useState(0)        // seconds since check started
+  const [pollAttempts, setPollAttempts] = useState(0)
+  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+  const elapsedTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+  const checkInFlight = useRef(false)
+
+  function stopPolling() {
+    if (pollTimer.current) { clearInterval(pollTimer.current); pollTimer.current = null }
+    if (elapsedTimer.current) { clearInterval(elapsedTimer.current); elapsedTimer.current = null }
+    checkInFlight.current = false
+  }
+
+  // Stop any timers if the card unmounts mid-poll.
+  useEffect(() => () => stopPolling(), [])
 
   async function handleStart() {
     setLoading(true)
@@ -63,21 +77,56 @@ function VerificationCard({ site, onVerified }: { site: WebsiteResponse; onVerif
     }
   }
 
-  async function handleCheck() {
-    setStep('checking')
-    setError(null)
+  // One-shot check (used by the polling loop).
+  async function pollOnce(): Promise<boolean> {
+    if (checkInFlight.current) return false   // de-dupe overlapping calls
+    checkInFlight.current = true
     try {
       const res = await api.websites.verifyCheck(site.id)
-      if (res.verified) {
-        onVerified()
-      } else {
-        setStep('failed')
-        setError('Verification check failed. Make sure you completed the step below, then try again.')
-      }
-    } catch (e: unknown) {
-      setStep('failed')
-      setError(e instanceof Error ? e.message : 'Check failed')
+      return res.verified
+    } catch {
+      return false
+    } finally {
+      checkInFlight.current = false
     }
+  }
+
+  // Public entry point — called by the "Check now" button.
+  async function handleCheck() {
+    stopPolling()
+    setStep('checking')
+    setError(null)
+    setPollElapsed(0)
+    setPollAttempts(0)
+
+    // Wall-clock elapsed counter ticks every second so the UI can switch
+    // copy at the 60s and 300s thresholds.
+    elapsedTimer.current = setInterval(() => {
+      setPollElapsed(prev => {
+        const next = prev + 1
+        if (next >= 300) stopPolling()  // give up after 5 min
+        return next
+      })
+    }, 1000)
+
+    // Immediate first poll, then every 5 seconds.
+    const tryOnce = async () => {
+      const ok = await pollOnce()
+      setPollAttempts(a => a + 1)
+      if (ok) {
+        stopPolling()
+        onVerified()
+        return
+      }
+    }
+    await tryOnce()
+    pollTimer.current = setInterval(tryOnce, 5000)
+  }
+
+  function handleCancelPoll() {
+    stopPolling()
+    setStep('instructions')
+    setError(null)
   }
 
   const codeStyle: React.CSSProperties = {
@@ -97,7 +146,7 @@ function VerificationCard({ site, onVerified }: { site: WebsiteResponse; onVerif
             { label: 'Type', value: 'TXT' },
             { label: 'Name / Host', value: `_webhound-verify.${site.hostname}` },
             { label: 'Value', value: token },
-            { label: 'TTL', value: '300' },
+            { label: 'TTL', value: 'Auto (or 300)' },
           ].map(({ label, value }) => (
             <div key={label} className="flex items-center justify-between gap-3">
               <span style={{ color: 'rgba(255,255,255,0.4)' }} className="w-28 flex-shrink-0">{label}</span>
@@ -205,9 +254,100 @@ function VerificationCard({ site, onVerified }: { site: WebsiteResponse; onVerif
       )}
 
       {step === 'checking' && (
-        <div className="flex items-center gap-2 text-[12.5px]" style={{ color: 'rgba(255,255,255,0.5)' }}>
-          <Loader2 className="w-4 h-4 animate-spin text-accent-green" />
-          Checking verification…
+        <div className="space-y-4">
+          {/* Show the same instructions so the user can fix the record
+              while polling continues. */}
+          <Instructions />
+
+          <div
+            className="rounded-xl p-4 space-y-3"
+            style={{
+              background: pollElapsed >= 300
+                ? 'rgba(239,68,68,0.05)'
+                : pollElapsed >= 60
+                  ? 'rgba(249,115,22,0.05)'
+                  : 'rgba(139,255,62,0.05)',
+              border: pollElapsed >= 300
+                ? '1px solid rgba(239,68,68,0.25)'
+                : pollElapsed >= 60
+                  ? '1px solid rgba(249,115,22,0.25)'
+                  : '1px solid rgba(139,255,62,0.22)',
+            }}
+          >
+            <div className="flex items-start gap-2.5">
+              {pollElapsed >= 300 ? (
+                <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#ef4444' }} />
+              ) : (
+                <Loader2 className="w-4 h-4 animate-spin flex-shrink-0 mt-0.5"
+                         style={{ color: pollElapsed >= 60 ? '#f97316' : '#8BFF3E' }} />
+              )}
+              <div className="flex-1">
+                <p className="text-[13px] font-semibold text-white mb-0.5">
+                  {pollElapsed >= 300
+                    ? 'Verification timed out'
+                    : pollElapsed >= 60
+                      ? 'Still propagating — please double-check the record'
+                      : 'Checking your DNS record…'}
+                </p>
+                <p className="text-[11.5px] leading-relaxed"
+                   style={{ color: 'rgba(255,255,255,0.55)' }}>
+                  {pollElapsed >= 300
+                    ? (
+                      <>
+                        We tried for 5 minutes and couldn&apos;t find the record.
+                        Most likely causes: the record wasn&apos;t saved, the
+                        value was pasted with surrounding quotes, or the DNS
+                        provider hasn&apos;t propagated yet. Hit &ldquo;Check
+                        again&rdquo; to retry.
+                      </>
+                    )
+                    : pollElapsed >= 60
+                      ? (
+                        <>
+                          DNS changes usually propagate within 1–5 minutes.
+                          While we keep checking, open your DNS dashboard and
+                          confirm the record is saved exactly as shown below
+                          (name, value, no extra quotes).
+                        </>
+                      )
+                      : (
+                        <>
+                          We&apos;re querying Cloudflare and Google DNS every
+                          5 seconds. As soon as the record appears, you&apos;ll
+                          be sent through automatically.
+                        </>
+                      )}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 text-[10.5px] font-mono"
+                 style={{ color: 'rgba(255,255,255,0.4)' }}>
+              <span>
+                {Math.floor(pollElapsed / 60)}:{(pollElapsed % 60).toString().padStart(2, '0')}
+                {' '}elapsed · {pollAttempts} {pollAttempts === 1 ? 'check' : 'checks'}
+              </span>
+              {pollElapsed >= 300 ? (
+                <button
+                  onClick={handleCheck}
+                  className="flex items-center gap-1.5 text-[11px] font-semibold"
+                  style={{ color: '#8BFF3E' }}
+                >
+                  <RefreshCw className="w-3 h-3" /> Check again
+                </button>
+              ) : (
+                <button
+                  onClick={handleCancelPoll}
+                  className="text-[11px]"
+                  style={{ color: 'rgba(255,255,255,0.4)' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.7)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}
+                >
+                  Stop checking
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </Card>

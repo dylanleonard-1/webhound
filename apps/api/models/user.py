@@ -63,6 +63,12 @@ class User(Base, UpdatedAtMixin):
         sa.String(64), unique=True, index=True,
     )
 
+    # Legal: timestamp when user agreed to Terms / Privacy / AUP. NULL means
+    # they have not yet agreed — AuthProvider will route them to /agreement.
+    terms_agreed_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True),
+    )
+
     websites: Mapped[list["Website"]] = relationship(
         "Website", back_populates="user", cascade="all, delete-orphan"
     )

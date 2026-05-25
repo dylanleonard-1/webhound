@@ -34,6 +34,9 @@ async def create_user(db: AsyncSession, data: UserCreate) -> tuple[User, str | N
         raise DuplicateEmailError(f"Email already registered: {data.email}")
     token, expires = _make_verification_token()
     is_admin = data.email.strip().lower() in get_settings().admin_emails
+    # New registrations always agree to T&C in the form before they can
+    # submit (Register form checkbox + server-side validation). Record the
+    # timestamp so they don't get sent through /agreement again later.
     user = User(
         email=data.email,
         hashed_password=hash_password(data.password),
@@ -45,6 +48,7 @@ async def create_user(db: AsyncSession, data: UserCreate) -> tuple[User, str | N
         email_verified=False,
         email_verification_token=token,
         email_verification_expires_at=expires,
+        terms_agreed_at=datetime.now(timezone.utc),
     )
     db.add(user)
     await db.flush()

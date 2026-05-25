@@ -32,6 +32,7 @@ export interface UserResponse {
   full_name?: string | null
   company_name?: string | null
   use_case?: string | null
+  terms_agreed_at: string | null
   created_at: string
 }
 
@@ -399,6 +400,9 @@ export const api = {
       request<{ message: string; dev_code?: string }>('POST', '/auth/login/resend-code', { challenge_token }),
 
     me: () => request<UserResponse>('GET', '/auth/me'),
+
+    acceptTerms: () =>
+      request<UserResponse>('POST', '/auth/accept-terms', { agreed: true }),
 
     updateMe: (patch: { full_name?: string | null; company_name?: string | null; use_case?: UseCase | null }) =>
       request<UserResponse>('PATCH', '/auth/me', patch),

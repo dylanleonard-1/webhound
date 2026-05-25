@@ -17,6 +17,7 @@ from apps.api.rate_limit import (
     auth_record_failure,
 )
 from apps.api.schemas.auth import (
+    AcceptTermsRequest,
     AccountDelete,
     LoginChallengeResponse,
     LoginResendRequest,
@@ -160,6 +161,29 @@ async def login_resend_code(data: LoginResendRequest, db: _DB) -> dict:
 
 @router.get("/me", response_model=UserResponse)
 async def me(current_user: _CurrentUser) -> UserResponse:
+    return UserResponse.model_validate(current_user)
+
+
+@router.post("/accept-terms", response_model=UserResponse)
+async def accept_terms(
+    data: AcceptTermsRequest, current_user: _CurrentUser, db: _DB,
+) -> UserResponse:
+    """Record that the authenticated user agreed to Terms / Privacy / AUP.
+
+    Idempotent — calling twice keeps the first timestamp.
+    """
+    if not data.agreed:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "You must agree to the Terms, Privacy Policy, and "
+                "Acceptable Use Policy to continue using WebHound."
+            ),
+        )
+    if current_user.terms_agreed_at is None:
+        current_user.terms_agreed_at = datetime.now(timezone.utc)
+        await db.commit()
+        await db.refresh(current_user)
     return UserResponse.model_validate(current_user)
 
 

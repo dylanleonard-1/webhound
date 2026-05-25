@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { Globe, Plus, RefreshCw, ExternalLink, ChevronRight, ShieldCheck, ShieldAlert, Clock, Shield } from 'lucide-react'
+import { Globe, Plus, RefreshCw, ExternalLink, ChevronRight, ShieldCheck, ShieldAlert, Clock, Shield, Trash2, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { api, type WebsiteResponse } from '@/lib/api'
 import { LoadingState } from '@/components/loading-state'
 import { ErrorState } from '@/components/error-state'
@@ -30,6 +31,35 @@ export default function WebsitesPage() {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  async function handleDelete(e: React.MouseEvent, site: WebsiteResponse) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!confirm(`Remove ${site.hostname}? This cannot be undone.`)) return
+    setDeletingId(site.id)
+    try {
+      await api.websites.delete(site.id)
+      setItems(prev => prev.filter(s => s.id !== site.id))
+      setTotal(t => Math.max(0, t - 1))
+      toast.success(`${site.hostname} removed.`)
+    } catch (err: unknown) {
+      const status = (err as { status?: number }).status
+      const detail = (err as { data?: { detail?: unknown } }).data?.detail
+      const msg =
+        typeof detail === 'string' ? detail
+        : (detail && typeof detail === 'object' && 'message' in detail
+            && typeof (detail as { message?: unknown }).message === 'string')
+          ? (detail as { message: string }).message
+        : err instanceof Error ? err.message
+        : 'Could not remove this website.'
+      toast.error(
+        status ? `Delete failed (HTTP ${status}): ${msg}` : `Delete failed: ${msg}`,
+      )
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -173,6 +203,20 @@ export default function WebsitesPage() {
                     >
                       <ExternalLink className="w-3 h-3" />
                     </a>
+                    <button
+                      type="button"
+                      onClick={e => handleDelete(e, site)}
+                      disabled={deletingId === site.id}
+                      className="w-6 h-6 flex items-center justify-center rounded-[6px] opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{ color: 'rgba(255,255,255,0.35)' }}
+                      title="Remove website"
+                      onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                      onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}
+                    >
+                      {deletingId === site.id
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : <Trash2 className="w-3 h-3" />}
+                    </button>
                     <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'rgba(255,255,255,0.3)' }} />
                   </div>
                 </Link>

@@ -168,6 +168,12 @@ class UserResponse(BaseModel):
     full_name: str | None = None
     company_name: str | None = None
     use_case: str | None = None
+    terms_agreed_at: datetime | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AcceptTermsRequest(BaseModel):
+    """POST body for /auth/accept-terms — explicit user confirmation."""
+    agreed: bool

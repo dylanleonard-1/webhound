@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   api,
   clearStoredToken,
@@ -32,6 +33,7 @@ interface AuthContextValue {
   resendLoginCode: (challengeToken: string) => Promise<{ devCode?: string }>
   register: (payload: RegisterPayload) => Promise<{ devVerifyUrl?: string }>
   loginWithToken: (token: string) => Promise<void>
+  refresh: () => Promise<void>
   logout: () => void
 }
 
@@ -40,6 +42,8 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
     const token = getStoredToken()
@@ -53,6 +57,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => clearStoredToken())
       .finally(() => setLoading(false))
   }, [])
+
+  // T&C gate — block any /dashboard route when the user hasn't yet agreed.
+  // Admins bypass so we don't lock ourselves out. The /agreement page
+  // itself is excluded so we don't infinite-loop.
+  useEffect(() => {
+    if (loading || !user || !pathname) return
+    if (user.is_admin) return
+    if (user.terms_agreed_at) return
+    if (pathname.startsWith('/agreement')) return
+    if (pathname.startsWith('/dashboard')) {
+      router.replace(`/agreement?next=${encodeURIComponent(pathname)}`)
+    }
+  }, [loading, user, pathname, router])
 
   const initiateLogin = useCallback(async (email: string, password: string): Promise<LoginStep> => {
     // The new API returns a LoginChallenge; an older API still returns
@@ -97,6 +114,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(me)
   }, [])
 
+  const refresh = useCallback(async () => {
+    if (!getStoredToken()) return
+    const me = await api.auth.me()
+    setUser(me)
+  }, [])
+
   const logout = useCallback(() => {
     clearStoredToken()
     setUser(null)
@@ -113,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         resendLoginCode,
         register,
         loginWithToken,
+        refresh,
         logout,
       }}
     >

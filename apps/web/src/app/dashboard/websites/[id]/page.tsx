@@ -8,6 +8,7 @@ import {
   ScanLine, Clock, CheckCircle, XCircle, Loader2, ChevronRight,
   ShieldCheck, Copy, Check, RefreshCw,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { api, type WebsiteResponse, type ScanJobResponse } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -279,9 +280,24 @@ export default function WebsiteDetailPage() {
     setDeleting(true)
     try {
       await api.websites.delete(id)
+      toast.success('Website removed.')
       router.replace('/dashboard/websites')
-    } catch {
-      alert('Failed to delete website.')
+    } catch (e: unknown) {
+      // Surface the actual API error so the user can see what failed
+      // instead of the previous silent "Failed to delete website." alert.
+      const status = (e as { status?: number }).status
+      const data = (e as { data?: { detail?: unknown } }).data
+      const detail = data?.detail
+      const msg =
+        typeof detail === 'string' ? detail
+        : (detail && typeof detail === 'object' && 'message' in detail
+            && typeof (detail as { message?: unknown }).message === 'string')
+          ? (detail as { message: string }).message
+        : e instanceof Error ? e.message
+        : 'Could not remove this website.'
+      toast.error(
+        status ? `Delete failed (HTTP ${status}): ${msg}` : `Delete failed: ${msg}`,
+      )
       setDeleting(false)
     }
   }

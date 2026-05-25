@@ -33,6 +33,21 @@ from apps.api.routers import (
 
 settings = get_settings()
 
+# Configure root logging once at process start. Without this, every
+# logger.info() in the codebase is silently dropped (Python's default
+# root level is WARNING). Reads the level from LOG_LEVEL env var via
+# the settings model — defaults to INFO.
+logging.basicConfig(
+    level=getattr(logging, settings.log_level.upper(), logging.INFO),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S",
+)
+# Don't drown the logs in SQLAlchemy's verbose statement / parameter
+# output even when LOG_LEVEL=INFO — those have their own engine.echo
+# knob, and Railway access logs already pin the request flow.
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
+
 app = FastAPI(
     title="WebHound API",
     version="0.1.0",

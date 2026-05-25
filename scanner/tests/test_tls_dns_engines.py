@@ -59,6 +59,12 @@ def _clean_dns(domain: str = "example.com") -> DnsRecords:
         txt=["v=spf1 include:_spf.example.com -all"],
         ns=["ns1.example.com.", "ns2.example.com."],
         dmarc_txt=["v=DMARC1; p=reject; rua=mailto:dmarc@example.com"],
+        # The engine also checks DKIM/CAA/DNSSEC/MTA-STS — a "fully configured"
+        # domain has these too, otherwise those checks (correctly) fire.
+        caa=['0 issue "letsencrypt.org"'],
+        dnskey=["257 3 13 mdsswUyr3DPW132mOi8V9xESWE8jTo0d"],
+        mta_sts_txt=["v=STSv1; id=20240101000000Z"],
+        dkim_selectors_seen=["google"],
     )
 
 
@@ -101,18 +107,18 @@ class TestTlsCheckerEngine:
     def test_connection_failed_produces_finding(self):
         cert = TlsCertInfo(domain="unreachable.example.com", connection_failed=True, error="Connection refused")
         findings = _ENGINE.analyze(cert)
-        assert any("connection failed" in f.title.lower() for f in findings)
+        assert any("couldn't reach" in f.title.lower() for f in findings)
 
-    def test_connection_failed_is_high(self):
+    def test_connection_failed_is_medium(self):
         cert = TlsCertInfo(domain="unreachable.example.com", connection_failed=True, error="timed out")
         findings = _ENGINE.analyze(cert)
-        failed = [f for f in findings if "connection failed" in f.title.lower()]
-        assert failed[0].severity == Severity.HIGH
+        failed = [f for f in findings if "couldn't reach" in f.title.lower()]
+        assert failed[0].severity == Severity.MEDIUM
 
     def test_no_connection_error_no_failure_finding(self):
         cert = _valid_cert()
         findings = _ENGINE.analyze(cert)
-        assert not any("connection failed" in f.title.lower() for f in findings)
+        assert not any("couldn't reach" in f.title.lower() for f in findings)
 
     # --- Certificate expiry ---
 
@@ -150,14 +156,14 @@ class TestTlsCheckerEngine:
             not_before=_future(5),
         )
         findings = _ENGINE.analyze(cert)
-        nv = [f for f in findings if "not yet valid" in f.title.lower()]
+        nv = [f for f in findings if "start date is in the future" in f.title.lower()]
         assert nv
         assert nv[0].severity == Severity.HIGH
 
     def test_valid_cert_no_not_yet_valid_finding(self):
         cert = _valid_cert()
         findings = _ENGINE.analyze(cert)
-        assert not any("not yet valid" in f.title.lower() for f in findings)
+        assert not any("start date is in the future" in f.title.lower() for f in findings)
 
     # --- Expiry warnings ---
 
@@ -168,7 +174,7 @@ class TestTlsCheckerEngine:
             is_expired=False,
         )
         findings = _ENGINE.analyze(cert)
-        warn = [f for f in findings if "expiring soon" in f.title.lower()]
+        warn = [f for f in findings if "expires in" in f.title.lower()]
         assert warn
         assert warn[0].severity == Severity.MEDIUM
 
@@ -179,7 +185,7 @@ class TestTlsCheckerEngine:
             is_expired=False,
         )
         findings = _ENGINE.analyze(cert)
-        warn = [f for f in findings if "expiring soon" in f.title.lower()]
+        warn = [f for f in findings if "expires in" in f.title.lower()]
         assert warn
         assert warn[0].severity == Severity.HIGH
 
@@ -190,7 +196,7 @@ class TestTlsCheckerEngine:
             is_expired=False,
         )
         findings = _ENGINE.analyze(cert)
-        warn = [f for f in findings if "expiring soon" in f.title.lower()]
+        warn = [f for f in findings if "expires in" in f.title.lower()]
         assert warn
         assert warn[0].severity == Severity.CRITICAL
 
@@ -201,72 +207,72 @@ class TestTlsCheckerEngine:
             is_expired=False,
         )
         findings = _ENGINE.analyze(cert)
-        assert not any("expiring soon" in f.title.lower() for f in findings)
+        assert not any("expires in" in f.title.lower() for f in findings)
 
     def test_already_expired_no_expiry_warning(self):
         # Expired certs use _check_expired, not _check_expiry_warning
         cert = TlsCertInfo(domain="example.com", is_expired=True, not_after=_past(2))
         findings = _ENGINE.analyze(cert)
-        assert not any("expiring soon" in f.title.lower() for f in findings)
+        assert not any("expires in" in f.title.lower() for f in findings)
 
     # --- Self-signed ---
 
     def test_self_signed_is_high(self):
         cert = TlsCertInfo(domain="example.com", is_self_signed=True)
         findings = _ENGINE.analyze(cert)
-        ss = [f for f in findings if "self-signed" in f.title.lower()]
+        ss = [f for f in findings if "isn't signed by a trusted authority" in f.title.lower()]
         assert ss
         assert ss[0].severity == Severity.HIGH
 
     def test_ca_issued_cert_no_self_signed_finding(self):
         cert = _valid_cert()
         findings = _ENGINE.analyze(cert)
-        assert not any("self-signed" in f.title.lower() for f in findings)
+        assert not any("isn't signed by a trusted authority" in f.title.lower() for f in findings)
 
     # --- Hostname mismatch ---
 
     def test_hostname_mismatch_is_high(self):
         cert = TlsCertInfo(domain="example.com", hostname_mismatch=True)
         findings = _ENGINE.analyze(cert)
-        mm = [f for f in findings if "hostname mismatch" in f.title.lower()]
+        mm = [f for f in findings if "isn't valid for this domain" in f.title.lower()]
         assert mm
         assert mm[0].severity == Severity.HIGH
 
     def test_matching_hostname_no_mismatch_finding(self):
         cert = _valid_cert()
         findings = _ENGINE.analyze(cert)
-        assert not any("hostname mismatch" in f.title.lower() for f in findings)
+        assert not any("isn't valid for this domain" in f.title.lower() for f in findings)
 
     # --- Weak protocol ---
 
     def test_tls_v1_0_is_high(self):
         cert = TlsCertInfo(domain="example.com", protocol_version="TLSv1")
         findings = _ENGINE.analyze(cert)
-        wp = [f for f in findings if "weak tls" in f.title.lower()]
+        wp = [f for f in findings if "obsolete tls version" in f.title.lower()]
         assert wp
         assert wp[0].severity == Severity.HIGH
 
     def test_tls_v1_1_is_high(self):
         cert = TlsCertInfo(domain="example.com", protocol_version="TLSv1.1")
         findings = _ENGINE.analyze(cert)
-        wp = [f for f in findings if "weak tls" in f.title.lower()]
+        wp = [f for f in findings if "obsolete tls version" in f.title.lower()]
         assert wp
         assert wp[0].severity == Severity.HIGH
 
     def test_tls_v1_2_no_weak_protocol_finding(self):
         cert = TlsCertInfo(domain="example.com", protocol_version="TLSv1.2")
         findings = _ENGINE.analyze(cert)
-        assert not any("weak tls" in f.title.lower() for f in findings)
+        assert not any("obsolete tls version" in f.title.lower() for f in findings)
 
     def test_tls_v1_3_no_weak_protocol_finding(self):
         cert = _valid_cert()
         findings = _ENGINE.analyze(cert)
-        assert not any("weak tls" in f.title.lower() for f in findings)
+        assert not any("obsolete tls version" in f.title.lower() for f in findings)
 
     def test_no_protocol_version_no_weak_finding(self):
         cert = TlsCertInfo(domain="example.com")
         findings = _ENGINE.analyze(cert)
-        assert not any("weak tls" in f.title.lower() for f in findings)
+        assert not any("obsolete tls version" in f.title.lower() for f in findings)
 
     # --- HTTP → HTTPS redirect ---
 
@@ -389,7 +395,7 @@ class TestDnsCheckerEngine:
             resolution_error="NXDOMAIN",
         )
         findings = _DNS_ENGINE.analyze(records)
-        failed = [f for f in findings if "resolution failed" in f.title.lower()]
+        failed = [f for f in findings if "doesn't resolve" in f.title.lower()]
         assert failed
         assert failed[0].severity == Severity.HIGH
 
@@ -401,14 +407,16 @@ class TestDnsCheckerEngine:
     def test_resolved_domain_no_failure_finding(self):
         records = _clean_dns()
         findings = _DNS_ENGINE.analyze(records)
-        assert not any("resolution failed" in f.title.lower() for f in findings)
+        assert not any("doesn't resolve" in f.title.lower() for f in findings)
 
     # --- SPF missing ---
 
     def test_missing_spf_is_medium(self):
-        records = DnsRecords(domain="example.com", a=["1.2.3.4"])
+        # MX present → the domain sends email → missing SPF is MEDIUM
+        # (the engine downgrades to LOW for non-mail domains).
+        records = DnsRecords(domain="example.com", a=["1.2.3.4"], mx=["10 mail.example.com."])
         findings = _DNS_ENGINE.analyze(records)
-        spf = [f for f in findings if "spf record missing" in f.title.lower()]
+        spf = [f for f in findings if "no spf record" in f.title.lower()]
         assert spf
         assert spf[0].severity == Severity.MEDIUM
 
@@ -420,7 +428,7 @@ class TestDnsCheckerEngine:
             dmarc_txt=["v=DMARC1; p=none"],
         )
         findings = _DNS_ENGINE.analyze(records)
-        assert not any("spf record missing" in f.title.lower() for f in findings)
+        assert not any("no spf record" in f.title.lower() for f in findings)
 
     def test_resolution_failure_suppresses_spf_check(self):
         records = DnsRecords(domain="example.com", resolution_error="NXDOMAIN")
@@ -436,7 +444,7 @@ class TestDnsCheckerEngine:
             txt=["v=spf1 include:_spf.example.com +all"],
         )
         findings = _DNS_ENGINE.analyze(records)
-        risky = [f for f in findings if "+all" in f.title]
+        risky = [f for f in findings if "allows anyone to send mail" in f.title.lower()]
         assert risky
         assert risky[0].severity == Severity.HIGH
 
@@ -447,14 +455,14 @@ class TestDnsCheckerEngine:
             txt=["v=spf1 ?all"],
         )
         findings = _DNS_ENGINE.analyze(records)
-        neutral = [f for f in findings if "?all" in f.title]
+        neutral = [f for f in findings if "doesn't actually reject" in f.title.lower()]
         assert neutral
         assert neutral[0].severity == Severity.MEDIUM
 
     def test_spf_hard_fail_no_risky_finding(self):
         records = _clean_dns()
         findings = _DNS_ENGINE.analyze(records)
-        assert not any("+all" in f.title or "?all" in f.title for f in findings)
+        assert not any("allows anyone to send mail" in f.title.lower() or "doesn't actually reject" in f.title.lower() for f in findings)
 
     def test_spf_soft_fail_no_risky_finding(self):
         records = DnsRecords(
@@ -464,7 +472,7 @@ class TestDnsCheckerEngine:
             dmarc_txt=["v=DMARC1; p=none"],
         )
         findings = _DNS_ENGINE.analyze(records)
-        assert not any("+all" in f.title or "?all" in f.title for f in findings)
+        assert not any("allows anyone to send mail" in f.title.lower() or "doesn't actually reject" in f.title.lower() for f in findings)
 
     # --- DMARC missing ---
 
@@ -475,14 +483,14 @@ class TestDnsCheckerEngine:
             txt=["v=spf1 -all"],
         )
         findings = _DNS_ENGINE.analyze(records)
-        dmarc = [f for f in findings if "dmarc record missing" in f.title.lower()]
+        dmarc = [f for f in findings if "no dmarc record" in f.title.lower()]
         assert dmarc
         assert dmarc[0].severity == Severity.MEDIUM
 
     def test_dmarc_present_no_finding(self):
         records = _clean_dns()
         findings = _DNS_ENGINE.analyze(records)
-        assert not any("dmarc record missing" in f.title.lower() for f in findings)
+        assert not any("no dmarc record" in f.title.lower() for f in findings)
 
     def test_dmarc_case_insensitive_detection(self):
         records = DnsRecords(
@@ -492,7 +500,7 @@ class TestDnsCheckerEngine:
             dmarc_txt=["v=dmarc1; p=none"],  # lowercase v=dmarc1
         )
         findings = _DNS_ENGINE.analyze(records)
-        assert not any("dmarc record missing" in f.title.lower() for f in findings)
+        assert not any("no dmarc record" in f.title.lower() for f in findings)
 
     def test_resolution_failure_suppresses_dmarc_check(self):
         records = DnsRecords(domain="example.com", resolution_error="NXDOMAIN")
@@ -550,15 +558,16 @@ class TestDnsCheckerEngine:
 
     # --- CNAME chain ---
 
-    def test_long_cname_chain_is_low(self):
+    def test_long_cname_chain_is_info(self):
+        # The engine flags chains of 3+ hops, at INFO severity.
         records = DnsRecords(
             domain="example.com",
-            cname=["alias1.example.com.", "alias2.example.com."],
+            cname=["alias1.example.com.", "alias2.example.com.", "alias3.example.com."],
         )
         findings = _DNS_ENGINE.analyze(records)
-        cname = [f for f in findings if "cname chain" in f.title.lower()]
+        cname = [f for f in findings if "goes through many redirects" in f.title.lower()]
         assert cname
-        assert cname[0].severity == Severity.LOW
+        assert cname[0].severity == Severity.INFO
 
     def test_single_cname_no_chain_finding(self):
         records = DnsRecords(
@@ -567,12 +576,12 @@ class TestDnsCheckerEngine:
             cname=["alias.example.com."],
         )
         findings = _DNS_ENGINE.analyze(records)
-        assert not any("cname chain" in f.title.lower() for f in findings)
+        assert not any("goes through many redirects" in f.title.lower() for f in findings)
 
     def test_no_cname_no_chain_finding(self):
         records = _clean_dns()
         findings = _DNS_ENGINE.analyze(records)
-        assert not any("cname chain" in f.title.lower() for f in findings)
+        assert not any("goes through many redirects" in f.title.lower() for f in findings)
 
     # --- Evidence, metadata, framework ---
 

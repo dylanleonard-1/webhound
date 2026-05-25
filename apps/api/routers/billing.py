@@ -255,11 +255,13 @@ async def stripe_webhook(request: Request, db: _DB) -> dict[str, str]:
         logger.error("stripe webhook misconfigured: %s", exc)
         raise HTTPException(status_code=503, detail=str(exc))
 
+    # stripe.Event is a StripeObject — supports subscript access, not .get().
+    event_type = event["type"] if "type" in event else "?"
     try:
         await handle_stripe_event(db, event)
         await db.commit()
     except Exception:
-        logger.exception("stripe webhook handler error: %s", event.get("type"))
+        logger.exception("stripe webhook handler error: %s", event_type)
         # Return 200 anyway — Stripe will retry on non-2xx, but our DB state
         # might already be partially updated; surfacing a 500 risks an
         # infinite retry loop. Log and move on.

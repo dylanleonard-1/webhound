@@ -34,12 +34,23 @@ _HANDLED_EVENTS = {
 
 
 async def handle_stripe_event(db: AsyncSession, event: stripe.Event) -> None:
-    et = event.get("type")
+    # stripe.Event is a StripeObject, not a plain dict — has no .get().
+    # Use subscript access and convert to plain dicts for downstream handlers.
+    et = event["type"]
     if et not in _HANDLED_EVENTS:
         logger.debug("stripe webhook: ignoring %s", et)
         return
 
-    obj = event["data"]["object"]
+    raw_obj = event["data"]["object"]
+    # Deep-convert so nested .get() calls in the handlers work — StripeObject
+    # supports __getitem__ but not .get(), and we use .get() pervasively.
+    if hasattr(raw_obj, "to_dict_recursive"):
+        obj = raw_obj.to_dict_recursive()
+    elif isinstance(raw_obj, dict):
+        obj = raw_obj
+    else:
+        obj = dict(raw_obj)
+    logger.info("stripe webhook: processing %s id=%s", et, event["id"])
     if et == "checkout.session.completed":
         await _on_checkout_completed(db, obj)
     elif et in ("customer.subscription.created",

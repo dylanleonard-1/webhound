@@ -268,6 +268,73 @@ async def stripe_webhook(request: Request, db: _DB) -> dict[str, str]:
 
 
 # ---------------------------------------------------------------------------
+# Admin — manual re-sync from Stripe
+# ---------------------------------------------------------------------------
+#
+# When a Stripe webhook is missed (endpoint not configured, downtime, secret
+# rotation, etc.) the DB lags Stripe and the user sees the wrong plan. This
+# route fetches the named user's most recent Stripe subscription and replays
+# it through the same handler the webhook would have, getting the DB back in
+# sync without waiting for the next billing event.
+
+
+class ResyncRequest(BaseModel):
+    email: str
+
+
+@router.post("/admin/resync")
+async def admin_resync(
+    data: ResyncRequest, db: _DB, current_user: _CurrentUser,
+) -> dict:
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin only")
+    settings = get_settings()
+    if not settings.stripe_secret_key:
+        raise HTTPException(status_code=503, detail="Stripe not configured")
+
+    target = await db.scalar(sa.select(User).where(User.email == data.email))
+    if target is None:
+        raise HTTPException(status_code=404, detail=f"User not found: {data.email}")
+    if not target.stripe_customer_id:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"{data.email} has no Stripe customer linked. They need to "
+                "complete checkout at least once before a resync is possible."
+            ),
+        )
+
+    stripe.api_key = settings.stripe_secret_key
+    try:
+        subs = stripe.Subscription.list(
+            customer=target.stripe_customer_id, status="all", limit=10,
+        )
+    except stripe.StripeError as exc:
+        logger.warning("admin resync stripe lookup failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Stripe API call failed.")
+
+    if not subs.data:
+        raise HTTPException(
+            status_code=404,
+            detail="No Stripe subscriptions found for this customer.",
+        )
+
+    # Pick the most recently created subscription Stripe knows about and run
+    # it through the same upsert path the webhook would have used.
+    latest = sorted(subs.data, key=lambda s: s["created"], reverse=True)[0]
+    from apps.api.billing.webhook_handler import _on_subscription_upsert
+    await _on_subscription_upsert(db, latest)
+    await db.commit()
+
+    return {
+        "ok": True,
+        "user_email": data.email,
+        "subscription_id": latest["id"],
+        "status": latest["status"],
+    }
+
+
+# ---------------------------------------------------------------------------
 # Helpers — admin-only debug
 # ---------------------------------------------------------------------------
 

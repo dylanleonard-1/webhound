@@ -36,7 +36,11 @@ class Settings(BaseSettings):
 
     # CORS — override with CORS_ORIGINS env var as JSON array for staging/prod
     # e.g. CORS_ORIGINS='["https://webhoundsecurity.com","https://app.webhoundsecurity.com"]'
-    cors_origins: list[str] = [
+    # NoDecode: pydantic-settings would otherwise JSON-decode this list field
+    # from the env source before parse_cors_origins runs, crashing on a
+    # comma-separated CORS_ORIGINS. Let the before-validator own all parsing
+    # (same pattern as admin_emails below).
+    cors_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:3001",

@@ -28,15 +28,18 @@ def _ensure_configured() -> None:
         stripe.api_key = s.stripe_secret_key
 
 
-def _price_id_for(tier: PlanTier, cadence: str) -> str:
-    """Look up the Stripe price ID for a tier + cadence ('monthly' | 'yearly')."""
+def _price_id_for(tier: PlanTier, cadence: str = "monthly") -> str:
+    """Look up the Stripe price ID for a tier.
+
+    Only monthly is currently supported — the cadence parameter is kept
+    for future yearly pricing without breaking the call sites.
+    """
     plan = get_plan(tier)
-    price_id = (plan.stripe_price_id_monthly if cadence == "monthly"
-                else plan.stripe_price_id_yearly)
+    price_id = plan.stripe_price_id_monthly
     if not price_id:
         raise ValueError(
-            f"No Stripe price ID configured for {tier.value} {cadence}. "
-            f"Set STRIPE_PRICE_{tier.value.upper()}_{cadence.upper()} in env."
+            f"No Stripe price ID configured for {tier.value}. "
+            f"Set STRIPE_PRICE_{tier.value.upper()}_MONTHLY in env."
         )
     return price_id
 
@@ -59,7 +62,7 @@ def create_checkout_session(
     *,
     customer_id: str,
     tier: PlanTier,
-    cadence: str,
+    cadence: str = "monthly",
     success_url: str,
     cancel_url: str,
     user_id: str,
@@ -127,9 +130,8 @@ def price_id_to_tier(price_id: str | None) -> PlanTier:
     """Reverse-lookup a Stripe price ID to a tier — used by webhook handler."""
     if not price_id:
         return PlanTier.FREE
-    for tier, plan in __import__(
-        "apps.api.billing.plans", fromlist=["PLAN_DEFINITIONS"]
-    ).PLAN_DEFINITIONS.items():
-        if price_id in (plan.stripe_price_id_monthly, plan.stripe_price_id_yearly):
+    from apps.api.billing.plans import PLAN_DEFINITIONS
+    for tier, plan in PLAN_DEFINITIONS.items():
+        if price_id == plan.stripe_price_id_monthly:
             return tier
     return PlanTier.FREE

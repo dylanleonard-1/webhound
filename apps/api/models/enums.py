@@ -64,8 +64,8 @@ class NotificationSeverity(str, enum.Enum):
 
 class PlanTier(str, enum.Enum):
     FREE = "free"
-    STARTER = "starter"
     PRO = "pro"
+    SHIELD = "shield"
     ENTERPRISE = "enterprise"
 
 

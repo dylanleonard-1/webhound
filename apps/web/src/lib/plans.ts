@@ -2,8 +2,13 @@
 // Plan-tier definitions mirrored from apps/api/billing/plans.py.
 // Keep both files in sync when editing — the API enforces these limits
 // server-side; the frontend renders the pricing page from this same data.
+//
+// Stripe products (monthly recurring):
+//   WebHound Pro        — $29 / mo
+//   WebHound Shield     — $79 / mo
+//   WebHound Enterprise — $129 / mo
 
-export type PlanTier = 'free' | 'starter' | 'pro' | 'enterprise'
+export type PlanTier = 'free' | 'pro' | 'shield' | 'enterprise'
 
 export type SubscriptionStatus =
   | 'trialing' | 'active' | 'past_due' | 'unpaid'
@@ -19,17 +24,18 @@ export interface PlanDefinition {
   name: string
   tagline: string
   priceUsdMonthly: number
-  priceUsdYearly: number
   maxWebsites: number
   scansPerMonth: number
   scanHistoryDays: number
   maxConcurrentScans: number
   enginesAllowed: string[] | null
   monitoringEnabled: boolean
+  monitoringMinFrequency: 'manual' | 'weekly' | 'daily'
   exportsEnabled: boolean
   alertsEnabled: boolean
   threatIntelExternal: boolean
   teamSeats: number
+  apiAccess: boolean
   isPopular: boolean
   ctaLabel: string
   sortOrder: number
@@ -40,9 +46,8 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
   free: {
     tier: 'free',
     name: 'Free',
-    tagline: 'Try WebHound on a single site.',
+    tagline: 'Try WebHound on one website. No card required.',
     priceUsdMonthly: 0,
-    priceUsdYearly: 0,
     maxWebsites: 1,
     scansPerMonth: 5,
     scanHistoryDays: 7,
@@ -53,16 +58,18 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
       'technology', 'sensitive_paths',
     ],
     monitoringEnabled: false,
+    monitoringMinFrequency: 'manual',
     exportsEnabled: false,
     alertsEnabled: false,
     threatIntelExternal: false,
     teamSeats: 1,
+    apiAccess: false,
     isPopular: false,
     ctaLabel: 'Start free',
     sortOrder: 10,
     features: [
       { label: '1 monitored website', included: true },
-      { label: '5 scans / month', included: true },
+      { label: '5 scans per month', included: true },
       { label: '7-day scan history', included: true },
       { label: '9 of 12 security engines', included: true },
       { label: 'Plain-English findings', included: true },
@@ -73,100 +80,104 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
       { label: 'API access', included: false },
     ],
   },
-  starter: {
-    tier: 'starter',
-    name: 'Starter',
-    tagline: 'For freelancers and small teams.',
-    priceUsdMonthly: 19,
-    priceUsdYearly: 190,
+  pro: {
+    tier: 'pro',
+    name: 'Pro',
+    tagline: 'For solo founders and small sites.',
+    priceUsdMonthly: 29,
     maxWebsites: 5,
-    scansPerMonth: 100,
-    scanHistoryDays: 90,
+    scansPerMonth: 50,
+    scanHistoryDays: 30,
     maxConcurrentScans: 2,
     enginesAllowed: null,
     monitoringEnabled: true,
+    monitoringMinFrequency: 'weekly',
     exportsEnabled: true,
     alertsEnabled: true,
     threatIntelExternal: false,
     teamSeats: 1,
+    apiAccess: false,
     isPopular: false,
-    ctaLabel: 'Upgrade to Starter',
+    ctaLabel: 'Upgrade to Pro',
     sortOrder: 20,
     features: [
       { label: '5 monitored websites', included: true },
-      { label: '100 scans / month', included: true },
-      { label: '90-day scan history', included: true },
+      { label: '50 scans per month', included: true },
+      { label: '30-day scan history', included: true },
       { label: 'All 12 security engines', included: true },
-      { label: 'Continuous monitoring (weekly)', included: true },
-      { label: 'PDF / CSV / SARIF exports', included: true },
+      { label: 'Weekly continuous monitoring', included: true },
+      { label: 'PDF / CSV / SARIF / JSON exports', included: true },
       { label: 'Email alerts on new findings', included: true },
       { label: 'VirusTotal threat-intel enrichment', included: false },
       { label: 'Team seats', included: false },
       { label: 'API access', included: false },
     ],
   },
-  pro: {
-    tier: 'pro',
-    name: 'Pro',
-    tagline: 'For agencies and growing SaaS.',
-    priceUsdMonthly: 49,
-    priceUsdYearly: 490,
+  shield: {
+    tier: 'shield',
+    name: 'Shield',
+    tagline: 'For growing SaaS and busy agencies.',
+    priceUsdMonthly: 79,
     maxWebsites: 25,
-    scansPerMonth: 500,
-    scanHistoryDays: 365,
+    scansPerMonth: 250,
+    scanHistoryDays: 180,
     maxConcurrentScans: 5,
     enginesAllowed: null,
     monitoringEnabled: true,
+    monitoringMinFrequency: 'daily',
     exportsEnabled: true,
     alertsEnabled: true,
     threatIntelExternal: true,
-    teamSeats: 5,
+    teamSeats: 3,
+    apiAccess: true,
     isPopular: true,
-    ctaLabel: 'Upgrade to Pro',
+    ctaLabel: 'Upgrade to Shield',
     sortOrder: 30,
     features: [
       { label: '25 monitored websites', included: true },
-      { label: '500 scans / month', included: true },
-      { label: 'Full 1-year scan history', included: true },
+      { label: '250 scans per month', included: true },
+      { label: '6-month scan history', included: true },
       { label: 'All 12 security engines', included: true },
-      { label: 'Continuous monitoring (daily)', included: true },
-      { label: 'PDF / CSV / SARIF exports', included: true },
+      { label: 'Daily continuous monitoring', included: true },
+      { label: 'All report formats + scheduled exports', included: true },
       { label: 'Email + webhook alerts', included: true },
       { label: 'VirusTotal threat-intel enrichment', included: true },
-      { label: '5 team seats', included: true },
-      { label: 'API access (read-only)', included: true },
+      { label: '3 team seats', included: true },
+      { label: 'Read-only API access', included: true },
     ],
   },
   enterprise: {
     tier: 'enterprise',
     name: 'Enterprise',
-    tagline: 'Custom limits, SSO, and SOC 2 evidence support.',
-    priceUsdMonthly: 0,
-    priceUsdYearly: 0,
-    maxWebsites: 10000,
-    scansPerMonth: 100000,
-    scanHistoryDays: 3650,
-    maxConcurrentScans: 20,
+    tagline: 'For established teams with SOC 2 obligations.',
+    priceUsdMonthly: 129,
+    maxWebsites: 200,
+    scansPerMonth: 2000,
+    scanHistoryDays: 365,
+    maxConcurrentScans: 15,
     enginesAllowed: null,
     monitoringEnabled: true,
+    monitoringMinFrequency: 'daily',
     exportsEnabled: true,
     alertsEnabled: true,
     threatIntelExternal: true,
-    teamSeats: 999,
+    teamSeats: 15,
+    apiAccess: true,
     isPopular: false,
-    ctaLabel: 'Contact sales',
+    ctaLabel: 'Upgrade to Enterprise',
     sortOrder: 40,
     features: [
-      { label: 'Unlimited websites', included: true },
-      { label: 'Unlimited scans', included: true },
-      { label: 'Custom scan-history retention', included: true },
+      { label: '200 monitored websites', included: true },
+      { label: '2,000 scans per month', included: true },
+      { label: 'Full 1-year scan history', included: true },
       { label: 'All 12 security engines + custom rules', included: true },
-      { label: 'SSO (SAML / OIDC)', included: true },
-      { label: 'SOC 2 evidence collection', included: true },
-      { label: 'Dedicated success manager', included: true },
-      { label: '99.9% uptime SLA', included: true },
-      { label: 'Custom integrations (Slack, Jira, PagerDuty)', included: true },
-      { label: 'On-prem deployment available', included: true },
+      { label: 'Daily continuous monitoring', included: true },
+      { label: 'All report formats + SOC 2 evidence packs', included: true },
+      { label: 'Email + webhook + Slack alerts', included: true },
+      { label: 'VirusTotal + URLhaus enrichment', included: true },
+      { label: '15 team seats', included: true },
+      { label: 'Full API access (read + write)', included: true },
+      { label: 'Priority support', included: true },
     ],
   },
 }

@@ -506,7 +506,7 @@ function BillingPanel() {
   }
 
   const planLabel: Record<string, string> = {
-    free: 'Free', starter: 'Starter', pro: 'Pro', enterprise: 'Enterprise',
+    free: 'Free', pro: 'Pro', shield: 'Shield', enterprise: 'Enterprise',
   }
   const statusLabel = sub?.status ?? 'free'
   const periodEnd = sub?.current_period_end
@@ -577,7 +577,7 @@ function BillingPanel() {
             background: '#8BFF3E', color: '#020617',
           }}
         >
-          {sub?.plan === 'pro' || sub?.plan === 'enterprise'
+          {sub?.plan === 'shield' || sub?.plan === 'enterprise'
             ? 'Change plan'
             : 'Upgrade plan'}
         </Link>

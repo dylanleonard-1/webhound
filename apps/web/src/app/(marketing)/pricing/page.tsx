@@ -9,21 +9,13 @@ import { planOrder, type PlanDefinition, type PlanTier } from '@/lib/plans'
 import { useAuth } from '@/contexts/auth'
 import { cn } from '@/lib/utils'
 
-const CADENCES: { value: 'monthly' | 'yearly'; label: string }[] = [
-  { value: 'monthly', label: 'Monthly' },
-  { value: 'yearly',  label: 'Yearly · 2 months free' },
-]
-
-function priceFor(plan: PlanDefinition, cadence: 'monthly' | 'yearly'): string {
-  if (plan.tier === 'enterprise') return 'Custom'
-  const v = cadence === 'monthly' ? plan.priceUsdMonthly : plan.priceUsdYearly
-  if (v === 0) return '$0'
-  return `$${v}`
+function priceFor(plan: PlanDefinition): string {
+  if (plan.priceUsdMonthly === 0) return '$0'
+  return `$${plan.priceUsdMonthly}`
 }
 
 export default function PricingPage() {
   const { user } = useAuth()
-  const [cadence, setCadence] = useState<'monthly' | 'yearly'>('monthly')
   const [currentTier, setCurrentTier] = useState<PlanTier | null>(null)
   const [busyTier, setBusyTier] = useState<PlanTier | null>(null)
 
@@ -39,10 +31,6 @@ export default function PricingPage() {
       window.location.href = user ? '/dashboard' : '/register'
       return
     }
-    if (plan.tier === 'enterprise') {
-      window.location.href = 'mailto:sales@webhoundsecurity.com?subject=Enterprise%20Plan'
-      return
-    }
     if (!user) {
       window.location.href = `/register?next=${encodeURIComponent('/pricing')}`
       return
@@ -50,8 +38,7 @@ export default function PricingPage() {
     setBusyTier(plan.tier)
     try {
       const { url } = await api.billing.checkout({
-        tier: plan.tier as 'starter' | 'pro',
-        cadence,
+        tier: plan.tier as 'pro' | 'shield' | 'enterprise',
       })
       window.location.href = url
     } catch (e: unknown) {
@@ -88,38 +75,11 @@ export default function PricingPage() {
           </p>
         </div>
 
-        {/* Cadence toggle */}
-        <div className="flex justify-center mb-12">
-          <div className="inline-flex rounded-full p-1"
-               style={{ background: 'rgba(255,255,255,0.04)',
-                        border: '1px solid rgba(255,255,255,0.08)' }}>
-            {CADENCES.map(c => (
-              <button
-                key={c.value}
-                type="button"
-                onClick={() => setCadence(c.value)}
-                className={cn(
-                  'px-5 py-2 rounded-full text-[12px] font-semibold transition-colors',
-                  cadence === c.value
-                    ? 'text-[#020617]'
-                    : 'text-white/70 hover:text-white',
-                )}
-                style={cadence === c.value
-                  ? { background: '#8BFF3E' }
-                  : undefined}
-              >
-                {c.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Tier cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {tiers.map(plan => {
             const isCurrent = currentTier === plan.tier
-            const cadenceSuffix = plan.tier === 'enterprise' ? '' :
-              cadence === 'monthly' ? '/mo' : '/yr'
+            const cadenceSuffix = plan.priceUsdMonthly > 0 ? '/mo' : ''
             return (
               <div
                 key={plan.tier}
@@ -161,9 +121,9 @@ export default function PricingPage() {
                 <div className="mb-6">
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-[34px] font-bold text-white leading-none font-mono">
-                      {priceFor(plan, cadence)}
+                      {priceFor(plan)}
                     </span>
-                    {cadenceSuffix && plan.tier !== 'free' && plan.tier !== 'enterprise' && (
+                    {cadenceSuffix && (
                       <span className="text-[12px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
                         {cadenceSuffix}
                       </span>
@@ -172,11 +132,7 @@ export default function PricingPage() {
                   <p className="text-[10px] mt-1.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
                     {plan.tier === 'free'
                       ? 'forever, no credit card'
-                      : plan.tier === 'enterprise'
-                        ? 'contact us'
-                        : cadence === 'yearly'
-                          ? `~$${Math.round(plan.priceUsdYearly / 12)}/mo billed annually`
-                          : 'billed monthly, cancel anytime'}
+                      : 'billed monthly · cancel anytime'}
                   </p>
                 </div>
 
@@ -229,12 +185,12 @@ export default function PricingPage() {
         {/* Footer note */}
         <div className="mt-16 text-center max-w-2xl mx-auto">
           <p className="text-[13px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)' }}>
-            All plans include the same WebHound scanning engine — 12 specialized
-            engines with plain-English findings. Paid plans add continuous
-            monitoring, more websites, more scans, exports, and alerts.
+            Every paid plan runs the same WebHound scanning engine — 12 specialized
+            engines with plain-English findings. Higher tiers add more websites,
+            more scans, threat-intel enrichment, team seats, and API access.
           </p>
           <p className="text-[12px] mt-4" style={{ color: 'rgba(255,255,255,0.28)' }}>
-            Need something custom? Get in touch with{' '}
+            Need something beyond Enterprise (SSO, on-prem, custom SLA)? Email{' '}
             <Link href="mailto:sales@webhoundsecurity.com"
                   className="underline" style={{ color: '#8BFF3E' }}>
               sales@webhoundsecurity.com

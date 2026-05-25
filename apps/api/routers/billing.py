@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Annotated, Literal
+from typing import Annotated
 
 import sqlalchemy as sa
 import stripe
@@ -39,7 +39,6 @@ _CurrentUser = Annotated[User, Depends(get_current_user)]
 
 class CheckoutSessionRequest(BaseModel):
     tier: PlanTier
-    cadence: Literal["monthly", "yearly"] = "monthly"
     success_path: str = "/dashboard/settings/billing?status=success"
     cancel_path: str = "/pricing?status=cancelled"
 
@@ -63,16 +62,17 @@ class PlanResponse(BaseModel):
     name: str
     tagline: str
     price_usd_monthly: int
-    price_usd_yearly: int
     max_websites: int
     scans_per_month: int
     scan_history_days: int
     max_concurrent_scans: int
     monitoring_enabled: bool
+    monitoring_min_frequency: str
     exports_enabled: bool
     alerts_enabled: bool
     threat_intel_external: bool
     team_seats: int
+    api_access: bool
     is_popular: bool
     cta_label: str
     sort_order: int
@@ -169,12 +169,10 @@ async def create_checkout_session(
             status_code=503,
             detail="Stripe is not configured on this server.",
         )
-    if data.tier in (PlanTier.FREE, PlanTier.ENTERPRISE):
+    if data.tier == PlanTier.FREE:
         raise HTTPException(
             status_code=400,
-            detail=(
-                "Free plan needs no checkout; Enterprise plan is contact-sales."
-            ),
+            detail="Free plan does not need a checkout session.",
         )
     try:
         customer_id = await stripe_service.get_or_create_customer(
@@ -188,7 +186,6 @@ async def create_checkout_session(
         session = stripe_service.create_checkout_session(
             customer_id=customer_id,
             tier=data.tier,
-            cadence=data.cadence,
             success_url=f"{settings.frontend_url}{data.success_path}",
             cancel_url=f"{settings.frontend_url}{data.cancel_path}",
             user_id=str(current_user.id),

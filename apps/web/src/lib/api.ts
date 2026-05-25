@@ -581,8 +581,7 @@ export const api = {
       request<CurrentSubscriptionResponse>('GET', '/billing/subscription'),
 
     checkout: (data: {
-      tier: 'starter' | 'pro'
-      cadence?: 'monthly' | 'yearly'
+      tier: 'pro' | 'shield' | 'enterprise'
       success_path?: string
       cancel_path?: string
     }) =>
@@ -602,20 +601,21 @@ export const api = {
 // ---------------------------------------------------------------------------
 
 export interface PlanResponse {
-  tier: 'free' | 'starter' | 'pro' | 'enterprise'
+  tier: 'free' | 'pro' | 'shield' | 'enterprise'
   name: string
   tagline: string
   price_usd_monthly: number
-  price_usd_yearly: number
   max_websites: number
   scans_per_month: number
   scan_history_days: number
   max_concurrent_scans: number
   monitoring_enabled: boolean
+  monitoring_min_frequency: 'manual' | 'weekly' | 'daily'
   exports_enabled: boolean
   alerts_enabled: boolean
   threat_intel_external: boolean
   team_seats: number
+  api_access: boolean
   is_popular: boolean
   cta_label: string
   sort_order: number
@@ -623,7 +623,7 @@ export interface PlanResponse {
 }
 
 export interface CurrentSubscriptionResponse {
-  plan: 'free' | 'starter' | 'pro' | 'enterprise'
+  plan: 'free' | 'pro' | 'shield' | 'enterprise'
   status: string | null
   current_period_end: string | null
   cancel_at_period_end: boolean

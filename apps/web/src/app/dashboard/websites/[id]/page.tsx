@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ScanLaunchForm } from '@/components/scan-launch-form'
+import { ScheduleList } from '@/components/monitoring/schedule-list'
 import { LoadingState } from '@/components/loading-state'
 import { ErrorState } from '@/components/error-state'
 import { EmptyState } from '@/components/empty-state'
@@ -470,8 +471,10 @@ export default function WebsiteDetailPage() {
     )
   }
 
+  const isVerified = site.verification_status === 'verified'
+
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-3xl">
+    <div className="p-4 sm:p-6 space-y-6 max-w-4xl">
       {/* Back */}
       <Button variant="ghost" size="sm" asChild>
         <Link href="/dashboard/websites">
@@ -522,29 +525,70 @@ export default function WebsiteDetailPage() {
         </div>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Verification — shown until verified */}
-        {site.verification_status !== 'verified' && (
-          <VerificationCard
-            site={site}
-            onVerified={() => setSite(s => s ? { ...s, verification_status: 'verified' } : s)}
-          />
-        )}
+      {/* Verification — shown prominently until the site is verified */}
+      {!isVerified && (
+        <VerificationCard
+          site={site}
+          onVerified={() => setSite(s => s ? { ...s, verification_status: 'verified' } : s)}
+        />
+      )}
 
-        {/* Start scan */}
-        <Card className="p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <ScanLine className="w-4 h-4 text-accent-green" />
-            <h2 className="font-medium text-white">Start Scan</h2>
+      {/* PRIMARY: Automated monitoring — set it once, scans run on a schedule */}
+      <section className="space-y-3">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+               style={{ background: 'rgba(139,255,62,0.08)', border: '1px solid rgba(139,255,62,0.22)' }}>
+            <ShieldCheck className="w-4.5 h-4.5" style={{ color: '#8BFF3E' }} />
           </div>
+          <div className="flex-1">
+            <h2 className="text-[15px] font-semibold text-white">Automated Monitoring</h2>
+            <p className="text-[12.5px] mt-0.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              Set a schedule once and WebHound re-scans on its own — no need to come
+              back and click scan. We alert you the moment something changes.
+            </p>
+          </div>
+        </div>
+
+        {isVerified ? (
+          <>
+            <ScheduleList websiteId={id} />
+            <Link
+              href={`/dashboard/websites/${id}/monitoring`}
+              className="inline-flex items-center gap-1 text-[12px] transition-colors"
+              style={{ color: 'rgba(255,255,255,0.45)' }}
+            >
+              View change history &amp; baselines
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </>
+        ) : (
+          <Card className="p-5">
+            <p className="text-[12.5px]" style={{ color: 'rgba(255,255,255,0.45)' }}>
+              Verify ownership above to turn on scheduled scans for this site.
+            </p>
+          </Card>
+        )}
+      </section>
+
+      {/* SECONDARY: one-off scan + recent scans */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Run a one-off scan */}
+        <Card className="p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <ScanLine className="w-4 h-4 text-accent-green" />
+            <h2 className="font-medium text-white">Run a one-off scan</h2>
+          </div>
+          <p className="text-[12px] mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            Need an immediate check? Run any profile now — every profile is on your plan.
+          </p>
           <ScanLaunchForm websiteId={id} onStarted={handleScanStarted} />
         </Card>
 
-        {/* Scan history */}
+        {/* Recent scans */}
         <Card className="p-5">
           <div className="flex items-center gap-2 mb-4">
             <Clock className="w-4 h-4 text-gray-400" />
-            <h2 className="font-medium text-white">Scan History</h2>
+            <h2 className="font-medium text-white">Recent scans</h2>
           </div>
 
           {scansLoading ? (
@@ -552,7 +596,7 @@ export default function WebsiteDetailPage() {
           ) : scans.length === 0 ? (
             <EmptyState
               title="No scans yet"
-              description="Run your first scan to see history here."
+              description="Set up monitoring above, or run a one-off scan to see history here."
             />
           ) : (
             <div className="space-y-1.5">

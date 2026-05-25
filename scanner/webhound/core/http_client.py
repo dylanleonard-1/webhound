@@ -32,6 +32,7 @@ from webhound.core.retry_policy import (
     should_retry,
 )
 from webhound.core.session_context import SessionContext
+from webhound.core.ssrf_guard import SSRFGuardTransport
 from webhound.models.target import ScanOptions
 
 # WebHound identifies itself clearly so site owners can recognize and allow it.
@@ -180,10 +181,18 @@ class SafeHttpClient:
                 ),
                 "follow_redirects": self._options.follow_redirects,
                 "max_redirects": _MAX_REDIRECTS,
-                "verify": self._options.verify_tls,
             }
+            # SSRF egress guard: validate the resolved target on the initial
+            # request and on every redirect hop. An injected transport (tests)
+            # is trusted and used as-is — the guard only wraps real network
+            # egress. TLS verification lives on the inner transport since a
+            # custom transport overrides the client-level `verify` kwarg.
             if self._transport is not None:
                 kwargs["transport"] = self._transport
+            else:
+                kwargs["transport"] = SSRFGuardTransport(
+                    httpx.AsyncHTTPTransport(verify=self._options.verify_tls)
+                )
             self._client = httpx.AsyncClient(**kwargs)
 
     async def close(self) -> None:

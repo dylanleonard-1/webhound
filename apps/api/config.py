@@ -155,6 +155,11 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "DEV_ALLOW_UNVERIFIED_SCANS must not be set in production."
                 )
+            if self.dev_skip_domain_verification:
+                raise ValueError(
+                    "DEV_SKIP_DOMAIN_VERIFICATION must not be set in production — "
+                    "it lets any domain be marked verified, enabling SSRF."
+                )
         return self
 
 

@@ -24,6 +24,26 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+def _client_ip(request: Request) -> str:
+    """Best-effort real client IP.
+
+    Behind Railway/Vercel, request.client.host is the proxy's IP — so keying
+    on it lumps every user into one bucket. Prefer the original client from
+    X-Forwarded-For (leftmost). That value is client-spoofable, but it
+    correctly separates legitimate clients here; targeted auth abuse is
+    independently mitigated by per-account login lockout.
+    """
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        first = xff.split(",")[0].strip()
+        if first:
+            return first
+    real = request.headers.get("x-real-ip")
+    if real and real.strip():
+        return real.strip()
+    return request.client.host if request.client else "unknown"
+
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     def __init__(
         self, app, *, requests_per_minute: int = 100, enabled: bool = True
@@ -38,7 +58,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if not self._enabled:
             return await call_next(request)
 
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = _client_ip(request)
         now = time.time()
         cutoff = now - self._window
         self._counts[client_ip] = [t for t in self._counts[client_ip] if t > cutoff]

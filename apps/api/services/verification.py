@@ -9,7 +9,13 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.config import get_settings
-from apps.api.models.enums import VerificationMethod, VerificationStatus
+from apps.api.models.enums import (
+    ScanProfile,
+    ScheduleFrequency,
+    VerificationMethod,
+    VerificationStatus,
+)
+from apps.api.models.scan_schedule import ScanSchedule
 from apps.api.models.website import DomainVerification, Website
 
 
@@ -70,6 +76,7 @@ async def check_verification(
 
     if result:
         _mark_verified(website, dv)
+        await _ensure_default_schedule(db, website)
     else:
         dv.status = VerificationStatus.FAILED
 
@@ -80,6 +87,44 @@ def _mark_verified(website: Website, dv: DomainVerification) -> None:
     dv.status = VerificationStatus.VERIFIED
     dv.verified_at = datetime.now(timezone.utc)
     website.verification_status = VerificationStatus.VERIFIED
+
+
+async def _ensure_default_schedule(db: AsyncSession, website: Website) -> None:
+    """Auto-create a daily continuous-monitoring schedule on first verification.
+
+    Every user gets one scheduled scan per day per verified website,
+    regardless of plan tier. The user can change frequency or disable it
+    later from the dashboard's monitoring view.
+
+    No-op if any ScanSchedule already exists for this website (handles the
+    re-verification path).
+    """
+    from datetime import timedelta
+
+    existing = await db.scalar(
+        sa.select(ScanSchedule.id)
+        .where(ScanSchedule.website_id == website.id)
+        .limit(1)
+    )
+    if existing is not None:
+        return
+
+    # First run tomorrow at the same wall-clock time the site was verified
+    # — keeps it predictable for the user, avoids stacking scans on the
+    # exact verification minute across many users.
+    now = datetime.now(timezone.utc)
+    schedule = ScanSchedule(
+        website_id=website.id,
+        user_id=website.user_id,
+        profile=ScanProfile.STANDARD,
+        frequency=ScheduleFrequency.DAILY,
+        is_enabled=True,
+        use_latest_baseline=True,
+        save_baseline=True,
+        next_run_at=now + timedelta(days=1),
+    )
+    db.add(schedule)
+    await db.flush()
 
 
 async def _check_dns(hostname: str, token: str) -> bool:

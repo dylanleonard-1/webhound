@@ -125,6 +125,93 @@ export default function DashboardPage() {
           </p>
         </motion.div>
 
+        {/* ── Onboarding cue (only shown when zero websites yet) ── */}
+        {stats !== null && stats.websites === 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.06 }}
+            className="rounded-[14px] p-5"
+            style={{
+              background: 'linear-gradient(180deg, rgba(139,255,62,0.06), rgba(8,12,22,0.95))',
+              border: '1px solid rgba(139,255,62,0.22)',
+            }}
+          >
+            <div className="flex items-start gap-3 mb-4">
+              <div
+                className="w-9 h-9 rounded-[10px] flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(139,255,62,0.12)', border: '1px solid rgba(139,255,62,0.3)' }}
+              >
+                <Zap className="w-4 h-4" style={{ color: '#8BFF3E' }} />
+              </div>
+              <div>
+                <h2 className="text-[15px] font-bold text-white mb-0.5">
+                  Get your first scan running
+                </h2>
+                <p className="text-[12px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                  Three quick steps to see what WebHound finds on your site.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {[
+                {
+                  step: '1',
+                  title: 'Add your website',
+                  desc: 'Paste the URL you want to scan.',
+                  cta: 'Add website',
+                  href: '/dashboard/websites/new',
+                },
+                {
+                  step: '2',
+                  title: 'Verify ownership',
+                  desc: 'A 30-second DNS TXT record proves the site is yours.',
+                  cta: null,
+                  href: '/dashboard/websites',
+                },
+                {
+                  step: '3',
+                  title: 'Run your first scan',
+                  desc: 'Manual scan now, then daily automatic monitoring kicks in.',
+                  cta: null,
+                  href: '/dashboard/scans',
+                },
+              ].map(s => (
+                <div
+                  key={s.step}
+                  className="rounded-[10px] p-3"
+                  style={{
+                    background: 'rgba(8,12,22,0.6)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span
+                      className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black"
+                      style={{ background: 'rgba(139,255,62,0.15)', color: '#8BFF3E' }}
+                    >
+                      {s.step}
+                    </span>
+                    <span className="text-[12.5px] font-semibold text-white">{s.title}</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.42)' }}>
+                    {s.desc}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <Link
+              href="/dashboard/websites/new"
+              className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 rounded-[8px] text-[12px] font-semibold transition-all"
+              style={{ background: '#8BFF3E', color: '#020617' }}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Start with your first website
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </motion.div>
+        )}
+
         {/* ── Quick actions ────────────────────────────────────── */}
         <motion.div
           className="grid grid-cols-2 sm:grid-cols-4 gap-3"

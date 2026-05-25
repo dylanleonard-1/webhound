@@ -32,7 +32,9 @@ export default function PricingPage() {
       return
     }
     if (!user) {
-      window.location.href = `/register?next=${encodeURIComponent('/pricing')}`
+      // Default to /login since most upgrades come from existing accounts;
+      // the login page exposes a Sign-up link that preserves ?next=.
+      window.location.href = `/login?next=${encodeURIComponent('/pricing')}`
       return
     }
     setBusyTier(plan.tier)

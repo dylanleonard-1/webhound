@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useRef, useEffect, type FormEvent } from 'react'
+import { useState, useRef, useEffect, useMemo, type FormEvent } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth'
 import type { LoginChallenge, UseCase } from '@/lib/api'
@@ -232,9 +232,49 @@ interface AuthFormProps {
   mode: 'login' | 'register'
 }
 
+/**
+ * Validate + normalise a `next` query param. Only same-origin relative
+ * paths are allowed (must start with a single `/`, not `//`). Defends
+ * against open-redirect via crafted `?next=https://evil.example`.
+ */
+function safeNext(raw: string | null | undefined): string {
+  if (!raw) return '/dashboard'
+  const trimmed = raw.trim()
+  if (!trimmed.startsWith('/')) return '/dashboard'
+  if (trimmed.startsWith('//')) return '/dashboard'
+  if (trimmed.includes('://')) return '/dashboard'
+  return trimmed
+}
+
+const NEXT_STORAGE_KEY = 'webhound:auth_next'
+
 export function AuthForm({ mode }: AuthFormProps) {
   const { initiateLogin, verifyLoginCode, resendLoginCode, register } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // The `?next=` param is the post-auth destination. It can be passed
+  // either as a query string or persisted across the verify-email round
+  // trip via sessionStorage.
+  const nextPath = useMemo(
+    () => safeNext(searchParams?.get('next')),
+    [searchParams],
+  )
+
+  useEffect(() => {
+    // Persist for the verify-email leg (separate route).
+    if (nextPath && nextPath !== '/dashboard') {
+      sessionStorage.setItem(NEXT_STORAGE_KEY, nextPath)
+    }
+  }, [nextPath])
+
+  function consumeNext(): string {
+    if (typeof window === 'undefined') return nextPath
+    const stored = sessionStorage.getItem(NEXT_STORAGE_KEY)
+    sessionStorage.removeItem(NEXT_STORAGE_KEY)
+    return safeNext(stored ?? nextPath)
+  }
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
@@ -245,6 +285,7 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [fullName, setFullName] = useState('')
   const [companyName, setCompanyName] = useState('')
   const [useCase, setUseCase] = useState<UseCase | ''>('')
+  const [agreedTerms, setAgreedTerms] = useState(false)
 
   const isLogin = mode === 'login'
 
@@ -260,12 +301,17 @@ export function AuthForm({ mode }: AuthFormProps) {
       if (isLogin) {
         const step = await initiateLogin(email, password)
         if (step.kind === 'signed_in') {
-          // Legacy API path — straight to the dashboard, no OTP step.
-          router.replace('/dashboard')
+          // Legacy API path — straight to next (or dashboard).
+          router.replace(consumeNext())
         } else {
           setChallenge(step.challenge)
         }
       } else {
+        if (!agreedTerms) {
+          setError('You must agree to the Terms, Privacy Policy, and Acceptable Use Policy before creating an account.')
+          setLoading(false)
+          return
+        }
         const { devVerifyUrl } = await register({
           email,
           password,
@@ -274,6 +320,7 @@ export function AuthForm({ mode }: AuthFormProps) {
           use_case: useCase || null,
         })
         if (devVerifyUrl) sessionStorage.setItem('dev_verify_url', devVerifyUrl)
+        // next is preserved in sessionStorage; verify-email page consumes it.
         router.replace('/verify-email')
       }
     } catch (err: unknown) {
@@ -290,7 +337,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         challenge={challenge}
         onVerify={async code => {
           await verifyLoginCode(challenge.challenge_token, code)
-          router.replace('/dashboard')
+          router.replace(consumeNext())
         }}
         onResend={() => resendLoginCode(challenge.challenge_token)}
         onBack={() => setChallenge(null)}
@@ -447,6 +494,36 @@ export function AuthForm({ mode }: AuthFormProps) {
           </div>
         </div>
 
+        {!isLogin && (
+          <label
+            htmlFor="agreedTerms"
+            className="flex items-start gap-2.5 cursor-pointer select-none rounded-xl px-3.5 py-3 transition-colors"
+            style={{
+              background: agreedTerms ? 'rgba(139,255,62,0.06)' : 'rgba(255,255,255,0.02)',
+              border: agreedTerms
+                ? '1px solid rgba(139,255,62,0.3)'
+                : '1px solid rgba(255,255,255,0.08)',
+            }}
+          >
+            <input
+              id="agreedTerms"
+              type="checkbox"
+              checked={agreedTerms}
+              onChange={e => setAgreedTerms(e.target.checked)}
+              required
+              className="mt-0.5 flex-shrink-0 w-4 h-4 rounded cursor-pointer accent-accent-green"
+              style={{ accentColor: '#8BFF3E' }}
+            />
+            <span className="text-[12px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.7)' }}>
+              I&apos;ve read and agree to the{' '}
+              <Link href="/terms" target="_blank" className="text-accent-green hover:underline">Terms of Service</Link>,{' '}
+              <Link href="/privacy" target="_blank" className="text-accent-green hover:underline">Privacy Policy</Link>, and{' '}
+              <Link href="/acceptable-use" target="_blank" className="text-accent-green hover:underline">Acceptable Use Policy</Link>.
+              I will only scan websites I own or am authorised to test.
+            </span>
+          </label>
+        )}
+
         {error && (
           <p className="text-[12.5px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3.5 py-2.5">
             {error}
@@ -455,8 +532,8 @@ export function AuthForm({ mode }: AuthFormProps) {
 
         <button
           type="submit"
-          disabled={loading}
-          className="flex items-center justify-center gap-2 w-full h-[44px] rounded-xl text-[13.5px] font-semibold text-[#020617] transition-all duration-200 disabled:opacity-50 mt-1"
+          disabled={loading || (!isLogin && !agreedTerms)}
+          className="flex items-center justify-center gap-2 w-full h-[44px] rounded-xl text-[13.5px] font-semibold text-[#020617] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed mt-1"
           style={{ background: '#8BFF3E', boxShadow: '0 0 20px rgba(139,255,62,0.18)' }}
           onMouseEnter={e => !loading && (e.currentTarget.style.boxShadow = '0 0 28px rgba(139,255,62,0.35)')}
           onMouseLeave={e => (e.currentTarget.style.boxShadow = '0 0 20px rgba(139,255,62,0.18)')}
@@ -470,9 +547,19 @@ export function AuthForm({ mode }: AuthFormProps) {
 
       <p className="mt-6 text-center text-[13px]" style={{ color: 'rgba(255,255,255,0.38)' }}>
         {isLogin ? (
-          <>No account?{' '}<Link href="/register" className="text-accent-green font-medium hover:underline">Sign up free</Link></>
+          <>No account?{' '}<Link
+            href={nextPath !== '/dashboard'
+              ? `/register?next=${encodeURIComponent(nextPath)}`
+              : '/register'}
+            className="text-accent-green font-medium hover:underline"
+          >Sign up free</Link></>
         ) : (
-          <>Already have an account?{' '}<Link href="/login" className="text-accent-green font-medium hover:underline">Sign in</Link></>
+          <>Already have an account?{' '}<Link
+            href={nextPath !== '/dashboard'
+              ? `/login?next=${encodeURIComponent(nextPath)}`
+              : '/login'}
+            className="text-accent-green font-medium hover:underline"
+          >Sign in</Link></>
         )}
       </p>
 

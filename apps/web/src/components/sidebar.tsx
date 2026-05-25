@@ -2,14 +2,15 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import {
   LayoutDashboard, Globe, ScanLine, Activity, Bell,
-  Settings, LogOut, X,
+  Settings, LogOut, X, Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/auth'
+import { api } from '@/lib/api'
 
 const NAV = [
   {
@@ -47,6 +48,14 @@ interface SidebarProps {
 export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname()
   const { user, logout } = useAuth()
+  const [planTier, setPlanTier] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!user) return
+    api.billing.subscription()
+      .then(s => setPlanTier(s.plan))
+      .catch(() => setPlanTier(null))
+  }, [user])
 
   // Auto-close the drawer when the route changes on mobile.
   useEffect(() => {
@@ -167,6 +176,35 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
             </div>
           ))}
         </nav>
+
+        {/* ── Upgrade pill (free users only) ───────────────────── */}
+        {planTier === 'free' && (
+          <div className="flex-shrink-0 px-3 pb-2">
+            <Link
+              href="/pricing"
+              className="block rounded-[10px] p-3 transition-all group"
+              style={{
+                background: 'linear-gradient(180deg, rgba(139,255,62,0.08), rgba(139,255,62,0.02))',
+                border: '1px solid rgba(139,255,62,0.22)',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(139,255,62,0.45)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(139,255,62,0.22)' }}
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <Sparkles className="w-3 h-3" style={{ color: '#8BFF3E' }} />
+                <span className="text-[10px] font-black tracking-[0.12em] uppercase" style={{ color: '#8BFF3E' }}>
+                  Free plan
+                </span>
+              </div>
+              <p className="text-[12px] font-semibold text-white leading-snug mb-0.5">
+                Upgrade for monitoring &amp; alerts
+              </p>
+              <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.42)' }}>
+                See plans &rarr;
+              </p>
+            </Link>
+          </div>
+        )}
 
         {/* ── User footer ───────────────────────────────────────── */}
         <div

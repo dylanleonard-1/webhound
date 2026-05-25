@@ -23,7 +23,12 @@ function VerifyInner() {
     api.auth.verifyEmail(token)
       .then(() => {
         setStatus('success')
-        setTimeout(() => router.replace('/dashboard'), 2500)
+        // Honor a previously-stashed ?next= from the register flow.
+        const stored = sessionStorage.getItem('webhound:auth_next')
+        sessionStorage.removeItem('webhound:auth_next')
+        const dest = stored && stored.startsWith('/') && !stored.startsWith('//')
+          && !stored.includes('://') ? stored : '/dashboard'
+        setTimeout(() => router.replace(dest), 2500)
       })
       .catch((err: Error) => {
         setStatus('error')

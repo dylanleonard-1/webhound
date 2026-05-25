@@ -584,6 +584,12 @@ export const api = {
     subscription: () =>
       request<CurrentSubscriptionResponse>('GET', '/billing/subscription'),
 
+    // Reconcile plan state directly from Stripe (post-checkout). Doesn't
+    // depend on the webhook having landed, so the dashboard updates even if
+    // webhook delivery is delayed or not configured (e.g. test mode).
+    sync: () =>
+      request<CurrentSubscriptionResponse>('POST', '/billing/sync'),
+
     checkout: (data: {
       tier: 'pro' | 'shield' | 'enterprise'
       success_path?: string

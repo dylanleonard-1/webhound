@@ -481,7 +481,7 @@ function IntegrationsPanel() {
 }
 
 function BillingPanel({ status }: { status: string | null }) {
-  const { user } = useAuth()
+  const { user, refresh } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [sub, setSub] = useState<{
@@ -498,30 +498,37 @@ function BillingPanel({ status }: { status: string | null }) {
   const [portalBusy, setPortalBusy] = useState(false)
   const [banner, setBanner] = useState<string | null>(status)
 
-  // Stripe webhooks process async — refresh /subscription a few times
-  // right after a success redirect so the UI reflects the new tier
-  // even if the webhook lands a second later.
+  // After a success redirect we don't wait on the webhook: /billing/sync
+  // reconciles plan state directly from Stripe, so the new tier shows even if
+  // webhook delivery is delayed or unconfigured. We then refresh the cached
+  // auth user and poll a couple more times in case Stripe's API was briefly
+  // behind. Normal loads just read /subscription.
   useEffect(() => {
     let cancelled = false
     let attempts = 0
-    async function fetchSub() {
+    async function load(reconcile: boolean) {
       try {
-        const s = await api.billing.subscription()
+        const s = reconcile
+          ? await api.billing.sync()
+          : await api.billing.subscription()
         if (cancelled) return
         setSub(s)
       } catch { /* swallow — banner will still render */ }
     }
-    fetchSub().finally(() => !cancelled && setLoading(false))
     if (status === 'success') {
+      // First call reconciles from Stripe, then sync the cached auth user.
+      load(true).then(() => { if (!cancelled) refresh().catch(() => {}) })
+        .finally(() => !cancelled && setLoading(false))
       const id = window.setInterval(() => {
         attempts += 1
-        fetchSub()
-        if (attempts >= 5) window.clearInterval(id)
+        load(false)
+        if (attempts >= 4) window.clearInterval(id)
       }, 1500)
       return () => { cancelled = true; window.clearInterval(id) }
     }
+    load(false).finally(() => !cancelled && setLoading(false))
     return () => { cancelled = true }
-  }, [status])
+  }, [status])  // eslint-disable-line react-hooks/exhaustive-deps
 
   function dismissBanner() {
     setBanner(null)

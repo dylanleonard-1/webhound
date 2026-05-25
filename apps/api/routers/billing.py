@@ -14,7 +14,11 @@ from apps.api.billing.plans import PLAN_DEFINITIONS, plan_for_route_display
 from apps.api.billing.quota import (
     QuotaViolation,
 )
-from apps.api.billing.webhook_handler import handle_stripe_event
+from apps.api.billing.webhook_handler import (
+    _on_subscription_upsert,
+    handle_stripe_event,
+    to_plain_dict,
+)
 from apps.api.config import get_settings
 from apps.api.database import get_db
 from apps.api.models.enums import PlanTier, ScanStatus
@@ -152,6 +156,49 @@ async def get_current_subscription(
             scans_limit=plan_def.scans_per_month,
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Authenticated — reconcile from Stripe (self-service, post-checkout)
+# ---------------------------------------------------------------------------
+#
+# The webhook is the steady-state path that keeps plan state current, but it
+# can be missed: in test mode without a configured webhook endpoint, during
+# downtime, or after a secret rotation. When that happens the user completes
+# checkout, gets redirected back, and the dashboard still shows their old plan
+# because nothing ever updated users.plan.
+#
+# This route pulls the caller's own latest Stripe subscription and replays it
+# through the exact same upsert the webhook uses, so access updates
+# immediately and deterministically without depending on webhook delivery.
+# The success redirect calls this before reading /subscription.
+
+
+@router.post("/sync", response_model=CurrentSubscriptionResponse)
+async def sync_subscription(
+    db: _DB, current_user: _CurrentUser,
+) -> CurrentSubscriptionResponse:
+    settings = get_settings()
+    if settings.stripe_secret_key and current_user.stripe_customer_id:
+        stripe.api_key = settings.stripe_secret_key
+        try:
+            subs = stripe.Subscription.list(
+                customer=current_user.stripe_customer_id, status="all", limit=10,
+            )
+        except stripe.StripeError as exc:
+            # Don't fail the request — fall through to the plain DB read so the
+            # dashboard still renders. Worst case the user sees stale state.
+            logger.warning(
+                "billing sync stripe lookup failed for %s: %s",
+                current_user.id, exc,
+            )
+            subs = None
+        if subs and subs.data:
+            latest = sorted(subs.data, key=lambda s: s["created"], reverse=True)[0]
+            await _on_subscription_upsert(db, to_plain_dict(latest))
+            await db.commit()
+
+    return await get_current_subscription(db, current_user)
 
 
 # ---------------------------------------------------------------------------
@@ -322,10 +369,11 @@ async def admin_resync(
         )
 
     # Pick the most recently created subscription Stripe knows about and run
-    # it through the same upsert path the webhook would have used.
+    # it through the same upsert path the webhook would have used. Convert to
+    # a plain dict first — the handler uses .get() and a raw StripeObject has
+    # tripped that before.
     latest = sorted(subs.data, key=lambda s: s["created"], reverse=True)[0]
-    from apps.api.billing.webhook_handler import _on_subscription_upsert
-    await _on_subscription_upsert(db, latest)
+    await _on_subscription_upsert(db, to_plain_dict(latest))
     await db.commit()
 
     return {

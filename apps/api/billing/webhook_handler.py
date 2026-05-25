@@ -41,15 +41,7 @@ async def handle_stripe_event(db: AsyncSession, event: stripe.Event) -> None:
         logger.debug("stripe webhook: ignoring %s", et)
         return
 
-    raw_obj = event["data"]["object"]
-    # Deep-convert so nested .get() calls in the handlers work — StripeObject
-    # supports __getitem__ but not .get(), and we use .get() pervasively.
-    if hasattr(raw_obj, "to_dict_recursive"):
-        obj = raw_obj.to_dict_recursive()
-    elif isinstance(raw_obj, dict):
-        obj = raw_obj
-    else:
-        obj = dict(raw_obj)
+    obj = to_plain_dict(event["data"]["object"])
     logger.info("stripe webhook: processing %s id=%s", et, event["id"])
     if et == "checkout.session.completed":
         await _on_checkout_completed(db, obj)
@@ -60,6 +52,21 @@ async def handle_stripe_event(db: AsyncSession, event: stripe.Event) -> None:
         await _on_subscription_deleted(db, obj)
     elif et == "invoice.payment_failed":
         await _on_payment_failed(db, obj)
+
+
+def to_plain_dict(raw_obj) -> dict:
+    """Deep-convert a Stripe payload to a plain dict.
+
+    StripeObject supports __getitem__ but its .get() has bitten us before
+    (see "Fix Stripe webhook crash" in git history), and the handlers below
+    use .get() pervasively. Convert recursively so they always get a real
+    dict, whether the object came from a webhook event or a direct API call.
+    """
+    if hasattr(raw_obj, "to_dict_recursive"):
+        return raw_obj.to_dict_recursive()
+    if isinstance(raw_obj, dict):
+        return raw_obj
+    return dict(raw_obj)
 
 
 # ---------------------------------------------------------------------------
@@ -113,7 +120,8 @@ async def _on_subscription_upsert(db: AsyncSession, sub: dict) -> None:
         return
 
     items = (sub.get("items") or {}).get("data") or []
-    price_id = items[0]["price"]["id"] if items and items[0].get("price") else None
+    first_item = items[0] if items else {}
+    price_id = first_item["price"]["id"] if first_item.get("price") else None
     tier = price_id_to_tier(price_id)
 
     status_raw = sub.get("status") or "incomplete"
@@ -122,8 +130,16 @@ async def _on_subscription_upsert(db: AsyncSession, sub: dict) -> None:
     except ValueError:
         status = SubscriptionStatus.INCOMPLETE
 
-    period_start = _epoch_to_dt(sub.get("current_period_start"))
-    period_end = _epoch_to_dt(sub.get("current_period_end"))
+    # Stripe API 2025-03-31+ moved current_period_* off the subscription and
+    # onto each subscription item. Read the top-level field if present (older
+    # API / pinned version), else fall back to the item so the renewal date
+    # doesn't come back null.
+    period_start = _epoch_to_dt(
+        sub.get("current_period_start") or first_item.get("current_period_start")
+    )
+    period_end = _epoch_to_dt(
+        sub.get("current_period_end") or first_item.get("current_period_end")
+    )
     canceled_at = _epoch_to_dt(sub.get("canceled_at"))
     cancel_at_period_end = bool(sub.get("cancel_at_period_end"))
 

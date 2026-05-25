@@ -13,6 +13,7 @@ import { api } from '@/lib/api'
 import { PLAN_DEFINITIONS, type PlanDefinition, type PlanTier } from '@/lib/plans'
 import { useAuth } from '@/contexts/auth'
 import { cn } from '@/lib/utils'
+import { JsonLd } from '@/components/seo/json-ld'
 
 // ─── Local marketing copy ──────────────────────────────────────────────
 // Plan-card feature bullets here are short marketing-focused versions of
@@ -107,6 +108,18 @@ export default function PricingPage() {
 
   return (
     <div className="min-h-screen pt-24 pb-24 px-4">
+      {/* FAQ rich-result eligibility — generated from the FAQS rendered below */}
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: FAQS.map(f => ({
+            '@type': 'Question',
+            name: f.q,
+            acceptedAnswer: { '@type': 'Answer', text: f.a },
+          })),
+        }}
+      />
       <div className="max-w-6xl mx-auto">
 
         <Hero />

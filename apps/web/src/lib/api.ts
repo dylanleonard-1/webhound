@@ -613,6 +613,7 @@ export interface PlanResponse {
   scans_per_month: number
   scan_history_days: number
   max_concurrent_scans: number
+  scan_profiles_allowed: string[]
   monitoring_enabled: boolean
   monitoring_min_frequency: 'manual' | 'weekly' | 'daily'
   exports_enabled: boolean

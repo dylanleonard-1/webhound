@@ -46,6 +46,11 @@ class PlanDefinition:
     # named engines run for this tier's scans.
     engines_allowed: list[str] | None
 
+    # Scan profile subset — tiers below Pro can't run "deep" (100 pages,
+    # depth 4). Always includes "monitor" — that's the scheduler's
+    # internal profile, not user-facing.
+    scan_profiles_allowed: list[str]
+
     # Capability flags
     monitoring_enabled: bool        # Scheduled / recurring scans
     monitoring_min_frequency: str   # "manual" / "weekly" / "daily"
@@ -89,6 +94,7 @@ PLAN_DEFINITIONS: dict[PlanTier, PlanDefinition] = {
             "secret_scanner", "form_risk", "input_analysis",
             "technology", "sensitive_paths",
         ],
+        scan_profiles_allowed=["quick", "monitor"],
         monitoring_enabled=False,
         monitoring_min_frequency="manual",
         exports_enabled=False,
@@ -122,6 +128,7 @@ PLAN_DEFINITIONS: dict[PlanTier, PlanDefinition] = {
         scan_history_days=30,
         max_concurrent_scans=2,
         engines_allowed=None,
+        scan_profiles_allowed=["quick", "standard", "monitor"],
         monitoring_enabled=True,
         monitoring_min_frequency="weekly",
         exports_enabled=True,
@@ -155,6 +162,7 @@ PLAN_DEFINITIONS: dict[PlanTier, PlanDefinition] = {
         scan_history_days=180,
         max_concurrent_scans=5,
         engines_allowed=None,
+        scan_profiles_allowed=["quick", "standard", "deep", "monitor"],
         monitoring_enabled=True,
         monitoring_min_frequency="daily",
         exports_enabled=True,
@@ -189,6 +197,7 @@ PLAN_DEFINITIONS: dict[PlanTier, PlanDefinition] = {
         scan_history_days=365,
         max_concurrent_scans=15,
         engines_allowed=None,
+        scan_profiles_allowed=["quick", "standard", "deep", "monitor"],
         monitoring_enabled=True,
         monitoring_min_frequency="daily",
         exports_enabled=True,
@@ -235,6 +244,7 @@ def plan_for_route_display(tier: PlanTier | str) -> dict:
         "scan_history_days": plan.scan_history_days,
         "max_concurrent_scans": plan.max_concurrent_scans,
         "engines_allowed": plan.engines_allowed,
+        "scan_profiles_allowed": plan.scan_profiles_allowed,
         "monitoring_enabled": plan.monitoring_enabled,
         "monitoring_min_frequency": plan.monitoring_min_frequency,
         "exports_enabled": plan.exports_enabled,

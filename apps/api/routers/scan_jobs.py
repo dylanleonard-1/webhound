@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.billing.quota import (
     check_concurrent_scan_quota,
+    check_scan_profile_allowed,
     check_scan_quota,
     violation_to_dict,
 )
@@ -45,6 +46,13 @@ async def create_scan_job(
     data: ScanJobCreate, db: _DB, current_user: _CurrentUser
 ) -> ScanJobResponse:
     if not current_user.is_admin:
+        # Profile-level gate first — surface a "this tier doesn't include
+        # X" message before we even count usage.
+        profile_v = check_scan_profile_allowed(current_user, data.profile.value)
+        if profile_v is not None:
+            raise HTTPException(
+                status_code=402, detail=violation_to_dict(profile_v),
+            )
         for check in (check_scan_quota, check_concurrent_scan_quota):
             v = await check(db, current_user)
             if v is not None:

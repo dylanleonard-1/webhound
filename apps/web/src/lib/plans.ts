@@ -19,6 +19,8 @@ export interface PlanFeature {
   included: boolean
 }
 
+export type ScanProfile = 'quick' | 'standard' | 'deep' | 'monitor'
+
 export interface PlanDefinition {
   tier: PlanTier
   name: string
@@ -29,6 +31,7 @@ export interface PlanDefinition {
   scanHistoryDays: number
   maxConcurrentScans: number
   enginesAllowed: string[] | null
+  scanProfilesAllowed: ScanProfile[]
   monitoringEnabled: boolean
   monitoringMinFrequency: 'manual' | 'weekly' | 'daily'
   exportsEnabled: boolean
@@ -57,6 +60,7 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
       'secret_scanner', 'form_risk', 'input_analysis',
       'technology', 'sensitive_paths',
     ],
+    scanProfilesAllowed: ['quick', 'monitor'],
     monitoringEnabled: false,
     monitoringMinFrequency: 'manual',
     exportsEnabled: false,
@@ -90,6 +94,7 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
     scanHistoryDays: 30,
     maxConcurrentScans: 2,
     enginesAllowed: null,
+    scanProfilesAllowed: ['quick', 'standard', 'monitor'],
     monitoringEnabled: true,
     monitoringMinFrequency: 'weekly',
     exportsEnabled: true,
@@ -123,6 +128,7 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
     scanHistoryDays: 180,
     maxConcurrentScans: 5,
     enginesAllowed: null,
+    scanProfilesAllowed: ['quick', 'standard', 'deep', 'monitor'],
     monitoringEnabled: true,
     monitoringMinFrequency: 'daily',
     exportsEnabled: true,
@@ -156,6 +162,7 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
     scanHistoryDays: 365,
     maxConcurrentScans: 15,
     enginesAllowed: null,
+    scanProfilesAllowed: ['quick', 'standard', 'deep', 'monitor'],
     monitoringEnabled: true,
     monitoringMinFrequency: 'daily',
     exportsEnabled: true,

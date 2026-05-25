@@ -144,6 +144,36 @@ async def check_concurrent_scan_quota(
     return None
 
 
+def check_scan_profile_allowed(
+    user: User, profile: str,
+) -> QuotaViolation | None:
+    """Reject scan-job submissions for a profile the user's tier doesn't include.
+
+    Frontend should also gate the picker, but never trust it — backend
+    enforcement is the source of truth.
+    """
+    plan = _plan_of(user)
+    if profile in plan.scan_profiles_allowed:
+        return None
+    profile_pretty = {
+        "quick": "Quick",
+        "standard": "Standard",
+        "deep": "Deep",
+        "monitor": "Monitor",
+    }.get(profile, profile.capitalize())
+    return QuotaViolation(
+        limit_name="scan_profile_locked",
+        limit_value=0,
+        current_value=1,
+        plan=user.plan,
+        upgrade_to=_next_tier(user.plan),
+        message=(
+            f"The {profile_pretty} scan profile isn't available on the "
+            f"{plan.name} plan. Upgrade to unlock it."
+        ),
+    )
+
+
 def check_engines_allowed(
     user: User, requested_engines: list[str] | None = None,
 ) -> tuple[list[str] | None, QuotaViolation | None]:

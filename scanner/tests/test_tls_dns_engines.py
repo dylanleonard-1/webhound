@@ -277,7 +277,7 @@ class TestTlsCheckerEngine:
             response_url="http://example.com/page",
             redirect_chain=["http://example.com/page"],
         )
-        redir = [f for f in findings if "does not redirect" in f.title.lower()]
+        redir = [f for f in findings if "without redirecting to https" in f.title.lower()]
         assert redir
         assert redir[0].severity == Severity.MEDIUM
 
@@ -288,12 +288,12 @@ class TestTlsCheckerEngine:
             response_url="https://example.com/page",
             redirect_chain=["http://example.com/page"],
         )
-        assert not any("does not redirect" in f.title.lower() for f in findings)
+        assert not any("without redirecting to https" in f.title.lower() for f in findings)
 
     def test_no_redirect_chain_no_redirect_finding(self):
         cert = TlsCertInfo(domain="example.com")
         findings = _ENGINE.analyze(cert, response_url=None, redirect_chain=None)
-        assert not any("does not redirect" in f.title.lower() for f in findings)
+        assert not any("without redirecting to https" in f.title.lower() for f in findings)
 
     # --- Fully valid cert produces no findings ---
 

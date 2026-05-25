@@ -353,52 +353,52 @@ class TestSuspiciousRedirectsEngine:
         script = "window.location.href = 'https://attacker.example.com/phish';"
         art = _artifacts(url="https://example.com", inline_scripts=[script])
         findings = self.engine.analyze(art)
-        assert any("javascript redirect" in f.title.lower() for f in findings)
+        assert any("redirects to external domain" in f.title.lower() for f in findings)
         assert any(f.severity == Severity.MEDIUM for f in findings)
 
     def test_js_redirect_location_replace(self):
         script = "location.replace('https://other.example.net/page');"
         art = _artifacts(url="https://example.com", inline_scripts=[script])
         findings = self.engine.analyze(art)
-        assert any("javascript redirect" in f.title.lower() for f in findings)
+        assert any("redirects to external domain" in f.title.lower() for f in findings)
 
     def test_js_redirect_location_assign(self):
         script = "location.assign('https://another.domain.org/');"
         art = _artifacts(url="https://example.com", inline_scripts=[script])
         findings = self.engine.analyze(art)
-        assert any("javascript redirect" in f.title.lower() for f in findings)
+        assert any("redirects to external domain" in f.title.lower() for f in findings)
 
     def test_js_redirect_same_domain_no_finding(self):
         script = "window.location.href = 'https://example.com/other-page';"
         art = _artifacts(url="https://example.com", inline_scripts=[script])
         findings = self.engine.analyze(art)
-        assert not any("javascript redirect" in f.title.lower() for f in findings)
+        assert not any("redirects to external domain" in f.title.lower() for f in findings)
 
     def test_open_redirect_param_url(self):
         art = _artifacts(url="https://example.com/login?redirect=https://phishing.example.net/steal")
         findings = self.engine.analyze(art)
-        assert any("open redirect" in f.title.lower() for f in findings)
+        assert any("open-redirect parameter" in f.title.lower() for f in findings)
         assert any(f.severity == Severity.MEDIUM for f in findings)
 
     def test_open_redirect_param_next(self):
         art = _artifacts(url="https://example.com/page?next=https://malicious.org/")
         findings = self.engine.analyze(art)
-        assert any("open redirect" in f.title.lower() for f in findings)
+        assert any("open-redirect parameter" in f.title.lower() for f in findings)
 
     def test_open_redirect_relative_value_no_finding(self):
         art = _artifacts(url="https://example.com/page?redirect=/dashboard")
         findings = self.engine.analyze(art)
-        assert not any("open redirect" in f.title.lower() for f in findings)
+        assert not any("open-redirect parameter" in f.title.lower() for f in findings)
 
     def test_open_redirect_same_domain_no_finding(self):
         art = _artifacts(url="https://example.com/page?return=https://example.com/home")
         findings = self.engine.analyze(art)
-        assert not any("open redirect" in f.title.lower() for f in findings)
+        assert not any("open-redirect parameter" in f.title.lower() for f in findings)
 
     def test_unknown_param_no_finding(self):
         art = _artifacts(url="https://example.com/page?foo=https://evil.com/")
         findings = self.engine.analyze(art)
-        assert not any("open redirect" in f.title.lower() for f in findings)
+        assert not any("open-redirect parameter" in f.title.lower() for f in findings)
 
     def test_engine_name(self):
         assert self.engine.NAME == "suspicious_redirects"

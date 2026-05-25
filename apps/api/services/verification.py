@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import secrets
 import uuid
 from datetime import datetime, timezone
@@ -17,6 +18,8 @@ from apps.api.models.enums import (
 )
 from apps.api.models.scan_schedule import ScanSchedule
 from apps.api.models.website import DomainVerification, Website
+
+logger = logging.getLogger(__name__)
 
 
 def generate_token() -> str:
@@ -58,11 +61,19 @@ async def check_verification(
     settings = get_settings()
 
     if settings.dev_skip_domain_verification:
+        logger.warning(
+            "verify: bypass via DEV_SKIP_DOMAIN_VERIFICATION for %s",
+            website.hostname,
+        )
         _mark_verified(website, dv)
         return True
 
     method = dv.method
     token = dv.token
+    logger.info(
+        "verify: starting %s check for hostname=%s token_prefix=%s",
+        method.value, website.hostname, token[:20],
+    )
 
     try:
         if method == VerificationMethod.DNS_TXT:
@@ -72,7 +83,14 @@ async def check_verification(
         else:
             result = await _check_meta(website.url, token)
     except Exception:
+        logger.exception("verify: lookup raised for %s", website.hostname)
         result = False
+
+    logger.info(
+        "verify: %s check for hostname=%s -> %s",
+        method.value, website.hostname,
+        "VERIFIED" if result else "not-found",
+    )
 
     if result:
         _mark_verified(website, dv)
@@ -148,9 +166,11 @@ async def _check_dns(hostname: str, token: str) -> bool:
     record = f"_webhound-verify.{hostname}"
     try:
         answers = await resolver.resolve(record, "TXT")
-    except Exception:
+    except Exception as exc:
+        logger.info("verify-dns: lookup %s failed: %s", record, type(exc).__name__)
         return False
 
+    found_strings: list[str] = []
     for rdata in answers:
         # rdata.strings is a tuple of bytes chunks for one TXT record.
         # Match either each individual chunk OR the concatenation, since
@@ -158,10 +178,24 @@ async def _check_dns(hostname: str, token: str) -> bool:
         chunks = [
             s.decode("utf-8", errors="ignore") for s in rdata.strings
         ]
+        found_strings.extend(chunks)
         if token in chunks:
+            logger.info(
+                "verify-dns: %s matched (single chunk, %d records returned)",
+                record, len(list(answers)),
+            )
             return True
         if "".join(chunks) == token:
+            logger.info("verify-dns: %s matched (concatenated chunks)", record)
             return True
+
+    # Log what we DID find so it's clear why a non-match happened — most
+    # often a copy-paste of the token with surrounding quotes or spaces.
+    sample = [s[:50] for s in found_strings[:5]]
+    logger.info(
+        "verify-dns: %s found %d records, none matched token. samples=%s",
+        record, len(found_strings), sample,
+    )
     return False
 
 

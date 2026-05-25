@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import os
 import uuid
 from typing import Annotated
 
@@ -22,6 +24,7 @@ from apps.api.security import get_current_user
 from apps.api.services import websites as ws_service
 from apps.api.services import verification as verify_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/websites", tags=["websites"])
 
 _DB = Annotated[AsyncSession, Depends(get_db)]
@@ -137,8 +140,18 @@ async def initiate_verification(
     if website is None:
         raise HTTPException(404, "Website not found")
     if website.verification_status.value == "verified":
+        logger.info(
+            "verify-initiate: website=%s already verified", website.hostname,
+        )
         return {"already_verified": True}
-    if current_user.is_admin:
+    # Admin bypass is now opt-in via ADMIN_VERIFY_BYPASS=1 env var.
+    # Previously admins were silently auto-verified, which prevented the
+    # real DNS flow from being tested by the team that owns the product.
+    if current_user.is_admin and os.getenv("ADMIN_VERIFY_BYPASS") == "1":
+        logger.warning(
+            "verify-initiate: ADMIN_VERIFY_BYPASS for %s by %s",
+            website.hostname, current_user.email,
+        )
         website.verification_status = VerificationStatus.VERIFIED
         await db.commit()
         return {"already_verified": True}
@@ -162,6 +175,13 @@ async def check_verification(
     if website is None:
         raise HTTPException(404, "Website not found")
     if website.verification_status.value == "verified":
+        # Short-circuit — already marked verified by a previous successful
+        # check (or admin bypass). Logging this so the user can tell the
+        # difference between "really verified now" and "verified earlier".
+        logger.info(
+            "verify-check: website=%s SHORT-CIRCUIT (already verified)",
+            website.hostname,
+        )
         return {"verified": True}
     dv = await verify_service.get_pending_verification(db, website_id)
     if dv is None:

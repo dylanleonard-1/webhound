@@ -8,7 +8,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.billing.quota import check_website_quota, violation_to_dict
+from apps.api.billing.quota import (
+    admin_quota_bypass,
+    check_website_quota,
+    violation_to_dict,
+)
 from apps.api.database import get_db
 from apps.api.pagination import page_meta
 from apps.api.models.enums import VerificationStatus
@@ -39,7 +43,7 @@ def _uid(user: User) -> uuid.UUID | None:
 async def create_website(
     data: WebsiteCreate, db: _DB, current_user: _CurrentUser
 ) -> WebsiteResponse:
-    if not current_user.is_admin:
+    if not admin_quota_bypass(current_user):
         violation = await check_website_quota(db, current_user)
         if violation is not None:
             raise HTTPException(status_code=402, detail=violation_to_dict(violation))

@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -18,6 +20,21 @@ from apps.api.models.enums import PlanTier, ScanStatus
 from apps.api.models.scan_job import ScanJob
 from apps.api.models.user import User
 from apps.api.models.website import Website
+
+logger = logging.getLogger(__name__)
+
+
+def admin_quota_bypass(user: User) -> bool:
+    """Return True only when the user is admin AND the explicit
+    ADMIN_QUOTA_BYPASS=1 env flag is set.
+
+    Routes should call this instead of checking user.is_admin directly
+    when deciding whether to skip quota enforcement. By default admins
+    are subject to the same plan limits as regular users — so the
+    product team can QA the real flow against their own accounts
+    without manufacturing test users.
+    """
+    return user.is_admin and os.getenv("ADMIN_QUOTA_BYPASS") == "1"
 
 
 @dataclass(frozen=True)
@@ -97,6 +114,11 @@ async def check_scan_quota(
         .where(Website.user_id == user.id)
         .where(ScanJob.created_at >= window_start)
     ) or 0
+    logger.info(
+        "quota: scans_per_month check user=%s plan=%s used_30d=%d limit=%d -> %s",
+        user.id, plan.tier.value, count, plan.scans_per_month,
+        "BLOCK" if count >= plan.scans_per_month else "ALLOW",
+    )
     if count >= plan.scans_per_month:
         return QuotaViolation(
             limit_name="scans_per_month",

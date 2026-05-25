@@ -31,8 +31,12 @@ export function ScanLaunchForm({ websiteId, onStarted }: ScanLaunchFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [allowedProfiles, setAllowedProfiles] = useState<string[] | null>(null)
   const [planName, setPlanName] = useState<string>('Free')
+  const [scansUsed, setScansUsed] = useState<number | null>(null)
+  const [scansLimit, setScansLimit] = useState<number | null>(null)
 
-  // Pull the current user's plan to know which profiles to unlock.
+  // Pull the current user's plan to know which profiles to unlock,
+  // and the current 30-day scan usage so we can show a meter + block
+  // the button when the cap is already reached.
   useEffect(() => {
     api.billing.subscription()
       .then(async sub => {
@@ -40,6 +44,8 @@ export function ScanLaunchForm({ websiteId, onStarted }: ScanLaunchFormProps) {
         const my = plans.find(p => p.tier === sub.plan)
         setAllowedProfiles(my?.scan_profiles_allowed ?? ['quick'])
         setPlanName(my?.name ?? 'Free')
+        setScansUsed(sub.usage?.scans_used_30d ?? null)
+        setScansLimit(sub.usage?.scans_limit ?? null)
         // If the default 'quick' isn't allowed (shouldn't happen but
         // defensive), pick the first allowed.
         if (my && !my.scan_profiles_allowed.includes(profile)) {
@@ -54,9 +60,19 @@ export function ScanLaunchForm({ websiteId, onStarted }: ScanLaunchFormProps) {
       })
   }, [websiteId])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  const quotaExhausted =
+    scansUsed !== null && scansLimit !== null && scansUsed >= scansLimit
+
   async function handleStart() {
     if (allowedProfiles && !allowedProfiles.includes(profile)) {
       setError(`The ${profile} profile isn't on your ${planName} plan. Upgrade or pick a lighter profile.`)
+      return
+    }
+    if (quotaExhausted) {
+      setError(
+        `You've used all ${scansLimit} scans on your ${planName} plan in the last 30 days. ` +
+        `Upgrade for more scans or wait for the window to roll over.`,
+      )
       return
     }
     setSubmitting(true)
@@ -171,15 +187,38 @@ export function ScanLaunchForm({ websiteId, onStarted }: ScanLaunchFormProps) {
         </div>
       </div>
 
+      {/* Quota meter */}
+      {scansUsed !== null && scansLimit !== null && (
+        <div className="text-[11px] flex items-center justify-between"
+             style={{ color: 'rgba(255,255,255,0.45)' }}>
+          <span>
+            <span className="text-white">{scansUsed}</span>
+            {' / '}
+            <span className="text-white">{scansLimit}</span>
+            {' scans used (30 days)'}
+          </span>
+          {quotaExhausted && (
+            <Link href="/pricing" className="hover:underline"
+                  style={{ color: '#f97316' }}>
+              Limit reached — upgrade →
+            </Link>
+          )}
+        </div>
+      )}
+
       {error && (
         <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
           {error}
         </p>
       )}
 
-      <Button onClick={handleStart} disabled={submitting} className="w-full">
+      <Button
+        onClick={handleStart}
+        disabled={submitting || quotaExhausted}
+        className="w-full"
+      >
         <Play className="w-4 h-4 mr-2" />
-        {submitting ? 'Starting…' : 'Start Scan'}
+        {submitting ? 'Starting…' : quotaExhausted ? 'Monthly limit reached' : 'Start Scan'}
       </Button>
     </div>
   )

@@ -34,12 +34,20 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
+              // script-src/style-src keep 'unsafe-inline' for now: the app uses
+              // inline style={{…}} attributes across ~69 components (CSP nonces
+              // can't cover style *attributes*), and inline scripts aren't yet
+              // nonce-migrated. See the nonce-CSP proposal for the path to drop
+              // 'unsafe-inline'/'unsafe-eval' from script-src via middleware.
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https:",
               `connect-src 'self' ${apiUrl} ${apiUrl.replace('https://', 'wss://').replace('http://', 'ws://')}${isProd ? '' : ' http://localhost:8000 ws://localhost:8000'}`,
-              "frame-ancestors 'none'",
+              // Hardening that's safe regardless of inline content:
+              "base-uri 'self'",        // block <base> tag injection / base hijacking
+              "object-src 'none'",      // no <object>/<embed>/<applet> plugin vectors
+              "frame-ancestors 'none'", // clickjacking protection
             ].join('; '),
           },
         ],

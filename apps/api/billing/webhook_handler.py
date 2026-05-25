@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -55,18 +56,20 @@ async def handle_stripe_event(db: AsyncSession, event: stripe.Event) -> None:
 
 
 def to_plain_dict(raw_obj) -> dict:
-    """Deep-convert a Stripe payload to a plain dict.
+    """Deep-convert a Stripe payload to a plain, nested dict.
 
-    StripeObject supports __getitem__ but its .get() has bitten us before
-    (see "Fix Stripe webhook crash" in git history), and the handlers below
-    use .get() pervasively. Convert recursively so they always get a real
-    dict, whether the object came from a webhook event or a direct API call.
+    The handlers below use .get() throughout, so they need a real dict. On
+    stripe-python v8+ a StripeObject is NOT a dict subclass, has no
+    to_dict_recursive(), and dict(obj) raises KeyError: 0 (dict() treats it
+    as a sequence and indexes obj[0]). Its str() is the JSON representation,
+    which round-trips cleanly to nested plain dicts — the one approach that
+    holds across SDK versions, verified against stripe 15.x.
     """
-    if hasattr(raw_obj, "to_dict_recursive"):
-        return raw_obj.to_dict_recursive()
     if isinstance(raw_obj, dict):
         return raw_obj
-    return dict(raw_obj)
+    if hasattr(raw_obj, "to_dict_recursive"):   # older SDKs
+        return raw_obj.to_dict_recursive()
+    return json.loads(str(raw_obj))
 
 
 # ---------------------------------------------------------------------------

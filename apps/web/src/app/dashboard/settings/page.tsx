@@ -1,16 +1,26 @@
 'use client'
 
-import { useEffect, useState, type FormEvent } from 'react'
+import { Suspense, useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import {
   User, Lock, Bell, Key, Plug, CreditCard, Users,
   LogOut, AlertTriangle, CheckCircle2, Loader2, ChevronRight,
-  Mail, Sparkles,
+  Mail, Sparkles, X,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth'
 import { api, type UseCase } from '@/lib/api'
+
+const SECTION_IDS = [
+  'profile', 'account', 'notifications',
+  'api', 'integrations', 'billing', 'team',
+] as const
+
+function isSectionId(v: string | null): v is SectionId {
+  return v !== null && (SECTION_IDS as readonly string[]).includes(v)
+}
 
 // ── Categories ────────────────────────────────────────────────────────────────
 
@@ -470,8 +480,10 @@ function IntegrationsPanel() {
   )
 }
 
-function BillingPanel() {
+function BillingPanel({ status }: { status: string | null }) {
   const { user } = useAuth()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [sub, setSub] = useState<{
     plan: string
     status: string | null
@@ -484,13 +496,40 @@ function BillingPanel() {
   } | null>(null)
   const [loading, setLoading] = useState(true)
   const [portalBusy, setPortalBusy] = useState(false)
+  const [banner, setBanner] = useState<string | null>(status)
 
+  // Stripe webhooks process async — refresh /subscription a few times
+  // right after a success redirect so the UI reflects the new tier
+  // even if the webhook lands a second later.
   useEffect(() => {
-    api.billing.subscription()
-      .then(s => setSub(s))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
+    let cancelled = false
+    let attempts = 0
+    async function fetchSub() {
+      try {
+        const s = await api.billing.subscription()
+        if (cancelled) return
+        setSub(s)
+      } catch { /* swallow — banner will still render */ }
+    }
+    fetchSub().finally(() => !cancelled && setLoading(false))
+    if (status === 'success') {
+      const id = window.setInterval(() => {
+        attempts += 1
+        fetchSub()
+        if (attempts >= 5) window.clearInterval(id)
+      }, 1500)
+      return () => { cancelled = true; window.clearInterval(id) }
+    }
+    return () => { cancelled = true }
+  }, [status])
+
+  function dismissBanner() {
+    setBanner(null)
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('status')
+    const qs = params.toString()
+    router.replace(qs ? `?${qs}` : '?tab=billing', { scroll: false })
+  }
 
   async function openPortal() {
     setPortalBusy(true)
@@ -506,7 +545,10 @@ function BillingPanel() {
   }
 
   const planLabel: Record<string, string> = {
-    free: 'Free', pro: 'Pro', shield: 'Shield', enterprise: 'Enterprise',
+    free: 'Free',
+    pro: 'Pro',
+    shield: 'Shield',
+    enterprise: 'Managed Security Review',
   }
   const statusLabel = sub?.status ?? 'free'
   const periodEnd = sub?.current_period_end
@@ -518,6 +560,49 @@ function BillingPanel() {
   return (
     <>
       <SectionHeader title="Plan & Billing" subtitle="Subscription, usage, and invoices." />
+
+      {banner === 'success' && (
+        <div className="flex items-start gap-3 rounded-[10px] p-3.5 mb-4"
+             style={{ background: 'rgba(139,255,62,0.06)',
+                      border: '1px solid rgba(139,255,62,0.25)' }}>
+          <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0"
+                        style={{ color: '#8BFF3E' }} />
+          <div className="flex-1">
+            <p className="text-[13px] font-semibold text-white">
+              Subscription updated — welcome to your new plan.
+            </p>
+            <p className="text-[12px] mt-0.5"
+               style={{ color: 'rgba(255,255,255,0.55)' }}>
+              Your tier should reflect within a few seconds. New scan
+              profiles, sites, and quota limits are live now.
+            </p>
+          </div>
+          <button onClick={dismissBanner} className="p-1 rounded hover:bg-white/[0.05] transition-colors">
+            <X className="w-3.5 h-3.5" style={{ color: 'rgba(255,255,255,0.45)' }} />
+          </button>
+        </div>
+      )}
+      {banner === 'cancelled' && (
+        <div className="flex items-start gap-3 rounded-[10px] p-3.5 mb-4"
+             style={{ background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.08)' }}>
+          <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0"
+                         style={{ color: '#f97316' }} />
+          <div className="flex-1">
+            <p className="text-[13px] font-semibold text-white">
+              Checkout cancelled — no changes were made.
+            </p>
+            <p className="text-[12px] mt-0.5"
+               style={{ color: 'rgba(255,255,255,0.55)' }}>
+              You can pick a plan again anytime from the pricing page.
+            </p>
+          </div>
+          <button onClick={dismissBanner} className="p-1 rounded hover:bg-white/[0.05] transition-colors">
+            <X className="w-3.5 h-3.5" style={{ color: 'rgba(255,255,255,0.45)' }} />
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <Card>
           <div className="h-20 bg-white/[0.02] rounded animate-pulse" />
@@ -663,7 +748,35 @@ function TeamPanel() {
 // ── Page shell ────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
-  const [active, setActive] = useState<SectionId>('profile')
+  return (
+    <Suspense fallback={null}>
+      <SettingsPageInner />
+    </Suspense>
+  )
+}
+
+function SettingsPageInner() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get('tab')
+  const status = searchParams.get('status')
+  const initial: SectionId = isSectionId(tabParam) ? tabParam : 'profile'
+  const [active, setActive] = useState<SectionId>(initial)
+
+  // If the URL tab changes (e.g. external link, Stripe redirect), follow it.
+  useEffect(() => {
+    if (isSectionId(tabParam) && tabParam !== active) setActive(tabParam)
+  }, [tabParam])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  function selectTab(id: SectionId) {
+    setActive(id)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tab', id)
+    // Once the user moves to a different tab, drop any stale ?status flag
+    // so the banner doesn't reappear later.
+    if (id !== 'billing') params.delete('status')
+    router.replace(`?${params.toString()}`, { scroll: false })
+  }
 
   return (
     <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
@@ -686,7 +799,7 @@ export default function SettingsPage() {
               return (
                 <button
                   key={c.id}
-                  onClick={() => setActive(c.id)}
+                  onClick={() => selectTab(c.id)}
                   className="flex items-center gap-1.5 h-9 px-3 rounded-[8px] text-[12.5px] font-medium whitespace-nowrap transition-colors"
                   style={{
                     background: isActive ? 'rgba(139,255,62,0.1)' : 'rgba(255,255,255,0.03)',
@@ -712,7 +825,7 @@ export default function SettingsPage() {
                 return (
                   <button
                     key={c.id}
-                    onClick={() => setActive(c.id)}
+                    onClick={() => selectTab(c.id)}
                     className="group flex items-center gap-2.5 px-3 py-2 rounded-[9px] text-left transition-colors"
                     style={{
                       background: isActive ? 'rgba(139,255,62,0.07)' : 'transparent',
@@ -745,7 +858,7 @@ export default function SettingsPage() {
             {active === 'notifications' && <NotificationsPanel />}
             {active === 'api'           && <ApiKeysPanel />}
             {active === 'integrations'  && <IntegrationsPanel />}
-            {active === 'billing'       && <BillingPanel />}
+            {active === 'billing'       && <BillingPanel status={status} />}
             {active === 'team'          && <TeamPanel />}
           </motion.div>
         </div>

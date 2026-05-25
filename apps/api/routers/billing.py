@@ -39,7 +39,7 @@ _CurrentUser = Annotated[User, Depends(get_current_user)]
 
 class CheckoutSessionRequest(BaseModel):
     tier: PlanTier
-    success_path: str = "/dashboard/settings/billing?status=success"
+    success_path: str = "/dashboard/settings?tab=billing&status=success"
     cancel_path: str = "/pricing?status=cancelled"
 
 
@@ -49,7 +49,7 @@ class CheckoutSessionResponse(BaseModel):
 
 
 class PortalSessionRequest(BaseModel):
-    return_path: str = "/dashboard/settings/billing"
+    return_path: str = "/dashboard/settings?tab=billing"
 
 
 class PortalSessionResponse(BaseModel):

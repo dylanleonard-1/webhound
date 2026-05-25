@@ -53,11 +53,11 @@ class QuotaViolation:
 # ---------------------------------------------------------------------------
 
 def _next_tier(current: PlanTier) -> PlanTier | None:
-    order = [PlanTier.FREE, PlanTier.STARTER, PlanTier.PRO, PlanTier.ENTERPRISE]
+    order = [PlanTier.FREE, PlanTier.PRO, PlanTier.SHIELD, PlanTier.ENTERPRISE]
     try:
         idx = order.index(current)
     except ValueError:
-        return PlanTier.STARTER
+        return PlanTier.PRO
     return order[idx + 1] if idx + 1 < len(order) else None
 
 

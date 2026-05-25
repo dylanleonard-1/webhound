@@ -31,14 +31,28 @@ async def get_or_create_verification(
     website: Website,
     method: VerificationMethod,
 ) -> DomainVerification:
+    """Return an in-flight verification or issue a new token.
+
+    Reuses any existing non-VERIFIED DV (PENDING or FAILED). This is
+    important — if a previous poll-cycle marked a DV as FAILED (the bug
+    fix in check_verification leaves these alone going forward, but
+    older rows from before that fix still exist), we want to reuse the
+    same token rather than rotate it every page-refresh. Rotating
+    tokens silently broke the entire DNS flow because the user's DNS
+    record still pointed at the original.
+    """
     existing = await db.scalar(
         sa.select(DomainVerification).where(
             DomainVerification.website_id == website.id,
             DomainVerification.method == method,
-            DomainVerification.status == VerificationStatus.PENDING,
-        )
+            DomainVerification.status != VerificationStatus.VERIFIED,
+        ).order_by(DomainVerification.created_at.desc())
     )
     if existing:
+        # Bump back to PENDING if it was marked FAILED by an older deploy;
+        # subsequent polls will continue checking against the same token.
+        if existing.status != VerificationStatus.PENDING:
+            existing.status = VerificationStatus.PENDING
         return existing
 
     dv = DomainVerification(
@@ -95,8 +109,14 @@ async def check_verification(
     if result:
         _mark_verified(website, dv)
         await _ensure_default_schedule(db, website)
-    else:
-        dv.status = VerificationStatus.FAILED
+    # Note: we no longer mark dv.status = FAILED on a failed check.
+    # Verification is a polling flow — failure on tick N just means the
+    # DNS record hasn't propagated yet; we want subsequent ticks to
+    # continue checking the SAME token. Previously, marking FAILED
+    # caused get_or_create_verification to issue a brand-new token on
+    # the next initiate call (page refresh), while the user's DNS still
+    # held the original token, leading to permanent "never matches"
+    # state. The token stays valid until the user actually verifies.
 
     return result
 
@@ -224,9 +244,17 @@ async def _check_meta(base_url: str, token: str) -> bool:
 async def get_pending_verification(
     db: AsyncSession, website_id: uuid.UUID
 ) -> DomainVerification | None:
+    """Return any active verification (PENDING or FAILED) for *website_id*.
+
+    Used by /verify/check to find the DV to check against. We include
+    FAILED rows so a verification that was prematurely marked FAILED by
+    a prior buggy code path (now fixed in check_verification) can still
+    be checked again by subsequent polls. Only VERIFIED is excluded —
+    those don't need rechecking.
+    """
     return await db.scalar(
         sa.select(DomainVerification).where(
             DomainVerification.website_id == website_id,
-            DomainVerification.status == VerificationStatus.PENDING,
+            DomainVerification.status != VerificationStatus.VERIFIED,
         ).order_by(DomainVerification.created_at.desc())
     )

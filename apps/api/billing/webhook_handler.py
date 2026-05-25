@@ -185,7 +185,9 @@ async def _on_subscription_upsert(db: AsyncSession, sub: dict) -> None:
 
 
 async def _on_subscription_deleted(db: AsyncSession, sub: dict) -> None:
-    """Subscription fully cancelled — downgrade user to free."""
+    """A subscription was cancelled. Downgrade to free only if the customer
+    has no other still-active subscription — otherwise (multiple subs, or an
+    upgrade flow that cancels + recreates) we'd wrongly strip a paying user."""
     sub_id = sub.get("id")
     customer_id = sub.get("customer")
     record = await db.scalar(
@@ -195,12 +197,24 @@ async def _on_subscription_deleted(db: AsyncSession, sub: dict) -> None:
     if record is not None:
         record.status = SubscriptionStatus.CANCELED
         record.canceled_at = datetime.now(timezone.utc)
-    if customer_id:
-        user = await db.scalar(
-            sa.select(User).where(User.stripe_customer_id == customer_id)
-        )
-        if user is not None:
-            user.plan = PlanTier.FREE
+    if not customer_id:
+        return
+    user = await db.scalar(
+        sa.select(User).where(User.stripe_customer_id == customer_id)
+    )
+    if user is None:
+        return
+    # Keep the plan if another active/trialing subscription remains.
+    remaining = await db.scalar(
+        sa.select(Subscription)
+        .where(Subscription.user_id == user.id)
+        .where(Subscription.stripe_subscription_id != sub_id)
+        .where(Subscription.status.in_(
+            (SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING)))
+        .order_by(Subscription.created_at.desc())
+        .limit(1)
+    )
+    user.plan = remaining.plan if remaining is not None else PlanTier.FREE
 
 
 async def _on_payment_failed(db: AsyncSession, invoice: dict) -> None:

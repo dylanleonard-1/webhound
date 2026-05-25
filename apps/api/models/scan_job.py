@@ -55,5 +55,7 @@ class ScanJob(Base, UpdatedAtMixin):
 
     website: Mapped["Website"] = relationship("Website", back_populates="scan_jobs")
     result: Mapped["ScanResultRecord | None"] = relationship(
-        "ScanResultRecord", back_populates="scan_job", uselist=False
+        "ScanResultRecord", back_populates="scan_job", uselist=False,
+        cascade="all, delete-orphan", single_parent=True,
+        passive_deletes=True,
     )

@@ -200,12 +200,12 @@ class TestJsAnalyzerEngine:
     def test_detects_new_function(self):
         arts = _artifacts(scripts=[_inline("var f = new Function('return 1')")])
         findings = _ANALYZER.analyze(arts)
-        assert any("new function" in f.title.lower() for f in findings)
+        assert any("builds functions from strings" in f.title.lower() for f in findings)
 
     def test_new_function_is_medium(self):
         arts = _artifacts(scripts=[_inline("new Function(code)()")])
         findings = _ANALYZER.analyze(arts)
-        nf = [f for f in findings if "new function" in f.title.lower()]
+        nf = [f for f in findings if "builds functions from strings" in f.title.lower()]
         assert nf[0].severity == Severity.MEDIUM
 
     def test_detects_document_write(self):
@@ -247,12 +247,12 @@ class TestJsAnalyzerEngine:
     def test_detects_form_action_manipulation(self):
         arts = _artifacts(scripts=[_inline("form.action = attackerUrl")])
         findings = _ANALYZER.analyze(arts)
-        assert any("form.action" in f.title.lower() for f in findings)
+        assert any("submit destination" in f.title.lower() for f in findings)
 
     def test_form_action_is_medium(self):
         arts = _artifacts(scripts=[_inline("document.forms[0].action = x")])
         findings = _ANALYZER.analyze(arts)
-        fa = [f for f in findings if "form.action" in f.title.lower()]
+        fa = [f for f in findings if "submit destination" in f.title.lower()]
         assert fa[0].severity == Severity.MEDIUM
 
     def test_clean_script_no_risky_findings(self):
@@ -346,16 +346,16 @@ class TestObfuscationDetectorEngine:
         assert pk[0].severity == Severity.HIGH
 
     def test_detects_multiple_evals(self):
-        script = "eval(a); eval(b); eval(c); eval(d);"
+        script = "eval(a); eval(b); eval(c); eval(d); eval(e);"  # 5+ (threshold)
         arts = _artifacts(scripts=[_inline(script)])
         findings = _OBFUSCATION.analyze(arts)
-        assert any("multiple eval" in f.title.lower() for f in findings)
+        assert any("calls eval" in f.title.lower() for f in findings)
 
     def test_multiple_evals_finding_is_high(self):
-        script = "eval(x); eval(y); eval(z);"
+        script = "eval(v); eval(w); eval(x); eval(y); eval(z);"  # 5+ (threshold)
         arts = _artifacts(scripts=[_inline(script)])
         findings = _OBFUSCATION.analyze(arts)
-        multi = [f for f in findings if "multiple eval" in f.title.lower()]
+        multi = [f for f in findings if "calls eval" in f.title.lower()]
         assert multi[0].severity == Severity.HIGH
 
     def test_high_entropy_script_flagged(self):
@@ -366,7 +366,7 @@ class TestObfuscationDetectorEngine:
         high_entropy_content = "".join(rng.choice(chars) for _ in range(600))
         arts = _artifacts(scripts=[_inline(high_entropy_content)])
         findings = _OBFUSCATION.analyze(arts)
-        assert any("entropy" in f.title.lower() for f in findings)
+        assert any("random-looking" in f.title.lower() for f in findings)
 
     def test_normal_script_no_obfuscation_finding(self):
         arts = _artifacts(scripts=[_inline(
@@ -429,7 +429,9 @@ class TestThirdPartyDomainEngine:
             _external("https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js")
         ])
         findings = _THIRD_PARTY.analyze(arts)
-        assert findings == []
+        # Trusted CDN -> no domain-trust finding (a missing-SRI finding is
+        # expected and separate).
+        assert not any("loads a script from" in f.title.lower() for f in findings)
 
     def test_random_looking_domain_is_medium(self):
         # xkq3mpzv has no vowels and length >= 8
@@ -566,14 +568,14 @@ class TestTechnologyEngine:
     def test_detects_server_version_disclosure(self):
         arts = _artifacts(response_headers={"server": "Apache/2.4.48 (Ubuntu)"})
         findings = _TECH.analyze(arts)
-        version = [f for f in findings if "version disclosed" in f.title.lower()]
+        version = [f for f in findings if "exact version" in f.title.lower()]
         assert version
         assert version[0].severity == Severity.LOW
 
     def test_detects_xpoweredby_version_disclosure(self):
         arts = _artifacts(response_headers={"x-powered-by": "PHP/7.4.3"})
         findings = _TECH.analyze(arts)
-        version = [f for f in findings if "version disclosed" in f.title.lower()]
+        version = [f for f in findings if "exact version" in f.title.lower()]
         assert version
         assert version[0].severity == Severity.LOW
 

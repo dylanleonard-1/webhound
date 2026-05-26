@@ -85,8 +85,8 @@ class TestInjectedJsEngine:
         script = "var s = document.createElement('script'); s.src = 'https://cdn.example.com/lib.js';"
         art = _artifacts(inline_scripts=[script])
         findings = self.engine.analyze(art)
-        assert any("dynamic script injection" in f.title.lower() for f in findings)
-        assert any(f.severity == Severity.HIGH for f in findings)
+        assert any("dynamically creates a <script>" in f.title.lower() for f in findings)
+        assert any(f.severity == Severity.MEDIUM for f in findings)
 
     def test_dynamic_inject_case_insensitive(self):
         script = "document.createElement('SCRIPT');"
@@ -123,13 +123,13 @@ class TestInjectedJsEngine:
     def test_external_script_risky_tld(self):
         art = _artifacts(external_script_urls=["https://cdn.evil.tk/script.js"])
         findings = self.engine.analyze(art)
-        assert any("suspicious tld" in f.title.lower() for f in findings)
+        assert any("abuse-prone tld" in f.title.lower() for f in findings)
         assert any(f.severity == Severity.HIGH for f in findings)
 
     def test_external_script_safe_domain_no_finding(self):
         art = _artifacts(external_script_urls=["https://cdn.jsdelivr.net/npm/jquery.min.js"])
         findings = self.engine.analyze(art)
-        assert not any("suspicious tld" in f.title.lower() for f in findings)
+        assert not any("abuse-prone tld" in f.title.lower() for f in findings)
 
     def test_multiple_scripts_multiple_findings(self):
         scripts = [
@@ -190,11 +190,13 @@ class TestHiddenIframesEngine:
         findings = self.engine.analyze(art, html_body=html)
         assert any(f.severity == Severity.HIGH for f in findings)
 
-    def test_hidden_trusted_domain_medium(self):
+    def test_hidden_trusted_domain_low(self):
+        # A hidden iframe from a known platform (youtube) is LOW — less
+        # suspicious than one pointing at an unknown/suspicious host.
         html = '<html><body><iframe style="display:none" src="https://youtube.com/embed/abc"></iframe></body></html>'
         art = _artifacts()
         findings = self.engine.analyze(art, html_body=html)
-        assert any(f.severity == Severity.MEDIUM for f in findings)
+        assert any(f.severity == Severity.LOW for f in findings)
 
     def test_hidden_data_uri_critical(self):
         html = '<html><body><iframe style="display:none" src="data:text/html,<script>alert(1)</script>"></iframe></body></html>'

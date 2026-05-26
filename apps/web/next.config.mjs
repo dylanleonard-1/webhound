@@ -43,7 +43,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https:",
-              `connect-src 'self' ${apiUrl} ${apiUrl.replace('https://', 'wss://').replace('http://', 'ws://')}${isProd ? '' : ' http://localhost:8000 ws://localhost:8000'}`,
+              `connect-src 'self' ${apiUrl} ${apiUrl.replace('https://', 'wss://').replace('http://', 'ws://')} https://*.sentry.io https://*.ingest.sentry.io https://*.ingest.us.sentry.io${isProd ? '' : ' http://localhost:8000 ws://localhost:8000'}`,
               // Hardening that's safe regardless of inline content:
               "base-uri 'self'",        // block <base> tag injection / base hijacking
               "object-src 'none'",      // no <object>/<embed>/<applet> plugin vectors

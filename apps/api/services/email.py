@@ -100,13 +100,28 @@ def _send_smtp(to: str, subject: str, html: str, text: str) -> None:
 
 
 def _send_email(to: str, subject: str, html: str, text: str) -> None:
+    """Send via Resend, falling back to SMTP if Resend fails.
+
+    Resend stays the primary provider. If a Resend send raises (outage, rate
+    limit, domain issue) and SMTP is configured, we transparently fall back so
+    a single-provider outage doesn't block verification / password-reset /
+    login-code emails. The Resend failure is logged either way.
+    """
     settings = get_settings()
     if settings.resend_api_key:
-        _send_resend(to, subject, html, text)
-    elif settings.smtp_host:
+        try:
+            _send_resend(to, subject, html, text)
+            return
+        except Exception:
+            if not settings.smtp_host:
+                raise
+            logger.exception("Resend send failed; falling back to SMTP for %s", to)
+            _send_smtp(to, subject, html, text)
+            return
+    if settings.smtp_host:
         _send_smtp(to, subject, html, text)
-    else:
-        raise RuntimeError("No email provider configured")
+        return
+    raise RuntimeError("No email provider configured")
 
 
 async def send_verification_email(to: str, token: str) -> str | None:

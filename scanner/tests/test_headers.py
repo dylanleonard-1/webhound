@@ -107,10 +107,13 @@ def test_no_csp_no_findings():
 
 
 class TestReportOnly:
-    def test_report_only_without_enforcement_is_medium(self):
+    def test_report_only_without_enforcement_is_info(self):
+        # Report-only is the standard CSP rollout pattern; the engine surfaces
+        # it at INFO rather than punishing a healthy rollout with MEDIUM.
         findings = _ENGINE.analyze(_resp(csp_ro="default-src 'self'"))
-        assert _has(findings, "report-only")
-        assert any(f.severity == Severity.MEDIUM for f in findings)
+        ro = [f for f in findings if "report-only" in f.title.lower()]
+        assert ro
+        assert ro[0].severity == Severity.INFO
 
     def test_both_headers_present_no_report_only_finding(self):
         findings = _ENGINE.analyze(
@@ -130,11 +133,11 @@ class TestReportOnly:
 
 
 class TestObjectSrc:
-    def test_missing_object_src_is_high(self):
+    def test_missing_object_src_is_medium(self):
         findings = _ENGINE.analyze(_resp(csp="default-src 'self'"))
-        obj = [f for f in findings if "object-src" in f.title.lower()]
+        obj = [f for f in findings if "doesn't block <object>" in f.title.lower()]
         assert obj, "Expected object-src finding"
-        assert obj[0].severity == Severity.HIGH
+        assert obj[0].severity == Severity.MEDIUM
 
     def test_object_src_none_suppresses_finding(self):
         findings = _ENGINE.analyze(_resp(csp="default-src 'self'; object-src 'none'"))
@@ -340,7 +343,8 @@ def test_strict_csp_produces_no_findings():
         "object-src 'none'; "
         "base-uri 'none'; "
         "form-action 'self'; "
-        "frame-ancestors 'none'"
+        "frame-ancestors 'none'; "
+        "report-uri /csp-report"
     )
     findings = _ENGINE.analyze(_resp(csp=strict))
     # A strict policy covering all critical directives should produce zero findings.

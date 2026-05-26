@@ -73,17 +73,17 @@ class TestSecurityHeadersMissing:
 
     def test_missing_csp_is_medium(self):
         fs = self.E.analyze(_resp())
-        csp_findings = _by_title(fs, "Content-Security-Policy header missing")
+        csp_findings = _by_title(fs, "No Content-Security-Policy")
         assert csp_findings
         assert csp_findings[0].severity == Severity.MEDIUM
 
     def test_missing_hsts_raises_finding_on_https(self):
         fs = self.E.analyze(_resp(_URL))
-        assert any("Strict-Transport-Security" in t for t in _titles(fs))
+        assert any("HSTS" in t for t in _titles(fs))
 
     def test_missing_hsts_no_finding_on_http(self):
         fs = self.E.analyze(_resp(_URL_HTTP))
-        assert not any("Strict-Transport-Security" in t for t in _titles(fs))
+        assert not any("HSTS" in t for t in _titles(fs))
 
     def test_missing_hsts_is_medium(self):
         fs = self.E.analyze(_resp())
@@ -93,21 +93,21 @@ class TestSecurityHeadersMissing:
 
     def test_missing_x_frame_options_raises_finding(self):
         fs = self.E.analyze(_resp())
-        assert any("X-Frame-Options" in t for t in _titles(fs))
+        assert any("clickjacking" in t for t in _titles(fs))
 
     def test_missing_x_frame_options_is_medium(self):
         fs = self.E.analyze(_resp())
-        xfo = _by_title(fs, "X-Frame-Options header missing")
+        xfo = _by_title(fs, "clickjacking")
         assert xfo
         assert xfo[0].severity == Severity.MEDIUM
 
     def test_missing_xcto_raises_finding(self):
         fs = self.E.analyze(_resp())
-        assert any("X-Content-Type-Options" in t for t in _titles(fs))
+        assert any("misinterpret file types" in t for t in _titles(fs))
 
     def test_missing_xcto_is_medium(self):
         fs = self.E.analyze(_resp())
-        xcto = _by_title(fs, "X-Content-Type-Options header missing")
+        xcto = _by_title(fs, "misinterpret file types")
         assert xcto
         assert xcto[0].severity == Severity.MEDIUM
 
@@ -143,7 +143,7 @@ class TestCSPChecks:
         fs = self.E.analyze(_resp(headers={
             "Content-Security-Policy": "default-src 'self'; script-src 'unsafe-inline'"
         }))
-        unsafe = _by_title(fs, "unsafe-inline")
+        unsafe = _by_title(fs, "inline scripts")
         assert unsafe
         assert unsafe[0].severity == Severity.HIGH
 
@@ -151,7 +151,7 @@ class TestCSPChecks:
         fs = self.E.analyze(_resp(headers={
             "Content-Security-Policy": "default-src 'self'; script-src 'unsafe-eval'"
         }))
-        ev = _by_title(fs, "unsafe-eval")
+        ev = _by_title(fs, "allows eval")
         assert ev
         assert ev[0].severity == Severity.MEDIUM
 
@@ -167,7 +167,7 @@ class TestCSPChecks:
         fs = self.E.analyze(_resp(headers={
             "Content-Security-Policy": "script-src 'self'"
         }))
-        ds = _by_title(fs, "default-src")
+        ds = _by_title(fs, "default fallback")
         assert ds
         assert ds[0].severity == Severity.MEDIUM
 
@@ -182,7 +182,7 @@ class TestCSPChecks:
         fs = self.E.analyze(_resp(headers={
             "Content-Security-Policy": "default-src 'self'; script-src 'unsafe-inline'"
         }))
-        unsafe = _by_title(fs, "unsafe-inline")
+        unsafe = _by_title(fs, "inline scripts")
         assert unsafe
         assert any("unsafe-inline" in ev.content for ev in unsafe[0].evidence)
 
@@ -210,13 +210,13 @@ class TestHSTSChecks:
         assert short
         assert short[0].severity == Severity.LOW
 
-    def test_hsts_missing_include_subdomains_is_low(self):
+    def test_hsts_missing_include_subdomains_is_info(self):
         fs = self.E.analyze(_resp(headers={
             "Strict-Transport-Security": "max-age=63072000"
         }))
-        no_sub = _by_title(fs, "not include subdomains")
+        no_sub = _by_title(fs, "doesn't cover subdomains")
         assert no_sub
-        assert no_sub[0].severity == Severity.LOW
+        assert no_sub[0].severity == Severity.INFO
 
     def test_hsts_full_compliance_no_findings(self):
         fs = self.E.analyze(_resp(headers={
@@ -236,14 +236,14 @@ class TestXFrameOptions:
 
     def test_xfo_present_suppresses_missing_finding(self):
         fs = self.E.analyze(_resp(headers={"X-Frame-Options": "DENY"}))
-        missing = _by_title(fs, "X-Frame-Options header missing")
+        missing = _by_title(fs, "clickjacking")
         assert not missing
 
     def test_csp_frame_ancestors_suppresses_xfo_finding(self):
         fs = self.E.analyze(_resp(headers={
             "Content-Security-Policy": "default-src 'self'; frame-ancestors 'none'"
         }))
-        missing = _by_title(fs, "X-Frame-Options header missing")
+        missing = _by_title(fs, "clickjacking")
         assert not missing
 
     def test_allow_from_is_low(self):
@@ -269,25 +269,25 @@ class TestCorsEngine:
         fs = self.E.analyze(_resp(headers={"Access-Control-Allow-Origin": "*"}))
         assert fs
         assert fs[0].severity == Severity.MEDIUM
-        assert "wildcard" in fs[0].title.lower()
+        assert "any website" in fs[0].title.lower()
 
     def test_wildcard_acao_with_credentials_is_high(self):
         fs = self.E.analyze(_resp(headers={
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Credentials": "true",
         }))
-        dangerous = _by_title(fs, "wildcard origin with credentials")
+        dangerous = _by_title(fs, "wildcard origin + credentials")
         assert dangerous
         assert dangerous[0].severity == Severity.HIGH
 
-    def test_specific_origin_with_credentials_is_low(self):
+    def test_specific_origin_with_credentials_no_finding(self):
+        # Non-wildcard origin + credentials is the standard cookie-auth CORS
+        # pattern; the engine intentionally no longer flags it (noise reduction).
         fs = self.E.analyze(_resp(headers={
             "Access-Control-Allow-Origin": "https://trusted.com",
             "Access-Control-Allow-Credentials": "true",
         }))
-        cred = _by_title(fs, "credentials")
-        assert cred
-        assert cred[0].severity == Severity.LOW
+        assert fs == []
 
     def test_specific_origin_no_credentials_no_finding(self):
         fs = self.E.analyze(_resp(headers={
@@ -407,24 +407,26 @@ class TestCookieScannerEngine:
         assert self.E.analyze(_resp()) == []
 
     def test_missing_secure_on_https_is_medium(self):
-        r = _resp(headers={"set-cookie": "session=abc; HttpOnly; SameSite=Lax"})
+        # Non-sensitive cookie name → MEDIUM baseline (sensitive/session
+        # cookies are graded HIGH by the engine).
+        r = _resp(headers={"set-cookie": "prefs=abc; HttpOnly; SameSite=Lax"})
         fs = self.E.analyze(r)
-        missing_secure = _by_title(fs, "missing Secure flag")
+        missing_secure = _by_title(fs, "missing the Secure flag")
         assert missing_secure
         assert missing_secure[0].severity == Severity.MEDIUM
 
     def test_no_missing_secure_finding_on_http(self):
         r = _resp(url=_URL_HTTP, headers={"set-cookie": "session=abc; HttpOnly"})
         fs = self.E.analyze(r)
-        assert not _by_title(fs, "missing Secure flag")
+        assert not _by_title(fs, "missing the Secure flag")
 
     def test_secure_flag_present_no_secure_finding(self):
         r = _resp(headers={"set-cookie": "session=abc; Secure; HttpOnly; SameSite=Lax"})
         fs = self.E.analyze(r)
-        assert not _by_title(fs, "missing Secure flag")
+        assert not _by_title(fs, "missing the Secure flag")
 
     def test_missing_httponly_is_medium(self):
-        r = _resp(headers={"set-cookie": "session=abc; Secure; SameSite=Lax"})
+        r = _resp(headers={"set-cookie": "prefs=abc; Secure; SameSite=Lax"})
         fs = self.E.analyze(r)
         http_only = _by_title(fs, "missing HttpOnly")
         assert http_only
@@ -438,7 +440,7 @@ class TestCookieScannerEngine:
     def test_missing_samesite_is_medium(self):
         r = _resp(headers={"set-cookie": "session=abc; Secure; HttpOnly"})
         fs = self.E.analyze(r)
-        ss = _by_title(fs, "missing SameSite")
+        ss = _by_title(fs, "no SameSite attribute")
         assert ss
         assert ss[0].severity == Severity.MEDIUM
 
@@ -461,7 +463,7 @@ class TestCookieScannerEngine:
             "set-cookie": "id=1; Secure; HttpOnly; SameSite=Strict; Domain=.example.com"
         })
         fs = self.E.analyze(r)
-        broad = _by_title(fs, "broad domain scope")
+        broad = _by_title(fs, "every subdomain")
         assert broad
         assert broad[0].severity == Severity.LOW
 
@@ -470,7 +472,7 @@ class TestCookieScannerEngine:
             "set-cookie": "id=1; Secure; HttpOnly; SameSite=Strict; Domain=example.com"
         })
         fs = self.E.analyze(r)
-        assert not _by_title(fs, "broad domain scope")
+        assert not _by_title(fs, "every subdomain")
 
     def test_cookie_finding_category_is_cookie(self):
         r = _resp(headers={"set-cookie": "id=1"})

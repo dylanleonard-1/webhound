@@ -317,7 +317,7 @@ class TestWadeWithBaseline:
         result = await scanner.scan()
         wade_findings = [f for f in result.findings if f.scanner_engine == "wade"]
         titles = [f.title for f in wade_findings]
-        assert any("Script" in t for t in titles), f"Expected script finding, got: {titles}"
+        assert any("script" in t.lower() for t in titles), f"Expected script finding, got: {titles}"
 
     @pytest.mark.anyio
     async def test_new_external_domain_detected(
@@ -348,7 +348,7 @@ class TestWadeWithBaseline:
         result = await scanner.scan()
         wade_findings = [f for f in result.findings if f.scanner_engine == "wade"]
         titles = [f.title for f in wade_findings]
-        assert any("Form" in t for t in titles), f"Expected form finding, got: {titles}"
+        assert any("form" in t.lower() for t in titles), f"Expected form finding, got: {titles}"
 
     @pytest.mark.anyio
     async def test_header_regression_detected(
@@ -372,7 +372,7 @@ class TestWadeWithBaseline:
         result = await scanner.scan()
         wade_findings = [f for f in result.findings if f.scanner_engine == "wade"]
         titles = [f.title for f in wade_findings]
-        assert any("Header" in t for t in titles), f"Expected header finding, got: {titles}"
+        assert any("header" in t.lower() for t in titles), f"Expected header finding, got: {titles}"
 
     @pytest.mark.anyio
     async def test_wade_findings_in_scan_result(

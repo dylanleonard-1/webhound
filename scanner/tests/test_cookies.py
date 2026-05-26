@@ -159,14 +159,14 @@ class TestCookieScannerBroadDomain:
     def test_broad_domain_produces_low_finding(self):
         resp = _resp("id=1; Domain=.example.com")
         findings = self.E.analyze(resp)
-        broad = [f for f in findings if "broad domain" in f.title.lower()]
+        broad = [f for f in findings if "every subdomain" in f.title.lower()]
         assert broad, "Expected a broad-domain finding"
         assert broad[0].severity == Severity.LOW
 
     def test_no_broad_domain_finding_without_leading_dot(self):
         resp = _resp("id=1; Domain=example.com")
         findings = self.E.analyze(resp)
-        broad = [f for f in findings if "broad domain" in f.title.lower()]
+        broad = [f for f in findings if "every subdomain" in f.title.lower()]
         assert not broad
 
     def test_finding_category_is_cookie(self):
@@ -177,7 +177,7 @@ class TestCookieScannerBroadDomain:
     def test_no_broad_domain_finding_when_no_domain_attribute(self):
         resp = _resp("id=1; Secure; HttpOnly; SameSite=Strict")
         findings = self.E.analyze(resp)
-        broad = [f for f in findings if "broad domain" in f.title.lower()]
+        broad = [f for f in findings if "every subdomain" in f.title.lower()]
         assert not broad
 
 

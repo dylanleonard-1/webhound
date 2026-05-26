@@ -90,7 +90,7 @@ class TestFormRiskEngine:
         art = _artifacts(url="http://example.com/login", forms=[form])
         findings = self.engine.analyze(art)
         titles = _all_titles(findings)
-        assert any("password" in t.lower() and "http" in t.lower() for t in titles)
+        assert any("login" in t.lower() and "http" in t.lower() for t in titles)
         assert any(f.severity == Severity.CRITICAL for f in findings)
 
     def test_password_over_https_no_http_finding(self):
@@ -123,7 +123,7 @@ class TestFormRiskEngine:
         art = _artifacts(url="https://example.com/login", forms=[form])
         findings = self.engine.analyze(art)
         assert any(f.severity == Severity.CRITICAL for f in findings)
-        assert any("external" in f.title.lower() or "login" in f.title.lower() for f in findings)
+        assert any("different domain" in f.title.lower() for f in findings)
 
     def test_external_action_no_credentials_high(self):
         form = _form(
@@ -134,7 +134,7 @@ class TestFormRiskEngine:
         )
         art = _artifacts(url="https://example.com", forms=[form])
         findings = self.engine.analyze(art)
-        external_findings = [f for f in findings if "external" in f.title.lower()]
+        external_findings = [f for f in findings if "different domain" in f.title.lower()]
         assert external_findings
         assert all(f.severity == Severity.HIGH for f in external_findings)
 
@@ -152,7 +152,7 @@ class TestFormRiskEngine:
         art = _artifacts(url="https://shop.example.com/checkout", forms=[form])
         findings = self.engine.analyze(art)
         assert any(f.severity == Severity.CRITICAL for f in findings)
-        assert any("payment" in f.title.lower() or "login" in f.title.lower() for f in findings)
+        assert any("different domain" in f.title.lower() for f in findings)
 
     def test_missing_csrf_on_post_medium(self):
         form = _form(
@@ -207,7 +207,7 @@ class TestFormRiskEngine:
         )
         art = _artifacts(forms=[form])
         findings = self.engine.analyze(art)
-        hidden_findings = [f for f in findings if "hidden" in f.title.lower() and "sensitive" in f.title.lower()]
+        hidden_findings = [f for f in findings if "hidden" in f.title.lower() and "secret" in f.title.lower()]
         assert hidden_findings
         assert all(f.severity == Severity.MEDIUM for f in hidden_findings)
 
@@ -301,7 +301,7 @@ class TestInputAnalysisEngine:
         )
         art = _artifacts(forms=[form])
         findings = self.engine.analyze(art)
-        payment = [f for f in findings if "payment" in f.title.lower()]
+        payment = [f for f in findings if "credit-card" in f.title.lower()]
         assert payment
         assert all(f.severity == Severity.HIGH for f in payment)
 
@@ -404,7 +404,7 @@ class TestInputAnalysisEngine:
         art = _artifacts(forms=[form1, form2])
         findings = self.engine.analyze(art)
         titles = _all_titles(findings)
-        assert any("payment" in t.lower() for t in titles)
+        assert any("credit-card" in t.lower() for t in titles)
         assert any("ssn" in t.lower() or "government" in t.lower() for t in titles)
 
     def test_evidence_source_engine(self):

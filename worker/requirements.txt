@@ -1,2 +1,3 @@
 celery[redis]>=5.4
 redis>=5.0
+sentry-sdk[celery]>=2.0

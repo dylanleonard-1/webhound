@@ -5,6 +5,24 @@ import os
 from celery import Celery
 from celery.schedules import crontab
 
+# Error monitoring — captures task failures, exhausted retries, and async
+# crashes. No-op unless SENTRY_DSN is set and APP_ENV != development.
+_sentry_dsn = os.getenv("SENTRY_DSN", "")
+if _sentry_dsn and os.getenv("APP_ENV", "development") != "development":
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.celery import CeleryIntegration
+
+        sentry_sdk.init(
+            dsn=_sentry_dsn,
+            environment=os.getenv("APP_ENV", "production"),
+            integrations=[CeleryIntegration(monitor_beat_tasks=True)],
+            traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0") or 0),
+            send_default_pii=False,
+        )
+    except Exception:  # noqa: BLE001 — never let monitoring setup crash the worker
+        pass
+
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 celery = Celery(

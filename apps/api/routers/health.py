@@ -4,7 +4,7 @@ import os
 from typing import Annotated
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -70,3 +70,35 @@ async def health_worker() -> dict:
     except Exception as exc:
         broker_status = f"error: {exc}"
     return {"status": "ok", "broker": broker_status}
+
+
+@router.get("/health/ready")
+async def health_ready(
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Aggregate readiness probe for uptime monitors / load balancers.
+
+    Returns 200 only when BOTH Postgres and Redis are reachable; 503 otherwise.
+    (Unlike /health/db and /health/worker, this returns a non-2xx on failure so
+    automated probes can act on it. Keep /health itself trivial — Railway's
+    deploy healthcheck uses it and shouldn't depend on Redis/DB being up mid-boot.)
+    """
+    checks: dict[str, str] = {}
+    healthy = True
+    try:
+        await db.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception as exc:  # noqa: BLE001
+        checks["database"] = f"error: {exc}"
+        healthy = False
+    try:
+        r = aioredis.from_url(get_settings().redis_url, socket_connect_timeout=2)
+        await r.ping()
+        await r.aclose()
+        checks["redis"] = "ok"
+    except Exception as exc:  # noqa: BLE001
+        checks["redis"] = f"error: {exc}"
+        healthy = False
+    response.status_code = 200 if healthy else 503
+    return {"status": "ready" if healthy else "degraded", "checks": checks}

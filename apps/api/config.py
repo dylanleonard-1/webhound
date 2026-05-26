@@ -79,6 +79,11 @@ class Settings(BaseSettings):
     debug: bool = False
     log_level: str = "INFO"
 
+    # Observability — Sentry error monitoring. Empty DSN disables it entirely
+    # (so local dev and unconfigured environments are no-ops).
+    sentry_dsn: str = ""
+    sentry_traces_sample_rate: float = 0.0  # 0 = errors only; raise for perf tracing
+
     # Worker
     worker_concurrency: int = 2
 
@@ -163,6 +168,24 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "DEV_SKIP_DOMAIN_VERIFICATION must not be set in production — "
                     "it lets any domain be marked verified, enabling SSRF."
+                )
+            # Billing must be fully configured in production. A startup failure
+            # here is safe: the new deploy fails its healthcheck and Railway
+            # keeps the previous (working) container serving.
+            import os as _os
+            missing = [
+                name for name, present in (
+                    ("STRIPE_SECRET_KEY", bool(self.stripe_secret_key)),
+                    ("STRIPE_WEBHOOK_SECRET", bool(self.stripe_webhook_secret)),
+                    ("STRIPE_PRICE_PRO_MONTHLY", bool(_os.getenv("STRIPE_PRICE_PRO_MONTHLY"))),
+                    ("STRIPE_PRICE_SHIELD_MONTHLY", bool(_os.getenv("STRIPE_PRICE_SHIELD_MONTHLY"))),
+                    ("STRIPE_PRICE_ENTERPRISE_MONTHLY", bool(_os.getenv("STRIPE_PRICE_ENTERPRISE_MONTHLY"))),
+                ) if not present
+            ]
+            if missing:
+                raise ValueError(
+                    "Production is missing required Stripe env vars: "
+                    + ", ".join(missing)
                 )
         return self
 

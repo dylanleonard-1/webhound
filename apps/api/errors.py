@@ -65,6 +65,13 @@ async def internal_exception_handler(
     request: Request, exc: Exception
 ) -> JSONResponse:
     logger.exception("unhandled exception on %s %s", request.method, request.url.path)
+    # Report to Sentry if configured. capture_exception is a no-op when Sentry
+    # isn't initialized, so this is safe in dev / unconfigured environments.
+    try:
+        import sentry_sdk
+        sentry_sdk.capture_exception(exc)
+    except Exception:  # noqa: BLE001
+        pass
     return JSONResponse(
         status_code=500,
         content=_body("internal_error", "An unexpected error occurred."),

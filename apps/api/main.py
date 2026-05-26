@@ -15,7 +15,11 @@ from apps.api.errors import (
     internal_exception_handler,
     validation_exception_handler,
 )
-from apps.api.middleware import RateLimitMiddleware, SecurityHeadersMiddleware
+from apps.api.middleware import (
+    RateLimitMiddleware,
+    RequestIdMiddleware,
+    SecurityHeadersMiddleware,
+)
 from apps.api.models.user import User
 from apps.api.routers import (
     auth,
@@ -47,6 +51,10 @@ logging.basicConfig(
 # knob, and Railway access logs already pin the request flow.
 logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
+
+# Error monitoring — no-op unless SENTRY_DSN is set and app_env != development.
+from apps.api.observability import init_sentry  # noqa: E402
+init_sentry()
 
 app = FastAPI(
     title="WebHound API",
@@ -80,6 +88,10 @@ app.add_middleware(
     requests_per_minute=settings.rate_limit_requests_per_minute,
     enabled=settings.rate_limit_enabled,
 )
+
+# Added last → outermost → runs first, so the request ID is set before the
+# other middleware and available everywhere (logs, Sentry scope, response).
+app.add_middleware(RequestIdMiddleware)
 
 # ---------------------------------------------------------------------------
 # Exception handlers

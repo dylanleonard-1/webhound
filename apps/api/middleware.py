@@ -1,11 +1,33 @@
 from __future__ import annotations
 
 import time
+import uuid
 from collections import defaultdict
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
+
+
+class RequestIdMiddleware(BaseHTTPMiddleware):
+    """Attach a request ID to every request for log/Sentry correlation.
+
+    Honors an inbound X-Request-ID (e.g. from the proxy) or generates one,
+    exposes it on request.state.request_id, tags the Sentry scope, and echoes
+    it back in the X-Request-ID response header.
+    """
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        rid = request.headers.get("x-request-id") or uuid.uuid4().hex
+        request.state.request_id = rid
+        try:
+            import sentry_sdk
+            sentry_sdk.set_tag("request_id", rid)
+        except Exception:  # noqa: BLE001 — correlation is best-effort
+            pass
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = rid
+        return response
 
 _SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",

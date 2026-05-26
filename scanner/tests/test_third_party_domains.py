@@ -111,43 +111,50 @@ def _artifacts(
 # ===========================================================================
 
 
+def _domain_findings(findings):
+    """Domain-trust findings only. The engine also emits an orthogonal
+    missing-Subresource-Integrity finding for any external script without an
+    integrity hash; these tests are about domain classification, not SRI."""
+    return [f for f in findings if "subresource integrity" not in f.title.lower()]
+
+
 class TestTrustedCdnDomains:
 
     def test_google_analytics_no_finding(self):
         arts = _artifacts(scripts=[
             _script("https://www.google-analytics.com/analytics.js"),
         ])
-        assert _ENGINE.analyze(arts) == []
+        assert _domain_findings(_ENGINE.analyze(arts)) == []
 
     def test_googleapis_no_finding(self):
         arts = _artifacts(scripts=[
             _script("https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"),
         ])
-        assert _ENGINE.analyze(arts) == []
+        assert _domain_findings(_ENGINE.analyze(arts)) == []
 
     def test_cloudflare_cdn_no_finding(self):
         arts = _artifacts(scripts=[
             _script("https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"),
         ])
-        assert _ENGINE.analyze(arts) == []
+        assert _domain_findings(_ENGINE.analyze(arts)) == []
 
     def test_jsdelivr_no_finding(self):
         arts = _artifacts(scripts=[
             _script("https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.min.js"),
         ])
-        assert _ENGINE.analyze(arts) == []
+        assert _domain_findings(_ENGINE.analyze(arts)) == []
 
     def test_stripe_no_finding(self):
         arts = _artifacts(scripts=[
             _script("https://js.stripe.com/v3/"),
         ])
-        assert _ENGINE.analyze(arts) == []
+        assert _domain_findings(_ENGINE.analyze(arts)) == []
 
     def test_facebook_no_finding(self):
         arts = _artifacts(scripts=[
             _script("https://connect.facebook.net/en_US/fbevents.js"),
         ])
-        assert _ENGINE.analyze(arts) == []
+        assert _domain_findings(_ENGINE.analyze(arts)) == []
 
     def test_multiple_trusted_cdns_no_findings(self):
         arts = _artifacts(scripts=[
@@ -155,7 +162,16 @@ class TestTrustedCdnDomains:
             _script("https://cdn.jsdelivr.net/npm/bootstrap@5/dist/js/bootstrap.min.js"),
             _script("https://unpkg.com/react@18/umd/react.production.min.js"),
         ])
-        assert _ENGINE.analyze(arts) == []
+        assert _domain_findings(_ENGINE.analyze(arts)) == []
+
+    def test_external_script_without_sri_is_flagged(self):
+        # Orthogonal to domain trust: any external <script> lacking an
+        # integrity hash earns a single missing-SRI finding.
+        arts = _artifacts(scripts=[
+            _script("https://cdn.jsdelivr.net/npm/bootstrap@5/dist/js/bootstrap.min.js"),
+        ])
+        findings = _ENGINE.analyze(arts)
+        assert any("subresource integrity" in f.title.lower() for f in findings)
 
 
 # ===========================================================================
@@ -170,7 +186,7 @@ class TestUnknownExternalDomains:
             _script("https://analytics.unknown-startup.com/track.js"),
         ])
         findings = _ENGINE.analyze(arts)
-        assert len(findings) == 1
+        assert len(_domain_findings(findings)) == 1
 
     def test_unknown_domain_severity_is_low(self):
         arts = _artifacts(scripts=[
@@ -207,7 +223,7 @@ class TestUnknownExternalDomains:
             _script("https://cdn.vendorB.com/b.js"),
         ])
         findings = _ENGINE.analyze(arts)
-        assert len(findings) == 2
+        assert len(_domain_findings(findings)) == 2
 
     def test_same_domain_different_paths_one_finding(self):
         arts = _artifacts(scripts=[
@@ -215,7 +231,7 @@ class TestUnknownExternalDomains:
             _script("https://cdn.vendorA.com/b.js"),
         ])
         findings = _ENGINE.analyze(arts)
-        assert len(findings) == 1
+        assert len(_domain_findings(findings)) == 1
 
     def test_subdomains_of_same_registered_domain_one_finding(self):
         arts = _artifacts(scripts=[
@@ -223,7 +239,7 @@ class TestUnknownExternalDomains:
             _script("https://cdn.vendorA.com/b.js"),
         ])
         findings = _ENGINE.analyze(arts)
-        assert len(findings) == 1
+        assert len(_domain_findings(findings)) == 1
 
 
 # ===========================================================================
@@ -266,7 +282,7 @@ class TestSameDomainScripts:
         arts = _artifacts(scripts=[
             _script("https://example.com/js/app.js", is_external_domain=False),
         ])
-        assert _ENGINE.analyze(arts) == []
+        assert _domain_findings(_ENGINE.analyze(arts)) == []
 
     def test_inline_scripts_ignored(self):
         from webhound.core.extractor import ExtractedScript as ES
@@ -278,7 +294,7 @@ class TestSameDomainScripts:
             is_external_domain=False,
         )
         arts = _artifacts(scripts=[inline])
-        assert _ENGINE.analyze(arts) == []
+        assert _domain_findings(_ENGINE.analyze(arts)) == []
 
 
 # ===========================================================================
@@ -294,7 +310,7 @@ class TestMixedDomains:
             _script("https://cdn.unknown-tracker.com/pixel.js"),        # unknown
         ])
         findings = _ENGINE.analyze(arts)
-        assert len(findings) == 1
+        assert len(_domain_findings(findings)) == 1
         assert "unknown-tracker.com" in findings[0].title
 
     def test_two_unknown_one_trusted_two_findings(self):
@@ -304,7 +320,7 @@ class TestMixedDomains:
             _script("https://cdn.vendorB.com/b.js"),               # unknown
         ])
         findings = _ENGINE.analyze(arts)
-        assert len(findings) == 2
+        assert len(_domain_findings(findings)) == 2
 
 
 # ===========================================================================
@@ -319,7 +335,7 @@ class TestExternalFormActions:
             _form("https://external-processor.com/submit"),
         ])
         findings = _ENGINE.analyze(arts)
-        assert len(findings) == 1
+        assert len(_domain_findings(findings)) == 1
 
     def test_form_action_external_finding_is_medium(self):
         arts = _artifacts(forms=[
@@ -333,11 +349,11 @@ class TestExternalFormActions:
             url="https://example.com/",
             forms=[_form("https://example.com/submit")],
         )
-        assert _ENGINE.analyze(arts) == []
+        assert _domain_findings(_ENGINE.analyze(arts)) == []
 
     def test_form_action_none_no_finding(self):
         arts = _artifacts(forms=[_form(None)])
-        assert _ENGINE.analyze(arts) == []
+        assert _domain_findings(_ENGINE.analyze(arts)) == []
 
     def test_form_action_deduplication(self):
         arts = _artifacts(forms=[
@@ -345,7 +361,7 @@ class TestExternalFormActions:
             _form("https://external-processor.com/other"),
         ])
         findings = _ENGINE.analyze(arts)
-        assert len(findings) == 1
+        assert len(_domain_findings(findings)) == 1
 
 
 # ===========================================================================
@@ -357,13 +373,13 @@ class TestEdgeCases:
 
     def test_empty_artifacts_no_findings(self):
         arts = _artifacts()
-        assert _ENGINE.analyze(arts) == []
+        assert _domain_findings(_ENGINE.analyze(arts)) == []
 
     def test_no_external_scripts_no_findings(self):
         arts = _artifacts(scripts=[
             _script("https://example.com/app.js", is_external_domain=False),
         ])
-        assert _ENGINE.analyze(arts) == []
+        assert _domain_findings(_ENGINE.analyze(arts)) == []
 
     def test_engine_name_is_third_party_domains(self):
         assert _ENGINE.NAME == "third_party_domains"
@@ -398,7 +414,7 @@ class TestExternalIframes:
             _iframe("https://widget.external-service.com/embed"),
         ])
         findings = _ENGINE.analyze(arts)
-        assert len(findings) == 1
+        assert len(_domain_findings(findings)) == 1
 
     def test_visible_external_iframe_severity_is_low(self):
         arts = _artifacts(iframes=[
@@ -411,7 +427,7 @@ class TestExternalIframes:
         arts = _artifacts(iframes=[
             _iframe("https://tracker.evil.com/px", is_hidden=True),
         ])
-        assert _ENGINE.analyze(arts) == []
+        assert _domain_findings(_ENGINE.analyze(arts)) == []
 
     def test_same_domain_iframe_produces_no_finding(self):
         arts = _artifacts(iframes=[
@@ -422,13 +438,13 @@ class TestExternalIframes:
                 sandbox=None,
             ),
         ])
-        assert _ENGINE.analyze(arts) == []
+        assert _domain_findings(_ENGINE.analyze(arts)) == []
 
     def test_trusted_iframe_domain_no_finding(self):
         arts = _artifacts(iframes=[
             _iframe("https://www.youtube.com/embed/abc123"),
         ])
-        assert _ENGINE.analyze(arts) == []
+        assert _domain_findings(_ENGINE.analyze(arts)) == []
 
     def test_iframe_finding_title_contains_host(self):
         arts = _artifacts(iframes=[
@@ -475,7 +491,7 @@ class TestExternalStylesheets:
         arts = _artifacts(external_stylesheet_urls=[
             "https://fonts.googleapis.com/css2?family=Roboto",
         ])
-        assert _ENGINE.analyze(arts) == []
+        assert _domain_findings(_ENGINE.analyze(arts)) == []
 
     def test_css_import_url_produces_finding(self):
         arts = _artifacts(inline_css_import_urls=[
@@ -515,13 +531,13 @@ class TestJsRequestDomains:
             url="https://example.com/",
             inline_js_request_urls=["https://example.com/api/data"],
         )
-        assert _ENGINE.analyze(arts) == []
+        assert _domain_findings(_ENGINE.analyze(arts)) == []
 
     def test_trusted_api_domain_no_finding(self):
         arts = _artifacts(inline_js_request_urls=[
             "https://api.stripe.com/v1/charges",
         ])
-        assert _ENGINE.analyze(arts) == []
+        assert _domain_findings(_ENGINE.analyze(arts)) == []
 
     def test_js_request_finding_title_contains_domain(self):
         arts = _artifacts(inline_js_request_urls=[

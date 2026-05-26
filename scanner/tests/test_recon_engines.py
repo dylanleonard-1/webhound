@@ -321,7 +321,7 @@ class TestRobotsAndSitemapEngine:
         target = _target()
         async with SafeHttpClient(transport=transport) as client:
             findings = await RobotsAndSitemapEngine().analyze(target, client)
-        assert any("robots.txt not found" in f.title.lower() for f in findings)
+        assert any("no robots.txt" in f.title.lower() for f in findings)
         assert all(f.severity == Severity.INFO for f in findings)
 
     @pytest.mark.anyio
@@ -333,7 +333,7 @@ class TestRobotsAndSitemapEngine:
         target = _target()
         async with SafeHttpClient(transport=transport) as client:
             findings = await RobotsAndSitemapEngine().analyze(target, client)
-        disallow_findings = [f for f in findings if "disallow" in f.title.lower()]
+        disallow_findings = [f for f in findings if "sensitive" in f.title.lower()]
         assert len(disallow_findings) >= 1
         paths = [f.metadata.get("path", "") for f in disallow_findings]
         assert any("admin" in p for p in paths)
@@ -347,7 +347,7 @@ class TestRobotsAndSitemapEngine:
         target = _target()
         async with SafeHttpClient(transport=transport) as client:
             findings = await RobotsAndSitemapEngine().analyze(target, client)
-        disallow_findings = [f for f in findings if "disallow" in f.title.lower()]
+        disallow_findings = [f for f in findings if "sensitive" in f.title.lower()]
         paths = [f.metadata.get("path", "") for f in disallow_findings]
         assert any("staging" in p for p in paths)
 
@@ -361,7 +361,7 @@ class TestRobotsAndSitemapEngine:
         target = _target()
         async with SafeHttpClient(transport=transport) as client:
             findings = await RobotsAndSitemapEngine().analyze(target, client)
-        disallow_findings = [f for f in findings if "disallow" in f.title.lower()]
+        disallow_findings = [f for f in findings if "sensitive" in f.title.lower()]
         assert disallow_findings == []
 
     @pytest.mark.anyio
@@ -412,7 +412,7 @@ class TestRobotsAndSitemapEngine:
         target = _target()
         async with SafeHttpClient(transport=transport) as client:
             findings = await RobotsAndSitemapEngine().analyze(target, client)
-        malformed_findings = [f for f in findings if "malformed" in f.title.lower()]
+        malformed_findings = [f for f in findings if "doesn't look like a valid" in f.title.lower()]
         assert len(malformed_findings) >= 1
         assert all(f.severity in (Severity.LOW, Severity.INFO) for f in malformed_findings)
 
@@ -453,7 +453,7 @@ class TestRobotsAndSitemapEngine:
         target = _target()
         async with SafeHttpClient(transport=transport) as client:
             findings = await RobotsAndSitemapEngine().analyze(target, client)
-        disallow_findings = [f for f in findings if "disallow" in f.title.lower()]
+        disallow_findings = [f for f in findings if "sensitive" in f.title.lower()]
         assert all(f.severity == Severity.LOW for f in disallow_findings)
 
     @pytest.mark.anyio

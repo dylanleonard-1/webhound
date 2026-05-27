@@ -57,16 +57,32 @@ Center surfaces the recent feed. **All future privileged mutations must call it.
 
 ---
 
-## Roadmap — feature areas 2–18 (phased)
+## Phase 2 — Scan & Engine Ops — DELIVERED
+
+- **Scan Operations Center** (`/internal/scans`): list/search/filter (status,
+  profile, URL/owner email) with pagination, joined to website + owner email;
+  `/internal/scans/{id}` detail with per-engine diagnostics.
+- **Operate** (ANALYST+): `POST /internal/scans/{id}/cancel` (reuses
+  `cancel_scan_job` + best-effort Celery `revoke(terminate=True)`, audited),
+  `POST /internal/scans/{id}/rescan` (admin-scoped `create_scan_job` + enqueue,
+  audited with origin scan id). READ_ONLY+ can view; mutations require ANALYST.
+- **Engine reliability scorecards** (`/internal/engines`): per `engine_name`
+  runs / failed / skipped / failure-rate / empty-result-rate / avg duration /
+  reliability % (share of runs that neither failed nor skipped), from
+  `engine_diagnostics`. No schema change — derived from existing diagnostics.
+- **`/control` UI**: tabbed nav (Command Center · Scan Ops · Engines); Scan Ops
+  table with filters, detail drawer + cancel/rescan (gated by role); Engines
+  scorecard grid. Both poll for live data.
+
+> Deferred from the original Phase 2 sketch: an `engines` registry table +
+> maintenance-mode toggle. Scorecards are computed from `engine_diagnostics`
+> directly, so the registry isn't required yet; add it when per-engine config
+> (maintenance flag, version pinning) is needed.
+
+## Roadmap — feature areas 4–18 (phased)
 
 Each phase adds models + `/internal/*` routes + a `/control` page, reusing the
 RBAC + audit foundation.
-
-**Phase 2 — Scan & Engine Ops** (areas 2, 3)
-- New tables: `engines` (registry, version, maintenance flag), extend diagnostics.
-- APIs: list/search/filter scans; retry/cancel/force-rescan (with audit + Celery
-  `revoke`); raw engine output; engine reliability scorecards (uptime, failure/
-  timeout/empty-result rates from `engine_diagnostics`); engine maintenance mode.
 
 **Phase 3 — SOC Alerting + Incidents** (areas 4, 13, 14)
 - Tables: `alerts` (severity INFO→CRITICAL, status, owner, timeline), `incidents`,

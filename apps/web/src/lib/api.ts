@@ -609,6 +609,19 @@ export const api = {
   internal: {
     me: () => request<InternalMe>('GET', '/internal/me'),
     commandCenter: () => request<CommandCenter>('GET', '/internal/command-center'),
+    scans: (params: { status?: string; profile?: string; q?: string; limit?: number; offset?: number } = {}) => {
+      const qs = new URLSearchParams()
+      if (params.status) qs.set('status', params.status)
+      if (params.profile) qs.set('profile', params.profile)
+      if (params.q) qs.set('q', params.q)
+      qs.set('limit', String(params.limit ?? 50))
+      qs.set('offset', String(params.offset ?? 0))
+      return request<ScanListResponse>('GET', `/internal/scans?${qs.toString()}`)
+    },
+    scanDetail: (id: string) => request<ScanDetail>('GET', `/internal/scans/${id}`),
+    cancelScan: (id: string) => request<{ ok: boolean; id: string; status: string }>('POST', `/internal/scans/${id}/cancel`),
+    rescan: (id: string) => request<{ ok: boolean; new_scan_id: string; origin: string }>('POST', `/internal/scans/${id}/rescan`),
+    engines: () => request<{ engines: EngineScorecard[] }>('GET', '/internal/engines'),
   },
 }
 
@@ -631,6 +644,54 @@ export interface CommandCenter {
   billing: { active_subscriptions: number; mrr_usd: number; arr_usd: number } | { error: string }
   infra: { database: string; redis: string; queue_depth: number | null; worker: string; stripe_configured: boolean } | { error: string }
   activity: { id: string; actor: string | null; action: string; target: string | null; at: string | null }[]
+}
+
+// Scan Ops (mirror apps/api/internal/scan_ops.py)
+export interface ScanRow {
+  id: string
+  status: string
+  profile: string
+  url: string
+  hostname: string | null
+  owner: string | null
+  created_at: string | null
+  duration_s: number | null
+  error: string | null
+}
+
+export interface ScanListResponse {
+  items: ScanRow[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface EngineDiagnostic {
+  engine: string
+  category: string | null
+  status: string
+  findings: number
+  duration_ms: number | null
+  skipped_reason: string | null
+  error: string | null
+}
+
+export interface ScanDetail extends ScanRow {
+  started_at: string | null
+  completed_at: string | null
+  celery_task_id: string | null
+  engines: EngineDiagnostic[]
+}
+
+export interface EngineScorecard {
+  engine: string
+  runs: number
+  failed: number
+  skipped: number
+  failure_rate: number
+  empty_rate: number
+  avg_ms: number | null
+  reliability: number | null
 }
 
 // ---------------------------------------------------------------------------

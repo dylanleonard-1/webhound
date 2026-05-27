@@ -34,7 +34,12 @@ class AdminAuditLog(Base):
     target_id: Mapped[str | None] = mapped_column(sa.String(64), index=True)
 
     # Arbitrary structured context (diffs, reasons, request metadata).
-    detail: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}")
+    # JSONB in production (Postgres); falls back to JSON on SQLite so the test
+    # fixture's create_all can compile the column.
+    detail: Mapped[dict] = mapped_column(
+        JSONB().with_variant(sa.JSON(), "sqlite"),
+        default=dict, server_default="{}",
+    )
     ip_address: Mapped[str | None] = mapped_column(sa.String(64))
     request_id: Mapped[str | None] = mapped_column(sa.String(64))
 

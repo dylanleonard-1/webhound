@@ -6,9 +6,9 @@
 // command center never renders for customers.
 
 import { useEffect, useState, createContext, useContext } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { ShieldHalf, ArrowLeft, Loader2 } from 'lucide-react'
+import { ShieldHalf, ArrowLeft, Loader2, LayoutDashboard, ScanLine, Cpu } from 'lucide-react'
 import { api, getStoredToken, type InternalMe } from '@/lib/api'
 
 const MeContext = createContext<InternalMe | null>(null)
@@ -17,6 +17,32 @@ export const useInternalMe = () => useContext(MeContext)
 const ROLE_LABEL: Record<string, string> = {
   super_admin: 'Super Admin', admin: 'Admin', analyst: 'Analyst',
   support: 'Support', developer: 'Developer', billing: 'Billing', read_only: 'Read Only',
+}
+
+const NAV = [
+  { href: '/control', label: 'Command Center', icon: LayoutDashboard },
+  { href: '/control/scans', label: 'Scan Ops', icon: ScanLine },
+  { href: '/control/engines', label: 'Engines', icon: Cpu },
+]
+
+function ControlNav() {
+  const pathname = usePathname()
+  return (
+    <nav className="flex items-center gap-1">
+      {NAV.map(({ href, label, icon: Icon }) => {
+        const active = href === '/control' ? pathname === '/control' : pathname.startsWith(href)
+        return (
+          <Link key={href} href={href}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
+                style={active
+                  ? { background: 'rgba(139,255,62,0.1)', color: '#8BFF3E', border: '1px solid rgba(139,255,62,0.2)' }
+                  : { color: 'rgba(255,255,255,0.5)', border: '1px solid transparent' }}>
+            <Icon className="w-3.5 h-3.5" /> {label}
+          </Link>
+        )
+      })}
+    </nav>
+  )
 }
 
 export default function ControlLayout({ children }: { children: React.ReactNode }) {
@@ -66,6 +92,9 @@ export default function ControlLayout({ children }: { children: React.ReactNode 
                 <ArrowLeft className="w-3.5 h-3.5" /> App
               </Link>
             </div>
+          </div>
+          <div className="max-w-[1400px] mx-auto px-5 pb-2.5">
+            <ControlNav />
           </div>
         </header>
         <main className="max-w-[1400px] mx-auto px-5 py-6">{children}</main>

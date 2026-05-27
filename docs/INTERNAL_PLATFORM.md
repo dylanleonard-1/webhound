@@ -1,0 +1,123 @@
+# WebHound Internal Operations Platform (`/control`)
+
+The private SOC / command center used to operate the company — distinct from the
+public customer dashboard. This documents the architecture, what's built (Phase 1),
+and the phased roadmap for the remaining feature areas.
+
+---
+
+## Architecture decisions
+
+**Built on the existing FastAPI + Postgres + Next.js stack — NOT Supabase.**
+- The SOC must observe **live production data** (users, scans, findings, billing)
+  that already lives in the production Postgres behind the FastAPI API. A parallel
+  Supabase instance would fragment auth and data and require constant sync.
+- **Auth reuses existing Google OAuth + JWT**, with `admin_emails` already
+  auto-promoting the owner. We layered RBAC on top rather than introducing a
+  second identity system.
+- **`/control`** (and `/admin` alias) live as a hidden, RBAC-gated route group in
+  the existing Next.js app. The **API (`/internal/*`) is the real security
+  boundary** (returns 403 to non-staff); the route group hides the surface and
+  redirects unauthorized users. _Future option: split `/control` into a separate
+  Vercel deployment so the internal bundle never ships to customers._
+- **Realtime:** Phase 1 uses polling (10s). WebSocket/SSE is the next step for the
+  live activity feed and alerts (see Realtime below).
+
+### RBAC model
+`AdminRole` (low→high): `none < read_only < {billing, support, developer} < analyst
+< admin < super_admin`, ranked in `ROLE_RANK`. `require_admin(min_role)` gates each
+route; `super_admin` satisfies everything. Customers are `none`. `admin_emails`
+accounts (e.g. the owner) are auto-promoted to `super_admin` on startup + via the
+0017 migration backfill.
+
+### Audit
+`admin_audit_logs` is an append-only trail (actor, action, target, detail JSONB,
+ip, request_id, timestamp). `record_action()` is the write helper; the Command
+Center surfaces the recent feed. **All future privileged mutations must call it.**
+
+---
+
+## Phase 1 — DELIVERED & verified in production
+
+- **RBAC**: `AdminRole` + hierarchy, `users.admin_role`, `require_admin` dependency.
+  `dmleonard5125@gmail.com` confirmed `super_admin`; a customer account confirmed
+  `403` on `/internal/*`.
+- **Audit**: `admin_audit_logs` table + `record_action()` helper.
+- **Migration 0017** applied in prod (schema_revision=0017).
+- **Global Command Center** (`/internal/command-center`) returning **real live
+  data**: scans (queued/running/failed+completed 24h, avg duration), users
+  (total/paid/new 7d), billing (active subs, MRR, ARR), infra (DB/Redis/queue
+  depth/worker liveness/Stripe). Worker liveness via a Redis heartbeat stamp.
+- **`/control` UI**: hidden RBAC-gated route group, live metric cards, infra health
+  pills, 24h scan-activity chart, admin activity feed; `/admin` alias.
+
+> **Known limitation:** Command Center MRR is *list-price* MRR from the local
+> `subscriptions` table — it does not yet net out Stripe coupons/discounts. The
+> Billing Ops Center (Phase 4) should pull true MRR from Stripe.
+
+---
+
+## Roadmap — feature areas 2–18 (phased)
+
+Each phase adds models + `/internal/*` routes + a `/control` page, reusing the
+RBAC + audit foundation.
+
+**Phase 2 — Scan & Engine Ops** (areas 2, 3)
+- New tables: `engines` (registry, version, maintenance flag), extend diagnostics.
+- APIs: list/search/filter scans; retry/cancel/force-rescan (with audit + Celery
+  `revoke`); raw engine output; engine reliability scorecards (uptime, failure/
+  timeout/empty-result rates from `engine_diagnostics`); engine maintenance mode.
+
+**Phase 3 — SOC Alerting + Incidents** (areas 4, 13, 14)
+- Tables: `alerts` (severity INFO→CRITICAL, status, owner, timeline), `incidents`,
+  `alert_comments`, `notifications`. Alert sources: failed scans, worker crashes,
+  queue backups, billing/webhook failures, abuse, engine skips, infra outages.
+- Resolution workflow (assign/ack/resolve), timeline, linked logs/scans/customers.
+- **Realtime**: SSE/WebSocket channel for live alerts + activity feed + in-app
+  notifications (email already available via Resend; Slack/webhook later).
+
+**Phase 4 — Customer + Billing Ops** (areas 5, 9)
+- APIs: customer search; ban/suspend/force-logout (JWT denylist in Redis); reset
+  MFA; billing/scan/login/support history; internal notes (`internal_notes`).
+- Billing ops: true MRR/ARR/churn/refunds/trial-conversion from Stripe + local;
+  webhook delivery monitoring.
+
+**Phase 5 — Fraud & Abuse** (area 6)
+- Tables: `abuse_flags`, `ip_device_fingerprints`. Abuse scoring (excessive scans,
+  bot/VPN/proxy, failed-payment abuse, API abuse, credential stuffing), auto-ban
+  rules, manual review queue.
+
+**Phase 6 — Support / Fix Service** (area 7)
+- Tables: `tickets`, `ticket_events`, `ticket_attachments`. SLA tracking, assign
+  technicians, link scans, before/after rescan comparison, verification rescans.
+
+**Phase 7 — Team Mgmt + Deploys + Infra** (areas 8, 10)
+- Tables: `deployments`, `infrastructure_metrics`. Role management UI, session
+  monitoring (Redis-backed sessions), deploy/rollback history, container/queue
+  metrics, restart-service/maintenance-mode controls (Railway API).
+
+**Phase 8 — Live Log Explorer + full Audit UI** (areas 11, 12)
+- Tables: `logs` (structured, JSONB, indexed by source/severity/time). Splunk-style
+  full-text search, query builder, severity/time filters, saved searches, export.
+- Full audit-trail browser over `admin_audit_logs`.
+
+**Phase 9 — Future expansion** (area 18)
+- Multi-tenant/MSSP (org_id scoping), AI copilots, automated remediation, threat-
+  intel feeds, SIEM/endpoint integrations, multi-region.
+
+### Planned schema (beyond Phase 1's `users.admin_role` + `admin_audit_logs`)
+`engines`, `alerts`, `incidents`, `alert_comments`, `notifications`, `tickets`,
+`ticket_events`, `abuse_flags`, `ip_device_fingerprints`, `deployments`,
+`infrastructure_metrics`, `logs`, `internal_notes`. (`scans`, `findings`,
+`subscriptions`, `users` already exist.)
+
+---
+
+## Security notes
+- API-side RBAC on every `/internal/*` route is the boundary; the UI gate is UX.
+- `/control` + `/admin` are disallowed in `robots.txt`.
+- All privileged mutations must `record_action()` to the audit trail.
+- Ban/force-logout (Phase 4) needs a Redis JWT-denylist since tokens are stateless.
+- MFA-ready: the model can carry an MFA flag; enforce in `get_current_user` later.
+- Consider splitting `/control` to its own deployment so the internal JS bundle is
+  never served to customers.

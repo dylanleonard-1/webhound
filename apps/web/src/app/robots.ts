@@ -12,6 +12,8 @@ export default function robots(): MetadataRoute.Robots {
       // Keep the app + auth surfaces out of the index — they're private,
       // gated, or have no standalone search value.
       disallow: [
+        '/control',
+        '/admin',
         '/dashboard',
         '/login',
         '/register',

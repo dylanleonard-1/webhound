@@ -604,6 +604,33 @@ export const api = {
         'POST', '/billing/portal-session', data ?? {},
       ),
   },
+
+  // Internal /control command center (RBAC-gated; 403 for non-staff).
+  internal: {
+    me: () => request<InternalMe>('GET', '/internal/me'),
+    commandCenter: () => request<CommandCenter>('GET', '/internal/command-center'),
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Internal command-center types (mirror apps/api/internal/router.py)
+// ---------------------------------------------------------------------------
+
+export interface InternalMe {
+  id: string
+  email: string
+  full_name: string | null
+  role: string
+  is_super_admin: boolean
+}
+
+export interface CommandCenter {
+  generated_at: string
+  scans: { queued: number; running: number; failed_24h: number; completed_24h: number; total: number; avg_duration_s: number | null } | { error: string }
+  users: { total: number; paid: number; new_7d: number } | { error: string }
+  billing: { active_subscriptions: number; mrr_usd: number; arr_usd: number } | { error: string }
+  infra: { database: string; redis: string; queue_depth: number | null; worker: string; stripe_configured: boolean } | { error: string }
+  activity: { id: string; actor: string | null; action: string; target: string | null; at: string | null }[]
 }
 
 // ---------------------------------------------------------------------------

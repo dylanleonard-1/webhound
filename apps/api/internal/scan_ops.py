@@ -54,7 +54,7 @@ async def list_scans(
     db: _DB,
     status: str | None = None,
     profile: str | None = None,
-    q: str | None = Query(None, description="search requested URL or owner email"),
+    q: Annotated[str | None, Query(description="search requested URL or owner email")] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> dict:

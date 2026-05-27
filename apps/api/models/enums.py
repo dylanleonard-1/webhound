@@ -69,6 +69,36 @@ class PlanTier(str, enum.Enum):
     ENTERPRISE = "enterprise"
 
 
+class AdminRole(str, enum.Enum):
+    """Internal-platform RBAC roles for the /control command center.
+
+    Ordered low → high privilege via ROLE_RANK below. NONE means no internal
+    access at all (the default for every customer account).
+    """
+    NONE = "none"
+    READ_ONLY = "read_only"
+    BILLING = "billing"
+    SUPPORT = "support"
+    DEVELOPER = "developer"
+    ANALYST = "analyst"
+    ADMIN = "admin"
+    SUPER_ADMIN = "super_admin"
+
+
+# Privilege ranking — higher = more access. require_admin(min_role) compares
+# against this, so SUPER_ADMIN implicitly satisfies every check.
+ROLE_RANK: dict[AdminRole, int] = {
+    AdminRole.NONE: 0,
+    AdminRole.READ_ONLY: 10,
+    AdminRole.BILLING: 20,
+    AdminRole.SUPPORT: 20,
+    AdminRole.DEVELOPER: 20,
+    AdminRole.ANALYST: 30,
+    AdminRole.ADMIN: 90,
+    AdminRole.SUPER_ADMIN: 100,
+}
+
+
 class SubscriptionStatus(str, enum.Enum):
     """Mirrors Stripe's subscription status values."""
     TRIALING = "trialing"

@@ -11,8 +11,20 @@ logger = logging.getLogger(__name__)
 
 @celery.task(name="worker.monitoring_tasks.heartbeat")
 def heartbeat() -> dict:
-    """Periodic liveness ping — fires every 5 min via celery beat."""
+    """Periodic liveness ping — fires every 5 min via celery beat.
+
+    Stamps a Redis key the command center reads to report worker liveness
+    (key age < 10 min => "ok", else "stale"). Best-effort; never fails the task.
+    """
     logger.debug("worker heartbeat")
+    try:
+        import os
+        import time
+        import redis as _redis
+        client = _redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
+        client.set("webhound:worker:heartbeat", str(time.time()), ex=900)
+    except Exception:  # noqa: BLE001
+        pass
     return {"status": "alive"}
 
 

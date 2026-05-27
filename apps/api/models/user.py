@@ -31,6 +31,12 @@ class User(Base, UpdatedAtMixin):
     hashed_password: Mapped[str | None] = mapped_column(sa.String(255))
     is_active: Mapped[bool] = mapped_column(sa.Boolean, default=True, nullable=False)
     is_admin: Mapped[bool] = mapped_column(sa.Boolean, default=False, nullable=False)
+    # Internal-platform RBAC role (the /control command center). "none" for
+    # every customer; elevated only for staff. Stored as a string so adding
+    # roles never needs a Postgres enum migration.
+    admin_role: Mapped[str] = mapped_column(
+        sa.String(32), default="none", server_default="none", nullable=False
+    )
 
     oauth_provider: Mapped[str | None] = mapped_column(sa.String(50))
     oauth_provider_id: Mapped[str | None] = mapped_column(sa.String(255), index=True)

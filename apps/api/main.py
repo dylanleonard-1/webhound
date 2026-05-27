@@ -117,6 +117,10 @@ app.include_router(scan_schedules.router)
 app.include_router(notifications.router)
 app.include_router(billing.router)
 
+# Internal /control command center (RBAC-gated staff APIs).
+from apps.api.internal.router import router as internal_router  # noqa: E402
+app.include_router(internal_router)
+
 
 @app.on_event("startup")
 async def _backfill_admin_emails() -> None:
@@ -124,13 +128,18 @@ async def _backfill_admin_emails() -> None:
     if not emails:
         return
     async with AsyncSessionLocal() as db:
+        # admin_emails accounts are both is_admin AND internal super_admins.
         result = await db.execute(
             sa.update(User)
-            .where(sa.func.lower(User.email).in_(emails), User.is_admin.is_(False))
-            .values(is_admin=True)
+            .where(
+                sa.func.lower(User.email).in_(emails),
+                sa.or_(User.is_admin.is_(False), User.admin_role != "super_admin"),
+            )
+            .values(is_admin=True, admin_role="super_admin")
         )
         await db.commit()
         if result.rowcount:
             logging.getLogger(__name__).info(
-                "Promoted %d user(s) to admin via admin_emails", result.rowcount
+                "Promoted %d user(s) to admin/super_admin via admin_emails",
+                result.rowcount,
             )

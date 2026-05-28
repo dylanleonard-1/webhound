@@ -302,6 +302,284 @@ def _credential_exfil_chain(findings: list[Finding]) -> Chain | None:
     )
 
 
+def _weak_tls_credential_capture_chain(findings: list[Finding]) -> Chain | None:
+    """**Weak TLS + insecure cookies + login form**: a credential capture
+    surface protected by inadequate transport security. Even one of these
+    is concerning; together they describe a login that ships passwords
+    over a channel an attacker can plausibly observe + a cookie that
+    won't survive proper SameSite/Secure scrutiny."""
+    weak_tls = next(
+        (f for f in findings
+         if _engine_matches(f, ["tls_checker", "tls"])
+         and _matches_keywords(f.title, ["tls 1.0", "tls 1.1", "weak cipher",
+                                          "expired", "self-signed",
+                                          "mismatched hostname", "sslv3",
+                                          "deprecated"])),
+        None,
+    )
+    insecure_cookie = next(
+        (f for f in findings
+         if _engine_matches(f, ["cookie_scanner", "cookies"])
+         and _matches_keywords(f.title, ["secure flag", "samesite", "httponly",
+                                          "missing secure", "missing samesite"])),
+        None,
+    )
+    auth_form = next(
+        (f for f in findings
+         if _engine_matches(f, ["form_risk", "input_analysis", "forms"])
+         and _matches_keywords(f.title, ["password", "login", "credential",
+                                          "auth", "csrf"])),
+        None,
+    )
+    matches = tuple(_finding_to_match(s) for s in
+                    (weak_tls, insecure_cookie, auth_form) if s)
+    if len(matches) < 2:
+        return None
+    return Chain(
+        name="weak_tls_credential_capture_risk",
+        description=(
+            "A login or other credential-capture form was found on a host "
+            "whose TLS posture is weak — and the cookies that would carry "
+            "the session afterwards are missing one or more of the Secure "
+            "/ HttpOnly / SameSite flags. Each finding on its own is a "
+            "hardening gap; together they describe a login whose "
+            "credentials are observable in transit *and* whose session "
+            "cookie is observable from JS / over non-TLS subsequent "
+            "requests. Treat as a coordinated transport-security project."
+        ),
+        severity=Severity.HIGH,
+        confidence_bump=0.12,
+        matches=matches,
+        required_signals=2,
+        framework=FrameworkAlignment(
+            owasp_top10=["A02:2021", "A07:2021"],
+            cwe_ids=["CWE-319", "CWE-614", "CWE-326"],
+            nist_controls=["SC-8", "SC-13", "IA-5"],
+            cvss_vector="CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N",
+            cvss_score=7.4,
+            pci_dss=["4.2.1", "6.4.3", "8.3.6"],
+            iso_27001=["A.5.15", "A.8.24", "A.8.5"],
+            soc2=["CC6.6", "CC6.1"],
+            exploitability=Exploitability.PRACTICAL,
+        ),
+        remediation=(
+            "Enforce TLS ≥1.2 (preferably 1.3) and disable deprecated "
+            "cipher suites. Set Secure + HttpOnly + SameSite=Strict on "
+            "every session cookie. Confirm HSTS is enabled with a "
+            "non-trivial max-age."
+        ),
+    )
+
+
+def _csp_external_inline_chain(findings: list[Finding]) -> Chain | None:
+    """**CSP missing + external JS + inline scripts**: the page combines
+    third-party script execution with inline (unhashed/unnonced) script
+    in a context with no Content-Security-Policy. Each is benign in
+    isolation in many sites; together they describe an environment where
+    a compromised third-party can inject inline JS that browsers will
+    happily execute."""
+    csp_signal = next(
+        (f for f in findings
+         if _engine_matches(f, ["security_headers", "csp_engine", "headers"])
+         and _matches_keywords(f.title, ["csp", "content-security-policy",
+                                          "content security policy",
+                                          "unsafe-inline", "unsafe-eval"])),
+        None,
+    )
+    external_js = next(
+        (f for f in findings
+         if _engine_matches(f, ["third_party_domains", "js_analyzer",
+                                 "third_party"])
+         and _matches_keywords(f.title, ["external script", "third-party js",
+                                          "third party script", "untrusted"])),
+        None,
+    )
+    inline_js = next(
+        (f for f in findings
+         if _engine_matches(f, ["js_analyzer", "obfuscation_detector",
+                                 "injected_js"])
+         and _matches_keywords(f.title, ["inline script", "inline js",
+                                          "inline javascript", "eval",
+                                          "function constructor"])),
+        None,
+    )
+    matches = tuple(_finding_to_match(s) for s in
+                    (csp_signal, external_js, inline_js) if s)
+    if len(matches) < 2:
+        return None
+    return Chain(
+        name="csp_external_inline_compounding_risk",
+        description=(
+            "The page loads scripts from third-party hosts AND runs inline "
+            "JavaScript, but has no Content-Security-Policy (or one that "
+            "permits both via `'unsafe-inline'`). Browsers will execute "
+            "anything a compromised vendor injects via inline insertion. "
+            "Tightening CSP closes both attack paths simultaneously."
+        ),
+        severity=Severity.MEDIUM,
+        confidence_bump=0.10,
+        matches=matches,
+        required_signals=2,
+        framework=FrameworkAlignment(
+            owasp_top10=["A05:2021", "A08:2021"],
+            cwe_ids=["CWE-693", "CWE-829"],
+            nist_controls=["SI-10", "CM-6"],
+            cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+            cvss_score=6.1,
+            iso_27001=["A.8.7", "A.8.23"],
+            soc2=["CC6.7"],
+            exploitability=Exploitability.PRACTICAL,
+        ),
+        remediation=(
+            "Adopt a nonce- or hash-based CSP that explicitly enumerates "
+            "every trusted script origin. Move inline event handlers / "
+            "scripts to external files (so nonces can apply) or hash them "
+            "into the CSP. Never use `'unsafe-inline'` with a third-party "
+            "script allowlist — that combination effectively neutralises "
+            "CSP."
+        ),
+    )
+
+
+def _beaconing_third_party_chain(findings: list[Finding]) -> Chain | None:
+    """**Suspicious third-party + obfuscated JS + network beacons**: a
+    common malware/skimmer footprint. We already flag each component;
+    together they describe an inline script that's both *hiding* what it
+    does *and* phoning home to a suspicious destination."""
+    suspicious_host = next(
+        (f for f in findings
+         if _engine_matches(f, ["threat_intel"])
+         and _matches_keywords(f.title, ["suspicious", "high-risk",
+                                          "likely malicious", "shortener"])),
+        None,
+    )
+    obfuscated_js = next(
+        (f for f in findings
+         if _engine_matches(f, ["obfuscation_detector"])
+         and _matches_keywords(f.title, ["obfuscat", "base64", "hex",
+                                          "packed", "eval", "function ctor"])),
+        None,
+    )
+    beacon_signal = next(
+        (f for f in findings
+         if _engine_matches(f, ["js_analyzer", "endpoint_discovery",
+                                 "api_discovery"])
+         and _matches_keywords(f.title, ["beacon", "navigator.sendbeacon",
+                                          "websocket", "eventsource",
+                                          "fetch(", "xhr", "xmlhttprequest"])),
+        None,
+    )
+    matches = tuple(_finding_to_match(s) for s in
+                    (suspicious_host, obfuscated_js, beacon_signal) if s)
+    # Require ALL three signals — the beacon/fetch/WebSocket signal is
+    # what differentiates this from generic supply-chain risk. Without
+    # it, the supply_chain chain already covers the obfuscated-script +
+    # suspicious-host combination.
+    if len(matches) < 3:
+        return None
+    return Chain(
+        name="beaconing_third_party_compromise_risk",
+        description=(
+            "An obfuscated inline script is sending traffic out of the "
+            "page (beacon / fetch / WebSocket / EventSource) toward a "
+            "suspicious or high-risk host. This is the classic skimmer / "
+            "info-stealer footprint. Even if each signal individually "
+            "looks like marketing or analytics, the combination warrants "
+            "active investigation."
+        ),
+        severity=Severity.HIGH,
+        confidence_bump=0.15,
+        matches=matches,
+        required_signals=3,
+        framework=FrameworkAlignment(
+            owasp_top10=["A08:2021", "A03:2021"],
+            cwe_ids=["CWE-506", "CWE-829", "CWE-1395"],
+            nist_controls=["SI-3", "SI-4", "AC-4"],
+            cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:N",
+            cvss_score=8.7,
+            pci_dss=["6.4.3", "11.5.1"],
+            iso_27001=["A.8.7", "A.8.16"],
+            soc2=["CC7.1", "CC7.2"],
+            exploitability=Exploitability.PRACTICAL,
+        ),
+        remediation=(
+            "Capture the obfuscated script and the destination URL "
+            "immediately. Compare the script against the version your "
+            "build/vendor is supposed to ship. If you can't account for "
+            "the destination host, treat it as exfiltration and rotate "
+            "any credentials served from the page."
+        ),
+    )
+
+
+def _insecure_api_exposed_token_chain(findings: list[Finding]) -> Chain | None:
+    """**Insecure API + exposed tokens + CORS weakness**: an API endpoint
+    discovered through endpoint_discovery is paired with both an
+    over-permissive CORS configuration AND a secret/token pattern in JS.
+    This is the canonical "anyone can call our API with the harvested
+    token from any origin" composition."""
+    api_signal = next(
+        (f for f in findings
+         if _engine_matches(f, ["endpoint_discovery", "api_discovery"])
+         and _matches_keywords(f.title, ["api endpoint", "rest endpoint",
+                                          "graphql", "swagger", "openapi",
+                                          "exposed api"])),
+        None,
+    )
+    token_signal = next(
+        (f for f in findings
+         if _engine_matches(f, ["secret_scanner", "secrets"])
+         and _matches_keywords(f.title, ["token", "api key", "bearer",
+                                          "secret", "credential"])),
+        None,
+    )
+    cors_signal = next(
+        (f for f in findings
+         if _engine_matches(f, ["cors", "headers"])
+         and _matches_keywords(f.title, ["cors", "access-control-allow",
+                                          "wildcard origin", "*", "null origin"])),
+        None,
+    )
+    matches = tuple(_finding_to_match(s) for s in
+                    (api_signal, token_signal, cors_signal) if s)
+    if len(matches) < 2:
+        return None
+    return Chain(
+        name="insecure_api_exposed_token_risk",
+        description=(
+            "A discoverable API endpoint, an over-permissive CORS "
+            "configuration, and a token / API-key pattern were all "
+            "observed on the same target. Even if the API itself enforces "
+            "auth correctly, the combination means any origin can call it "
+            "with a token harvested from the page — bypassing the "
+            "browser-imposed origin boundary."
+        ),
+        severity=Severity.HIGH,
+        confidence_bump=0.12,
+        matches=matches,
+        required_signals=2,
+        framework=FrameworkAlignment(
+            owasp_top10=["A05:2021", "A07:2021", "A01:2021"],
+            cwe_ids=["CWE-942", "CWE-200", "CWE-862"],
+            nist_controls=["AC-3", "AC-4", "SI-10"],
+            cvss_vector="CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N",
+            cvss_score=9.1,
+            pci_dss=["6.5.5", "8.3.1"],
+            iso_27001=["A.5.15", "A.8.23"],
+            soc2=["CC6.1", "CC6.3"],
+            exploitability=Exploitability.PRACTICAL,
+        ),
+        remediation=(
+            "Lock CORS down to a strict allowlist (never `*` with "
+            "credentials). Move any token / API-key out of the page — "
+            "serve it via a backend proxy that performs the call on the "
+            "user's behalf. If the token must be in the browser, treat it "
+            "as public and ensure the API does not grant any privileged "
+            "operation behind it alone."
+        ),
+    )
+
+
 # Rules are evaluated in *severity* order — the most specific / most severe
 # chains first. When a higher-priority chain fires, the IDs of its matched
 # findings are recorded; lower-priority chains whose matched-ID set is a
@@ -310,7 +588,19 @@ def _credential_exfil_chain(findings: list[Finding]) -> Chain | None:
 # signals would otherwise produce both `credential_exfiltration_risk`
 # (CRITICAL) AND `supply_chain_compromise_risk` (HIGH) — same evidence,
 # weaker story.)
-_RULES = (_credential_exfil_chain, _supply_chain_chain, _exposed_admin_chain)
+_RULES = (
+    # CRITICAL chains first — they describe active compromise patterns.
+    _credential_exfil_chain,
+    # HIGH chains — distinct compounding risks that don't subsume each other.
+    _beaconing_third_party_chain,
+    _insecure_api_exposed_token_chain,
+    _supply_chain_chain,
+    _exposed_admin_chain,
+    _weak_tls_credential_capture_chain,
+    # MEDIUM chains — defence-in-depth gaps that compound but aren't on their
+    # own a compromise indicator.
+    _csp_external_inline_chain,
+)
 
 
 # ---------------------------------------------------------------------------

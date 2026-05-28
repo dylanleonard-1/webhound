@@ -236,6 +236,169 @@ def test_unrelated_findings_produce_no_clusters() -> None:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# New chain rules (Phase-3 expansion)
+# ---------------------------------------------------------------------------
+
+
+def test_weak_tls_credential_capture_chain_fires() -> None:
+    findings = [
+        _f("Server supports TLS 1.0", "tls_checker",
+           severity=Severity.MEDIUM, confidence=0.8),
+        _f("Session cookie missing Secure flag", "cookie_scanner",
+           severity=Severity.MEDIUM, confidence=0.85),
+        _f("Login form found without CSRF token", "form_risk",
+           severity=Severity.MEDIUM, confidence=0.75),
+    ]
+    result = correlate_findings(findings)
+    chain_names = [c.metadata["chain_name"] for c in result.cluster_findings]
+    assert "weak_tls_credential_capture_risk" in chain_names
+
+
+def test_csp_external_inline_chain_fires_on_three_signals() -> None:
+    findings = [
+        _f("Content-Security-Policy allows unsafe-inline",
+           "security_headers", severity=Severity.MEDIUM, confidence=0.8),
+        _f("Page loads external script from untrusted domain",
+           "third_party_domains", severity=Severity.LOW, confidence=0.7),
+        _f("Inline script uses Function constructor",
+           "js_analyzer", severity=Severity.LOW, confidence=0.6),
+    ]
+    result = correlate_findings(findings)
+    chain_names = [c.metadata["chain_name"] for c in result.cluster_findings]
+    assert "csp_external_inline_compounding_risk" in chain_names
+
+
+def test_beaconing_third_party_chain_fires_high_severity() -> None:
+    findings = [
+        _f("Suspicious third-party domain detected",
+           "threat_intel", severity=Severity.MEDIUM, confidence=0.75),
+        _f("Inline script uses base64 decoder",
+           "obfuscation_detector", severity=Severity.MEDIUM, confidence=0.6),
+        _f("Inline script uses navigator.sendBeacon",
+           "js_analyzer", severity=Severity.LOW, confidence=0.7),
+    ]
+    result = correlate_findings(findings)
+    # beaconing rule outranks supply_chain — both signals are obfuscation +
+    # third_party so subset-suppression keeps only the more specific
+    # beaconing chain
+    chain_names = [c.metadata["chain_name"] for c in result.cluster_findings]
+    assert "beaconing_third_party_compromise_risk" in chain_names
+    beaconing = next(c for c in result.cluster_findings
+                     if c.metadata["chain_name"]
+                     == "beaconing_third_party_compromise_risk")
+    assert beaconing.severity == Severity.HIGH
+
+
+def test_insecure_api_exposed_token_chain_fires() -> None:
+    findings = [
+        _f("Exposed API endpoint /api/v1/users",
+           "endpoint_discovery", severity=Severity.MEDIUM, confidence=0.8),
+        _f("Possible API token pattern in inline JS",
+           "secret_scanner", severity=Severity.HIGH, confidence=0.85),
+        _f("CORS allows wildcard origin with credentials",
+           "cors", severity=Severity.HIGH, confidence=0.9),
+    ]
+    result = correlate_findings(findings)
+    chain_names = [c.metadata["chain_name"] for c in result.cluster_findings]
+    assert "insecure_api_exposed_token_risk" in chain_names
+
+
+def test_new_chain_rules_dont_inflate_weak_evidence() -> None:
+    """Three unrelated low-confidence findings must not trigger any new
+    chain rule. (Confidence-escalation transparency directive — chains
+    should fire on genuine convergence, not on noisy heuristics.)"""
+    findings = [
+        _f("Missing X-Frame-Options header", "security_headers",
+           severity=Severity.LOW, confidence=0.4),
+        _f("Page references cdn.example.com", "third_party_domains",
+           severity=Severity.LOW, confidence=0.3),
+    ]
+    result = correlate_findings(findings)
+    # No chain should fire — the third-party finding doesn't match any of
+    # the new rules' keyword signatures.
+    assert result.cluster_findings == []
+
+
+# ---------------------------------------------------------------------------
+# ThreatIntelEngine scan-wide inventory pass (Phase-3 audit)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_analyze_inventory_emits_one_finding_per_risky_host() -> None:
+    """The scan-wide pass must produce one finding per risky host (not one
+    per page that referenced the host). Validates the dedup contract."""
+    from webhound.core.url_discovery import HostInventoryEntry
+    from webhound.engines.threat_intel.external_domains import ThreatIntelEngine
+
+    inventory = {
+        # A real CDN — should NOT produce a finding (TRUSTED tier).
+        "fonts.googleapis.com": HostInventoryEntry(
+            hostname="fonts.googleapis.com",
+            registrable_domain="googleapis.com",
+            kinds={"stylesheet"},
+            first_seen_page="https://target.example/",
+            sample_urls=["https://fonts.googleapis.com/css?family=Inter"],
+        ),
+        # A suspicious heuristic — should produce a finding.
+        "g7vk3-tracking-cdn.tk": HostInventoryEntry(
+            hostname="g7vk3-tracking-cdn.tk",
+            registrable_domain="g7vk3-tracking-cdn.tk",
+            kinds={"script", "fetch"},
+            first_seen_page="https://target.example/about",
+            sample_urls=[
+                "https://g7vk3-tracking-cdn.tk/track.js",
+                "https://g7vk3-tracking-cdn.tk/api/beacon",
+            ],
+        ),
+    }
+    engine = ThreatIntelEngine()
+    findings = await engine.analyze_inventory(inventory)
+    # Trusted host is silent; suspicious host gets exactly one finding.
+    risky_findings = [f for f in findings
+                      if f.metadata.get("host") == "g7vk3-tracking-cdn.tk"]
+    assert len(risky_findings) >= 1
+    # The finding carries scan_wide_inventory provenance + sample URLs.
+    f = risky_findings[0]
+    assert f.metadata["discovery"] == "scan_wide_inventory"
+    assert "scan_wide" in f.tags
+    assert f.metadata["first_seen_page"] == "https://target.example/about"
+    assert len(f.metadata["sample_urls"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_analyze_inventory_skips_already_classified_hosts() -> None:
+    """When the per-page TI engine already flagged a host, the scan-wide
+    pass must not re-emit for it. Otherwise the dashboard would show two
+    findings for the same host."""
+    from webhound.core.url_discovery import HostInventoryEntry
+    from webhound.engines.threat_intel.external_domains import ThreatIntelEngine
+
+    inventory = {
+        "g7vk3-tracking-cdn.tk": HostInventoryEntry(
+            hostname="g7vk3-tracking-cdn.tk",
+            registrable_domain="g7vk3-tracking-cdn.tk",
+            kinds={"script"},
+            first_seen_page="https://target.example/",
+            sample_urls=["https://g7vk3-tracking-cdn.tk/x.js"],
+        ),
+    }
+    engine = ThreatIntelEngine()
+    findings = await engine.analyze_inventory(
+        inventory,
+        already_classified_hosts={"g7vk3-tracking-cdn.tk"},
+    )
+    assert findings == []
+
+
+@pytest.mark.asyncio
+async def test_analyze_inventory_returns_empty_on_empty_input() -> None:
+    from webhound.engines.threat_intel.external_domains import ThreatIntelEngine
+    engine = ThreatIntelEngine()
+    assert await engine.analyze_inventory({}) == []
+
+
 def test_cluster_finding_carries_constituent_metadata() -> None:
     findings = [
         _f("Missing CSP", "security_headers", confidence=0.7),

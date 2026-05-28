@@ -250,6 +250,240 @@ class ThreatIntelEngine:
         return findings
 
     # ------------------------------------------------------------------
+    # Scan-wide inventory pass (Phase-3 audit)
+    # ------------------------------------------------------------------
+
+    async def analyze_inventory(
+        self,
+        inventory,            # dict[str, HostInventoryEntry]
+        *,
+        already_classified_hosts: set[str] | None = None,
+    ) -> list[Finding]:
+        """Classify a scan-wide aggregated host inventory in one pass.
+
+        The orchestrator gathers `PageHostContribution` objects during the
+        crawl and folds them through ``aggregate_host_inventory`` into a
+        ``{hostname: HostInventoryEntry}`` map. That map covers *every*
+        external host the scan touched — including hosts discovered via
+        JavaScript URL parsing or future Playwright network capture —
+        rather than only the ones a single page's static HTML referenced.
+
+        This method classifies each unique host exactly once, emits at
+        most one finding per host, and uses each host's
+        ``first_seen_page`` as the evidence location (with ``affected_pages``
+        / ``sample_urls`` in metadata for backlinks). Hosts in
+        ``already_classified_hosts`` are skipped so the per-page pass and
+        the scan-wide pass don't double-emit for the same host.
+
+        Returns ``[]`` if the inventory is empty.
+        """
+        if not inventory:
+            return []
+        already = already_classified_hosts or set()
+
+        # Local classification first (instant, offline).
+        items: list[tuple[str, DomainClassification, "HostInventoryEntry"]] = []  # noqa: F821
+        for host, entry in inventory.items():
+            if host in already:
+                continue
+            items.append((host, self._classifier.classify(host), entry))
+        if not items:
+            return []
+
+        # Run external providers in parallel where available. The same
+        # rate-limiter + cache the per-page path uses applies here, so a
+        # 200-host inventory won't blow the VT free-tier quota in one shot.
+        enriched: list[tuple[str, DomainClassification, "HostInventoryEntry",  # noqa: F821
+                              EnrichmentResult | None]]
+        if self._enrichment and self._enrichment.has_external_providers:
+            import asyncio
+            coros = [self._enrichment.enrich_domain(h) for h, _, _ in items]
+            enrich_results = await asyncio.gather(*coros, return_exceptions=True)
+            enriched = []
+            for (host, cls, entry), enr in zip(items, enrich_results):
+                enriched.append((
+                    host, cls, entry,
+                    enr if isinstance(enr, EnrichmentResult) else None,
+                ))
+        else:
+            enriched = [(h, c, e, None) for h, c, e in items]
+
+        findings: list[Finding] = []
+        for host, cls, entry, enr in enriched:
+            tier = enr.final_classification if enr else cls.classification
+            # Only emit findings for non-benign tiers — the scan-wide
+            # path skips per-host "informational" findings to avoid
+            # exploding the dashboard with one entry per CDN.
+            if tier == DomainClass.MALICIOUS_INDICATOR:
+                findings.append(self._inventory_host_finding(
+                    host, cls, entry, severity=Severity.CRITICAL,
+                    framework_key="malicious_indicator", enrichment=enr,
+                ))
+            elif tier == DomainClass.RISKY:
+                findings.append(self._inventory_host_finding(
+                    host, cls, entry, severity=Severity.HIGH,
+                    framework_key="risky", enrichment=enr,
+                ))
+            elif tier == DomainClass.SUSPICIOUS:
+                findings.append(self._inventory_host_finding(
+                    host, cls, entry, severity=Severity.MEDIUM,
+                    framework_key="suspicious", enrichment=enr,
+                ))
+            # Shortener / punycode are scored as their own signals
+            # regardless of overall tier — these patterns are noteworthy
+            # even on otherwise-benign hosts.
+            if cls.is_url_shortener:
+                findings.append(self._inventory_special_finding(
+                    host, cls, entry, kind="shortener",
+                ))
+            if cls.is_punycode:
+                findings.append(self._inventory_special_finding(
+                    host, cls, entry, kind="punycode",
+                ))
+        return findings
+
+    def _inventory_host_finding(
+        self, host: str, cls: DomainClassification, entry,  # HostInventoryEntry
+        *, severity: Severity, framework_key: str,
+        enrichment: EnrichmentResult | None = None,
+    ) -> Finding:
+        """Per-host finding from the scan-wide inventory pass. Differs from
+        ``_host_finding`` in three ways:
+          * evidence location is the host's ``first_seen_page``, so the
+            finding ties back to a real URL even if the host was only
+            discovered through scan-wide JS analysis;
+          * metadata records all ``sample_urls`` + the full ``kinds`` set so
+            the dashboard can render a "found on N requests" backlink;
+          * the source label says "scan-wide inventory" explicitly so the
+            UI can render a different badge from per-page detections.
+        """
+        kinds_str = ", ".join(sorted(entry.kinds))
+        signal_lines = "\n".join(f"  • {s}" for s in cls.signals)
+        title_prefix = {
+            "malicious_indicator": "Likely malicious",
+            "risky": "High-risk",
+            "suspicious": "Suspicious",
+        }[framework_key]
+        page = entry.first_seen_page or ""
+        return Finding(
+            title=f"{title_prefix} third-party host: {host}",
+            description=(
+                f"The scan's aggregated third-party inventory identified "
+                f"`{host}` as {framework_key}. It was first seen on "
+                f"`{page or '<unknown page>'}` and referenced as: "
+                f"{kinds_str}. Local threat-intel classifier scored "
+                f"{cls.score:.1f}/10.0 — `{cls.classification.value}`. "
+                f"Signals matched:\n{signal_lines}"
+            ),
+            severity=severity,
+            category=FindingCategory.COMPROMISE,
+            evidence=[Evidence(
+                evidence_type=EvidenceType.RAW,
+                content=(
+                    f"Host: {host}\n"
+                    f"First seen on: {page}\n"
+                    f"Referenced as: {kinds_str}\n"
+                    f"Sample URLs (capped):\n  "
+                    + "\n  ".join(entry.sample_urls or [])
+                    + "\n"
+                    f"Local classification: {cls.classification.value} "
+                    f"(score {cls.score:.1f}/10.0, confidence {cls.confidence:.0%})\n"
+                    f"Registered: {cls.registerable_domain or '?'}\n"
+                    f"Signals:\n{signal_lines}"
+                    + _format_enrichment(enrichment)
+                ),
+                location=page,
+                source_engine=_ENGINE,
+                extra={
+                    "host": host,
+                    "classification": cls.classification.value,
+                    "score": cls.score,
+                    "signals": cls.signals,
+                    "kinds": sorted(entry.kinds),
+                    "sample_urls": list(entry.sample_urls or []),
+                    "discovery": "scan_wide_inventory",
+                    **_enrichment_extras(enrichment),
+                },
+            )],
+            confidence=cls.confidence,
+            remediation=(
+                "Determine whether `" + host + "` is a known, intentional "
+                "vendor. If not, treat as supply-chain anomaly: snapshot "
+                "the pages that reference it, audit recent template / "
+                "vendor / CMS changes, and rotate credentials served from "
+                "any affected page."
+            ),
+            framework=_FA[framework_key],
+            scanner_engine=_ENGINE,
+            tags=["scan_wide", "inventory"],
+            metadata={
+                "host": host,
+                "classification": cls.classification.value,
+                "score": cls.score,
+                "kinds": sorted(entry.kinds),
+                "signals": cls.signals,
+                "first_seen_page": page,
+                "sample_urls": list(entry.sample_urls or []),
+                "discovery": "scan_wide_inventory",
+            },
+        )
+
+    def _inventory_special_finding(
+        self, host: str, cls: DomainClassification, entry,  # HostInventoryEntry
+        *, kind: str,
+    ) -> Finding:
+        """Scan-wide variant of ``_shortener_finding`` / ``_punycode_finding``
+        — surfaces these patterns with first_seen_page provenance even
+        when the host wasn't classified as risky overall."""
+        page = entry.first_seen_page or ""
+        kinds_str = ", ".join(sorted(entry.kinds))
+        if kind == "shortener":
+            title = f"URL shortener as third-party host: {host}"
+            severity = Severity.LOW
+            confidence = 0.85
+            description = (
+                f"The scan's aggregated inventory references `{host}`, a "
+                f"URL-shortening service (used as: {kinds_str}). "
+                "Shorteners hide the final destination from static "
+                "analysis and from the user."
+            )
+            fa_key = "url_shortener"
+        else:   # punycode
+            title = f"Punycode (IDN) domain referenced: {host}"
+            severity = Severity.MEDIUM
+            confidence = 0.7
+            description = (
+                f"Aggregated inventory contains `{host}`, an "
+                "internationalised domain (one or more labels begin with "
+                "`xn--`). IDN domains underpin homoglyph attacks; manually "
+                "decode and verify the registered owner."
+            )
+            fa_key = "punycode"
+        return Finding(
+            title=title, description=description, severity=severity,
+            category=FindingCategory.COMPROMISE,
+            evidence=[Evidence(
+                evidence_type=EvidenceType.RAW,
+                content=(f"Host: {host}\nFirst seen on: {page}\n"
+                         f"Used as: {kinds_str}\n"
+                         f"Sample URLs: {entry.sample_urls or []}"),
+                location=page,
+                source_engine=_ENGINE,
+                extra={"host": host, "kinds": sorted(entry.kinds),
+                       "sample_urls": list(entry.sample_urls or []),
+                       "discovery": "scan_wide_inventory"},
+            )],
+            confidence=confidence,
+            framework=_FA[fa_key],
+            scanner_engine=_ENGINE,
+            tags=["scan_wide", "inventory"],
+            metadata={"host": host, "kinds": sorted(entry.kinds),
+                      "first_seen_page": page,
+                      "sample_urls": list(entry.sample_urls or []),
+                      "discovery": "scan_wide_inventory"},
+        )
+
+    # ------------------------------------------------------------------
 
     async def _run_enrichment(
         self,

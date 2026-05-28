@@ -416,6 +416,11 @@ class Scanner:
         external_domains: set[str] = set()
         external_script_domains: set[str] = set()
         crawl_results: list = []
+        # Scan-wide host inventory: each per-page contribution is gathered
+        # during the per-page engine loop so the post-crawl threat-intel
+        # pass operates on the deduplicated, scan-wide host set rather
+        # than re-classifying the same vendor host once per page.
+        host_contributions: list = []
         _http_stats: dict[str, Any] = {}
         _crawl_duration_seconds: float = 0.0
 
@@ -437,7 +442,8 @@ class Scanner:
                 # 3. Per-page engines
                 for result in crawl_results:
                     await self._run_page_engines(
-                        result, ctx, external_domains, external_script_domains
+                        result, ctx, external_domains,
+                        external_script_domains, host_contributions,
                     )
 
                 # Capture HTTP stats before the client closes
@@ -445,6 +451,36 @@ class Scanner:
 
             # 4. TLS / DNS — blocking I/O, run in thread pool
             await self._run_tls_dns(ctx)
+
+            # 4b. Scan-wide threat-intel inventory pass — runs once over
+            # the aggregated host set so JS-discovered or
+            # network-captured hosts that no single page's static HTML
+            # referenced still get classified. Skips hosts the per-page
+            # threat_intel engine already flagged so the two passes don't
+            # double-emit. Safe to fail — per-page findings still ship.
+            try:
+                from webhound.core.url_discovery import aggregate_host_inventory
+                inventory = aggregate_host_inventory(host_contributions)
+                already = {
+                    (f.metadata or {}).get("host")
+                    for f in ctx.scan_result.findings
+                    if f.scanner_engine == self._threat_intel.NAME
+                    and (f.metadata or {}).get("host")
+                }
+                inv_findings = await self._threat_intel.analyze_inventory(
+                    inventory, already_classified_hosts=already,
+                )
+                for finding in inv_findings:
+                    ctx.scan_result.findings.append(finding)
+                ctx.scan_result.metadata["scan_wide_host_count"] = len(inventory)
+                ctx.scan_result.metadata["scan_wide_threat_intel_findings"] = (
+                    len(inv_findings)
+                )
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "scan-wide threat-intel inventory pass failed; using "
+                    "per-page findings only", exc_info=True,
+                )
 
             # 5. WADE — build baseline; optionally compare against previous
             self._run_wade(ctx, crawl_results)
@@ -531,6 +567,7 @@ class Scanner:
         ctx: ScanContext,
         external_domains: set[str],
         external_script_domains: set[str],
+        host_contributions: list | None = None,
     ) -> None:
         response = result.response
         artifacts = result.artifacts
@@ -546,6 +583,21 @@ class Scanner:
 
         if artifacts is None:
             return
+
+        # Capture this page's contribution to the scan-wide host inventory.
+        # Defensive: import + build inside try so a malformed artifacts blob
+        # never aborts the per-page engine loop.
+        if host_contributions is not None:
+            try:
+                from webhound.core.url_discovery import PageHostContribution
+                host_contributions.append(
+                    PageHostContribution.from_artifacts(artifacts)
+                )
+            except Exception:  # noqa: BLE001
+                logger.debug(
+                    "PageHostContribution.from_artifacts failed for %s",
+                    getattr(artifacts, "url", "?"), exc_info=True,
+                )
 
         # Collect external link domains from this page
         for link in artifacts.external_links:

@@ -130,15 +130,48 @@ export default function ControlLayout({ children }: { children: React.ReactNode 
     }
     loadAll()
     const poll = setInterval(loadAll, 30000)
-    const stop = streamInternalEvents(
-      (data) => {
-        setLive(true)
-        loadAll()
-        listeners.current.forEach(cb => cb(data))
-      },
-      () => setLive(false),
-    )
-    return () => { cancelled = true; clearInterval(poll); stop() }
+
+    // Auto-reconnect loop. The server may close the stream after a long
+    // idle window (Railway proxy timeout, Redis pubsub disconnect, etc.) —
+    // we retry with a small backoff so the header doesn't get stuck on
+    // "Reconnecting". stop() unwinds the current attempt; the retry timer
+    // gets cleared on unmount.
+    let currentStop: (() => void) | null = null
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+    let attempt = 0
+
+    const connect = () => {
+      currentStop = streamInternalEvents(
+        (data) => {
+          if (cancelled) return
+          setLive(true)
+          attempt = 0
+          loadAll()
+          listeners.current.forEach(cb => cb(data))
+        },
+        () => {
+          if (cancelled) return
+          setLive(false)
+          // Exponential-ish backoff capped at 30s.
+          attempt += 1
+          const delay = Math.min(30_000, 1000 * 2 ** Math.min(attempt - 1, 5))
+          retryTimer = setTimeout(connect, delay)
+        },
+        () => {
+          // The handshake worked + body started streaming → show LIVE even
+          // before any actual event lands (idle is normal).
+          if (!cancelled) setLive(true)
+        },
+      )
+    }
+    connect()
+
+    return () => {
+      cancelled = true
+      clearInterval(poll)
+      if (retryTimer) clearTimeout(retryTimer)
+      currentStop?.()
+    }
   }, [state])
 
   if (state === 'checking') {

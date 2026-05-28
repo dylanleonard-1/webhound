@@ -782,6 +782,10 @@ function _qs(params: object): string {
 export function streamInternalEvents(
   onEvent: (data: Record<string, unknown>) => void,
   onError?: () => void,
+  // Fires once the server's body stream actually begins yielding (the SSE
+  // ": connected" comment, or the first keepalive). Distinct from onEvent
+  // so the UI can show "connected but idle" instead of "disconnected".
+  onConnect?: () => void,
 ): () => void {
   const controller = new AbortController()
   const tok = getStoredToken()
@@ -795,9 +799,14 @@ export function streamInternalEvents(
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buf = ''
+      let seenAnyBytes = false
       for (;;) {
         const { done, value } = await reader.read()
         if (done) break
+        if (!seenAnyBytes && value && value.byteLength > 0) {
+          seenAnyBytes = true
+          onConnect?.()
+        }
         buf += decoder.decode(value, { stream: true })
         const frames = buf.split('\n\n')
         buf = frames.pop() ?? ''
@@ -807,6 +816,9 @@ export function streamInternalEvents(
           try { onEvent(JSON.parse(line.slice(5).trim())) } catch { /* ignore */ }
         }
       }
+      // Body ended normally — server closed the stream. Surface as error so
+      // the layout reconnect logic kicks in.
+      if (!controller.signal.aborted) onError?.()
     } catch {
       if (!controller.signal.aborted) onError?.()
     }

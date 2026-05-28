@@ -20,6 +20,7 @@ from apps.api.models.enums import (
 )
 from apps.api.models.finding import FindingRecord
 from apps.api.models.grouped_finding import GroupedFindingRecord
+from apps.api.models.internal_note import InternalNote
 from apps.api.models.notification import Notification
 from apps.api.models.report import ReportRecord
 from apps.api.models.scan_job import ScanJob
@@ -44,6 +45,7 @@ __all__ = [
     "FindingRecord",
     "GroupedFindingRecord",
     "EngineDiagnosticRecord",
+    "InternalNote",
     "BaselineRecord",
     "ReportRecord",
     "ScanSchedule",

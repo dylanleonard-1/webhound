@@ -12,7 +12,7 @@ import { useEffect, useRef, useState, createContext, useContext, useCallback } f
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ShieldHalf, ArrowLeft, Loader2, LayoutDashboard, ScanLine, Cpu, BellRing,
+  ShieldHalf, ArrowLeft, Loader2, LayoutDashboard, ScanLine, Cpu, BellRing, Users, CreditCard,
 } from 'lucide-react'
 import {
   api, getStoredToken, streamInternalEvents, type InternalMe, type AlertSummary,
@@ -39,6 +39,8 @@ const NAV = [
   { href: '/control/scans', label: 'Scan Ops', icon: ScanLine },
   { href: '/control/engines', label: 'Engines', icon: Cpu },
   { href: '/control/alerts', label: 'Alerts', icon: BellRing },
+  { href: '/control/customers', label: 'Customers', icon: Users },
+  { href: '/control/billing', label: 'Billing', icon: CreditCard },
 ]
 
 function ControlNav({ openAlerts }: { openAlerts: number }) {

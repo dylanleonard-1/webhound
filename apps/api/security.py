@@ -70,6 +70,56 @@ def decode_login_challenge_token(token: str) -> uuid.UUID:
         raise HTTPException(status_code=401, detail="Invalid login challenge") from exc
 
 
+def _denylist_key(user_id: uuid.UUID | str) -> str:
+    return f"auth:denylist:{user_id}"
+
+
+async def _is_denylisted(user_id: uuid.UUID) -> bool:
+    """Best-effort Redis check; if Redis is unreachable we fall open (is_active
+    is the durable backstop). Staff use this to force-logout all sessions for
+    a user without rotating the JWT secret."""
+    try:
+        import redis.asyncio as aioredis
+
+        r = aioredis.from_url(get_settings().redis_url, socket_connect_timeout=1)
+        try:
+            return bool(await r.exists(_denylist_key(user_id)))
+        finally:
+            await r.aclose()
+    except Exception:  # noqa: BLE001
+        return False
+
+
+async def denylist_user(user_id: uuid.UUID, *, ttl_seconds: int | None = None) -> None:
+    """Revoke every outstanding token for `user_id`. TTL defaults to the JWT
+    expiry so the denylist entry doesn't outlive any token it could block."""
+    settings = get_settings()
+    ttl = ttl_seconds or max(settings.access_token_expire_minutes * 60, 60)
+    try:
+        import redis.asyncio as aioredis
+
+        r = aioredis.from_url(settings.redis_url, socket_connect_timeout=1)
+        try:
+            await r.set(_denylist_key(user_id), "1", ex=ttl)
+        finally:
+            await r.aclose()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+async def denylist_clear(user_id: uuid.UUID) -> None:
+    try:
+        import redis.asyncio as aioredis
+
+        r = aioredis.from_url(get_settings().redis_url, socket_connect_timeout=1)
+        try:
+            await r.delete(_denylist_key(user_id))
+        finally:
+            await r.aclose()
+    except Exception:  # noqa: BLE001
+        pass
+
+
 async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -92,6 +142,8 @@ async def get_current_user(
         user_id = uuid.UUID(user_id_str)
     except ValueError:
         raise HTTPException(status_code=401, detail="Invalid token payload")
+    if await _is_denylisted(user_id):
+        raise HTTPException(status_code=401, detail="Session revoked")
     user = await db.get(User, user_id)
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or inactive")

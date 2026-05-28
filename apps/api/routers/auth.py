@@ -139,6 +139,9 @@ async def login_verify(data: LoginVerifyRequest, db: _DB) -> TokenResponse:
         await auth_service.verify_login_otp(db, user, data.code)
     except auth_service.InvalidLoginCodeError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    # Stamp last_login_at for the /control customer ops view.
+    from datetime import datetime, timezone
+    user.last_login_at = datetime.now(timezone.utc)
     await db.commit()
     return TokenResponse(access_token=create_access_token(user.id))
 

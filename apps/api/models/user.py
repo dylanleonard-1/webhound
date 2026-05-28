@@ -75,6 +75,14 @@ class User(Base, UpdatedAtMixin):
         sa.DateTime(timezone=True),
     )
 
+    # Operational metadata for the /control SOC:
+    #   * `last_login_at` is stamped by the auth flow on successful login.
+    #   * `banned_at` + `banned_reason` are set when staff suspend the account
+    #     (is_active is also flipped to False so the very next request 401s).
+    last_login_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    banned_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    banned_reason: Mapped[str | None] = mapped_column(sa.Text)
+
     websites: Mapped[list["Website"]] = relationship(
         "Website", back_populates="user", cascade="all, delete-orphan"
     )

@@ -119,16 +119,57 @@ Center surfaces the recent feed. **All future privileged mutations must call it.
 > from alerts). Phase 1's `notifications` model already exists; wire it next
 > when paging staff via email/Slack becomes a requirement.
 
-## Roadmap — feature areas 5–18 (phased)
+## Phase 4 — Customer + Billing Ops — DELIVERED
+
+- **Schema (migration 0019)**: `users.last_login_at` (stamped on password and
+  OAuth login), `users.banned_at` + `users.banned_reason` (suspend metadata),
+  new `internal_notes` table (free-form staff notes keyed by `(target_type,
+  target_id)`).
+- **JWT force-logout** (`apps/api/security.py`): Redis denylist keyed
+  `auth:denylist:{user_id}` with TTL = JWT expiry. `get_current_user` consults
+  it on every request, so suspending or force-logging-out a user invalidates
+  every outstanding token immediately. Best-effort: if Redis is unreachable
+  the check falls open and the durable `is_active=False` flag still blocks
+  the suspended user on the next DB read.
+- **Customer Ops service** (`services/customers.py`): paginated search
+  (email/name/company + plan + status: active/suspended/staff), detail
+  aggregator (websites/scans/last-scan/failed-30d/subscription history),
+  suspend/reactivate/force-logout, plan override (manual, not synced to
+  Stripe), internal-note CRUD.
+- **Customer Ops API** (`/internal/customers*`, all audited):
+  - `GET /internal/customers` (READ_ONLY+) — search + filter
+  - `GET /internal/customers/{id}` — detail
+  - `POST /internal/customers/{id}/{suspend,reactivate,force-logout,plan}` (ADMIN)
+  - `GET /internal/customers/{id}/notes` (READ_ONLY+) — list
+  - `POST /internal/customers/{id}/notes` (SUPPORT+) — add
+  - `DELETE /internal/notes/{id}` (ADMIN) — never lose timeline by accident
+- **Billing Ops API** (`/internal/billing*`, BILLING+ role):
+  - `GET /internal/billing/metrics` — **true MRR/ARR from Stripe** (pages
+    through `Subscription.list(status=active|trialing)`, nets recurring item
+    amounts × interval, applies the subscription's coupon `percent_off`/
+    `amount_off`), past-due count, failed-payment count from `Event.list
+    type=invoice.payment_failed` last 24h, plus local sanity counts.
+    Replaces Phase 1's list-price approximation.
+  - `GET /internal/billing/subscriptions` — local mirror joined to user email
+  - `GET /internal/billing/events` — recent Stripe events (webhook delivery
+    health proxy). Every Stripe call runs in a thread and degrades its own
+    tile on failure.
+- **`/control` UI**: new Customers + Billing nav tabs; `/control/customers`
+  with search, plan/status filters, detail drawer (aggregate cards, subs
+  list, role-gated suspend/reactivate/force-logout/plan-override + notes
+  timeline with inline composer); `/control/billing` with MRR/ARR/past-due/
+  failed-pay tiles, filterable subscriptions table, recent-events log with
+  LIVE/TEST mode badges.
+- **Tests** (`tests/test_customers.py`, 9 tests passing): service search
+  filters by status + plan, suspend/reactivate clears all metadata, detail
+  aggregator handles empty + missing, note CRUD ordering; API list/detail/
+  suspend/cannot-suspend-self/RBAC matrix (READ_ONLY blocked from mutations,
+  SUPPORT can add notes but not delete, ADMIN can delete + change plan).
+
+## Roadmap — feature areas 6–18 (phased)
 
 Each phase adds models + `/internal/*` routes + a `/control` page, reusing the
 RBAC + audit foundation.
-
-**Phase 4 — Customer + Billing Ops** (areas 5, 9)
-- APIs: customer search; ban/suspend/force-logout (JWT denylist in Redis); reset
-  MFA; billing/scan/login/support history; internal notes (`internal_notes`).
-- Billing ops: true MRR/ARR/churn/refunds/trial-conversion from Stripe + local;
-  webhook delivery monitoring.
 
 **Phase 5 — Fraud & Abuse** (area 6)
 - Tables: `abuse_flags`, `ip_device_fingerprints`. Abuse scoring (excessive scans,

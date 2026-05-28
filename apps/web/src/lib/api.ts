@@ -639,6 +639,38 @@ export const api = {
       request<{ ok: boolean; assignee: string | null }>('POST', `/internal/alerts/${id}/assign`, { assignee_id }),
     commentAlert: (id: string, body: string) =>
       request<{ ok: boolean }>('POST', `/internal/alerts/${id}/comment`, { body }),
+    customers: (params: { q?: string; plan?: string; status?: string; limit?: number; offset?: number } = {}) => {
+      const qs = new URLSearchParams()
+      if (params.q) qs.set('q', params.q)
+      if (params.plan) qs.set('plan', params.plan)
+      if (params.status) qs.set('status', params.status)
+      qs.set('limit', String(params.limit ?? 50))
+      qs.set('offset', String(params.offset ?? 0))
+      return request<CustomerListResponse>('GET', `/internal/customers?${qs.toString()}`)
+    },
+    customerDetail: (id: string) => request<CustomerDetail>('GET', `/internal/customers/${id}`),
+    suspendCustomer: (id: string, reason: string | null) =>
+      request<{ ok: boolean; status: string }>('POST', `/internal/customers/${id}/suspend`, { reason }),
+    reactivateCustomer: (id: string) =>
+      request<{ ok: boolean; status: string }>('POST', `/internal/customers/${id}/reactivate`),
+    forceLogoutCustomer: (id: string) =>
+      request<{ ok: boolean }>('POST', `/internal/customers/${id}/force-logout`),
+    changeCustomerPlan: (id: string, plan: 'free' | 'pro' | 'shield' | 'enterprise') =>
+      request<{ ok: boolean; plan: string }>('POST', `/internal/customers/${id}/plan`, { plan }),
+    customerNotes: (id: string) =>
+      request<{ items: CustomerNote[] }>('GET', `/internal/customers/${id}/notes`),
+    addCustomerNote: (id: string, body: string) =>
+      request<{ ok: boolean; id: string }>('POST', `/internal/customers/${id}/notes`, { body }),
+    deleteNote: (note_id: string) => request<{ ok: boolean }>('DELETE', `/internal/notes/${note_id}`),
+    billingMetrics: () => request<BillingMetrics>('GET', '/internal/billing/metrics'),
+    billingSubscriptions: (status?: string) => {
+      const qs = new URLSearchParams()
+      if (status) qs.set('status', status)
+      qs.set('limit', '100')
+      return request<{ items: SubscriptionRow[] }>('GET', `/internal/billing/subscriptions?${qs.toString()}`)
+    },
+    billingEvents: (limit = 50) =>
+      request<{ items: StripeEventRow[]; error?: string }>('GET', `/internal/billing/events?limit=${limit}`),
   },
 }
 
@@ -792,6 +824,93 @@ export interface AlertComment {
 export interface AlertDetail extends AlertRow {
   detail: Record<string, unknown>
   comments: AlertComment[]
+}
+
+// Customers (mirror apps/api/internal/customers.py)
+export interface CustomerRow {
+  id: string
+  email: string
+  full_name: string | null
+  company_name: string | null
+  plan: string
+  is_active: boolean
+  admin_role: string
+  created_at: string | null
+  last_login_at: string | null
+  banned_at: string | null
+}
+
+export interface CustomerListResponse {
+  items: CustomerRow[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface CustomerSubscription {
+  id: string
+  stripe_subscription_id: string
+  plan: string
+  status: string
+  current_period_end: string | null
+  cancel_at_period_end: boolean
+  canceled_at: string | null
+}
+
+export interface CustomerDetail extends CustomerRow {
+  is_admin: boolean
+  email_verified: boolean
+  oauth_provider: string | null
+  stripe_customer_id: string | null
+  banned_reason: string | null
+  websites: number
+  scans: number
+  last_scan_at: string | null
+  failed_30d: number
+  subscriptions: CustomerSubscription[]
+}
+
+export interface CustomerNote {
+  id: string
+  author: string | null
+  body: string
+  at: string | null
+}
+
+// Billing Ops (mirror apps/api/internal/billing_ops.py)
+export interface BillingMetrics {
+  generated_at: string
+  stripe: {
+    mrr_usd: number
+    arr_usd: number
+    active_subscriptions: number
+    past_due: number
+    failed_payments_24h: number
+  } | { error: string }
+  local: {
+    active_subscriptions_local: number
+    canceled_last_30d: number
+  }
+}
+
+export interface SubscriptionRow {
+  id: string
+  email: string
+  stripe_subscription_id: string
+  stripe_customer_id: string
+  plan: string
+  status: string
+  current_period_end: string | null
+  cancel_at_period_end: boolean
+  canceled_at: string | null
+}
+
+export interface StripeEventRow {
+  id: string
+  type: string
+  livemode: boolean
+  created: number
+  request_id: string | null
 }
 
 // ---------------------------------------------------------------------------

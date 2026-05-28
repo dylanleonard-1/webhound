@@ -121,9 +121,13 @@ app.include_router(billing.router)
 from apps.api.internal.router import router as internal_router  # noqa: E402
 from apps.api.internal.scan_ops import router as internal_scan_ops_router  # noqa: E402
 from apps.api.internal.alerts import router as internal_alerts_router  # noqa: E402
+from apps.api.internal.customers import router as internal_customers_router  # noqa: E402
+from apps.api.internal.billing_ops import router as internal_billing_router  # noqa: E402
 app.include_router(internal_router)
 app.include_router(internal_scan_ops_router)
 app.include_router(internal_alerts_router)
+app.include_router(internal_customers_router)
+app.include_router(internal_billing_router)
 
 
 @app.on_event("startup")

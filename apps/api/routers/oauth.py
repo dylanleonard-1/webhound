@@ -79,6 +79,8 @@ async def google_callback(code: str, db: _DB) -> RedirectResponse:
         avatar_url=u.get("picture"),
     )
     user = await find_or_create_oauth_user(db, info)
+    from datetime import datetime, timezone
+    user.last_login_at = datetime.now(timezone.utc)
     await db.commit()
     jwt_token = create_access_token(user.id)
     return RedirectResponse(f"{settings.frontend_url}/auth/callback?token={jwt_token}")
@@ -144,6 +146,8 @@ async def github_callback(code: str, db: _DB) -> RedirectResponse:
         avatar_url=u.get("avatar_url"),
     )
     user = await find_or_create_oauth_user(db, info)
+    from datetime import datetime, timezone
+    user.last_login_at = datetime.now(timezone.utc)
     await db.commit()
     jwt_token = create_access_token(user.id)
     return RedirectResponse(f"{settings.frontend_url}/auth/callback?token={jwt_token}")

@@ -36,6 +36,7 @@ celery = Celery(
         "worker.alert_tasks",
         "worker.fraud_tasks",
         "worker.infra_tasks",
+        "worker.threat_intel_tasks",
     ],
 )
 
@@ -70,6 +71,11 @@ celery.conf.update(
         "sample-infra": {
             "task": "worker.infra_tasks.sample_infra",
             "schedule": crontab(minute="*/5"),     # Infra trend sample, every 5 min
+        },
+        "import-threat-feeds": {
+            "task": "worker.threat_intel_tasks.import_threat_feeds",
+            # Sunday 03:15 UTC. Opt-in via WEBHOUND_THREAT_FEEDS_ENABLED=1.
+            "schedule": crontab(day_of_week="sun", hour=3, minute=15),
         },
     },
 )

@@ -415,7 +415,9 @@ async def test_engine_timeout_isolation():
     target = Target.from_url("https://example.com")
     ctx = ScanContext(target)
 
-    with patch("webhound.core.orchestrator._ENGINE_TIMEOUT_SECONDS", 0.05):
+    # The orchestrator now supports per-engine env overrides; this test
+    # exercises the default-timeout path, which we pin to a tiny value.
+    with patch("webhound.core.orchestrator._DEFAULT_ENGINE_TIMEOUT_SECONDS", 0.05):
         findings = await _safe(ctx, "slow_engine", forever_engine)
 
     assert findings == []

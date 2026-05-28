@@ -127,3 +127,23 @@ async def import_feed(body: _ImportBody, admin: _Admin, db: _DB,
                         detail=counts, **_audit_ctx(request))
     await db.commit()
     return {"ok": True, **counts}
+
+
+@router.post("/refresh")
+async def refresh_public_feeds(admin: _Admin, db: _DB, request: Request) -> dict:
+    """On-demand trigger for the auto-importer beat task. Runs the same logic
+    as the Sunday cron — useful right after enabling WEBHOUND_THREAT_FEEDS_ENABLED
+    or to refresh on demand. Returns per-feed import counts."""
+    from worker.threat_intel_tasks import _run as _import_run, _enabled
+    if not _enabled():
+        raise HTTPException(
+            status_code=409,
+            detail="Threat-intel auto-import is disabled. Set WEBHOUND_THREAT_FEEDS_ENABLED=1 on the worker service.",
+        )
+    result = await _import_run()
+    await record_action(db, actor=admin, action="threat_intel.refresh",
+                        target_type="threat_intel_feed",
+                        detail={"feeds": [f.get("source") for f in result.get("feeds", [])]},
+                        **_audit_ctx(request))
+    await db.commit()
+    return result

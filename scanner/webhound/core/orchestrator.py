@@ -70,7 +70,31 @@ from webhound.threat_intel.virustotal_client import VirusTotalClient
 
 
 # Per-engine wall-clock timeout; cancels a hung engine coroutine.
-_ENGINE_TIMEOUT_SECONDS: float = 60.0
+#
+# The global default can be raised via WEBHOUND_DEFAULT_ENGINE_TIMEOUT. A
+# per-engine override takes precedence via
+# WEBHOUND_ENGINE_TIMEOUT_<UPPER_ENGINE_NAME>. Example to give the
+# sensitive_paths engine 180 seconds:
+#     WEBHOUND_ENGINE_TIMEOUT_SENSITIVE_PATHS=180
+# The override is resolved per-call inside _safe(), so env-var changes take
+# effect without restarting the worker.
+_DEFAULT_ENGINE_TIMEOUT_SECONDS: float = float(
+    os.getenv("WEBHOUND_DEFAULT_ENGINE_TIMEOUT", "60") or "60"
+)
+
+
+def _engine_timeout_for(name: str) -> float:
+    """Resolve the wall-clock timeout for one engine. Per-engine env var wins."""
+    if name:
+        raw = os.getenv(f"WEBHOUND_ENGINE_TIMEOUT_{name.upper()}")
+        if raw:
+            try:
+                v = float(raw)
+                if v > 0:
+                    return v
+            except ValueError:
+                pass
+    return _DEFAULT_ENGINE_TIMEOUT_SECONDS
 
 
 def _build_enrichment_service() -> EnrichmentService | None:
@@ -112,10 +136,11 @@ async def _safe(
     """
     started_at = datetime.now(timezone.utc)
     t0 = time.perf_counter()
+    timeout_s = _engine_timeout_for(engine_name)
     try:
         result = fn(*args, **kwargs)
         if asyncio.iscoroutine(result):
-            result = await asyncio.wait_for(result, timeout=_ENGINE_TIMEOUT_SECONDS)
+            result = await asyncio.wait_for(result, timeout=timeout_s)
         findings: list[Finding] = result or []
         duration_ms = (time.perf_counter() - t0) * 1000
         if engine_name not in ctx.scan_result.engines_run:
@@ -126,7 +151,7 @@ async def _safe(
         return findings
     except asyncio.TimeoutError:
         duration_ms = (time.perf_counter() - t0) * 1000
-        err = f"engine timeout after {_ENGINE_TIMEOUT_SECONDS:.0f}s"
+        err = f"engine timeout after {timeout_s:.0f}s"
         ctx.record_error(engine_name, err)
         ctx.tracker.record_error(
             engine_name, err, duration_ms, started_at, datetime.now(timezone.utc)

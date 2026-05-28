@@ -183,6 +183,27 @@ class Finding(BaseModel):
         return self.severity
 
     @property
+    def quality_label(self) -> str:
+        """Qualitative label the dashboard renders next to each finding,
+        derived from severity + confidence + tags. Used to demote weak
+        heuristics out of Fix-First and to make "this is just FYI" explicit
+        in exports / compliance reports.
+
+        Possible values: `confirmed`, `likely`, `heuristic`, `advisory`,
+        `informational`.
+        """
+        tags = {t.lower() for t in (self.tags or [])}
+        if self.severity == Severity.INFO:
+            return "advisory" if "advisory" in tags else "informational"
+        if "heuristic" in tags or "weak_signal" in tags or self.confidence < 0.55:
+            return "heuristic"
+        if "confirmed" in tags or self.confidence >= 0.9:
+            return "confirmed"
+        if "likely" in tags or self.confidence >= 0.7:
+            return "likely"
+        return "heuristic"
+
+    @property
     def evidence_count(self) -> int:
         return len(self.evidence)
 

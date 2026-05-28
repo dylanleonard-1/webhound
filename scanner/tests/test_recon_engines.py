@@ -187,15 +187,26 @@ class TestSensitivePathsEngine:
         assert findings == []
 
     @pytest.mark.anyio
-    async def test_403_on_env_reported_as_low(self):
+    async def test_403_on_env_reported_as_info_heuristic(self):
+        """Phase-1 accuracy fix: 403-only is now a weak status-only signal.
+        The engine surfaces it for analyst awareness (when the baseline
+        calibration probes don't show a catch-all 403) but at INFO + low
+        confidence + 'heuristic' tag — not LOW. Tests `/.env` HIGH+ severity
+        path passes the severity gate but lands in the heuristic bucket."""
         transport = _route_transport({
             "/.env": (403, "Forbidden", None),
         })
         target = _target()
         async with SafeHttpClient(transport=transport) as client:
             findings = await SensitivePathsEngine().probe(target, client)
-        assert any(f for f in findings)
-        assert any(f.severity == Severity.LOW for f in findings)
+        assert findings, "expected one heuristic 403-only finding for /.env"
+        env_findings = [f for f in findings if "/.env" in (f.metadata.get("url") or "")]
+        assert env_findings, "expected a finding scoped to /.env"
+        f = env_findings[0]
+        assert f.severity == Severity.INFO
+        assert f.confidence < 0.5
+        assert "heuristic" in (f.tags or [])
+        assert f.quality_label in ("informational", "advisory")
 
     @pytest.mark.anyio
     async def test_scope_enforcement_single_page(self):

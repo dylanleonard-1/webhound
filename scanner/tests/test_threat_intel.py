@@ -94,14 +94,34 @@ class TestDomainClassifierCommonBenign:
 # ---------------------------------------------------------------------------
 
 class TestDomainClassifierRiskyTld:
-    def test_tk_tld_is_risky(self, clf):
-        r = clf.classify("example.tk")
-        assert r.classification in (DomainClass.RISKY, DomainClass.MALICIOUS_INDICATOR)
-        assert r.score >= 4.0
+    """Phase-1 scanner-quality fix: the risky-TLD signal alone is no longer
+    enough to push a domain into RISKY tier — it's a weak signal that
+    flagged legitimate platform domains (vercel.link / *.dev / *.app).
+    Single-signal risky-TLD now lands in SUSPICIOUS; RISKY requires a
+    second corroborating signal."""
 
-    def test_xyz_tld_is_risky(self, clf):
+    def test_tk_tld_is_detected_but_only_suspicious_on_its_own(self, clf):
+        """A bare risky-TLD domain still gets flagged + still emits the
+        signal, but no longer crosses the RISKY threshold by itself."""
+        r = clf.classify("example.tk")
+        # Detected (not benign) and the signal fires.
+        assert r.classification != DomainClass.COMMON_BENIGN
+        assert any("tld" in s.lower() or ".tk" in s for s in r.signals)
+        # But not RISKY-or-worse without a second signal.
+        assert r.classification in (DomainClass.SUSPICIOUS, DomainClass.UNKNOWN)
+
+    def test_xyz_tld_alone_is_suspicious_not_risky(self, clf):
         r = clf.classify("randomdomain.xyz")
-        assert r.classification in (DomainClass.RISKY, DomainClass.MALICIOUS_INDICATOR)
+        assert r.classification not in (DomainClass.RISKY,
+                                         DomainClass.MALICIOUS_INDICATOR)
+
+    def test_risky_tld_plus_second_signal_does_reach_risky(self, clf):
+        """The two-signal case still escalates correctly — we lowered the
+        weight, we didn't disable the detector."""
+        # risky_tld + suspicious_keyword = 2.5 + 2.0 = 4.5 → RISKY
+        r = clf.classify("secure-login-update.xyz")
+        assert r.classification in (DomainClass.RISKY,
+                                     DomainClass.MALICIOUS_INDICATOR)
 
     def test_risky_tld_signal_present(self, clf):
         r = clf.classify("test.ml")
@@ -287,7 +307,10 @@ class TestEnrichmentServiceLocal:
     def test_score_domain_returns_float(self, service):
         score = service.score_domain("example.tk")
         assert isinstance(score, float)
-        assert score >= 4.0  # risky TLD
+        # risky_tld signal still fires (weight 2.5 after the Phase-1 accuracy
+        # downgrade); previously asserted >= 4.0 which presumed the weight
+        # was high enough to single-handedly hit the RISKY threshold.
+        assert score >= 2.5
 
     def test_explain_classification_contains_key_fields(self, service):
         result = service.classify_domain("paypal-secure.info")
@@ -417,7 +440,14 @@ class TestNoNetworkCalls:
         monkeypatch.setattr(socket, "create_connection", _raise)
         svc = EnrichmentService()
         result = svc.classify_domain("evil.tk")
-        assert result.classification in (DomainClass.RISKY, DomainClass.MALICIOUS_INDICATOR)
+        # Test intent is "classification works offline" — actual tier
+        # depends on signal weights, which Phase-1 accuracy work lowered for
+        # risky_tld alone (now SUSPICIOUS rather than RISKY without a
+        # corroborating signal). Either way the offline path runs.
+        assert result.classification in (
+            DomainClass.SUSPICIOUS, DomainClass.RISKY,
+            DomainClass.MALICIOUS_INDICATOR,
+        )
 
     def test_classify_url_makes_no_network_calls(self, monkeypatch):
         clf = DomainClassifier()

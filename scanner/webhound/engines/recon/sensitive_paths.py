@@ -286,10 +286,36 @@ def _is_binary_response(response: HttpResponse) -> bool:
 
 
 def _body_confirms_exposure(body: str, spec: _PathDef) -> bool:
-    if not spec.indicators or spec.severity == Severity.CRITICAL:
+    """True iff the body genuinely confirms the file is exposed.
+
+    Previously this returned True for *any* path with empty indicators or
+    CRITICAL severity, which was the source of the SPA-shell false
+    positives (every catch-all 200 on /admin / /login / /staging fired a
+    finding). New rules:
+
+    - With indicators: at least one must match (existing behaviour).
+    - No indicators + CRITICAL: confirm only if the body is non-empty
+      *and* contains the file label OR the trailing path token. Without
+      either, the response is indistinguishable from a generic page →
+      let the caller fall back to the heuristic / catch-all check.
+    - No indicators + non-CRITICAL: don't confirm here at all — the
+      heuristic `_is_substantive_200` path handles those.
+    """
+    if spec.indicators:
+        body_str = body[:4096]
+        return any(ind.upper() in body_str.upper() or ind in body_str
+                   for ind in spec.indicators)
+    if spec.severity != Severity.CRITICAL:
+        return False
+    if not body:
+        # Tracked separately by the binary-response branch — short-circuit here.
+        return False
+    body_lower = body[:4096].lower()
+    label_words = [w for w in spec.label.lower().split() if len(w) >= 4]
+    if label_words and any(w in body_lower for w in label_words):
         return True
-    body_str = body[:4096]
-    return any(ind.upper() in body_str.upper() or ind in body_str for ind in spec.indicators)
+    path_token = spec.path.strip("/").split("/")[-1].lower()
+    return bool(path_token) and path_token in body_lower
 
 
 def _confidence(body: str, spec: _PathDef) -> float:
@@ -359,6 +385,50 @@ def _category(spec: _PathDef) -> str:
     return "debug"
 
 
+@dataclass(frozen=True)
+class _Baseline:
+    """Calibration snapshot: how does this server respond to *missing* paths?
+
+    `suppresses_403`: 2+ random nonexistent paths returned 401/403 → the
+    server's default for unknown paths is auth-deny. A 403 on `/.env` then
+    isn't proof the file exists, just proof the server says no to everything.
+
+    `catch_all_length`: 2+ random nonexistent paths returned 200 with a
+    similar body size → an SPA shell / "Page not found" catch-all. A 200
+    matching that length isn't proof of a real file.
+    """
+
+    suppresses_403: bool = False
+    catch_all_length: int | None = None
+
+
+def _is_substantive_200(
+    body: str, baseline: _Baseline, spec: "_PathDef",
+) -> bool:
+    """True if a 200 body looks like a *real* response rather than the
+    server's SPA shell catch-all. Used when no indicator matched but we still
+    want to consider reporting if the response is clearly its own thing."""
+    if not body:
+        return False
+    body_len = len(body)
+    if body_len < SensitivePathsEngine._MIN_SUBSTANTIVE_BODY:
+        return False
+    if baseline.catch_all_length is not None:
+        # Body looks too much like the catch-all — suppress.
+        margin = max(80, baseline.catch_all_length * 0.10)
+        if abs(body_len - baseline.catch_all_length) <= margin:
+            return False
+    # Look for the file-label keyword in the body — weak corroboration that
+    # this *is* the file we asked for, not a routing fallback.
+    label_words = [w for w in spec.label.lower().split() if len(w) >= 4]
+    if label_words and any(w in body.lower() for w in label_words):
+        return True
+    # Otherwise: require the path component itself (e.g. "wp-admin") to show
+    # up in the body. Catch-all SPA shells don't mention specific paths.
+    path_token = spec.path.strip("/").split("/")[-1]
+    return bool(path_token) and path_token.lower() in body.lower()
+
+
 class SensitivePathsEngine:
     """Active probing for commonly exposed sensitive paths.
 
@@ -371,10 +441,20 @@ class SensitivePathsEngine:
     - Response body indicators (KEY=VALUE in .env, [core] in .git/config, etc.)
     - Content-Type for binary archives (confirmed by content-type alone)
 
+    **Baseline calibration**: before probing the real list we hit a few
+    random nonexistent paths. If the server's "missing path" response is a
+    403 or some generic 200 (catch-all CDN page, SPA shell), we use that
+    fingerprint to suppress false positives — a real .env exposure should
+    not look like the CDN's default 403 for everything else.
+
     Call ``await probe(target, client)`` to receive a list of findings.
     """
 
     NAME = _ENGINE
+
+    # 200 responses shorter than this without an indicator hit are likely
+    # SPA shells / catch-all pages, not actual exposed files.
+    _MIN_SUBSTANTIVE_BODY = 80
 
     async def probe(
         self,
@@ -383,6 +463,7 @@ class SensitivePathsEngine:
         scope: ScopeChecker | None = None,
     ) -> list[Finding]:
         _scope = scope if scope is not None else ScopeChecker(target)
+        baseline = await self._calibrate_baseline(target, client, _scope)
         findings: list[Finding] = []
 
         for spec in _PATHS:
@@ -397,7 +478,8 @@ class SensitivePathsEngine:
                 continue
 
             if head.status_code == 200:
-                # Binary files: skip GET, report on status + content-type alone.
+                # Binary files: status + content-type confirm exposure on
+                # their own (the file is the file).
                 if _is_binary_response(head) and not spec.indicators:
                     findings.append(self._make_finding(spec, url, head, body="", request_method="HEAD"))
                     continue
@@ -408,11 +490,74 @@ class SensitivePathsEngine:
 
                 if _body_confirms_exposure(get.body, spec):
                     findings.append(self._make_finding(spec, url, get, body=get.body))
+                elif _is_substantive_200(get.body, baseline, spec):
+                    # No indicator hit but a real-looking response. Report at
+                    # reduced confidence so the UI labels it heuristic.
+                    f = self._make_finding(spec, url, get, body=get.body)
+                    f.confidence = min(f.confidence, 0.55)
+                    f.tags = (f.tags or []) + ["heuristic", "needs_review"]
+                    findings.append(f)
+                # else: short / catch-all body → silently skip.
 
-            elif head.status_code in (401, 403) and spec.severity >= Severity.HIGH:
-                findings.append(self._make_access_controlled_finding(spec, url, head))
+            elif head.status_code in (401, 403):
+                # The baseline says whether 403 means anything. If the server
+                # returns 403 for *every* missing path, a 403 on /.env is
+                # just default behavior — suppress entirely.
+                if baseline.suppresses_403:
+                    continue
+                # Restrict 403-only findings to paths whose existence behind
+                # auth is itself a meaningful signal (HIGH+ severity files).
+                # Even then, demote to INFO + low confidence + heuristic tag
+                # so the UI doesn't treat 403-alone as a real exposure.
+                if spec.severity >= Severity.HIGH:
+                    findings.append(self._make_access_controlled_finding(spec, url, head))
 
         return findings
+
+    async def _calibrate_baseline(
+        self,
+        target: Target,
+        client: SafeHttpClient,
+        scope: ScopeChecker,
+    ) -> _Baseline:
+        """Probe a few random nonexistent paths to figure out what the server
+        does for "missing." Cheap (3 HEADs + maybe 2 GETs), runs once per
+        target."""
+        probes = [
+            "/__wh_probe_a_4f3d1c.html",
+            "/__wh_probe_b_8e21bb.html",
+            "/__wh_probe_c_a907de.html",
+        ]
+        status_codes: list[int] = []
+        body_lengths: list[int] = []
+        for p in probes:
+            url = f"{target.base_url}{p}"
+            if not scope.is_in_scope(url):
+                continue
+            try:
+                head = await client.head(url)
+                if head.failed:
+                    continue
+                status_codes.append(head.status_code)
+                if head.status_code == 200:
+                    get = await client.get(url)
+                    if not get.failed and get.status_code == 200:
+                        body_lengths.append(len(get.body or ""))
+            except Exception:  # noqa: BLE001 — baseline is best-effort
+                continue
+
+        suppresses_403 = sum(1 for s in status_codes if s in (401, 403)) >= 2
+        catch_all_length: int | None = None
+        if len(body_lengths) >= 2:
+            avg = sum(body_lengths) / len(body_lengths)
+            # ±10% of the mean (or ±40 bytes for tiny pages) → still the
+            # same catch-all shell.
+            if all(abs(b - avg) <= max(40, avg * 0.10) for b in body_lengths):
+                catch_all_length = int(avg)
+        return _Baseline(
+            suppresses_403=suppresses_403,
+            catch_all_length=catch_all_length,
+        )
 
     def _make_finding(
         self,
@@ -455,31 +600,44 @@ class SensitivePathsEngine:
         url: str,
         response: HttpResponse,
     ) -> Finding:
+        """Emit a 403/401-only signal as INFO + heuristic. Not "proof the
+        file exists" — many servers return 403 for everything they don't
+        recognise, which the calibration step suppresses entirely. When the
+        baseline lets it through, it's still a *weak* signal worth surfacing
+        for analyst awareness but not for the Fix-First queue."""
         return Finding(
-            title=f"Access-controlled {spec.label} path exists",
+            title=f"Path '{spec.path}' returned HTTP {response.status_code} (heuristic)",
             description=(
-                f"The path '{spec.path}' returned HTTP {response.status_code}, indicating "
-                f"the {spec.label.lower()} exists but is protected by access controls. "
-                "While direct access is restricted, its existence confirms the presence "
-                "of a sensitive resource and remains a target for authentication bypass."
+                f"The path `{spec.path}` responded with HTTP {response.status_code}. "
+                "This is a **weak** signal: many web servers and CDNs return 403/401 "
+                "for any path they don't recognise, including paths that don't exist. "
+                "Treat this as evidence to investigate manually, not as proof that the "
+                f"{spec.label.lower()} is actually present on the server."
             ),
-            severity=Severity.LOW,
+            severity=Severity.INFO,
             category=FindingCategory.RECON,
             evidence=[Evidence(
                 evidence_type=EvidenceType.HTTP_RESPONSE,
-                content=f"HTTP {response.status_code} {url}",
+                content=f"HTTP {response.status_code} {url} (HEAD; no body fetched)",
                 location=url,
                 source_engine=_ENGINE,
                 request_method="HEAD",
                 status_code=response.status_code,
-                extra={"path": spec.path},
+                extra={"path": spec.path,
+                       "interpretation": "status-only; not content-confirmed"},
             )],
-            confidence=0.85,
+            confidence=0.35,
             remediation=(
-                f"Consider removing '{spec.path}' entirely rather than relying on access "
-                "controls alone. A file that should not exist should not exist — not be hidden."
+                f"Confirm whether `{spec.path}` actually exists before treating this "
+                "as a finding. A `403`/`401` returned from many missing paths is "
+                "common reverse-proxy behaviour; require a second corroborating "
+                "signal (200 with content match, differential timing, distinct "
+                "body) before remediating."
             ),
-            framework=_build_fa("info_disclosure", Severity.LOW),
+            framework=_build_fa("info_disclosure", Severity.INFO),
+            tags=["heuristic", "needs_review", "status_only"],
             scanner_engine=_ENGINE,
-            metadata={"url": url, "path": spec.path, "status_code": response.status_code},
+            metadata={"url": url, "path": spec.path,
+                      "status_code": response.status_code,
+                      "interpretation": "status-only heuristic"},
         )

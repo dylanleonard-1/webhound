@@ -69,6 +69,33 @@ _PACKER_PATTERN = re.compile(
 # Three or more eval() calls in one script is strongly suspicious.
 _EVAL_CALL = re.compile(r"\beval\s*\(")
 
+# Dynamic code construction via the Function() constructor — same blast
+# radius as eval but skips simple eval()-keyword scans.
+_FUNCTION_CTOR = re.compile(r"\bnew\s+Function\s*\(|\bFunction\s*\(\s*['\"]")
+
+# Decoder loops + base64 helpers. atob() on its own is normal; combined
+# with a base64 blob it's the standard "decode-and-execute" pattern.
+_DECODER_PATTERN = re.compile(
+    r"\batob\s*\(|"
+    r"\bString\.fromCharCode\s*\(|"
+    r"\bdecodeURIComponent\s*\(\s*['\"]%[0-9a-fA-F]"
+)
+
+# Network-call patterns the encoded payload would use to exfiltrate / fetch
+# a second stage.
+_NET_CALL = re.compile(
+    r"\b(?:fetch|XMLHttpRequest|navigator\.sendBeacon)\s*\(|"
+    r"new\s+WebSocket\s*\("
+)
+
+# Credential / secret-shaped tokens. Catching these inline next to a blob
+# is the difference between "minified framework" and "exfiltration code".
+_SECRET_PATTERN = re.compile(
+    r"\b(?:api[_-]?key|access[_-]?token|secret[_-]?key|auth[_-]?token|"
+    r"password|client[_-]?secret|aws_access|stripe_sk_)\b",
+    re.I,
+)
+
 # Threshold: scripts longer than this are eligible for entropy analysis.
 _ENTROPY_MIN_LEN = 500
 _ENTROPY_THRESHOLD = 5.5
@@ -105,32 +132,93 @@ class ObfuscationDetectorEngine:
     def _check_base64_blob(
         self, content: str, url: str, idx: int
     ) -> list[Finding]:
+        """Base64 blobs are a weak standalone signal. We only escalate to
+        MEDIUM if the same script *also* contains something suspicious
+        nearby — eval, Function(), atob/decode loops, hidden network calls,
+        or credential-like patterns. Otherwise the finding is LOW + low
+        confidence and tagged as a heuristic so the dashboard doesn't pull
+        framework bundles + source maps into Fix-First."""
         m = _BASE64_BLOB.search(content)
         if not m:
             return []
         blob_len = len(m.group())
-        ev = _js_ev(f"Base64 blob ({blob_len} chars): {m.group()[:60]}…", url, idx)
-        return [_finding(
-            title="Large base64 chunk inside an inline script",
-            description=(
-                f"An inline script contains a {blob_len}-character base64 blob. "
-                "Legitimate uses exist (inlined images, source maps), but blobs "
-                "this size are also the way attackers hide malicious payloads "
-                "from scanners — the suspect string is encoded so static checks "
-                "can't see what it actually does."
-            ),
-            severity=Severity.MEDIUM,
-            url=url,
-            evidence=ev,
-            confidence=0.6,
+
+        # Look for corroborating malicious-pattern signals in the same script.
+        has_eval = bool(_EVAL_CALL.search(content) or _FUNCTION_CTOR.search(content))
+        has_decoder = bool(_DECODER_PATTERN.search(content))
+        has_net = bool(_NET_CALL.search(content))
+        has_secret = bool(_SECRET_PATTERN.search(content))
+        strong_signals = sum([has_eval, has_decoder, has_net, has_secret])
+
+        # Accuracy policy: base64 is a *weak signal alone* — unless combined
+        # with eval/Function/decoder/network/credential patterns, in which
+        # case it's the actual obfuscation tell. Two+ corroborators → MEDIUM
+        # confirmed. One corroborator → MEDIUM likely. Zero → LOW heuristic.
+        if strong_signals >= 2:
+            severity = Severity.MEDIUM
+            confidence = 0.75
+            tags = ["likely", "corroborated"]
+            title = "Large base64 blob with multiple suspicious patterns"
+            description = (
+                f"An inline script contains a {blob_len}-char base64 blob "
+                "**and** multiple suspicious supporting patterns "
+                f"(eval={has_eval}, decoder={has_decoder}, "
+                f"network={has_net}, secret-like={has_secret}). "
+                "Converging signals are the real obfuscation tell."
+            )
+        elif strong_signals == 1:
+            severity = Severity.MEDIUM
+            confidence = 0.65
+            tags = ["likely", "single_corroboration"]
+            corroborator = next(
+                name for name, hit in
+                (("eval/Function call", has_eval),
+                 ("base64 decoder pattern", has_decoder),
+                 ("inline network call", has_net),
+                 ("credential-like token", has_secret))
+                if hit
+            )
+            title = "Inline script: base64 blob + suspicious pattern"
+            description = (
+                f"An inline script contains a {blob_len}-character base64 "
+                f"blob alongside a {corroborator}. Either signal on its "
+                "own is common in legitimate code, but together they're "
+                "the prep work for decoded-and-executed payloads."
+            )
+        else:
+            # Weak standalone signal — LOW + heuristic so framework bundles
+            # + inlined fonts + source maps don't pollute Fix-First.
+            severity = Severity.LOW
+            confidence = 0.35
+            tags = ["heuristic", "weak_signal"]
+            title = "Inline script contains a large base64 chunk (heuristic)"
+            description = (
+                f"An inline script contains a {blob_len}-character base64 "
+                "blob. On its own this is **not** evidence of obfuscation: "
+                "inlined fonts, images, source maps, and framework bundles "
+                "routinely embed base64. This finding only escalates when "
+                "the same script also contains eval/Function calls, "
+                "decoder loops, network calls, or credential-like strings."
+            )
+
+        ev = _js_ev(f"Base64 blob ({blob_len} chars): {m.group()[:60]}…\n"
+                    f"corroborating signals: eval={has_eval}, "
+                    f"decoder={has_decoder}, network={has_net}, "
+                    f"secret-like={has_secret}",
+                    url, idx)
+        f = _finding(
+            title=title, description=description, severity=severity,
+            url=url, evidence=ev, confidence=confidence,
             remediation=(
-                "Trace where this script came from. If it's your own bundle, "
-                "no action needed — the blob is likely an inlined font / image / "
-                "source map. If you don't recognise it, decode the base64 to see "
-                "what's inside before deciding whether to keep it."
+                "If the script is from your build pipeline, no action needed "
+                "— the blob is likely an inlined font/image/source map. "
+                "Investigate only when the eval/decoder/network/secret "
+                "co-signals fire."
             ),
             kind="base64_blob",
-        )]
+        )
+        f.tags = tags
+        return [f]
 
     # ------------------------------------------------------------------
     # Dense hex-escape sequences

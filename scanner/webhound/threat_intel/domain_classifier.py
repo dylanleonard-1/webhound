@@ -62,8 +62,12 @@ class DomainClassification:
 # Static data
 # ---------------------------------------------------------------------------
 
-# CDN / infrastructure domains: always expected, no security concern.
+# CDN / infrastructure / platform domains: always expected, no security
+# concern. Adding a vendor here means any signal (risky TLD, lookalike, etc.)
+# is overruled by the explicit allowlist — use sparingly + only for vendors
+# with strong identity verification.
 _TRUSTED_DOMAINS: frozenset[str] = frozenset({
+    # CDNs / infra
     "googleapis.com", "gstatic.com", "googletagmanager.com",
     "cloudflare.com", "cloudflare.net",
     "jsdelivr.net", "unpkg.com", "bootstrapcdn.com",
@@ -76,6 +80,27 @@ _TRUSTED_DOMAINS: frozenset[str] = frozenset({
     "vimeocdn.com",
     "ytimg.com",
     "twimg.com",
+    # Platform-as-a-service hosts. These end in TLDs that the heuristic
+    # treats as abuse-prone (.link, .app, .dev) — without explicit
+    # allowlisting they were getting flagged HIGH on TLD-alone, which is the
+    # specific false positive the user surfaced for vercel.link.
+    "vercel.app", "vercel.com", "vercel.link", "now.sh",
+    "netlify.app", "netlify.com",
+    "railway.app",
+    "fly.dev", "fly.io",
+    "render.com",
+    "pages.dev",            # Cloudflare Pages
+    "workers.dev",          # Cloudflare Workers
+    "azurestaticapps.net",
+    "azurewebsites.net",
+    "herokuapp.com",
+    "supabase.co", "supabase.in",
+    "firebaseapp.com", "web.app",
+    "amplifyapp.com",
+    "appspot.com",          # Google App Engine
+    "run.app",              # Google Cloud Run
+    "sentry.io", "sentry-cdn.com",
+    "vercel-insights.com",
 })
 
 # Legitimate third-party services that handle user data — expected but worth noting.
@@ -141,7 +166,13 @@ _SUSPICIOUS_KW_RE = re.compile(
 # ---------------------------------------------------------------------------
 
 _SIGNAL_WEIGHTS: dict[str, float] = {
-    "risky_tld":            4.0,
+    # `risky_tld` alone shouldn't push a domain into RISKY tier — the TLD
+    # heuristic is a weak signal that flagged legitimate platform domains
+    # (vercel.link, *.dev) before the explicit allowlist was added.
+    # Lowered 4.0 → 2.5 so it now needs a second corroborating signal
+    # (suspicious_keyword, brand_lookalike, random_looking, …) to cross
+    # the 4.0 RISKY threshold.
+    "risky_tld":            2.5,
     "brand_lookalike":      4.5,
     "url_shortener":        3.0,
     "punycode":             3.0,

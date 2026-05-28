@@ -139,6 +139,8 @@ async def _evaluate() -> dict:
 
             # 3) Worker liveness + 4) queue depth (Redis).
             await _check_infra(db, now, counts, alert_svc)
+            # 5) Suspicious admin behavior — IP burst + privileged-action burst.
+            await _check_admin_anomalies(db, now, counts, alert_svc)
 
             await db.commit()
     finally:
@@ -195,3 +197,101 @@ async def _check_infra(db, now, counts, alert_svc) -> None:
             await r.aclose()
         except Exception:  # noqa: BLE001
             pass
+
+
+# Suspicious-admin thresholds. Conservative — only fire on signals that a
+# legitimate admin would rarely hit.
+_ADMIN_IP_BURST_HOURS    = 24
+_ADMIN_IP_BURST_MIN      = 3          # distinct login IPs in the window
+_ADMIN_ACTION_BURST_MIN  = 15         # privileged actions in last 15 min
+_ADMIN_ACTION_BURST_MINS = 15
+
+
+async def _check_admin_anomalies(db, now, counts, alert_svc) -> None:
+    """Detect compromised-admin signatures. Two heuristics:
+
+    A) IP burst: a staff account has logged in from >= N distinct IPs in the
+       last 24h (per ip_device_fingerprints). Legitimate roaming is rare;
+       attacker reuse from many proxies is common.
+    B) Action burst: a staff account has performed >= N privileged actions
+       in the last 15 minutes (per admin_audit_logs). Burst-scripted abuse.
+
+    Both upsert per-user alerts via the existing source='admin_anomaly' lane,
+    so they roll up into a single incident through the correlator.
+    """
+    from datetime import timedelta as _td
+
+    from sqlalchemy import func as _func, select as _select
+
+    from apps.api.models.abuse import IPDeviceFingerprint
+    from apps.api.models.admin_audit_log import AdminAuditLog
+    from apps.api.models.user import User
+
+    staff = (await db.scalars(
+        _select(User).where(User.admin_role != "none")
+    )).all()
+    if not staff:
+        return
+
+    ip_window_start = now - _td(hours=_ADMIN_IP_BURST_HOURS)
+    action_window_start = now - _td(minutes=_ADMIN_ACTION_BURST_MINS)
+
+    flagged_now: set[str] = set()
+    for user in staff:
+        distinct_ips = await db.scalar(
+            _select(_func.count(_func.distinct(IPDeviceFingerprint.ip_address))).where(
+                IPDeviceFingerprint.user_id == user.id,
+                IPDeviceFingerprint.last_seen_at >= ip_window_start,
+            )
+        ) or 0
+        actions = await db.scalar(
+            _select(_func.count()).select_from(AdminAuditLog).where(
+                AdminAuditLog.actor_user_id == user.id,
+                AdminAuditLog.created_at >= action_window_start,
+            )
+        ) or 0
+
+        reasons: list[str] = []
+        detail: dict = {"distinct_ips_24h": int(distinct_ips),
+                        "actions_15m": int(actions),
+                        "ip_threshold": _ADMIN_IP_BURST_MIN,
+                        "action_threshold": _ADMIN_ACTION_BURST_MIN}
+        if int(distinct_ips) >= _ADMIN_IP_BURST_MIN:
+            reasons.append("ip_burst")
+        if int(actions) >= _ADMIN_ACTION_BURST_MIN:
+            reasons.append("action_burst")
+
+        if not reasons:
+            # Auto-resolve any prior alert for this user that has cleared.
+            if await alert_svc.auto_resolve(
+                db, f"admin_anomaly:{user.id}",
+                note="Admin activity returned to baseline.",
+            ):
+                counts["resolved"] += 1
+            continue
+
+        flagged_now.add(str(user.id))
+        sev = "critical" if "ip_burst" in reasons and "action_burst" in reasons else "high"
+        title = f"Suspicious admin activity: {user.email}"
+        if "ip_burst" in reasons and "action_burst" in reasons:
+            desc = (f"{user.email} logged in from {distinct_ips} distinct IPs in "
+                    f"the last {_ADMIN_IP_BURST_HOURS}h AND performed "
+                    f"{actions} privileged actions in the last "
+                    f"{_ADMIN_ACTION_BURST_MINS} min.")
+        elif "ip_burst" in reasons:
+            desc = (f"{user.email} logged in from {distinct_ips} distinct IPs "
+                    f"in the last {_ADMIN_IP_BURST_HOURS}h "
+                    f"(threshold {_ADMIN_IP_BURST_MIN}).")
+        else:
+            desc = (f"{user.email} performed {actions} privileged actions in the "
+                    f"last {_ADMIN_ACTION_BURST_MINS} min "
+                    f"(threshold {_ADMIN_ACTION_BURST_MIN}).")
+
+        _, created = await alert_svc.upsert_alert(
+            db, dedup_key=f"admin_anomaly:{user.id}",
+            source="admin_anomaly", severity=sev,
+            title=title, description=desc,
+            target_type="user", target_id=str(user.id),
+            detail={**detail, "reasons": reasons},
+        )
+        counts["opened" if created else "updated"] += 1

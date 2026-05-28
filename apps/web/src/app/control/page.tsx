@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
-  Activity, Users, ScanLine, CircleCheck, Clock, TrendingUp, Siren, ArrowRight,
+  Activity, Users, ScanLine, CircleCheck, Clock, TrendingUp, Siren, ArrowRight, ArrowUp, ArrowDown, Minus,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, Tooltip,
@@ -51,15 +51,37 @@ function HealthPill({ label, status, severity = false }: {
   )
 }
 
-function Stat({ icon: Icon, label, value, sub }: {
+// Delta pill: shows ↑5.2% / ↓12% / · steady with semantic color. `positive`
+// flips the color mapping for "delta of failure rate" (where down = good).
+function Delta({ pct, positiveIsGood = true }: { pct: number | null | undefined; positiveIsGood?: boolean }) {
+  if (pct == null) {
+    return <span className="text-[10px] text-white/30">· new</span>
+  }
+  const Icon = pct > 0 ? ArrowUp : pct < 0 ? ArrowDown : Minus
+  const isGood = pct === 0 ? null : (pct > 0) === positiveIsGood
+  const color = isGood === null ? 'rgba(255,255,255,0.45)'
+    : isGood ? '#8BFF3E' : '#ef4444'
+  const label = pct === 0 ? 'steady'
+    : `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`
+  return (
+    <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold"
+          style={{ color }}>
+      <Icon className="w-2.5 h-2.5" /> {label}
+    </span>
+  )
+}
+
+function Stat({ icon: Icon, label, value, sub, trend }: {
   icon: React.FC<{ className?: string; style?: React.CSSProperties }>
   label: string; value: React.ReactNode; sub?: string
+  trend?: React.ReactNode
 }) {
   return (
     <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
       <div className="flex items-center gap-2 mb-2">
         <Icon className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.4)' }} />
         <span className="text-[11px] font-bold tracking-[0.1em] uppercase" style={{ color: 'rgba(255,255,255,0.4)' }}>{label}</span>
+        {trend && <span className="ml-auto">{trend}</span>}
       </div>
       <div className="text-[26px] font-bold text-white leading-none">{value}</div>
       {sub && <div className="text-[11px] mt-1.5" style={{ color: 'rgba(255,255,255,0.4)' }}>{sub}</div>}
@@ -164,10 +186,16 @@ export default function CommandCenterPage() {
 
       {/* Metric cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat icon={ScanLine} label="Active scans" value={scans ? scans.queued + scans.running : '—'} sub={scans ? `${scans.queued} queued · ${scans.running} running` : ''} />
-        <Stat icon={CircleCheck} label="Completed 24h" value={scans?.completed_24h ?? '—'} sub={scans?.avg_duration_s != null ? `avg ${scans.avg_duration_s}s` : ''} />
-        <Stat icon={Users} label="Customers" value={users?.paid ?? '—'} sub={users ? `${users.total} total · ${users.new_7d} new (7d)` : ''} />
-        <Stat icon={TrendingUp} label="MRR" value={billing ? `$${billing.mrr_usd.toLocaleString()}` : '—'} sub={billing ? `$${billing.arr_usd.toLocaleString()} ARR · ${billing.active_subscriptions} active` : ''} />
+        <Stat icon={ScanLine} label="Active scans" value={scans ? scans.queued + scans.running : '—'}
+              sub={scans ? `${scans.queued} queued · ${scans.running} running` : ''} />
+        <Stat icon={CircleCheck} label="Completed 24h" value={scans?.completed_24h ?? '—'}
+              sub={scans?.avg_duration_s != null ? `avg ${scans.avg_duration_s}s` : ''}
+              trend={scans ? <Delta pct={scans.completed_24h_delta_pct} positiveIsGood /> : undefined} />
+        <Stat icon={Users} label="Customers" value={users?.paid ?? '—'}
+              sub={users ? `${users.total} total · ${users.new_7d} new (7d)` : ''}
+              trend={users ? <Delta pct={users.new_7d_delta_pct} positiveIsGood /> : undefined} />
+        <Stat icon={TrendingUp} label="MRR" value={billing ? `$${billing.mrr_usd.toLocaleString()}` : '—'}
+              sub={billing ? `$${billing.arr_usd.toLocaleString()} ARR · ${billing.active_subscriptions} active` : ''} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">

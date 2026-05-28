@@ -50,8 +50,18 @@ async def internal_me(admin: _AnyAdmin) -> dict:
     }
 
 
+def _pct_delta(current: float | int, prior: float | int) -> float | None:
+    """% change current vs prior. None when prior is 0 (no meaningful baseline)
+    so the UI can render a neutral 'new' state instead of a fake 'infinity'."""
+    if prior is None or prior == 0:
+        return None
+    return round(100 * (current - prior) / prior, 1)
+
+
 async def _scan_metrics(db: AsyncSession) -> dict:
-    since = datetime.now(timezone.utc) - timedelta(hours=24)
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(hours=24)
+    prior_window_start = now - timedelta(hours=48)
     rows = await db.execute(select(ScanJob.status, func.count()).group_by(ScanJob.status))
     by_status = {str(getattr(s, "value", s)): n for s, n in rows.all()}
     completed_24h = await db.scalar(
@@ -61,6 +71,19 @@ async def _scan_metrics(db: AsyncSession) -> dict:
     failed_24h = await db.scalar(
         select(func.count()).select_from(ScanJob)
         .where(ScanJob.status == ScanStatus.FAILED, ScanJob.created_at >= since)
+    ) or 0
+    # Prior 24h window (48h ago → 24h ago) for the trend arrow.
+    completed_prior = await db.scalar(
+        select(func.count()).select_from(ScanJob)
+        .where(ScanJob.status == ScanStatus.COMPLETED,
+               ScanJob.created_at >= prior_window_start,
+               ScanJob.created_at < since)
+    ) or 0
+    failed_prior = await db.scalar(
+        select(func.count()).select_from(ScanJob)
+        .where(ScanJob.status == ScanStatus.FAILED,
+               ScanJob.created_at >= prior_window_start,
+               ScanJob.created_at < since)
     ) or 0
     avg_secs = await db.scalar(
         select(func.avg(func.extract("epoch", ScanJob.completed_at - ScanJob.created_at)))
@@ -74,11 +97,16 @@ async def _scan_metrics(db: AsyncSession) -> dict:
         "completed_24h": int(completed_24h),
         "total": int(sum(by_status.values())),
         "avg_duration_s": round(float(avg_secs), 1) if avg_secs is not None else None,
+        # Trend deltas — % change vs the previous matching window.
+        "completed_24h_delta_pct": _pct_delta(completed_24h, completed_prior),
+        "failed_24h_delta_pct": _pct_delta(failed_24h, failed_prior),
     }
 
 
 async def _user_metrics(db: AsyncSession) -> dict:
-    week = datetime.now(timezone.utc) - timedelta(days=7)
+    now = datetime.now(timezone.utc)
+    week = now - timedelta(days=7)
+    prior_week = now - timedelta(days=14)
     total = await db.scalar(select(func.count()).select_from(User)) or 0
     paid = await db.scalar(
         select(func.count()).select_from(User).where(User.plan != PlanTier.FREE)
@@ -86,7 +114,16 @@ async def _user_metrics(db: AsyncSession) -> dict:
     new_7d = await db.scalar(
         select(func.count()).select_from(User).where(User.created_at >= week)
     ) or 0
-    return {"total": int(total), "paid": int(paid), "new_7d": int(new_7d)}
+    # Prior 7d window — for the new-users trend.
+    new_prior_7d = await db.scalar(
+        select(func.count()).select_from(User).where(
+            User.created_at >= prior_week, User.created_at < week,
+        )
+    ) or 0
+    return {
+        "total": int(total), "paid": int(paid), "new_7d": int(new_7d),
+        "new_7d_delta_pct": _pct_delta(new_7d, new_prior_7d),
+    }
 
 
 async def _billing_metrics(db: AsyncSession) -> dict:

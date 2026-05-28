@@ -828,8 +828,13 @@ export interface InternalMe {
 
 export interface CommandCenter {
   generated_at: string
-  scans: { queued: number; running: number; failed_24h: number; completed_24h: number; total: number; avg_duration_s: number | null } | { error: string }
-  users: { total: number; paid: number; new_7d: number } | { error: string }
+  scans: {
+    queued: number; running: number; failed_24h: number; completed_24h: number;
+    total: number; avg_duration_s: number | null;
+    completed_24h_delta_pct?: number | null;
+    failed_24h_delta_pct?: number | null;
+  } | { error: string }
+  users: { total: number; paid: number; new_7d: number; new_7d_delta_pct?: number | null } | { error: string }
   billing: { active_subscriptions: number; mrr_usd: number; arr_usd: number } | { error: string }
   infra: { database: string; redis: string; queue_depth: number | null; worker: string; stripe_configured: boolean; maintenance?: boolean; overall?: 'operational' | 'degraded' | 'maintenance' | 'offline' } | { error: string }
   activity: { id: string; actor: string | null; action: string; target: string | null; at: string | null }[]

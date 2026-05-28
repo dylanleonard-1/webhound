@@ -1,9 +1,12 @@
 """Import all models so SQLAlchemy registers them with Base.metadata."""
 from apps.api.models.admin_audit_log import AdminAuditLog
+from apps.api.models.alert import Alert, AlertComment
 from apps.api.models.baseline import BaselineRecord
 from apps.api.models.engine_diagnostic import EngineDiagnosticRecord
 from apps.api.models.enums import (
     AdminRole,
+    AlertSeverity,
+    AlertStatus,
     NotificationSeverity,
     NotificationType,
     PlanTier,
@@ -30,6 +33,10 @@ __all__ = [
     "User",
     "AdminAuditLog",
     "AdminRole",
+    "Alert",
+    "AlertComment",
+    "AlertSeverity",
+    "AlertStatus",
     "Website",
     "DomainVerification",
     "ScanJob",

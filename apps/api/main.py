@@ -120,8 +120,10 @@ app.include_router(billing.router)
 # Internal /control command center (RBAC-gated staff APIs).
 from apps.api.internal.router import router as internal_router  # noqa: E402
 from apps.api.internal.scan_ops import router as internal_scan_ops_router  # noqa: E402
+from apps.api.internal.alerts import router as internal_alerts_router  # noqa: E402
 app.include_router(internal_router)
 app.include_router(internal_scan_ops_router)
+app.include_router(internal_alerts_router)
 
 
 @app.on_event("startup")

@@ -79,18 +79,50 @@ Center surfaces the recent feed. **All future privileged mutations must call it.
 > directly, so the registry isn't required yet; add it when per-engine config
 > (maintenance flag, version pinning) is needed.
 
-## Roadmap — feature areas 4–18 (phased)
+## Phase 3 — SOC Alerting + Realtime — DELIVERED
+
+- **Schema (migration 0018)**: `alerts` (dedup_key unique, source, severity,
+  status, target, JSONB detail, occurrences, first/last_seen, ack/resolve
+  metadata, assignee FK users SET NULL), `alert_comments` (CASCADE,
+  human/status_change/system kinds — the per-alert timeline).
+- **Service** (`apps/api/services/alerts.py`): `upsert_alert(dedup_key, …)`
+  dedups recurring conditions onto one row (bumps `occurrences` + `last_seen`,
+  latest severity/title wins). `auto_resolve(dedup_key, note)` closes the open
+  alert when the condition clears — used for health-style sources. Recurrence
+  of a resolved alert re-opens it with a system timeline entry. Each lifecycle
+  transition writes a timeline comment. Mutations are best-effort published to
+  the Redis pub/sub channel `webhound:alerts:events`.
+- **Evaluator** (`worker/alert_tasks.evaluate_alerts`, beat: every 5 min):
+  derives alerts from observable state — failed scans (last 30 min, deduped
+  by job id), engine reliability degradation (≥50% failure rate over 7d,
+  ≥5 runs), worker liveness (heartbeat > 15 min stale), queue backup
+  (depth ≥ 50 warn, ≥ 200 critical). Health sources auto-resolve when the
+  condition clears.
+- **API** (`/internal/alerts*`, RBAC-gated + audited):
+  - `GET /internal/alerts` (READ_ONLY+) — list/filter by status/severity/source, paginated
+  - `GET /internal/alerts/summary` — open counts by severity (for the nav badge)
+  - `GET /internal/alerts/{id}` — detail + timeline
+  - `POST /internal/alerts/{id}/{ack,resolve,assign,comment}` (ANALYST+)
+  - `GET /internal/stream` — SSE pub/sub fan-out for realtime UI updates
+- **`/control` UI**: Alerts nav tab with a live red badge (open count), a
+  global LIVE pill driven by SSE, single shared event stream surfaced via
+  `useControlEvents()` for any page to subscribe to; `/control/alerts` page
+  with severity-colored queue, filters, detail drawer (timeline + ack/resolve
+  + inline comment composer), role-gated actions.
+- **Tests** (`apps/api/tests/test_alerts.py`): service dedup, auto-resolve +
+  recurrence re-open, ack→resolve timeline, end-to-end API list/summary/
+  detail/resolve/comment via an injected super_admin client, plus a 403
+  check for customers.
+
+> Deferred from the original Phase 3 sketch: a separate `incidents` table
+> (multi-alert grouping) and a `notifications` outbound bridge (email/Slack
+> from alerts). Phase 1's `notifications` model already exists; wire it next
+> when paging staff via email/Slack becomes a requirement.
+
+## Roadmap — feature areas 5–18 (phased)
 
 Each phase adds models + `/internal/*` routes + a `/control` page, reusing the
 RBAC + audit foundation.
-
-**Phase 3 — SOC Alerting + Incidents** (areas 4, 13, 14)
-- Tables: `alerts` (severity INFO→CRITICAL, status, owner, timeline), `incidents`,
-  `alert_comments`, `notifications`. Alert sources: failed scans, worker crashes,
-  queue backups, billing/webhook failures, abuse, engine skips, infra outages.
-- Resolution workflow (assign/ack/resolve), timeline, linked logs/scans/customers.
-- **Realtime**: SSE/WebSocket channel for live alerts + activity feed + in-app
-  notifications (email already available via Resend; Slack/webhook later).
 
 **Phase 4 — Customer + Billing Ops** (areas 5, 9)
 - APIs: customer search; ban/suspend/force-logout (JWT denylist in Redis); reset

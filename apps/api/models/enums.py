@@ -99,6 +99,28 @@ ROLE_RANK: dict[AdminRole, int] = {
 }
 
 
+class AlertSeverity(str, enum.Enum):
+    """SOC alert severity, low → high. Ranked in ALERT_SEVERITY_RANK."""
+    INFO = "info"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+ALERT_SEVERITY_RANK: dict[str, int] = {
+    "info": 0, "low": 10, "medium": 20, "high": 30, "critical": 40,
+}
+
+
+class AlertStatus(str, enum.Enum):
+    """Lifecycle of a SOC alert."""
+    OPEN = "open"
+    ACKNOWLEDGED = "acknowledged"
+    RESOLVED = "resolved"
+    SUPPRESSED = "suppressed"
+
+
 class SubscriptionStatus(str, enum.Enum):
     """Mirrors Stripe's subscription status values."""
     TRIALING = "trialing"

@@ -622,7 +622,62 @@ export const api = {
     cancelScan: (id: string) => request<{ ok: boolean; id: string; status: string }>('POST', `/internal/scans/${id}/cancel`),
     rescan: (id: string) => request<{ ok: boolean; new_scan_id: string; origin: string }>('POST', `/internal/scans/${id}/rescan`),
     engines: () => request<{ engines: EngineScorecard[] }>('GET', '/internal/engines'),
+    alerts: (params: { status?: string; severity?: string; source?: string; limit?: number; offset?: number } = {}) => {
+      const qs = new URLSearchParams()
+      if (params.status) qs.set('status', params.status)
+      if (params.severity) qs.set('severity', params.severity)
+      if (params.source) qs.set('source', params.source)
+      qs.set('limit', String(params.limit ?? 50))
+      qs.set('offset', String(params.offset ?? 0))
+      return request<AlertListResponse>('GET', `/internal/alerts?${qs.toString()}`)
+    },
+    alertsSummary: () => request<AlertSummary>('GET', '/internal/alerts/summary'),
+    alertDetail: (id: string) => request<AlertDetail>('GET', `/internal/alerts/${id}`),
+    ackAlert: (id: string) => request<{ ok: boolean; status: string }>('POST', `/internal/alerts/${id}/ack`),
+    resolveAlert: (id: string) => request<{ ok: boolean; status: string }>('POST', `/internal/alerts/${id}/resolve`),
+    assignAlert: (id: string, assignee_id: string | null) =>
+      request<{ ok: boolean; assignee: string | null }>('POST', `/internal/alerts/${id}/assign`, { assignee_id }),
+    commentAlert: (id: string, body: string) =>
+      request<{ ok: boolean }>('POST', `/internal/alerts/${id}/comment`, { body }),
   },
+}
+
+// SSE stream for live SOC events. Uses fetch (not EventSource) so the Bearer
+// token rides as a header. Returns an abort function. Calls onEvent for each
+// JSON 'something changed' ping; onError on stream failure (caller may retry).
+export function streamInternalEvents(
+  onEvent: (data: Record<string, unknown>) => void,
+  onError?: () => void,
+): () => void {
+  const controller = new AbortController()
+  const tok = getStoredToken()
+  ;(async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/internal/stream`, {
+        headers: tok ? { Authorization: `Bearer ${tok}` } : {},
+        signal: controller.signal,
+      })
+      if (!res.ok || !res.body) { onError?.(); return }
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const frames = buf.split('\n\n')
+        buf = frames.pop() ?? ''
+        for (const frame of frames) {
+          const line = frame.split('\n').find(l => l.startsWith('data:'))
+          if (!line) continue
+          try { onEvent(JSON.parse(line.slice(5).trim())) } catch { /* ignore */ }
+        }
+      }
+    } catch {
+      if (!controller.signal.aborted) onError?.()
+    }
+  })()
+  return () => controller.abort()
 }
 
 // ---------------------------------------------------------------------------
@@ -692,6 +747,51 @@ export interface EngineScorecard {
   empty_rate: number
   avg_ms: number | null
   reliability: number | null
+}
+
+// SOC Alerts (mirror apps/api/internal/alerts.py)
+export interface AlertRow {
+  id: string
+  dedup_key: string
+  source: string
+  severity: string
+  status: string
+  title: string
+  description: string | null
+  target_type: string | null
+  target_id: string | null
+  occurrences: number
+  first_seen_at: string | null
+  last_seen_at: string | null
+  assignee_id: string | null
+  acknowledged_by: string | null
+  resolved_by: string | null
+}
+
+export interface AlertListResponse {
+  items: AlertRow[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface AlertSummary {
+  open: number
+  active: number
+  by_severity: Record<string, number>
+}
+
+export interface AlertComment {
+  id: string
+  kind: string
+  author: string | null
+  body: string
+  at: string | null
+}
+
+export interface AlertDetail extends AlertRow {
+  detail: Record<string, unknown>
+  comments: AlertComment[]
 }
 
 // ---------------------------------------------------------------------------

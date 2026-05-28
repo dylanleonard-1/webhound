@@ -33,6 +33,7 @@ celery = Celery(
         "worker.scan_tasks",
         "worker.report_tasks",
         "worker.monitoring_tasks",
+        "worker.alert_tasks",
     ],
 )
 
@@ -55,6 +56,10 @@ celery.conf.update(
         "worker-heartbeat": {
             "task": "worker.monitoring_tasks.heartbeat",
             "schedule": crontab(minute="*/5"),     # every 5 minutes
+        },
+        "evaluate-alerts": {
+            "task": "worker.alert_tasks.evaluate_alerts",
+            "schedule": crontab(minute="*/5"),     # SOC alert evaluation, every 5 min
         },
     },
 )

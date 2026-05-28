@@ -76,6 +76,7 @@ class TestEnums:
             ReportFormat.SARIF,
             ReportFormat.CSV,
             ReportFormat.MARKDOWN,
+            ReportFormat.PDF,
         }
 
     def test_enum_str_values(self):

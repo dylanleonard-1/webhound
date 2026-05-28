@@ -145,6 +145,10 @@ async def match(
     return list(rows.all())
 
 
+_BULK_THRESHOLD = 100   # below this, the per-row path is fine + clearer
+_BULK_CHUNK = 1000      # one round-trip per chunk
+
+
 async def import_feed(
     db: AsyncSession, *,
     source: str,
@@ -154,27 +158,97 @@ async def import_feed(
     expires_in_days: int | None = 30,
 ) -> dict:
     """Bulk import. Each row must have `kind` + `value`; optional `severity`,
-    `confidence`, `tags`, `notes`. Returns counts (created/updated/skipped)."""
+    `confidence`, `tags`, `notes`. Returns counts (created/updated/skipped).
+
+    For Postgres the bulk path uses INSERT ... ON CONFLICT DO UPDATE, which
+    completes in one round-trip per chunk. The per-row fallback is used on
+    SQLite (no equivalent ON CONFLICT against named unique constraints with
+    sa.dialects.postgresql.insert) and for small feeds where readability +
+    explicit (created, updated) counts matter more than throughput."""
     counts = {"created": 0, "updated": 0, "skipped": 0}
     expires_at = (_now() + timedelta(days=expires_in_days)) if expires_in_days else None
+
+    is_pg = db.bind is not None and db.bind.dialect.name == "postgresql"
+    if not is_pg or len(rows) < _BULK_THRESHOLD:
+        # Per-row path — used in unit tests + small feeds. Counts created vs
+        # updated precisely (the bulk path can't, without an extra query).
+        for r in rows:
+            try:
+                kind = (r.get("kind") or "").strip()
+                value = (r.get("value") or "").strip()
+                if not kind or not value:
+                    counts["skipped"] += 1
+                    continue
+                _, created = await upsert_indicator(
+                    db, kind=kind, value=value, source=source,
+                    severity=r.get("severity") or default_severity,
+                    confidence=int(r.get("confidence") or default_confidence),
+                    tags=r.get("tags") or [],
+                    notes=r.get("notes"),
+                    expires_at=expires_at,
+                )
+                counts["created" if created else "updated"] += 1
+            except ValueError:
+                counts["skipped"] += 1
+        return counts
+
+    # Postgres bulk path. Build payloads, validate cheaply, then
+    # ON CONFLICT (kind, value, source) DO UPDATE in chunks.
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    from apps.api.models.threat_indicator import ThreatIndicator
+
+    now = _now()
+    payloads: list[dict] = []
     for r in rows:
         try:
             kind = (r.get("kind") or "").strip()
             value = (r.get("value") or "").strip()
-            if not kind or not value:
+            if not kind or not value or kind not in VALID_KINDS:
                 counts["skipped"] += 1
                 continue
-            _, created = await upsert_indicator(
-                db, kind=kind, value=value, source=source,
-                severity=r.get("severity") or default_severity,
-                confidence=int(r.get("confidence") or default_confidence),
-                tags=r.get("tags") or [],
-                notes=r.get("notes"),
-                expires_at=expires_at,
-            )
-            counts["created" if created else "updated"] += 1
-        except ValueError:
+            sev = r.get("severity") or default_severity
+            if sev not in VALID_SEVERITIES:
+                counts["skipped"] += 1
+                continue
+            conf = max(0, min(100, int(r.get("confidence") or default_confidence)))
+            payloads.append({
+                "kind": kind,
+                "value": _normalize_value(kind, value),
+                "source": source,
+                "severity": sev,
+                "confidence": conf,
+                "tags": list(r.get("tags") or []),
+                "notes": r.get("notes"),
+                "first_seen_at": now,
+                "last_seen_at": now,
+                "expires_at": expires_at,
+            })
+        except (ValueError, TypeError):
             counts["skipped"] += 1
+
+    written = 0
+    for i in range(0, len(payloads), _BULK_CHUNK):
+        chunk = payloads[i:i + _BULK_CHUNK]
+        stmt = pg_insert(ThreatIndicator).values(chunk)
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_threat_indicator_kvs",
+            set_={
+                # On dedup hit: refresh the recency + intent fields. We leave
+                # first_seen_at + tags + notes alone (the original rows are
+                # the source of truth for "when we first saw this").
+                "last_seen_at": stmt.excluded.last_seen_at,
+                "severity": stmt.excluded.severity,
+                "confidence": stmt.excluded.confidence,
+                "expires_at": stmt.excluded.expires_at,
+            },
+        )
+        await db.execute(stmt)
+        written += len(chunk)
+
+    # We can't cheaply distinguish created vs updated in one round-trip;
+    # report total writes under `created` (the operationally interesting
+    # number — "we ingested N rows from this feed") and leave updated=0.
+    counts["created"] = written
     return counts
 
 

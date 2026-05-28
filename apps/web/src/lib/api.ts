@@ -762,6 +762,8 @@ export const api = {
       request<{ ok: boolean; maintenance_mode: boolean }>('POST', `/internal/engines/${encodeURIComponent(name)}/maintenance`, { on, notes }),
     engineThreshold: (name: string, failure_pct: number | null) =>
       request<{ ok: boolean; auto_disable_at_failure_pct: number | null }>('POST', `/internal/engines/${encodeURIComponent(name)}/threshold`, { failure_pct }),
+    engineDiagnostics: (name: string, hours = 168, limit = 100) =>
+      request<EngineDiagnosticsResponse>('GET', `/internal/engines/${encodeURIComponent(name)}/diagnostics?hours=${hours}&limit=${limit}`),
   },
 }
 
@@ -1354,6 +1356,39 @@ export interface IncidentSummary {
     last_seen_at: string | null
     breached: boolean
   } | null
+}
+
+// Engine diagnostics deep-dive (mirror apps/api/internal/engines.py engine_diagnostics)
+export interface EngineDiagnosticRow {
+  id: string
+  scan_result_id: string
+  status: string
+  category: string | null
+  findings: number
+  duration_ms: number | null
+  skipped_reason: string | null
+  error: string | null
+  timeout: boolean
+  at: string | null
+}
+
+export interface EngineDiagnosticsResponse {
+  engine: string
+  runs: number
+  window_hours: number
+  by_status: Record<string, number>
+  timeouts: number
+  timeout_rate?: number
+  duration: {
+    p50?: number | null
+    p90?: number | null
+    p99?: number | null
+    avg?: number | null
+    max?: number | null
+    min?: number | null
+  }
+  errors: { message: string; count: number }[]
+  items: EngineDiagnosticRow[]
 }
 
 // Engines (Phase 2 endpoint extended; mirror apps/api/internal/scan_ops.py engine_scorecards)

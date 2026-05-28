@@ -12,7 +12,7 @@ import { useEffect, useRef, useState, createContext, useContext, useCallback } f
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ShieldHalf, ArrowLeft, Loader2, LayoutDashboard, ScanLine, Cpu, BellRing, Users, CreditCard, ShieldAlert, Ticket, UserCog, Rocket, FileSearch, Radar, Siren,
+  ShieldHalf, ArrowLeft, Loader2, LayoutDashboard, ScanLine, Cpu, BellRing, Users, CreditCard, ShieldAlert, Ticket, UserCog, Rocket, FileSearch, Radar, Siren, Radio, Server,
 } from 'lucide-react'
 import {
   api, getStoredToken, streamInternalEvents,
@@ -40,12 +40,14 @@ const ROLE_LABEL: Record<string, string> = {
 
 const NAV = [
   { href: '/control', label: 'Command Center', icon: LayoutDashboard, badgeKey: null },
+  { href: '/control/events', label: 'Live Stream', icon: Radio, badgeKey: null },
   { href: '/control/incidents', label: 'Incidents', icon: Siren, badgeKey: 'incidents' as const },
   { href: '/control/alerts', label: 'Alerts', icon: BellRing, badgeKey: 'alerts' as const },
   { href: '/control/abuse', label: 'Abuse', icon: ShieldAlert, badgeKey: 'abuse' as const },
   { href: '/control/tickets', label: 'Tickets', icon: Ticket, badgeKey: 'tickets' as const },
   { href: '/control/scans', label: 'Scan Ops', icon: ScanLine, badgeKey: null },
   { href: '/control/engines', label: 'Engines', icon: Cpu, badgeKey: null },
+  { href: '/control/infra', label: 'Infra', icon: Server, badgeKey: null },
   { href: '/control/customers', label: 'Customers', icon: Users, badgeKey: null },
   { href: '/control/billing', label: 'Billing', icon: CreditCard, badgeKey: null },
   { href: '/control/team', label: 'Team', icon: UserCog, badgeKey: null },

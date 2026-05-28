@@ -492,6 +492,55 @@ workflow, MTTR, SLA), and a polished Command Center.
 
 Total suite: **204 tests across Phases 1–10, zero regressions**.
 
+## Phase 11 — Live Event Stream + Infra Ops + Engine deep-dive + auto-disable — DELIVERED
+
+Operational uplift increment focused on observability + the priority-#11
+`sensitive_paths` deep-dive. Five additions, all behind the existing RBAC
+boundary and shipped together:
+
+- **Broader event publishing** — `record_action()` now also fans a typed
+  `Event` envelope onto the live SOC stream. Action codes (`customer.suspend`,
+  `ticket.create`, `deploy.record`, etc.) are mapped to the matching
+  `EventKind`; everything else becomes a generic `admin.action` event.
+  Severity bumps above info for the heavyweights (`suspend`/`ban`/
+  `plan_change`/`force_logout`/`engine.maintenance`/`deploy.record`).
+  Best-effort: a publish failure can never break the audit write.
+- **`/control/events` Live Event Stream** — a real-time feed driven by the
+  layout's existing SSE subscription. Ring buffer of the last 500 events,
+  severity-floor filter, kind filter (auto-populated from kinds seen),
+  pause/resume (state stays accurate while paused), clear, expandable
+  detail JSON. Header pill shows "Streaming / Paused / Disconnected" with
+  the same animated dot the layout uses.
+- **`/control/infra` Infrastructure Operations** — renders the existing
+  `infrastructure_samples` time-series (queue depth, active scans, Redis
+  memory, worker heartbeat age) as polished Recharts areas + lines with
+  6h / 24h / 3d / 7d range buttons. Plus a four-tile current snapshot
+  (queue depth, active scans, worker uptime %, Redis MB). Backed entirely
+  by the Phase 7 `/internal/infra/history` endpoint.
+- **`GET /internal/engines/{name}/diagnostics`** — priority #11. For one
+  engine, returns: run count, status breakdown, **timeout detection** (any
+  row whose error mentions a timeout OR whose duration is within 1s of the
+  60s engine cap), `timeout_rate` percentage, **duration percentiles**
+  (p50 / p90 / p99 / avg / min / max), top error messages with counts,
+  and the recent-runs list with per-row timeout markers. Generic — works
+  for any engine name, but tuned for the `sensitive_paths` investigation.
+  UI: a "Diagnose" button on each engine card opens a deep-dive drawer
+  with the four headline tiles, status chips, error leaderboard, and a
+  scrolling list of recent runs (timeouts highlighted red).
+- **Engine auto-disable enforcement** in `worker.alert_tasks.evaluate_alerts`:
+  when the rolling 7d failure percentage crosses an engine's
+  `auto_disable_at_failure_pct` (set via `POST /engines/{name}/threshold`),
+  the worker flips `maintenance_mode=True`, stamps `auto_disabled_at`,
+  and bumps the engine_reliability alert severity to `critical`. The
+  existing alert→incident correlator picks it up and INC-#### opens
+  automatically. Loud-but-correct: this is exactly the "auto-disable
+  threshold support" priority called out.
+
+Total local suite: **204 tests passing across Phases 1–11, zero
+regressions**. The `record_action` extension is exercised indirectly by
+every existing test that audits an action — the broadcast is best-effort
+so tests pass even when Redis is down.
+
 ## Roadmap — what's still next
 
 The user's Phase-10 priority list called out improvements beyond what's in

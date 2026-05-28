@@ -5,8 +5,10 @@
 // the threshold).
 
 import { useCallback, useEffect, useState } from 'react'
-import { Cpu, Loader2, Wrench, AlertTriangle, ShieldCheck } from 'lucide-react'
-import { api, type EngineHealthRow } from '@/lib/api'
+import {
+  Cpu, Loader2, Wrench, AlertTriangle, ShieldCheck, X, Activity, Clock, Bug, Telescope,
+} from 'lucide-react'
+import { api, type EngineHealthRow, type EngineDiagnosticsResponse } from '@/lib/api'
 import { useInternalMe } from '../layout'
 
 const LIME = '#8BFF3E'
@@ -60,6 +62,7 @@ export default function EnginesPage() {
   const [engines, setEngines] = useState<EngineHealthRow[] | null>(null)
   const [err, setErr] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
+  const [drill, setDrill] = useState<string | null>(null)
 
   const load = useCallback(() => {
     api.internal.engines()
@@ -176,37 +179,172 @@ export default function EnginesPage() {
                   )}
                 </div>
 
-                {(isOp || isAdmin) && (
-                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/[0.05]">
-                    {isOp && (
-                      <button disabled={busy === e.engine}
-                              onClick={() => toggleMaintenance(e)}
-                              className="flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-semibold disabled:opacity-40"
-                              style={e.maintenance_mode
-                                ? { background: 'rgba(139,255,62,0.1)', color: LIME, border: '1px solid rgba(139,255,62,0.3)' }
-                                : { background: 'rgba(168,85,247,0.1)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.3)' }}>
-                        {busy === e.engine ? <Loader2 className="w-3 h-3 animate-spin" />
-                          : e.maintenance_mode ? <ShieldCheck className="w-3 h-3" /> : <Wrench className="w-3 h-3" />}
-                        {e.maintenance_mode ? 'Resume' : 'Maintenance'}
-                      </button>
-                    )}
-                    {isAdmin && (
-                      <button disabled={busy === e.engine} onClick={() => setThreshold(e)}
-                              className="flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-semibold disabled:opacity-40"
-                              style={{ background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                        <AlertTriangle className="w-3 h-3" /> Threshold
-                      </button>
-                    )}
-                    {e.notes && (
-                      <span className="ml-auto text-[10px] text-white/45 truncate" title={e.notes}>{e.notes}</span>
-                    )}
-                  </div>
-                )}
+                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/[0.05]">
+                  <button onClick={() => setDrill(e.engine)}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-semibold"
+                          style={{ background: 'rgba(139,255,62,0.06)', color: LIME, border: '1px solid rgba(139,255,62,0.18)' }}>
+                    <Telescope className="w-3 h-3" /> Diagnose
+                  </button>
+                  {isOp && (
+                    <button disabled={busy === e.engine}
+                            onClick={() => toggleMaintenance(e)}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-semibold disabled:opacity-40"
+                            style={e.maintenance_mode
+                              ? { background: 'rgba(139,255,62,0.1)', color: LIME, border: '1px solid rgba(139,255,62,0.3)' }
+                              : { background: 'rgba(168,85,247,0.1)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.3)' }}>
+                      {busy === e.engine ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : e.maintenance_mode ? <ShieldCheck className="w-3 h-3" /> : <Wrench className="w-3 h-3" />}
+                      {e.maintenance_mode ? 'Resume' : 'Maintenance'}
+                    </button>
+                  )}
+                  {isAdmin && (
+                    <button disabled={busy === e.engine} onClick={() => setThreshold(e)}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-semibold disabled:opacity-40"
+                            style={{ background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      <AlertTriangle className="w-3 h-3" /> Threshold
+                    </button>
+                  )}
+                  {e.notes && (
+                    <span className="ml-auto text-[10px] text-white/45 truncate" title={e.notes}>{e.notes}</span>
+                  )}
+                </div>
               </div>
             )
           })}
         </div>
       )}
+
+      {drill && <DiagnosticsDrawer name={drill} onClose={() => setDrill(null)} />}
+    </div>
+  )
+}
+
+
+function DiagnosticsDrawer({ name, onClose }: { name: string; onClose: () => void }) {
+  const [hours, setHours] = useState(168)
+  const [data, setData] = useState<EngineDiagnosticsResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    api.internal.engineDiagnostics(name, hours, 200)
+      .then(setData).catch(() => setData(null))
+      .finally(() => setLoading(false))
+  }, [name, hours])
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={onClose}>
+      <div className="w-full max-w-[720px] h-full overflow-auto p-6 bg-[#070b13] border-l border-white/[0.08]"
+           onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Bug className="w-4 h-4" style={{ color: LIME }} />
+              <h2 className="text-[15px] font-bold text-white">Engine diagnostics</h2>
+            </div>
+            <p className="font-mono text-[12px] text-white/85">{name}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded hover:bg-white/5"><X className="w-4 h-4 text-white/60" /></button>
+        </div>
+
+        <div className="flex items-center gap-1 mb-4">
+          {[{ h: 24, l: '24h' }, { h: 72, l: '3d' }, { h: 168, l: '7d' }, { h: 720, l: '30d' }].map(o => (
+            <button key={o.h} onClick={() => setHours(o.h)}
+                    className="px-2.5 py-1 rounded text-[11px] font-semibold"
+                    style={hours === o.h
+                      ? { background: 'rgba(139,255,62,0.1)', color: LIME, border: '1px solid rgba(139,255,62,0.25)' }
+                      : { background: 'rgba(255,255,255,0.02)', color: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              {o.l}
+            </button>
+          ))}
+        </div>
+
+        {loading ? (
+          <div className="flex items-center gap-2 text-[12px] text-white/50"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
+        ) : !data || data.runs === 0 ? (
+          <p className="text-[12px] text-white/35">No diagnostics recorded for this engine in this window.</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-4 gap-2.5 mb-4">
+              <Tile label="Runs" value={data.runs} />
+              <Tile label="Timeouts" value={`${data.timeouts} (${data.timeout_rate ?? 0}%)`}
+                    tone={(data.timeout_rate ?? 0) >= 20 ? '#ef4444' : (data.timeout_rate ?? 0) >= 5 ? '#f59e0b' : LIME} />
+              <Tile label="p50 ms" value={data.duration.p50 != null ? Math.round(data.duration.p50) : '—'} />
+              <Tile label="p99 ms" value={data.duration.p99 != null ? Math.round(data.duration.p99) : '—'}
+                    tone={(data.duration.p99 ?? 0) >= 30_000 ? '#f59e0b' : LIME} />
+            </div>
+
+            <div className="text-[12px] font-semibold text-white mb-1.5 flex items-center gap-1.5">
+              <Activity className="w-3.5 h-3.5 text-white/50" /> Status breakdown
+            </div>
+            <div className="flex flex-wrap gap-1.5 mb-4">
+              {Object.entries(data.by_status).map(([k, v]) => (
+                <span key={k} className="text-[11px] font-semibold px-2 py-0.5 rounded"
+                      style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.75)',
+                               border: '1px solid rgba(255,255,255,0.08)' }}>
+                  {k}: {v}
+                </span>
+              ))}
+            </div>
+
+            {data.errors.length > 0 && (
+              <>
+                <div className="text-[12px] font-semibold text-white mb-1.5 flex items-center gap-1.5">
+                  <Bug className="w-3.5 h-3.5 text-red-400" /> Top errors
+                </div>
+                <div className="space-y-1 mb-4">
+                  {data.errors.map((e, i) => (
+                    <div key={i} className="flex items-start gap-2 text-[11px] rounded p-1.5"
+                         style={{ background: 'rgba(239,68,68,0.04)', border: '1px solid rgba(239,68,68,0.15)' }}>
+                      <span className="font-mono px-1 py-0.5 rounded text-[10px] shrink-0"
+                            style={{ background: 'rgba(239,68,68,0.15)', color: '#fca5a5' }}>{e.count}×</span>
+                      <span className="text-white/80 font-mono break-all">{e.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className="text-[12px] font-semibold text-white mb-1.5 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-white/50" /> Recent runs ({data.items.length})
+            </div>
+            <div className="space-y-1 max-h-[400px] overflow-auto">
+              {data.items.map(r => (
+                <div key={r.id} className="text-[11px] px-2 py-1 rounded flex items-center gap-2"
+                     style={{ background: r.timeout ? 'rgba(239,68,68,0.05)' : 'rgba(255,255,255,0.015)',
+                              border: `1px solid ${r.timeout ? 'rgba(239,68,68,0.18)' : 'rgba(255,255,255,0.04)'}` }}>
+                  <span className="text-white/45 font-mono w-[150px] shrink-0">{r.at ? new Date(r.at).toLocaleString() : '—'}</span>
+                  <span className="text-[10px] font-mono px-1 py-0.5 rounded uppercase"
+                        style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.6)' }}>
+                    {r.status}
+                  </span>
+                  {r.timeout && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider"
+                          style={{ color: '#ef4444' }}>timeout</span>
+                  )}
+                  <span className="text-white/70 flex-1 truncate">
+                    {r.error ?? (r.skipped_reason ? `skipped: ${r.skipped_reason}` : `${r.findings} findings`)}
+                  </span>
+                  {r.duration_ms != null && (
+                    <span className="font-mono text-white/45 text-[10px] shrink-0">
+                      {Math.round(r.duration_ms)}ms
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Tile({ label, value, tone = '#8BFF3E' }: { label: string; value: React.ReactNode; tone?: string }) {
+  return (
+    <div className="rounded-lg p-2.5" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>{label}</div>
+      <div className="text-[16px] font-bold" style={{ color: tone }}>{value}</div>
     </div>
   )
 }

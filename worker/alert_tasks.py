@@ -43,7 +43,7 @@ async def _evaluate() -> dict:
     from apps.api.services import alerts as alert_svc
 
     now = datetime.now(timezone.utc)
-    counts = {"opened": 0, "updated": 0, "resolved": 0}
+    counts = {"opened": 0, "updated": 0, "resolved": 0, "auto_disabled": 0}
 
     engine = create_async_engine(get_async_db_url())
     factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -82,25 +82,50 @@ async def _evaluate() -> dict:
                 .group_by(EngineDiagnosticRecord.engine_name)
             )
             degraded: set[str] = set()
+            from apps.api.models.engine import EngineRegistry
+            reg_rows = await db.scalars(select(EngineRegistry))
+            registry_by_name: dict[str, EngineRegistry] = {r.name: r for r in reg_rows.all()}
+            auto_disabled_this_tick: list[str] = []
+
             for name, runs, failed in erows.all():
                 runs = int(runs or 0)
                 failed = int(failed or 0)
                 if runs < _ENGINE_MIN_RUNS:
                     continue
                 fail_pct = round(100 * failed / runs, 1)
-                if fail_pct >= _ENGINE_FAIL_PCT:
+                # Phase 11: auto-disable enforcement. If the registry has a
+                # threshold and we're past it, flip the engine into
+                # maintenance + stamp auto_disabled_at. The alert gets bumped
+                # to critical for the SOC.
+                reg = registry_by_name.get(name)
+                hit_auto = (reg is not None
+                            and reg.auto_disable_at_failure_pct is not None
+                            and fail_pct >= reg.auto_disable_at_failure_pct
+                            and not reg.maintenance_mode)
+                if hit_auto:
+                    reg.maintenance_mode = True
+                    reg.auto_disabled_at = now
+                    reg.updated_by_email = "system"
+                    auto_disabled_this_tick.append(name)
+
+                if fail_pct >= _ENGINE_FAIL_PCT or hit_auto:
                     degraded.add(name)
+                    sev = "critical" if hit_auto else ("high" if fail_pct >= 80 else "medium")
                     _, created = await alert_svc.upsert_alert(
                         db,
                         dedup_key=f"engine_reliability:{name}",
                         source="engine_reliability",
-                        severity="high" if fail_pct >= 80 else "medium",
-                        title=f"Engine '{name}' failing {fail_pct}% of runs",
+                        severity=sev,
+                        title=(f"Engine '{name}' auto-disabled at {fail_pct}% failures"
+                               if hit_auto
+                               else f"Engine '{name}' failing {fail_pct}% of runs"),
                         description=f"{failed}/{runs} runs failed over the last {_ENGINE_WINDOW_DAYS}d.",
                         target_type="engine", target_id=name,
-                        detail={"runs": runs, "failed": failed, "fail_pct": fail_pct},
+                        detail={"runs": runs, "failed": failed, "fail_pct": fail_pct,
+                                "auto_disabled": hit_auto},
                     )
                     counts["opened" if created else "updated"] += 1
+            counts["auto_disabled"] += len(auto_disabled_this_tick)
             # Auto-resolve engines that recovered.
             open_eng = await db.scalars(
                 select(Alert).where(Alert.source == "engine_reliability",

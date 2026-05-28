@@ -47,6 +47,18 @@ def _interval_factor(interval: str | None) -> float:
     return {"year": 1 / 12, "month": 1.0, "week": 4.345, "day": 30.44}.get(interval or "month", 1.0)
 
 
+def _g(obj, key, default=None):
+    """Safe accessor for stripe.StripeObject (which doesn't expose dict.get
+    via __getattr__) and for plain dicts. Returns `default` if missing/None."""
+    if obj is None:
+        return default
+    try:
+        val = obj[key]
+    except (KeyError, TypeError):
+        return default
+    return default if val is None else val
+
+
 def _sum_mrr_cents() -> tuple[int, int]:
     """Walk all active+trialing subs and sum recurring revenue → (mrr_cents, count)."""
     total_cents = 0
@@ -57,19 +69,21 @@ def _sum_mrr_cents() -> tuple[int, int]:
         for sub in iterator:
             count += 1
             try:
-                discount_pct = 0.0
-                d = sub.get("discount") or {}
-                coupon = d.get("coupon") or {}
-                if coupon.get("percent_off"):
-                    discount_pct = float(coupon["percent_off"]) / 100.0
-                for item in (sub.get("items") or {}).get("data", []):
-                    price = item.get("price") or {}
-                    amt = int(price.get("unit_amount") or 0)
-                    qty = int(item.get("quantity") or 1)
-                    factor = _interval_factor((price.get("recurring") or {}).get("interval"))
+                discount = _g(sub, "discount", {}) or {}
+                coupon = _g(discount, "coupon", {}) or {}
+                percent_off = _g(coupon, "percent_off")
+                amount_off = _g(coupon, "amount_off")
+                discount_pct = float(percent_off) / 100.0 if percent_off else 0.0
+                items = _g(_g(sub, "items", {}), "data", []) or []
+                for item in items:
+                    price = _g(item, "price", {}) or {}
+                    amt = int(_g(price, "unit_amount", 0) or 0)
+                    qty = int(_g(item, "quantity", 1) or 1)
+                    recurring = _g(price, "recurring", {}) or {}
+                    factor = _interval_factor(_g(recurring, "interval"))
                     monthly = amt * qty * factor
-                    if coupon.get("amount_off"):
-                        monthly -= int(coupon["amount_off"]) * factor  # rough — applies once but works as ceiling
+                    if amount_off:
+                        monthly -= int(amount_off) * factor  # rough ceiling
                     monthly *= (1 - discount_pct)
                     total_cents += max(0, int(monthly))
             except Exception:  # noqa: BLE001
@@ -187,11 +201,11 @@ async def recent_events(admin: _Read, limit: int = 50) -> dict:
         out = []
         for ev in stripe.Event.list(limit=min(limit, 100)).auto_paging_iter():
             out.append({
-                "id": ev.get("id"),
-                "type": ev.get("type"),
-                "livemode": bool(ev.get("livemode")),
-                "created": int(ev.get("created") or 0),
-                "request_id": (ev.get("request") or {}).get("id"),
+                "id": _g(ev, "id"),
+                "type": _g(ev, "type"),
+                "livemode": bool(_g(ev, "livemode")),
+                "created": int(_g(ev, "created", 0) or 0),
+                "request_id": _g(_g(ev, "request"), "id"),
             })
             if len(out) >= limit:
                 break

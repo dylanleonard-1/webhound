@@ -130,6 +130,8 @@ from apps.api.internal.support import router as internal_support_router  # noqa:
 from apps.api.internal.team_deploys import router as internal_team_deploys_router  # noqa: E402
 from apps.api.internal.logs import router as internal_logs_router  # noqa: E402
 from apps.api.internal.threat_intel import router as internal_threat_intel_router  # noqa: E402
+from apps.api.internal.incidents import router as internal_incidents_router  # noqa: E402
+from apps.api.internal.engines import router as internal_engines_router  # noqa: E402
 app.include_router(internal_router)
 app.include_router(internal_scan_ops_router)
 app.include_router(internal_alerts_router)
@@ -140,6 +142,8 @@ app.include_router(internal_support_router)
 app.include_router(internal_team_deploys_router)
 app.include_router(internal_logs_router)
 app.include_router(internal_threat_intel_router)
+app.include_router(internal_incidents_router)
+app.include_router(internal_engines_router)
 
 
 @app.on_event("startup")

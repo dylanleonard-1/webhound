@@ -203,33 +203,14 @@ async def force_rescan(scan_id: uuid.UUID, admin: _Op, db: _DB, request: Request
 
 @router.get("/engines")
 async def engine_scorecards(admin: _Read, db: _DB) -> dict:
-    """Per-engine reliability from engine_diagnostics across all scans."""
-    rows = await db.execute(
-        select(
-            EngineDiagnosticRecord.engine_name,
-            func.count().label("runs"),
-            func.sum(sa.case((EngineDiagnosticRecord.status == "failed", 1), else_=0)).label("failed"),
-            func.sum(sa.case((EngineDiagnosticRecord.status == "skipped", 1), else_=0)).label("skipped"),
-            func.sum(sa.case((EngineDiagnosticRecord.findings_count == 0, 1), else_=0)).label("empty"),
-            func.avg(EngineDiagnosticRecord.duration_ms).label("avg_ms"),
-        ).group_by(EngineDiagnosticRecord.engine_name)
-    )
-    engines = []
-    for name, runs, failed, skipped, empty, avg_ms in rows.all():
-        runs = int(runs or 0)
-        failed = int(failed or 0)
-        skipped = int(skipped or 0)
-        ok_runs = runs - failed - skipped
-        reliability = round(100 * ok_runs / runs, 1) if runs else None
-        engines.append({
-            "engine": name,
-            "runs": runs,
-            "failed": failed,
-            "skipped": skipped,
-            "failure_rate": round(100 * failed / runs, 1) if runs else 0,
-            "empty_rate": round(100 * int(empty or 0) / runs, 1) if runs else 0,
-            "avg_ms": round(float(avg_ms), 1) if avg_ms is not None else None,
-            "reliability": reliability,
-        })
-    engines.sort(key=lambda e: (e["reliability"] if e["reliability"] is not None else 101))
-    return {"engines": engines}
+    """Per-engine reliability + operational state + maintenance/threshold
+    overrides. Window: last 7 days. State machine: healthy / degraded /
+    unstable / critical / maintenance — see services/engines.compute_state.
+
+    Original Phase 2 fields (runs/failed/skipped/failure_rate/empty_rate/
+    avg_ms/reliability) are preserved exactly; this endpoint just adds
+    `state`, `maintenance_mode`, `auto_disable_at_failure_pct`, `max_ms`,
+    and `notes`. The UI is free to ignore the new fields.
+    """
+    from apps.api.services import engines as engines_svc
+    return {"engines": await engines_svc.health_scorecards(db)}

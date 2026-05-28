@@ -12,11 +12,11 @@ import { useEffect, useRef, useState, createContext, useContext, useCallback } f
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ShieldHalf, ArrowLeft, Loader2, LayoutDashboard, ScanLine, Cpu, BellRing, Users, CreditCard, ShieldAlert, Ticket, UserCog, Rocket, FileSearch, Radar,
+  ShieldHalf, ArrowLeft, Loader2, LayoutDashboard, ScanLine, Cpu, BellRing, Users, CreditCard, ShieldAlert, Ticket, UserCog, Rocket, FileSearch, Radar, Siren,
 } from 'lucide-react'
 import {
   api, getStoredToken, streamInternalEvents,
-  type InternalMe, type AlertSummary, type AbuseSummary, type TicketSummary,
+  type InternalMe, type AlertSummary, type AbuseSummary, type TicketSummary, type IncidentSummary,
 } from '@/lib/api'
 
 const MeContext = createContext<InternalMe | null>(null)
@@ -26,10 +26,11 @@ type ControlEvents = {
   summary: AlertSummary | null
   abuse: AbuseSummary | null
   tickets: TicketSummary | null
+  incidents: IncidentSummary | null
   live: boolean
   subscribe: (cb: (data: Record<string, unknown>) => void) => () => void
 }
-const EventsContext = createContext<ControlEvents>({ summary: null, abuse: null, tickets: null, live: false, subscribe: () => () => {} })
+const EventsContext = createContext<ControlEvents>({ summary: null, abuse: null, tickets: null, incidents: null, live: false, subscribe: () => () => {} })
 export const useControlEvents = () => useContext(EventsContext)
 
 const ROLE_LABEL: Record<string, string> = {
@@ -39,11 +40,12 @@ const ROLE_LABEL: Record<string, string> = {
 
 const NAV = [
   { href: '/control', label: 'Command Center', icon: LayoutDashboard, badgeKey: null },
-  { href: '/control/scans', label: 'Scan Ops', icon: ScanLine, badgeKey: null },
-  { href: '/control/engines', label: 'Engines', icon: Cpu, badgeKey: null },
+  { href: '/control/incidents', label: 'Incidents', icon: Siren, badgeKey: 'incidents' as const },
   { href: '/control/alerts', label: 'Alerts', icon: BellRing, badgeKey: 'alerts' as const },
   { href: '/control/abuse', label: 'Abuse', icon: ShieldAlert, badgeKey: 'abuse' as const },
   { href: '/control/tickets', label: 'Tickets', icon: Ticket, badgeKey: 'tickets' as const },
+  { href: '/control/scans', label: 'Scan Ops', icon: ScanLine, badgeKey: null },
+  { href: '/control/engines', label: 'Engines', icon: Cpu, badgeKey: null },
   { href: '/control/customers', label: 'Customers', icon: Users, badgeKey: null },
   { href: '/control/billing', label: 'Billing', icon: CreditCard, badgeKey: null },
   { href: '/control/team', label: 'Team', icon: UserCog, badgeKey: null },
@@ -54,17 +56,23 @@ const NAV = [
 
 function ControlNav({
   openAlerts, pendingAbuse, openTickets, breachedTickets,
-}: { openAlerts: number; pendingAbuse: number; openTickets: number; breachedTickets: number }) {
+  activeIncidents, breachedIncidents,
+}: {
+  openAlerts: number; pendingAbuse: number; openTickets: number; breachedTickets: number
+  activeIncidents: number; breachedIncidents: number
+}) {
   const pathname = usePathname()
   return (
-    <nav className="flex items-center gap-1">
+    <nav className="flex items-center gap-1 flex-wrap">
       {NAV.map(({ href, label, icon: Icon, badgeKey }) => {
         const active = href === '/control' ? pathname === '/control' : pathname.startsWith(href)
         const badgeCount = badgeKey === 'alerts' ? openAlerts
           : badgeKey === 'abuse' ? pendingAbuse
           : badgeKey === 'tickets' ? openTickets
+          : badgeKey === 'incidents' ? activeIncidents
           : 0
-        const isBreach = badgeKey === 'tickets' && breachedTickets > 0
+        const isBreach = (badgeKey === 'tickets' && breachedTickets > 0)
+          || (badgeKey === 'incidents' && breachedIncidents > 0)
         return (
           <Link key={href} href={href}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
@@ -90,6 +98,7 @@ export default function ControlLayout({ children }: { children: React.ReactNode 
   const [summary, setSummary] = useState<AlertSummary | null>(null)
   const [abuse, setAbuse] = useState<AbuseSummary | null>(null)
   const [tickets, setTickets] = useState<TicketSummary | null>(null)
+  const [incidents, setIncidents] = useState<IncidentSummary | null>(null)
   const [live, setLive] = useState(false)
   const listeners = useRef(new Set<(d: Record<string, unknown>) => void>())
 
@@ -115,6 +124,7 @@ export default function ControlLayout({ children }: { children: React.ReactNode 
       api.internal.alertsSummary().then(s => { if (!cancelled) setSummary(s) }).catch(() => {})
       api.internal.abuseSummary().then(s => { if (!cancelled) setAbuse(s) }).catch(() => {})
       api.internal.ticketsSummary().then(s => { if (!cancelled) setTickets(s) }).catch(() => {})
+      api.internal.incidentsSummary().then(s => { if (!cancelled) setIncidents(s) }).catch(() => {})
     }
     loadAll()
     const poll = setInterval(loadAll, 30000)
@@ -139,7 +149,7 @@ export default function ControlLayout({ children }: { children: React.ReactNode 
 
   return (
     <MeContext.Provider value={me}>
-      <EventsContext.Provider value={{ summary, abuse, tickets, live, subscribe }}>
+      <EventsContext.Provider value={{ summary, abuse, tickets, incidents, live, subscribe }}>
         <div className="min-h-screen bg-[#05070d] text-gray-100"
              style={{ backgroundImage: 'radial-gradient(900px 500px at 80% -10%, rgba(139,255,62,0.05), transparent)' }}>
           <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-[#05070d]/85 backdrop-blur">
@@ -151,9 +161,16 @@ export default function ControlLayout({ children }: { children: React.ReactNode 
                       style={{ background: 'rgba(139,255,62,0.1)', color: '#8BFF3E', border: '1px solid rgba(139,255,62,0.2)' }}>
                   Control
                 </span>
-                <span className="flex items-center gap-1 text-[10px]" title={live ? 'Realtime connected' : 'Realtime offline'}>
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: live ? '#8BFF3E' : 'rgba(255,255,255,0.25)', boxShadow: live ? '0 0 6px #8BFF3E' : 'none' }} />
-                  <span style={{ color: 'rgba(255,255,255,0.35)' }}>{live ? 'LIVE' : 'offline'}</span>
+                <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.14em] uppercase ml-1"
+                      title={live ? 'SOC realtime stream connected' : 'Realtime stream reconnecting…'}>
+                  <span className="relative inline-flex w-1.5 h-1.5">
+                    {live && <span className="absolute inset-0 rounded-full animate-ping"
+                                   style={{ background: '#8BFF3E', opacity: 0.55 }} />}
+                    <span className="relative w-1.5 h-1.5 rounded-full"
+                          style={{ background: live ? '#8BFF3E' : '#f59e0b',
+                                   boxShadow: live ? '0 0 6px #8BFF3E' : '0 0 4px rgba(245,158,11,0.6)' }} />
+                  </span>
+                  <span style={{ color: live ? '#8BFF3E' : '#f59e0b' }}>{live ? 'SOC Online' : 'Reconnecting'}</span>
                 </span>
               </div>
               <div className="flex items-center gap-4 text-[12px]">
@@ -174,6 +191,8 @@ export default function ControlLayout({ children }: { children: React.ReactNode 
                 pendingAbuse={abuse?.pending ?? 0}
                 openTickets={tickets?.open ?? 0}
                 breachedTickets={tickets?.breached ?? 0}
+                activeIncidents={incidents?.active ?? 0}
+                breachedIncidents={incidents?.breached ?? 0}
               />
             </div>
           </header>

@@ -412,7 +412,108 @@ that one). Threat intel is additive and wires straight into Phase 5.
   (READ_ONLY blocked from mutations, ANALYST can add not delete/import,
   ADMIN can do everything).
 
-## Roadmap — Phase 9 remaining
+## Phase 10 — SOC operational uplift — DELIVERED
+
+A platform-wide refinement pass: telemetry contracts, engine state machine
++ maintenance registry, full SOC incident management (correlation, status
+workflow, MTTR, SLA), and a polished Command Center.
+
+- **Telemetry contracts** (`apps/api/telemetry.py`): single source of truth
+  shared by every module — `OperationalStatus`, `Severity` (+ rank/compare),
+  `EventKind` (stable codes: `scan.*`, `alert.*`, `incident.*`, `auth.*`,
+  `customer.*`, `billing.*`, `infra.*`, `engine.*`, `abuse.*`, `ticket.*`,
+  `deploy.*`, `admin.action`), and `Event` envelope with a best-effort
+  `publish_event()` that fans onto the existing Redis pub/sub channel the
+  layout's SSE listener already subscribes to. Backward-compatible — Phase 3
+  alert publishes ride the same channel and still work.
+- **Schema (migration 0025)**:
+  - `engines` — per-engine registry: `maintenance_mode`, `auto_disable_at_failure_pct`,
+    `auto_disabled_at`, notes, updated_by_email. Opt-in metadata (engines
+    without a row use safe defaults).
+  - `incidents` — INC-#### display number, `correlation_key`, source, title,
+    severity, status (open / acknowledged / investigating / mitigated /
+    resolved / suppressed), target pointers, JSONB detail, `alert_count`
+    counter, first/last_seen, `sla_due_at`, assignee FK, ack/mitigate/resolve
+    timestamps + actor emails, **MTTR seconds** stamped at resolution.
+  - `incident_events` — per-incident timeline (alert_attached, status_change,
+    note, system) with `alert_id` for deep-linking.
+- **Engine state machine** (`services/engines.py`): `compute_state(runs,
+  failed, maintenance)` → `healthy / degraded / unstable / critical /
+  maintenance` (thresholds 15/40/70%, sub-3-run floor). `health_scorecards()`
+  joins the 7-day diagnostic window to the registry and ranks critical
+  first. The existing `GET /internal/engines` now returns the richer shape
+  additively (state, maintenance_mode, auto_disable_at_failure_pct, max_ms,
+  notes); Phase 2 fields are preserved exactly so older clients keep working.
+- **Engine registry API** (`/internal/engines/{name}/*`, audited):
+  - `POST /maintenance` (ANALYST+) — toggle the maintenance flag + publish
+    `engine.maintenance` event.
+  - `POST /threshold` (ADMIN) — set or clear the auto-disable failure
+    percentage (clamped 0–100).
+- **Incident management** (`services/incidents.py`):
+  - `correlate_alert(alert)` — find an open incident whose correlation key
+    `<source>:<target_type>:<target_id>` (or `dedup_key`/`source` fallback)
+    matches, bump it, escalate severity if the new alert is higher, or open
+    a new INC-#### with a per-severity SLA (critical 1h / high 4h / medium
+    24h / low 72h / info 7d).
+  - Lifecycle: `change_status` validates the transition, stamps the right
+    metadata, **computes MTTR at resolve**, clears terminals on re-open.
+  - `summary()` powers the nav badge + Command Center banner (active counts
+    by severity + breach count + the single highest-severity active incident).
+  - **Wired into the alert service**: `upsert_alert` now calls
+    `_correlate_into_incident` after the alert is flushed. Wrapped in
+    try/except so correlation can never break alert creation. SQLite-portable
+    (handles the naive datetime SQLite returns on reload for the MTTR sub).
+- **Incidents API** (`/internal/incidents*`, audited): list with status /
+  severity / source / breached-only filters (READ_ONLY+), summary, detail
+  with full timeline, status changes (ANALYST+), assignment (ADMIN), note
+  composer (ANALYST+).
+- **Command Center polish** (`/internal/command-center`):
+  - Infra block now returns `overall: operational | degraded | maintenance
+    | offline` derived from db/redis/worker/maintenance signals. The header
+    pill replaces the old "offline" text with semantic labels.
+  - `incidents` block returns the same shape as `/internal/incidents/summary`
+    so the dashboard can render the active-incident banner with one fetch.
+- **`/control` UI**: new Incidents nav tab (badge = active count, turns red
+  on SLA breach); the "Reconnecting / SOC Online" header pill replaces the
+  binary `offline` text; the Posture pill (Operational / Degraded /
+  Maintenance / Offline) sits alongside the existing infra grid; a top-of-
+  page incident banner appears when there's an active critical/high. The
+  Engines page shows a state pill per card, a per-state count strip, and
+  role-gated **Maintenance** + **Threshold** buttons.
+- **Tests** (`tests/test_incidents.py`, 11 tests, all passing): engine state
+  thresholds + maintenance trumping + registry get_or_create idempotency +
+  threshold clamping; **alert upsert opens an incident then attaches the
+  second occurrence** (the headline integration); severity escalation
+  records a system event + bumps the incident; full status lifecycle stamps
+  ack/mitigated/resolved timestamps and **computes MTTR**; re-open clears
+  terminals; summary picks the top incident by severity; API list/summary/
+  detail/status with 422 on bad status; READ_ONLY blocked from mutations
+  but can still read.
+
+Total suite: **204 tests across Phases 1–10, zero regressions**.
+
+## Roadmap — what's still next
+
+The user's Phase-10 priority list called out improvements beyond what's in
+this increment — these are the obvious next slices (each a clean, additive
+commit that won't touch live customer data unsafely):
+
+- **Live Event Stream UI** — drop the typed `Event` envelope from
+  `apps/api/telemetry.py` into a `/control/events` feed (the SSE channel
+  already carries them; the consumer just needs to render the typed shape).
+- **Engine reliability trend history + auto-disable enforcement** — the
+  evaluator already has the threshold value; wire it to flip
+  `maintenance_mode=True` + open a `engine.degraded` incident when crossed.
+- **sensitive_paths deep-dive** — diagnostic endpoint that returns the last
+  N runs of one engine with timeout markers + crawl depth + retry intelligence.
+- **Infrastructure Operations page** — dedicated `/control/infra` rendering
+  the 24h time-series we already capture in `infrastructure_samples`.
+- **Threat-intel auto-feeds** — scheduled importer for public IP/domain
+  feeds (a worker beat task; trivial on the Phase 9A foundation).
+- **Multi-tenant / MSSP org_id** — still explicitly deferred (touches every
+  customer-scoped model + ACL; needs an explicit go-ahead + migration plan).
+
+## Phase 9 remaining
 
 - **Multi-tenant / MSSP** — org_id on every customer-scoped model + ACL
   rewrite. Deferred: lands on live paying customers; needs an explicit

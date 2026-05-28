@@ -621,7 +621,7 @@ export const api = {
     scanDetail: (id: string) => request<ScanDetail>('GET', `/internal/scans/${id}`),
     cancelScan: (id: string) => request<{ ok: boolean; id: string; status: string }>('POST', `/internal/scans/${id}/cancel`),
     rescan: (id: string) => request<{ ok: boolean; new_scan_id: string; origin: string }>('POST', `/internal/scans/${id}/rescan`),
-    engines: () => request<{ engines: EngineScorecard[] }>('GET', '/internal/engines'),
+    engines: () => request<{ engines: EngineHealthRow[] }>('GET', '/internal/engines'),
     alerts: (params: { status?: string; severity?: string; source?: string; limit?: number; offset?: number } = {}) => {
       const qs = new URLSearchParams()
       if (params.status) qs.set('status', params.status)
@@ -748,6 +748,20 @@ export const api = {
       request<{ ok: boolean }>('DELETE', `/internal/threat-intel/indicators/${id}`),
     importThreatFeed: (body: ThreatImportBody) =>
       request<{ ok: boolean; created: number; updated: number; skipped: number }>('POST', '/internal/threat-intel/import', body),
+    incidents: (params: { status?: string; severity?: string; source?: string; breached_only?: boolean; limit?: number; offset?: number } = {}) =>
+      request<IncidentListResponse>('GET', `/internal/incidents?${_qs(params)}`),
+    incidentsSummary: () => request<IncidentSummary>('GET', '/internal/incidents/summary'),
+    incidentDetail: (id: string) => request<IncidentDetail>('GET', `/internal/incidents/${id}`),
+    setIncidentStatus: (id: string, status: string) =>
+      request<{ ok: boolean; status: string }>('POST', `/internal/incidents/${id}/status`, { status }),
+    assignIncident: (id: string, assignee_id: string | null) =>
+      request<{ ok: boolean; assignee: string | null }>('POST', `/internal/incidents/${id}/assign`, { assignee_id }),
+    incidentNote: (id: string, body: string) =>
+      request<{ ok: boolean }>('POST', `/internal/incidents/${id}/note`, { body }),
+    engineMaintenance: (name: string, on: boolean, notes: string | null = null) =>
+      request<{ ok: boolean; maintenance_mode: boolean }>('POST', `/internal/engines/${encodeURIComponent(name)}/maintenance`, { on, notes }),
+    engineThreshold: (name: string, failure_pct: number | null) =>
+      request<{ ok: boolean; auto_disable_at_failure_pct: number | null }>('POST', `/internal/engines/${encodeURIComponent(name)}/threshold`, { failure_pct }),
   },
 }
 
@@ -815,8 +829,9 @@ export interface CommandCenter {
   scans: { queued: number; running: number; failed_24h: number; completed_24h: number; total: number; avg_duration_s: number | null } | { error: string }
   users: { total: number; paid: number; new_7d: number } | { error: string }
   billing: { active_subscriptions: number; mrr_usd: number; arr_usd: number } | { error: string }
-  infra: { database: string; redis: string; queue_depth: number | null; worker: string; stripe_configured: boolean } | { error: string }
+  infra: { database: string; redis: string; queue_depth: number | null; worker: string; stripe_configured: boolean; maintenance?: boolean; overall?: 'operational' | 'degraded' | 'maintenance' | 'offline' } | { error: string }
   activity: { id: string; actor: string | null; action: string; target: string | null; at: string | null }[]
+  incidents?: IncidentSummary
 }
 
 // Scan Ops (mirror apps/api/internal/scan_ops.py)
@@ -1275,6 +1290,88 @@ export interface ThreatImportBody {
   default_severity?: string
   default_confidence?: number
   expires_in_days?: number | null
+}
+
+// Incidents (mirror apps/api/internal/incidents.py)
+export interface IncidentRow {
+  id: string
+  number: number
+  correlation_key: string
+  source: string
+  title: string
+  severity: string
+  status: string
+  target_type: string | null
+  target_id: string | null
+  detail: Record<string, unknown>
+  alert_count: number
+  assignee_id: string | null
+  first_seen_at: string | null
+  last_seen_at: string | null
+  sla_due_at: string | null
+  acknowledged_at: string | null
+  acknowledged_by: string | null
+  mitigated_at: string | null
+  resolved_at: string | null
+  resolved_by: string | null
+  mttr_seconds: number | null
+  breached: boolean
+}
+
+export interface IncidentEvent {
+  id: string
+  kind: string
+  author: string | null
+  body: string
+  alert_id: string | null
+  at: string | null
+}
+
+export interface IncidentDetail extends IncidentRow {
+  events: IncidentEvent[]
+  assignee_email?: string | null
+}
+
+export interface IncidentListResponse {
+  items: IncidentRow[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface IncidentSummary {
+  active: number
+  by_status: Record<string, number>
+  by_severity: Record<string, number>
+  breached: number
+  top: {
+    id: string
+    number: number
+    title: string
+    severity: string
+    status: string
+    alert_count: number
+    last_seen_at: string | null
+    breached: boolean
+  } | null
+}
+
+// Engines (Phase 2 endpoint extended; mirror apps/api/internal/scan_ops.py engine_scorecards)
+export interface EngineHealthRow {
+  engine: string
+  runs: number
+  failed: number
+  skipped: number
+  empty?: number
+  failure_rate: number
+  empty_rate: number
+  avg_ms: number | null
+  max_ms?: number | null
+  reliability: number | null
+  state?: 'healthy' | 'degraded' | 'unstable' | 'critical' | 'maintenance'
+  maintenance_mode?: boolean
+  auto_disable_at_failure_pct?: number | null
+  notes?: string | null
 }
 
 // ---------------------------------------------------------------------------

@@ -134,12 +134,31 @@ async def _infra_metrics(db: AsyncSession) -> dict:
         await r.aclose()
     except Exception:  # noqa: BLE001
         pass
+    # Roll the four tiles into a single operational status the header pill
+    # can display. Maintenance + worker stale + Redis down each degrade the
+    # overall posture, but Stripe being unconfigured isn't a SOC-blocker.
+    from apps.api.services.maintenance import is_active as _maint_active
+    try:
+        maintenance = await _maint_active()
+    except Exception:  # noqa: BLE001
+        maintenance = False
+
+    if maintenance:
+        overall = "maintenance"
+    elif not db_ok or not redis_ok:
+        overall = "offline"
+    elif worker == "stale" or worker == "unknown":
+        overall = "degraded"
+    else:
+        overall = "operational"
     return {
         "database": "ok" if db_ok else "down",
         "redis": "ok" if redis_ok else "down",
         "queue_depth": queue_depth,
         "worker": worker,
         "stripe_configured": bool(settings.stripe_secret_key and settings.stripe_webhook_secret),
+        "maintenance": maintenance,
+        "overall": overall,
     }
 
 
@@ -178,4 +197,12 @@ async def command_center(admin: _AnyAdmin, db: _DB) -> dict:
         out["activity"] = await _recent_activity(db)
     except Exception:  # noqa: BLE001
         out["activity"] = []
+    # Top incident drives the dashboard banner — degrade silently if the
+    # incidents service is unavailable.
+    try:
+        from apps.api.services import incidents as inc_svc
+        out["incidents"] = await inc_svc.summary(db)
+    except Exception:  # noqa: BLE001
+        out["incidents"] = {"active": 0, "by_status": {}, "by_severity": {},
+                            "breached": 0, "top": None}
     return out

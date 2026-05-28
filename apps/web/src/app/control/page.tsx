@@ -3,8 +3,9 @@
 // Global Command Center — live operational metrics for the internal SOC.
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import {
-  Activity, Users, ScanLine, CircleCheck, Clock, TrendingUp,
+  Activity, Users, ScanLine, CircleCheck, Clock, TrendingUp, Siren, ArrowRight,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, Tooltip,
@@ -12,19 +13,40 @@ import {
 import { api, type CommandCenter } from '@/lib/api'
 
 const LIME = '#8BFF3E'
+
 const ok = (v: unknown): v is Record<string, number> =>
   !!v && typeof v === 'object' && !('error' in (v as object))
 
-function HealthPill({ label, status }: { label: string; status: string }) {
-  const good = status === 'ok'
-  const warn = status === 'stale' || status === 'unknown'
-  const color = good ? LIME : warn ? '#f59e0b' : '#ef4444'
+// Maps the new infra.overall code to a friendly label + color for the header.
+const OVERALL_LABEL: Record<string, { label: string; color: string }> = {
+  operational: { label: 'Operational', color: LIME },
+  degraded:    { label: 'Degraded',    color: '#f59e0b' },
+  maintenance: { label: 'Maintenance', color: '#a855f7' },
+  offline:     { label: 'Offline',     color: '#ef4444' },
+}
+
+const SEV_COLOR: Record<string, string> = {
+  critical: '#ef4444', high: '#f97316', medium: '#f59e0b', low: '#3b82f6', info: '#8b94a6',
+}
+
+function HealthPill({ label, status, severity = false }: {
+  label: string; status: string; severity?: boolean
+}) {
+  // `severity=true` means the status string itself is the operational code
+  // (operational/degraded/maintenance/offline). Otherwise legacy ok/down/stale.
+  const tone = severity
+    ? OVERALL_LABEL[status]?.color ?? 'rgba(255,255,255,0.5)'
+    : (status === 'ok' ? LIME
+       : status === 'stale' || status === 'unknown' ? '#f59e0b'
+       : 'rgba(255,255,255,0.55)')
+  const display = severity ? (OVERALL_LABEL[status]?.label ?? status) : status
   return (
     <div className="flex items-center gap-2 rounded-lg px-3 py-2"
          style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
-      <span className="w-2 h-2 rounded-full" style={{ background: color, boxShadow: `0 0 8px ${color}` }} />
+      <span className="w-2 h-2 rounded-full"
+            style={{ background: tone, boxShadow: `0 0 8px ${tone}` }} />
       <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.55)' }}>{label}</span>
-      <span className="text-[11px] font-semibold ml-auto" style={{ color }}>{status}</span>
+      <span className="text-[11px] font-semibold ml-auto" style={{ color: tone }}>{display}</span>
     </div>
   )
 }
@@ -42,6 +64,41 @@ function Stat({ icon: Icon, label, value, sub }: {
       <div className="text-[26px] font-bold text-white leading-none">{value}</div>
       {sub && <div className="text-[11px] mt-1.5" style={{ color: 'rgba(255,255,255,0.4)' }}>{sub}</div>}
     </div>
+  )
+}
+
+function IncidentBanner({ data }: { data: NonNullable<CommandCenter['incidents']> }) {
+  const top = data.top
+  if (!top) return null
+  const c = SEV_COLOR[top.severity] ?? '#f59e0b'
+  return (
+    <Link href={`/control/incidents`}
+          className="block rounded-xl p-3.5 hover:bg-white/[0.02] transition-colors"
+          style={{ background: `${c}0d`, border: `1px solid ${c}3a` }}>
+      <div className="flex items-center gap-3">
+        <Siren className="w-4 h-4 shrink-0" style={{ color: c }} />
+        <div className="min-w-0 flex-1">
+          <div className="text-[12px] font-semibold flex items-center gap-2">
+            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wider"
+                  style={{ background: `${c}1a`, color: c, border: `1px solid ${c}33` }}>
+              {top.severity}
+            </span>
+            <span className="text-white truncate">INC-{String(top.number).padStart(4, '0')} · {top.title}</span>
+            {top.breached && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase"
+                    style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444',
+                             border: '1px solid rgba(239,68,68,0.3)' }}>
+                SLA breach
+              </span>
+            )}
+          </div>
+          <div className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.55)' }}>
+            {data.active} active · {data.breached} breached · {top.alert_count} alerts on top incident
+          </div>
+        </div>
+        <ArrowRight className="w-4 h-4 shrink-0" style={{ color: c }} />
+      </div>
+    </Link>
   )
 }
 
@@ -63,6 +120,7 @@ export default function CommandCenterPage() {
   const users = data && ok(data.users) ? data.users : null
   const billing = data && ok(data.billing) ? data.billing : null
   const infra = data?.infra && !('error' in data.infra) ? data.infra : null
+  const overall = infra?.overall ?? 'operational'
 
   const chart = scans ? [
     { name: 'Completed', value: scans.completed_24h, color: LIME },
@@ -74,21 +132,33 @@ export default function CommandCenterPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <div>
+        <div className="flex items-center gap-3">
           <h1 className="text-[19px] font-bold text-white">Command Center</h1>
-          <p className="text-[12px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
-            Live operational metrics{data ? ` · updated ${new Date(data.generated_at).toLocaleTimeString()}` : ''}
-          </p>
+          {infra && (
+            <span className="text-[10px] font-bold tracking-[0.18em] uppercase px-2 py-0.5 rounded"
+                  style={{ background: `${OVERALL_LABEL[overall]?.color ?? LIME}1a`,
+                           color: OVERALL_LABEL[overall]?.color ?? LIME,
+                           border: `1px solid ${OVERALL_LABEL[overall]?.color ?? LIME}33` }}>
+              {OVERALL_LABEL[overall]?.label ?? overall}
+            </span>
+          )}
+          {data && (
+            <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
+              · updated {new Date(data.generated_at).toLocaleTimeString()}
+            </span>
+          )}
         </div>
         {err && <span className="text-[12px] text-red-400">metrics unavailable — retrying…</span>}
       </div>
 
+      {data?.incidents && <IncidentBanner data={data.incidents} />}
+
       {/* Infra health */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
+        <HealthPill label="Posture" status={overall} severity />
         <HealthPill label="Database" status={infra?.database ?? '…'} />
         <HealthPill label="Redis" status={infra?.redis ?? '…'} />
         <HealthPill label="Worker" status={infra?.worker ?? '…'} />
-        <HealthPill label="Stripe" status={infra?.stripe_configured ? 'ok' : 'down'} />
         <HealthPill label="Queue depth" status={infra?.queue_depth != null ? String(infra.queue_depth) : '…'} />
       </div>
 
@@ -142,11 +212,6 @@ export default function CommandCenterPage() {
           </div>
         </div>
       </div>
-
-      <p className="text-[10px] pt-2" style={{ color: 'rgba(255,255,255,0.25)' }}>
-        Phase 1 · Command Center. Scan ops, SOC alerting, customer mgmt, fraud/abuse,
-        support, billing ops, log explorer & more are roadmapped in docs/INTERNAL_PLATFORM.md.
-      </p>
     </div>
   )
 }

@@ -63,6 +63,7 @@ async def upsert_alert(
         db.add(alert)
         await db.flush()
         await _add_comment(db, alert, kind="system", body="Alert opened.")
+        await _correlate_into_incident(db, alert)
         return alert, True
 
     reopened = existing.status in ("resolved", "suppressed")
@@ -80,7 +81,19 @@ async def upsert_alert(
         await _add_comment(db, existing, kind="system",
                            body="Re-opened — condition recurred.")
     await db.flush()
+    await _correlate_into_incident(db, existing)
     return existing, False
+
+
+async def _correlate_into_incident(db: AsyncSession, alert: Alert) -> None:
+    """Best-effort: roll the alert into an open incident, or open a new one.
+    Correlation must never break alert creation — if it fails we log + move on
+    so the alert side stays clean."""
+    try:
+        from apps.api.services import incidents as inc_svc
+        await inc_svc.correlate_alert(db, alert)
+    except Exception:  # noqa: BLE001
+        logger.debug("incident correlation failed (non-fatal)", exc_info=True)
 
 
 async def auto_resolve(db: AsyncSession, dedup_key: str, *, note: str) -> bool:

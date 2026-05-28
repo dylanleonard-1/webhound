@@ -5,6 +5,9 @@
 #   v1 — initial structured report
 #   v2 — added report_schema_version, scanner_version, profile, baseline_metadata,
 #         generated_at alias, report_metadata section
+#   v3 — added per-finding tags, quality_label, finding id, and
+#         metadata.corroborated_by; added top-level correlated_chains
+#         section listing every threat-chain cluster + its constituents
 
 from __future__ import annotations
 
@@ -15,7 +18,13 @@ from typing import Any
 from webhound.core.performance import ScanTelemetry
 from webhound.models.scan_result import ScanResult
 
-_REPORT_SCHEMA_VERSION = 2
+_REPORT_SCHEMA_VERSION = 3
+
+# Engine name used by the post-engine correlation pass (see
+# webhound/core/correlation.py). Findings with this engine are threat-chain
+# *cluster* findings — they aggregate multiple per-engine signals into one
+# corroborated story rather than describing a single observation.
+_CORRELATION_ENGINE = "correlation"
 
 
 def _wade_section(result: ScanResult) -> dict[str, Any]:
@@ -84,6 +93,7 @@ class JsonReport:
         bd = result.severity_breakdown
 
         findings_out: list[dict[str, Any]] = []
+        correlated_chains: list[dict[str, Any]] = []
         for f in result.active_findings:
             item: dict[str, Any] = {
                 "id": str(f.id),
@@ -91,8 +101,18 @@ class JsonReport:
                 "severity": f.severity.value,
                 "category": f.category.value,
                 "confidence": f.confidence,
+                # quality_label is severity+confidence+tags collapsed into one
+                # qualitative string the dashboard renders next to the finding
+                # ("confirmed" / "likely" / "heuristic" / "advisory" /
+                # "informational"). Exposed so SIEM ingestion / external
+                # consumers don't have to re-derive the mapping.
+                "quality_label": f.quality_label,
                 "scanner_engine": f.scanner_engine,
                 "description": f.description,
+                # Tags drive the dashboard's filter chips and "corroborated"
+                # badge — always emit, even when empty, so consumers can rely
+                # on the field's presence.
+                "tags": list(f.tags or []),
             }
             if f.remediation:
                 item["remediation"] = f.remediation
@@ -103,6 +123,42 @@ class JsonReport:
             item["framework"] = f.framework.model_dump(mode="json")
             if f.evidence:
                 item["evidence_location"] = f.evidence[0].location
+
+            # Correlation transparency: when the post-engine correlation
+            # pass raised this finding's confidence, expose *which* chain(s)
+            # corroborated it. UI can render "Strengthened by:
+            # supply_chain_compromise_risk" next to the confidence figure.
+            corroborated_by = (f.metadata or {}).get("corroborated_by") or []
+            if corroborated_by:
+                item["corroborated_by"] = list(corroborated_by)
+
+            # Cluster findings emitted by the correlation pass get their own
+            # transparency block + are also recorded in a top-level
+            # `correlated_chains` array for clients that want to render a
+            # dedicated "Threat chains" panel rather than walking every
+            # finding looking for engine="correlation".
+            if f.scanner_engine == _CORRELATION_ENGINE:
+                chain_name = (f.metadata or {}).get("chain_name")
+                constituents = (f.metadata or {}).get("constituents") or []
+                constituent_ids = (
+                    (f.metadata or {}).get("constituent_finding_ids") or []
+                )
+                item["chain_name"] = chain_name
+                item["constituent_finding_ids"] = list(constituent_ids)
+                item["constituents"] = list(constituents)
+                correlated_chains.append({
+                    "chain_name": chain_name,
+                    "cluster_finding_id": str(f.id),
+                    "title": f.title,
+                    "severity": f.severity.value,
+                    "confidence": f.confidence,
+                    "signal_count": (f.metadata or {}).get("signal_count")
+                                     or len(constituents),
+                    "constituent_finding_ids": list(constituent_ids),
+                    "constituents": list(constituents),
+                    "remediation": f.remediation,
+                })
+
             findings_out.append(item)
 
         profile_section: dict[str, Any] = (
@@ -172,6 +228,14 @@ class JsonReport:
                 for gf in result.grouped_findings
             ],
             "findings": findings_out,
+            # --- Cross-engine correlation ---
+            # One entry per threat-chain cluster the correlation pass
+            # produced this scan. Empty when no chains fired. Each entry
+            # holds the chain name, cluster confidence/severity, and the
+            # IDs of the per-engine findings that corroborated it — so
+            # consumers can render a dedicated "Threat chains" panel that
+            # backlinks into the findings list.
+            "correlated_chains": correlated_chains,
             # --- Engine provenance ---
             "engines_run": result.engines_run,
             "engine_diagnostics": [

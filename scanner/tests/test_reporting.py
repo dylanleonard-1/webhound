@@ -563,6 +563,87 @@ class TestJsonReportGroupedFindings:
 
 
 # ---------------------------------------------------------------------------
+# JsonReport — correlation transparency (schema v3 additions)
+# ---------------------------------------------------------------------------
+
+
+class TestJsonReportCorrelationFields:
+    """Schema v3 added per-finding ``tags`` + ``quality_label`` + optional
+    ``corroborated_by``, and a top-level ``correlated_chains`` section
+    listing every threat-chain cluster the correlation pass produced.
+
+    These tests pin the contract — the dashboard and SIEM ingestion both
+    depend on these field names + shape."""
+
+    def test_tags_always_present_on_each_finding(self) -> None:
+        result = _completed_result([_finding()])
+        report = JsonReport().build(result)
+        for item in report["findings"]:
+            assert "tags" in item
+            assert isinstance(item["tags"], list)
+
+    def test_quality_label_present_on_each_finding(self) -> None:
+        result = _completed_result([_finding()])
+        report = JsonReport().build(result)
+        for item in report["findings"]:
+            assert "quality_label" in item
+
+    def test_correlated_chains_key_present_even_when_empty(self) -> None:
+        """Empty-but-present is part of the contract — consumers shouldn't
+        have to special-case missing-key vs empty-list."""
+        result = _completed_result([_finding()])
+        report = JsonReport().build(result)
+        assert report["correlated_chains"] == []
+
+    def test_correlated_by_exposed_when_set(self) -> None:
+        f = _finding()
+        f.metadata["corroborated_by"] = ["supply_chain_compromise_risk"]
+        result = _completed_result([f])
+        report = JsonReport().build(result)
+        # Find the finding we tagged
+        match = next(item for item in report["findings"]
+                     if item["id"] == str(f.id))
+        assert match["corroborated_by"] == ["supply_chain_compromise_risk"]
+
+    def test_correlation_engine_finding_surfaces_as_chain(self) -> None:
+        """A finding emitted by engine='correlation' must appear *both*
+        inside the normal `findings` array AND in the top-level
+        `correlated_chains` block with constituent IDs."""
+        cluster = Finding(
+            title="Correlated threat chain: supply chain compromise risk",
+            description="cluster",
+            severity=Severity.HIGH,
+            category=FindingCategory.COMPROMISE,
+            scanner_engine="correlation",
+            confidence=0.85,
+            tags=["correlated", "cluster", "supply_chain_compromise_risk"],
+            evidence=[Evidence(
+                evidence_type=EvidenceType.RAW, content="cluster",
+                location="", source_engine="correlation",
+            )],
+            metadata={
+                "chain_name": "supply_chain_compromise_risk",
+                "signal_count": 2,
+                "constituent_finding_ids": ["abc", "def"],
+                "constituents": [
+                    {"id": "abc", "engine": "security_headers",
+                     "title": "Missing CSP", "severity": "low"},
+                    {"id": "def", "engine": "obfuscation_detector",
+                     "title": "base64 inline", "severity": "medium"},
+                ],
+            },
+        )
+        result = _completed_result([cluster])
+        report = JsonReport().build(result)
+        assert len(report["correlated_chains"]) == 1
+        chain = report["correlated_chains"][0]
+        assert chain["chain_name"] == "supply_chain_compromise_risk"
+        assert chain["signal_count"] == 2
+        assert chain["cluster_finding_id"] == str(cluster.id)
+        assert chain["constituent_finding_ids"] == ["abc", "def"]
+
+
+# ---------------------------------------------------------------------------
 # JsonReport — WADE section (existing schema preserved)
 # ---------------------------------------------------------------------------
 

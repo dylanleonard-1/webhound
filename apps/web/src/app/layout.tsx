@@ -83,12 +83,19 @@ export const metadata: Metadata = {
     siteName: 'WebHound',
     title: TITLE,
     description: DESCRIPTION,
+    // Explicit so the og:image meta tag is emitted unambiguously. The
+    // public/opengraph-image.png file is the same square brand mark Google's
+    // Organization-logo path picks up — keeps the social preview + the
+    // knowledge-panel logo identical.
+    images: [{ url: '/opengraph-image.png', width: 1254, height: 1254,
+               alt: 'WebHound — security operations platform' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: TITLE,
     description: DESCRIPTION,
     creator: '@webhoundsecurity',
+    images: ['/opengraph-image.png'],
   },
   robots: {
     index: true,

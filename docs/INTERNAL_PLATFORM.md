@@ -209,14 +209,62 @@ Center surfaces the recent feed. **All future privileged mutations must call it.
   ban self; RBAC matrix (READ_ONLY blocked from mutations, ANALYST can dismiss
   but not ban, ADMIN can ban); candidate selection picks the right users.
 
-## Roadmap — feature areas 7–18 (phased)
+## Phase 6 — Support / Fix Service — DELIVERED
+
+- **Schema (migration 0021)**: `support_tickets` (auto-incrementing `number`
+  for the WH-#### display tag, FK user + assignee SET NULL, optional
+  `source_scan_id` / `verification_scan_id` linking the issue scan and the
+  fix-verification scan, `sla_due_at` stamped at creation from the customer's
+  plan tier, `opened_at` / `first_response_at` / `resolved_at` / `closed_at`)
+  + `support_ticket_events` (per-ticket timeline with `kind` =
+  comment/status_change/priority_change/assignment/system and `visibility` =
+  public|internal so the customer self-service portal can later hide staff-
+  only entries).
+- **SLA matrix** (`services/support.py`): free=7d, pro=48h, shield=24h,
+  enterprise=8h. `is_breached(ticket)` is SQLite/Postgres-portable (handles
+  the naive datetime that sqlite returns on reload).
+- **Lifecycle service**:
+  - `create_ticket` validates category + priority, stamps SLA, writes a
+    system timeline entry.
+  - `change_status` records the transition, flips terminal timestamps, and
+    *clears* `resolved_at`/`closed_at` if a ticket is re-opened.
+  - `change_priority` / `assign` write their own timeline entries.
+  - `add_event(kind="comment", visibility="public")` stamps
+    `first_response_at` the first time a staff member replies publicly —
+    so we can measure responsiveness separately from full resolution.
+  - `attach_verification_scan` links a staff-initiated rescan + records it.
+- **API** (`/internal/tickets/*`, audited):
+  - `GET /tickets` (READ_ONLY+) — filter status/priority/assignee/user +
+    `breached_only`
+  - `GET /tickets/summary` — by-status counts + open + breached (drives the
+    Tickets nav badge with red on breach, amber on open)
+  - `GET /tickets/{id}` — detail + full timeline + enriched emails
+  - `POST /tickets` (SUPPORT+) — create
+  - `POST /tickets/{id}/{status,priority,assign,comment}` (SUPPORT+)
+  - `POST /tickets/{id}/verify-rescan` (SUPPORT+) — create + enqueue a new
+    scan against the same website and link it as the verification scan
+    (reuses `scan_jobs.create_scan_job(is_admin=True)` + best-effort Celery
+    enqueue, mirroring `scan_ops.force_rescan`).
+- **`/control` UI**: new Tickets nav tab with a colored badge (red if any
+  ticket is SLA-breached, amber otherwise); `/control/tickets` page with
+  status/priority filters + breached-only toggle, WH-#### display numbers,
+  per-ticket SLA pill (`Nh late` red on breach, `Nh` amber when ≤4h, plain
+  when comfortable); detail drawer with full timeline (internal vs public
+  entries color-coded), status/priority selects, verify-rescan button, and
+  a comment composer with a public/internal visibility selector.
+- **Tests** (`tests/test_support.py`, 11 tests passing): service create
+  stamps SLA from plan (Shield < Free), input validation, status/priority
+  changes record timeline + flip `resolved_at`, re-opening clears terminal
+  timestamps, first public comment stamps `first_response_at` (internal
+  notes don't), `is_breached` only for active tickets, `search(breached_only)`
+  filter; API create→full-lifecycle (status, priority, public/internal
+  comments, resolve), invalid input 422, verify-rescan blocked without a
+  source scan, READ_ONLY can view but not mutate.
+
+## Roadmap — feature areas 8–18 (phased)
 
 Each phase adds models + `/internal/*` routes + a `/control` page, reusing the
 RBAC + audit foundation.
-
-**Phase 6 — Support / Fix Service** (area 7)
-- Tables: `tickets`, `ticket_events`, `ticket_attachments`. SLA tracking, assign
-  technicians, link scans, before/after rescan comparison, verification rescans.
 
 **Phase 7 — Team Mgmt + Deploys + Infra** (areas 8, 10)
 - Tables: `deployments`, `infrastructure_metrics`. Role management UI, session

@@ -12,11 +12,11 @@ import { useEffect, useRef, useState, createContext, useContext, useCallback } f
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ShieldHalf, ArrowLeft, Loader2, LayoutDashboard, ScanLine, Cpu, BellRing, Users, CreditCard, ShieldAlert,
+  ShieldHalf, ArrowLeft, Loader2, LayoutDashboard, ScanLine, Cpu, BellRing, Users, CreditCard, ShieldAlert, Ticket,
 } from 'lucide-react'
 import {
   api, getStoredToken, streamInternalEvents,
-  type InternalMe, type AlertSummary, type AbuseSummary,
+  type InternalMe, type AlertSummary, type AbuseSummary, type TicketSummary,
 } from '@/lib/api'
 
 const MeContext = createContext<InternalMe | null>(null)
@@ -25,10 +25,11 @@ export const useInternalMe = () => useContext(MeContext)
 type ControlEvents = {
   summary: AlertSummary | null
   abuse: AbuseSummary | null
+  tickets: TicketSummary | null
   live: boolean
   subscribe: (cb: (data: Record<string, unknown>) => void) => () => void
 }
-const EventsContext = createContext<ControlEvents>({ summary: null, abuse: null, live: false, subscribe: () => () => {} })
+const EventsContext = createContext<ControlEvents>({ summary: null, abuse: null, tickets: null, live: false, subscribe: () => () => {} })
 export const useControlEvents = () => useContext(EventsContext)
 
 const ROLE_LABEL: Record<string, string> = {
@@ -42,17 +43,24 @@ const NAV = [
   { href: '/control/engines', label: 'Engines', icon: Cpu, badgeKey: null },
   { href: '/control/alerts', label: 'Alerts', icon: BellRing, badgeKey: 'alerts' as const },
   { href: '/control/abuse', label: 'Abuse', icon: ShieldAlert, badgeKey: 'abuse' as const },
+  { href: '/control/tickets', label: 'Tickets', icon: Ticket, badgeKey: 'tickets' as const },
   { href: '/control/customers', label: 'Customers', icon: Users, badgeKey: null },
   { href: '/control/billing', label: 'Billing', icon: CreditCard, badgeKey: null },
 ]
 
-function ControlNav({ openAlerts, pendingAbuse }: { openAlerts: number; pendingAbuse: number }) {
+function ControlNav({
+  openAlerts, pendingAbuse, openTickets, breachedTickets,
+}: { openAlerts: number; pendingAbuse: number; openTickets: number; breachedTickets: number }) {
   const pathname = usePathname()
   return (
     <nav className="flex items-center gap-1">
       {NAV.map(({ href, label, icon: Icon, badgeKey }) => {
         const active = href === '/control' ? pathname === '/control' : pathname.startsWith(href)
-        const badgeCount = badgeKey === 'alerts' ? openAlerts : badgeKey === 'abuse' ? pendingAbuse : 0
+        const badgeCount = badgeKey === 'alerts' ? openAlerts
+          : badgeKey === 'abuse' ? pendingAbuse
+          : badgeKey === 'tickets' ? openTickets
+          : 0
+        const isBreach = badgeKey === 'tickets' && breachedTickets > 0
         return (
           <Link key={href} href={href}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors"
@@ -62,7 +70,7 @@ function ControlNav({ openAlerts, pendingAbuse }: { openAlerts: number; pendingA
             <Icon className="w-3.5 h-3.5" /> {label}
             {badgeCount > 0 && (
               <span className="ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                    style={{ background: '#ef4444', color: '#fff' }}>{badgeCount}</span>
+                    style={{ background: isBreach ? '#ef4444' : '#f59e0b', color: '#fff' }}>{badgeCount}</span>
             )}
           </Link>
         )
@@ -77,6 +85,7 @@ export default function ControlLayout({ children }: { children: React.ReactNode 
   const [me, setMe] = useState<InternalMe | null>(null)
   const [summary, setSummary] = useState<AlertSummary | null>(null)
   const [abuse, setAbuse] = useState<AbuseSummary | null>(null)
+  const [tickets, setTickets] = useState<TicketSummary | null>(null)
   const [live, setLive] = useState(false)
   const listeners = useRef(new Set<(d: Record<string, unknown>) => void>())
 
@@ -101,6 +110,7 @@ export default function ControlLayout({ children }: { children: React.ReactNode 
     const loadAll = () => {
       api.internal.alertsSummary().then(s => { if (!cancelled) setSummary(s) }).catch(() => {})
       api.internal.abuseSummary().then(s => { if (!cancelled) setAbuse(s) }).catch(() => {})
+      api.internal.ticketsSummary().then(s => { if (!cancelled) setTickets(s) }).catch(() => {})
     }
     loadAll()
     const poll = setInterval(loadAll, 30000)
@@ -125,7 +135,7 @@ export default function ControlLayout({ children }: { children: React.ReactNode 
 
   return (
     <MeContext.Provider value={me}>
-      <EventsContext.Provider value={{ summary, abuse, live, subscribe }}>
+      <EventsContext.Provider value={{ summary, abuse, tickets, live, subscribe }}>
         <div className="min-h-screen bg-[#05070d] text-gray-100"
              style={{ backgroundImage: 'radial-gradient(900px 500px at 80% -10%, rgba(139,255,62,0.05), transparent)' }}>
           <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-[#05070d]/85 backdrop-blur">
@@ -155,7 +165,12 @@ export default function ControlLayout({ children }: { children: React.ReactNode 
               </div>
             </div>
             <div className="max-w-[1400px] mx-auto px-5 pb-2.5">
-              <ControlNav openAlerts={summary?.open ?? 0} pendingAbuse={abuse?.pending ?? 0} />
+              <ControlNav
+                openAlerts={summary?.open ?? 0}
+                pendingAbuse={abuse?.pending ?? 0}
+                openTickets={tickets?.open ?? 0}
+                breachedTickets={tickets?.breached ?? 0}
+              />
             </div>
           </header>
           <main className="max-w-[1400px] mx-auto px-5 py-6">{children}</main>

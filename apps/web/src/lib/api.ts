@@ -689,6 +689,30 @@ export const api = {
       request<AbuseEvaluation>('POST', `/internal/abuse/evaluate/${user_id}`),
     customerFingerprints: (user_id: string) =>
       request<{ items: IPFingerprint[] }>('GET', `/internal/customers/${user_id}/fingerprints`),
+    tickets: (params: { status?: string; priority?: string; user_id?: string; breached_only?: boolean; limit?: number; offset?: number } = {}) => {
+      const qs = new URLSearchParams()
+      if (params.status) qs.set('status', params.status)
+      if (params.priority) qs.set('priority', params.priority)
+      if (params.user_id) qs.set('user_id', params.user_id)
+      if (params.breached_only) qs.set('breached_only', 'true')
+      qs.set('limit', String(params.limit ?? 50))
+      qs.set('offset', String(params.offset ?? 0))
+      return request<TicketListResponse>('GET', `/internal/tickets?${qs.toString()}`)
+    },
+    ticketsSummary: () => request<TicketSummary>('GET', '/internal/tickets/summary'),
+    ticketDetail: (id: string) => request<TicketDetail>('GET', `/internal/tickets/${id}`),
+    createTicket: (body: TicketCreateBody) =>
+      request<{ ok: boolean; id: string; number: number }>('POST', '/internal/tickets', body),
+    setTicketStatus: (id: string, status: string) =>
+      request<{ ok: boolean; status: string }>('POST', `/internal/tickets/${id}/status`, { status }),
+    setTicketPriority: (id: string, priority: string) =>
+      request<{ ok: boolean; priority: string }>('POST', `/internal/tickets/${id}/priority`, { priority }),
+    assignTicket: (id: string, assignee_id: string | null) =>
+      request<{ ok: boolean; assignee: string | null }>('POST', `/internal/tickets/${id}/assign`, { assignee_id }),
+    commentTicket: (id: string, body: string, visibility: 'public' | 'internal' = 'public') =>
+      request<{ ok: boolean }>('POST', `/internal/tickets/${id}/comment`, { body, visibility }),
+    ticketVerifyRescan: (id: string, profile = 'standard') =>
+      request<{ ok: boolean; verification_scan_id: string }>('POST', `/internal/tickets/${id}/verify-rescan`, { profile }),
   },
 }
 
@@ -980,6 +1004,64 @@ export interface IPFingerprint {
   occurrences: number
   first_seen_at: string | null
   last_seen_at: string | null
+}
+
+// Support / Fix Service tickets (mirror apps/api/internal/support.py)
+export interface TicketRow {
+  id: string
+  number: number
+  user_id: string | null
+  assignee_id: string | null
+  subject: string
+  category: string
+  priority: string
+  status: string
+  source_scan_id: string | null
+  verification_scan_id: string | null
+  sla_due_at: string | null
+  opened_at: string | null
+  first_response_at: string | null
+  resolved_at: string | null
+  closed_at: string | null
+  breached: boolean
+}
+
+export interface TicketEvent {
+  id: string
+  kind: string
+  visibility: string
+  author: string | null
+  body: string
+  at: string | null
+}
+
+export interface TicketDetail extends TicketRow {
+  description: string | null
+  events: TicketEvent[]
+  user_email?: string | null
+  assignee_email?: string | null
+}
+
+export interface TicketListResponse {
+  items: TicketRow[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface TicketSummary {
+  by_status: Record<string, number>
+  open: number
+  breached: number
+}
+
+export interface TicketCreateBody {
+  user_id?: string | null
+  subject: string
+  description?: string | null
+  category?: string
+  priority?: string
+  source_scan_id?: string | null
 }
 
 // ---------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 """Import all models so SQLAlchemy registers them with Base.metadata."""
+from apps.api.models.abuse import AbuseFlag, IPDeviceFingerprint
 from apps.api.models.admin_audit_log import AdminAuditLog
 from apps.api.models.alert import Alert, AlertComment
 from apps.api.models.baseline import BaselineRecord
@@ -34,10 +35,12 @@ __all__ = [
     "User",
     "AdminAuditLog",
     "AdminRole",
+    "AbuseFlag",
     "Alert",
     "AlertComment",
     "AlertSeverity",
     "AlertStatus",
+    "IPDeviceFingerprint",
     "Website",
     "DomainVerification",
     "ScanJob",

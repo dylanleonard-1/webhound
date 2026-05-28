@@ -34,6 +34,7 @@ celery = Celery(
         "worker.report_tasks",
         "worker.monitoring_tasks",
         "worker.alert_tasks",
+        "worker.fraud_tasks",
     ],
 )
 
@@ -60,6 +61,10 @@ celery.conf.update(
         "evaluate-alerts": {
             "task": "worker.alert_tasks.evaluate_alerts",
             "schedule": crontab(minute="*/5"),     # SOC alert evaluation, every 5 min
+        },
+        "evaluate-abuse": {
+            "task": "worker.fraud_tasks.evaluate_abuse",
+            "schedule": crontab(minute="*/15"),    # Fraud/abuse scoring, every 15 min
         },
     },
 )

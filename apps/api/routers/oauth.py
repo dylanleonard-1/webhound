@@ -4,7 +4,7 @@ from typing import Annotated
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -49,7 +49,7 @@ async def google_authorize() -> RedirectResponse:
 
 
 @router.get("/google/callback")
-async def google_callback(code: str, db: _DB) -> RedirectResponse:
+async def google_callback(code: str, db: _DB, request: Request) -> RedirectResponse:
     settings = get_settings()
     try:
         async with httpx.AsyncClient(timeout=15) as client:
@@ -80,7 +80,15 @@ async def google_callback(code: str, db: _DB) -> RedirectResponse:
     )
     user = await find_or_create_oauth_user(db, info)
     from datetime import datetime, timezone
+
+    from apps.api.services import fraud as fraud_svc
     user.last_login_at = datetime.now(timezone.utc)
+    ip = (request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+          or (request.client.host if request.client else None))
+    await fraud_svc.record_login_fingerprint(
+        db, user_id=user.id, ip_address=ip,
+        user_agent=request.headers.get("user-agent"),
+    )
     await db.commit()
     jwt_token = create_access_token(user.id)
     return RedirectResponse(f"{settings.frontend_url}/auth/callback?token={jwt_token}")
@@ -102,7 +110,7 @@ async def github_authorize() -> RedirectResponse:
 
 
 @router.get("/github/callback")
-async def github_callback(code: str, db: _DB) -> RedirectResponse:
+async def github_callback(code: str, db: _DB, request: Request) -> RedirectResponse:
     settings = get_settings()
     try:
         async with httpx.AsyncClient(timeout=15) as client:
@@ -147,7 +155,15 @@ async def github_callback(code: str, db: _DB) -> RedirectResponse:
     )
     user = await find_or_create_oauth_user(db, info)
     from datetime import datetime, timezone
+
+    from apps.api.services import fraud as fraud_svc
     user.last_login_at = datetime.now(timezone.utc)
+    ip = (request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+          or (request.client.host if request.client else None))
+    await fraud_svc.record_login_fingerprint(
+        db, user_id=user.id, ip_address=ip,
+        user_agent=request.headers.get("user-agent"),
+    )
     await db.commit()
     jwt_token = create_access_token(user.id)
     return RedirectResponse(f"{settings.frontend_url}/auth/callback?token={jwt_token}")

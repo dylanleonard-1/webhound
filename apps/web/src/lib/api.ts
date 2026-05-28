@@ -671,6 +671,24 @@ export const api = {
     },
     billingEvents: (limit = 50) =>
       request<{ items: StripeEventRow[]; error?: string }>('GET', `/internal/billing/events?limit=${limit}`),
+    abuseFlags: (params: { status?: string; severity?: string; limit?: number; offset?: number } = {}) => {
+      const qs = new URLSearchParams()
+      if (params.status) qs.set('status', params.status)
+      if (params.severity) qs.set('severity', params.severity)
+      qs.set('limit', String(params.limit ?? 50))
+      qs.set('offset', String(params.offset ?? 0))
+      return request<AbuseFlagListResponse>('GET', `/internal/abuse/flags?${qs.toString()}`)
+    },
+    abuseSummary: () => request<AbuseSummary>('GET', '/internal/abuse/summary'),
+    abuseFlagDetail: (id: string) => request<AbuseFlagDetail>('GET', `/internal/abuse/flags/${id}`),
+    dismissAbuseFlag: (id: string, note: string | null) =>
+      request<{ ok: boolean; status: string }>('POST', `/internal/abuse/flags/${id}/dismiss`, { note }),
+    banFromAbuseFlag: (id: string, reason: string | null) =>
+      request<{ ok: boolean; status: string }>('POST', `/internal/abuse/flags/${id}/ban`, { reason }),
+    evaluateAbuse: (user_id: string) =>
+      request<AbuseEvaluation>('POST', `/internal/abuse/evaluate/${user_id}`),
+    customerFingerprints: (user_id: string) =>
+      request<{ items: IPFingerprint[] }>('GET', `/internal/customers/${user_id}/fingerprints`),
   },
 }
 
@@ -911,6 +929,57 @@ export interface StripeEventRow {
   livemode: boolean
   created: number
   request_id: string | null
+}
+
+// Fraud & Abuse (mirror apps/api/internal/abuse.py)
+export interface AbuseFlagRow {
+  id: string
+  dedup_key: string
+  user_id: string | null
+  ip_address: string | null
+  score: number
+  severity: string
+  status: string
+  reasons: string[]
+  occurrences: number
+  first_seen_at: string | null
+  last_seen_at: string | null
+  resolved_by: string | null
+  resolved_at: string | null
+  resolution_note: string | null
+}
+
+export interface AbuseFlagDetail extends AbuseFlagRow {
+  detail: Record<string, Record<string, unknown>>
+  user_email?: string | null
+  user_is_active?: boolean
+}
+
+export interface AbuseFlagListResponse {
+  items: AbuseFlagRow[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface AbuseSummary {
+  pending: number
+  by_severity: Record<string, number>
+}
+
+export interface AbuseEvaluation {
+  score: { score: number; severity: string; reasons: string[]; detail: Record<string, Record<string, unknown>> }
+  flag_id?: string
+  flag_created?: boolean
+}
+
+export interface IPFingerprint {
+  id: string
+  ip_address: string
+  user_agent: string
+  occurrences: number
+  first_seen_at: string | null
+  last_seen_at: string | null
 }
 
 // ---------------------------------------------------------------------------

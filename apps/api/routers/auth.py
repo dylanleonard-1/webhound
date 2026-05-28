@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -130,7 +130,7 @@ async def login(data: UserLogin, db: _DB) -> JSONResponse:
 
 
 @router.post("/login/verify", response_model=TokenResponse)
-async def login_verify(data: LoginVerifyRequest, db: _DB) -> TokenResponse:
+async def login_verify(data: LoginVerifyRequest, db: _DB, request: Request) -> TokenResponse:
     user_id = decode_login_challenge_token(data.challenge_token)
     user = await db.get(User, user_id)
     if user is None or not user.is_active:
@@ -139,9 +139,17 @@ async def login_verify(data: LoginVerifyRequest, db: _DB) -> TokenResponse:
         await auth_service.verify_login_otp(db, user, data.code)
     except auth_service.InvalidLoginCodeError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    # Stamp last_login_at for the /control customer ops view.
+    # Stamp last_login_at + record the device fingerprint for /control fraud ops.
     from datetime import datetime, timezone
+
+    from apps.api.services import fraud as fraud_svc
     user.last_login_at = datetime.now(timezone.utc)
+    ip = (request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+          or (request.client.host if request.client else None))
+    await fraud_svc.record_login_fingerprint(
+        db, user_id=user.id, ip_address=ip,
+        user_agent=request.headers.get("user-agent"),
+    )
     await db.commit()
     return TokenResponse(access_token=create_access_token(user.id))
 

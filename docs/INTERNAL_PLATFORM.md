@@ -166,15 +166,53 @@ Center surfaces the recent feed. **All future privileged mutations must call it.
   suspend/cannot-suspend-self/RBAC matrix (READ_ONLY blocked from mutations,
   SUPPORT can add notes but not delete, ADMIN can delete + change plan).
 
-## Roadmap — feature areas 6–18 (phased)
+## Phase 5 — Fraud & Abuse — DELIVERED
+
+- **Schema (migration 0020)**: `abuse_flags` (dedup_key unique per subject,
+  score + severity, status pending/dismissed/banned, JSONB reasons + detail,
+  occurrences, ack/resolve metadata, FK users SET NULL); `ip_device_fingerprints`
+  ((user_id, ip, ua) unique, occurrences, first/last_seen).
+- **Login fingerprinting**: every successful password + Google + GitHub login
+  upserts a `(user, ip, user_agent)` row used by the diversity signals.
+- **Scoring engine** (`services/fraud.py`): independent signals each contribute
+  a weight, total ≥ 30 → flag. Signals:
+  - **excessive_scans** (≥50 in 24h, weight 30)
+  - **failed_payments** (past_due/unpaid/incomplete_expired sub, weight 20)
+  - **auth_failures** (≥5 in Redis `auth:fail:` counter or `auth:lock:` set, weight 25)
+  - **many_ips** (≥5 distinct IPs in 7d, weight 15)
+  - **many_user_agents** (≥4 distinct UAs in 7d, weight 10)
+  - **high_fail_rate** (≥50% failed of ≥10 scans in 7d, weight 15)
+  Severity = critical (≥80) / high (≥50) / medium (≥30).
+- **Evaluator beat task** (`worker.fraud_tasks.evaluate_abuse`, every 15 min):
+  cheap aggregate queries pick candidates (high scan volume, payment problems,
+  IP/UA diversity), each is scored, flags are upserted; **cleared signals
+  auto-dismiss the pending flag**.
+- **API** (`/internal/abuse/*`, all audited):
+  - `GET /flags` (READ_ONLY+) — list/filter by status/severity, paginated
+  - `GET /summary` — pending counts by severity (nav badge)
+  - `GET /flags/{id}` — detail enriched with subject email + active flag
+  - `POST /flags/{id}/dismiss` (ANALYST+) with optional note
+  - `POST /flags/{id}/ban` (ADMIN) — promotes to a real user suspension via
+    `customers.suspend` (which also force-logs-out via the JWT denylist) and
+    marks the flag `banned`. Self-ban blocked.
+  - `POST /evaluate/{user_id}` (ANALYST+) — ad-hoc score+upsert
+  - `GET /customers/{user_id}/fingerprints` (READ_ONLY+) — IP/UA history
+- **`/control` UI**: new Abuse nav tab with a red pending-count badge driven
+  by `/abuse/summary` (polled + SSE-refreshed); `/control/abuse` page with
+  severity-color queue, score-bar visualization, signal-by-signal detail
+  drawer, dismiss/ban/re-evaluate actions gated by role.
+- **Tests** (`tests/test_abuse.py`, 14 tests passing): fingerprint upsert +
+  no-op without IP; excessive-scans/failed-payments/many-ips signal triggers
+  on synthetic data; clean user stays under threshold; upsert dedup + recurrence
+  re-opens a dismissed flag; auto-resolve clears when signals drop; API list/
+  summary/detail; dismiss → ban escalation promotes to user suspension; cannot
+  ban self; RBAC matrix (READ_ONLY blocked from mutations, ANALYST can dismiss
+  but not ban, ADMIN can ban); candidate selection picks the right users.
+
+## Roadmap — feature areas 7–18 (phased)
 
 Each phase adds models + `/internal/*` routes + a `/control` page, reusing the
 RBAC + audit foundation.
-
-**Phase 5 — Fraud & Abuse** (area 6)
-- Tables: `abuse_flags`, `ip_device_fingerprints`. Abuse scoring (excessive scans,
-  bot/VPN/proxy, failed-payment abuse, API abuse, credential stuffing), auto-ban
-  rules, manual review queue.
 
 **Phase 6 — Support / Fix Service** (area 7)
 - Tables: `tickets`, `ticket_events`, `ticket_attachments`. SLA tracking, assign

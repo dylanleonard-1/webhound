@@ -713,6 +713,25 @@ export const api = {
       request<{ ok: boolean }>('POST', `/internal/tickets/${id}/comment`, { body, visibility }),
     ticketVerifyRescan: (id: string, profile = 'standard') =>
       request<{ ok: boolean; verification_scan_id: string }>('POST', `/internal/tickets/${id}/verify-rescan`, { profile }),
+    team: () => request<TeamResponse>('GET', '/internal/team'),
+    teamSessions: (hours = 72) =>
+      request<TeamSessionsResponse>('GET', `/internal/team/sessions?hours=${hours}`),
+    setUserRole: (user_id: string, role: string) =>
+      request<{ ok: boolean; admin_role: string }>('POST', `/internal/team/${user_id}/role`, { role }),
+    deploys: (service?: string) => {
+      const qs = new URLSearchParams()
+      if (service) qs.set('service', service)
+      qs.set('limit', '100')
+      return request<DeploysResponse>('GET', `/internal/deploys?${qs.toString()}`)
+    },
+    currentDeploy: () => request<{ sha: string | null }>('GET', '/internal/deploys/current'),
+    recordDeploy: (body: { service: string; sha: string; status?: string; note?: string | null }) =>
+      request<{ ok: boolean; id: string }>('POST', '/internal/deploys', body),
+    infraHistory: (hours = 24) =>
+      request<{ items: InfraSample[] }>('GET', `/internal/infra/history?hours=${hours}`),
+    maintenanceStatus: () => request<MaintenanceState>('GET', '/internal/maintenance'),
+    setMaintenance: (active: boolean, reason: string | null) =>
+      request<{ ok: boolean; active: boolean }>('POST', '/internal/maintenance', { active, reason }),
   },
 }
 
@@ -1062,6 +1081,71 @@ export interface TicketCreateBody {
   category?: string
   priority?: string
   source_scan_id?: string | null
+}
+
+// Team / Deploys / Infra / Maintenance (mirror apps/api/internal/team_deploys.py)
+export interface StaffMember {
+  id: string
+  email: string
+  full_name: string | null
+  admin_role: string
+  is_active: boolean
+  last_login_at: string | null
+}
+
+export interface TeamResponse {
+  staff: StaffMember[]
+  force_logged_out_count: number
+}
+
+export interface LoginRow {
+  id: string
+  email: string
+  admin_role: string
+  last_login_at: string | null
+}
+
+export interface DenylistedUser {
+  id: string
+  email: string
+  admin_role: string
+  is_active: boolean
+}
+
+export interface TeamSessionsResponse {
+  recent_logins: LoginRow[]
+  force_logged_out: DenylistedUser[]
+}
+
+export interface DeployRow {
+  id: string
+  service: string
+  sha: string
+  status: string
+  actor: string | null
+  note: string | null
+  started_at: string | null
+  finished_at: string | null
+}
+
+export interface DeploysResponse {
+  current_sha: string | null
+  items: DeployRow[]
+}
+
+export interface InfraSample {
+  taken_at: string | null
+  queue_depth: number | null
+  worker_alive: boolean
+  worker_heartbeat_age_s: number | null
+  redis_used_memory_mb: number | null
+  active_scans: number | null
+}
+
+export interface MaintenanceState {
+  active: boolean
+  reason: string | null
+  error?: string
 }
 
 // ---------------------------------------------------------------------------

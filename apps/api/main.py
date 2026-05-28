@@ -16,6 +16,7 @@ from apps.api.errors import (
     validation_exception_handler,
 )
 from apps.api.middleware import (
+    MaintenanceModeMiddleware,
     RateLimitMiddleware,
     RequestIdMiddleware,
     SecurityHeadersMiddleware,
@@ -82,6 +83,7 @@ app.add_middleware(
 )
 
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(MaintenanceModeMiddleware)
 
 app.add_middleware(
     RateLimitMiddleware,
@@ -125,6 +127,7 @@ from apps.api.internal.customers import router as internal_customers_router  # n
 from apps.api.internal.billing_ops import router as internal_billing_router  # noqa: E402
 from apps.api.internal.abuse import router as internal_abuse_router  # noqa: E402
 from apps.api.internal.support import router as internal_support_router  # noqa: E402
+from apps.api.internal.team_deploys import router as internal_team_deploys_router  # noqa: E402
 app.include_router(internal_router)
 app.include_router(internal_scan_ops_router)
 app.include_router(internal_alerts_router)
@@ -132,6 +135,7 @@ app.include_router(internal_customers_router)
 app.include_router(internal_billing_router)
 app.include_router(internal_abuse_router)
 app.include_router(internal_support_router)
+app.include_router(internal_team_deploys_router)
 
 
 @app.on_event("startup")

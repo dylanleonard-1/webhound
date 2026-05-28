@@ -35,6 +35,7 @@ celery = Celery(
         "worker.monitoring_tasks",
         "worker.alert_tasks",
         "worker.fraud_tasks",
+        "worker.infra_tasks",
     ],
 )
 
@@ -65,6 +66,10 @@ celery.conf.update(
         "evaluate-abuse": {
             "task": "worker.fraud_tasks.evaluate_abuse",
             "schedule": crontab(minute="*/15"),    # Fraud/abuse scoring, every 15 min
+        },
+        "sample-infra": {
+            "task": "worker.infra_tasks.sample_infra",
+            "schedule": crontab(minute="*/5"),     # Infra trend sample, every 5 min
         },
     },
 )

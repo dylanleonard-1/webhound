@@ -3,7 +3,9 @@ from apps.api.models.abuse import AbuseFlag, IPDeviceFingerprint
 from apps.api.models.admin_audit_log import AdminAuditLog
 from apps.api.models.alert import Alert, AlertComment
 from apps.api.models.baseline import BaselineRecord
+from apps.api.models.deployment import Deployment
 from apps.api.models.engine_diagnostic import EngineDiagnosticRecord
+from apps.api.models.infrastructure_sample import InfrastructureSample
 from apps.api.models.enums import (
     AdminRole,
     AlertSeverity,
@@ -51,6 +53,8 @@ __all__ = [
     "EngineDiagnosticRecord",
     "InternalNote",
     "BaselineRecord",
+    "Deployment",
+    "InfrastructureSample",
     "ReportRecord",
     "ScanSchedule",
     "Notification",

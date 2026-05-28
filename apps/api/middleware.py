@@ -66,6 +66,36 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+class MaintenanceModeMiddleware(BaseHTTPMiddleware):
+    """When the Redis flag `webhound:maintenance_mode` is set, return 503 for
+    write paths that would queue scan work. Read-only paths (health, /internal
+    dashboards, billing-read, etc.) keep working so staff can still see what's
+    happening. Toggled from /control/team."""
+
+    # Path prefixes blocked while engaged. Conservative — we want the SOC + the
+    # auth flow to keep functioning so staff can recover.
+    _BLOCKED_WRITE_PREFIXES = ("/scan-jobs", "/websites", "/scan-schedules")
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+            return await call_next(request)
+        path = request.url.path
+        if not any(path.startswith(p) for p in self._BLOCKED_WRITE_PREFIXES):
+            return await call_next(request)
+        try:
+            from apps.api.services.maintenance import is_active
+            if await is_active():
+                return JSONResponse(
+                    status_code=503,
+                    content={"error": {"code": "maintenance",
+                                       "message": "WebHound is in maintenance — try again shortly."}},
+                    headers={"Retry-After": "60"},
+                )
+        except Exception:  # noqa: BLE001 — fail open
+            pass
+        return await call_next(request)
+
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     def __init__(
         self, app, *, requests_per_minute: int = 100, enabled: bool = True

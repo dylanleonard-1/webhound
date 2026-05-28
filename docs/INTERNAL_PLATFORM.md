@@ -261,15 +261,71 @@ Center surfaces the recent feed. **All future privileged mutations must call it.
   comments, resolve), invalid input 422, verify-rescan blocked without a
   source scan, READ_ONLY can view but not mutate.
 
+## Phase 7 — Team Mgmt + Deploys + Infra — DELIVERED
+
+- **Schema (migration 0022)**: `deployments` (service / sha / status / actor /
+  note / started_at / finished_at) for manual deploy history;
+  `infrastructure_samples` (taken_at, queue_depth, worker_alive,
+  worker_heartbeat_age_s, redis_used_memory_mb, active_scans) for trend
+  storage.
+- **Team service** (`services/team.py`):
+  - `list_staff` returns every account with a non-`none` admin role.
+  - `change_admin_role` validates the role and **flips the legacy `is_admin`
+    flag** in lockstep so older code paths (and the user model's existing
+    `is_admin` check) stay consistent.
+  - `recent_logins(hours)` reads `last_login_at` (Phase 4 wiring).
+  - `force_logged_out_users` resolves every `auth:denylist:*` Redis key
+    back to a user record so staff can see exactly whose sessions are
+    currently revoked.
+- **Deploys service** (`services/deployments.py`): `current_sha()` returns
+  the Railway-injected `RAILWAY_GIT_COMMIT_SHA` — the source of truth for
+  what's running. `record(...)` validates service + status + minimum sha
+  length and stores a row. `list_recent(...)` for the page.
+- **Infra metrics** (`services/infra_metrics.py` + `worker/infra_tasks.py`):
+  `sample_infra` beat task (every 5 min) snapshots queue depth, worker
+  heartbeat age + alive, Redis used memory (in MB), and active-scan count
+  in a single row. `history(hours)` returns the time-series for the chart;
+  `prune_older_than` keeps the table bounded.
+- **Maintenance mode** (`services/maintenance.py` +
+  `middleware.MaintenanceModeMiddleware`): a Redis flag
+  `webhound:maintenance_mode` (+ optional reason) toggled from
+  `/internal/maintenance` (SUPER_ADMIN). While engaged, the middleware
+  short-circuits write paths (`/scan-jobs`, `/websites`, `/scan-schedules`)
+  with `503` so staff can do infra work without losing queued scans. Reads,
+  the SOC, and the auth flow stay open. Fails open if Redis is unreachable.
+- **API** (`/internal/team*`, `/internal/deploys*`, `/internal/infra/history`,
+  `/internal/maintenance`, audited):
+  - `GET /team` + `GET /team/sessions` (READ_ONLY+) — roster, recent logins,
+    revoked sessions.
+  - `POST /team/{user_id}/role` (SUPER_ADMIN) — change role; cannot change
+    your own; 422 on invalid role.
+  - `GET /deploys` + `GET /deploys/current` (READ_ONLY+) — history + the
+    live `RAILWAY_GIT_COMMIT_SHA`.
+  - `POST /deploys` (ADMIN) — manual record.
+  - `GET /infra/history?hours=N` (READ_ONLY+).
+  - `GET /maintenance` (READ_ONLY+) + `POST /maintenance` (SUPER_ADMIN) —
+    `{active: bool, reason?: string}`.
+- **`/control` UI**: new **Team** and **Deploys** nav tabs.
+  - `/control/team`: maintenance-mode card with engage/disengage button
+    (color shifts amber while engaged); staff roster with per-row role
+    selector (SUPER_ADMIN-only, self-row disabled); recent-logins table;
+    revoked-sessions table when present.
+  - `/control/deploys`: a card with the live commit SHA (linked to GitHub),
+    service filter, history table with status colors + a **LIVE** badge on
+    the row matching the running SHA, "Record deploy" dialog (ADMIN).
+- **Tests** (`tests/test_team_deploys.py`, 11 tests, all passing): role
+  change validates + flips `is_admin`, list_staff excludes `none`,
+  recent_logins window filter, deploy validators reject bad inputs,
+  record+list, `current_sha` reads the env, infra `history` returns
+  rows ordered by `taken_at`, API team-roster lists only staff, role
+  changes are blocked for self + non-super-admin + bad role, deploy
+  record happy path + READ_ONLY blocked, maintenance toggle is
+  SUPER_ADMIN-only and idempotent.
+
 ## Roadmap — feature areas 8–18 (phased)
 
 Each phase adds models + `/internal/*` routes + a `/control` page, reusing the
 RBAC + audit foundation.
-
-**Phase 7 — Team Mgmt + Deploys + Infra** (areas 8, 10)
-- Tables: `deployments`, `infrastructure_metrics`. Role management UI, session
-  monitoring (Redis-backed sessions), deploy/rollback history, container/queue
-  metrics, restart-service/maintenance-mode controls (Railway API).
 
 **Phase 8 — Live Log Explorer + full Audit UI** (areas 11, 12)
 - Tables: `logs` (structured, JSONB, indexed by source/severity/time). Splunk-style

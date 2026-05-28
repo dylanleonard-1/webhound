@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { useAuth } from '@/contexts/auth'
 import { Logo } from '@/components/marketing/logo'
+import { resolvePostLoginPath } from '@/lib/post-login'
 
 function CallbackInner() {
   const { loginWithToken } = useAuth()
@@ -31,8 +32,11 @@ function CallbackInner() {
       return
     }
 
+    // OAuth flow has no ?next= param of its own; pass '/dashboard' as the
+    // default and let resolvePostLoginPath escalate to /control for staff.
     loginWithToken(token)
-      .then(() => router.replace('/dashboard'))
+      .then(() => resolvePostLoginPath('/dashboard'))
+      .then(dest => router.replace(dest))
       .catch(() => setError('Failed to complete sign-in. Please try again.'))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 

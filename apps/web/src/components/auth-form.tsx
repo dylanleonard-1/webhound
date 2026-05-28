@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth'
 import type { LoginChallenge, UseCase } from '@/lib/api'
+import { resolvePostLoginPath } from '@/lib/post-login'
 
 const USE_CASES: Array<{ value: UseCase; label: string }> = [
   { value: 'developer',         label: 'Developer' },
@@ -301,8 +302,9 @@ export function AuthForm({ mode }: AuthFormProps) {
       if (isLogin) {
         const step = await initiateLogin(email, password)
         if (step.kind === 'signed_in') {
-          // Legacy API path — straight to next (or dashboard).
-          router.replace(consumeNext())
+          // Legacy API path — route staff to /control, customers to /dashboard,
+          // explicit ?next= always wins.
+          router.replace(await resolvePostLoginPath(consumeNext()))
         } else {
           setChallenge(step.challenge)
         }
@@ -337,7 +339,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         challenge={challenge}
         onVerify={async code => {
           await verifyLoginCode(challenge.challenge_token, code)
-          router.replace(consumeNext())
+          router.replace(await resolvePostLoginPath(consumeNext()))
         }}
         onResend={() => resendLoginCode(challenge.challenge_token)}
         onBack={() => setChallenge(null)}

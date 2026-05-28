@@ -16,6 +16,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any
 from urllib.parse import urlparse
 
@@ -33,6 +34,19 @@ from .domain_classifier import (
 # ---------------------------------------------------------------------------
 
 
+class EnrichmentState(str, Enum):
+    """Lifecycle state for a provider lookup. Dashboards render this so an
+    analyst can tell *why* a host has no malicious-count number — was VT
+    rate-limited, did we use a cached verdict, did the provider error?"""
+
+    CHECKED = "checked"            # Fresh lookup, real verdict in fields
+    CACHED = "cached"              # Returned an in-memory cached verdict
+    DEFERRED = "deferred"          # Skipped this run; intent is to retry later
+    SKIPPED = "skipped"            # Skipped intentionally (allowlist, no API key)
+    RATE_LIMITED = "rate_limited"  # Provider rate limit hit
+    UNAVAILABLE = "unavailable"    # Provider errored / down
+
+
 @dataclass
 class ProviderResult:
     """Structured output from a single threat intel provider.
@@ -40,6 +54,10 @@ class ProviderResult:
     ``reputation_score`` uses a 0.0–10.0 scale (10 = most malicious).
     ``is_malicious`` and ``is_suspicious`` are the provider's own verdict flags.
     ``error`` is set when the provider lookup failed; other fields may be None.
+
+    Phase-2 additions: explicit ``state`` + ``cached_at`` + VT vote counts
+    (malicious/suspicious/harmless/undetected). The dashboard renders these
+    so analysts can tell a clean cached lookup from an unavailable provider.
     """
 
     provider: str
@@ -52,6 +70,20 @@ class ProviderResult:
     raw: dict[str, Any]                      # Verbatim provider response payload
     checked_at: datetime
     error: str | None = None                 # Set on lookup failure
+
+    # Phase-2: explicit lifecycle so the dashboard can show "checked", "cached",
+    # "deferred", "skipped", "rate_limited", "unavailable" instead of just
+    # "result-or-error". Defaults to CHECKED for existing call sites.
+    state: EnrichmentState = EnrichmentState.CHECKED
+    cached_at: datetime | None = None        # When the value was first cached
+    cache_ttl_seconds: int | None = None     # TTL applied (for transparency)
+
+    # Verbatim VT (or analogous provider) vote counts when the provider
+    # exposes them. None = unknown / provider doesn't return.
+    malicious_count: int | None = None
+    suspicious_count: int | None = None
+    harmless_count: int | None = None
+    undetected_count: int | None = None
 
 
 # ---------------------------------------------------------------------------

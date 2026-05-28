@@ -122,6 +122,24 @@ class PageArtifacts:
     # `javascript:` URL or eval() inside an onclick is no less dangerous.
     event_handlers: list[tuple[str, str, str]] = field(default_factory=list)
 
+    # Phase-2 audit: broader third-party discovery surfaces. Each list holds
+    # absolute, resolved URLs whose hostname differs from the page hostname.
+    # All default to empty so prior callers + serialisers stay backward-
+    # compatible — the threat_intel engine consults them additively.
+    external_srcset_urls: list[str] = field(default_factory=list)        # <img srcset>, <source srcset>
+    external_video_audio_urls: list[str] = field(default_factory=list)   # <video/audio src>, <source src>, poster
+    external_object_embed_urls: list[str] = field(default_factory=list)  # <object data>, <embed src>
+    external_meta_refresh_urls: list[str] = field(default_factory=list)  # <meta http-equiv="refresh">
+    external_preconnect_urls: list[str] = field(default_factory=list)    # <link rel="preconnect">
+    external_dns_prefetch_urls: list[str] = field(default_factory=list)  # <link rel="dns-prefetch">
+    external_preload_urls: list[str] = field(default_factory=list)       # <link rel="preload"/"modulepreload">
+    external_manifest_urls: list[str] = field(default_factory=list)      # <link rel="manifest">
+    external_canonical_urls: list[str] = field(default_factory=list)     # <link rel="canonical">
+    external_og_twitter_urls: list[str] = field(default_factory=list)    # <meta property="og:image"/twitter:*>
+    external_jsonld_urls: list[str] = field(default_factory=list)        # @id / url fields in <script type="application/ld+json">
+    external_inline_style_urls: list[str] = field(default_factory=list)  # url(...) in style attributes / <style> blocks
+    external_favicon_urls: list[str] = field(default_factory=list)       # <link rel="icon"/"shortcut icon">/"apple-touch-icon">
+
 
 # Regex patterns used by the V2 extraction methods.
 _CSS_IMPORT_RE = re.compile(

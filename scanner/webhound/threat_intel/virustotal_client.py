@@ -22,12 +22,13 @@ import json
 import os
 import time
 from collections import deque
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
 
 import httpx
 
-from .enrichment_service import BaseProvider, ProviderResult
+from .enrichment_service import BaseProvider, EnrichmentState, ProviderResult
 
 _VT_DOMAIN_API = "https://www.virustotal.com/api/v3/domains/{domain}"
 
@@ -90,17 +91,22 @@ class VirusTotalClient(BaseProvider):
         cached = self._cache.get(cache_key)
         if cached is not None:
             ts, result = cached
-            if time.monotonic() - ts < self._cache_ttl:
-                # Refresh the checked_at stamp so consumers see "current".
-                return ProviderResult(
-                    provider=result.provider, domain=result.domain,
-                    reputation_score=result.reputation_score,
-                    confidence=result.confidence,
-                    categories=result.categories,
-                    is_malicious=result.is_malicious,
-                    is_suspicious=result.is_suspicious,
-                    raw=result.raw, checked_at=now,
-                    error=result.error,
+            age = time.monotonic() - ts
+            if age < self._cache_ttl:
+                # Return the cached verdict but flag it as cached so the
+                # dashboard can render "VT (cached, age 12m)" instead of
+                # implying a fresh lookup.
+                cached_dt = result.cached_at or result.checked_at
+                # If the original was rate-limited / unavailable, surface
+                # that same state — cached doesn't change the verdict
+                # category, only its provenance.
+                final_state = (result.state
+                               if result.state in _NON_CHECKED_STATES
+                               else EnrichmentState.CACHED)
+                return replace(
+                    result,
+                    checked_at=now, cached_at=cached_dt,
+                    state=final_state, cache_ttl_seconds=int(self._cache_ttl),
                 )
 
         if not self._allow_network:
@@ -110,6 +116,7 @@ class VirusTotalClient(BaseProvider):
                 categories=[], is_malicious=None, is_suspicious=None,
                 raw={}, checked_at=now,
                 error="virustotal disabled: allow_network=False (offline mode)",
+                state=EnrichmentState.SKIPPED,
             )
         if not self._api_key:
             return ProviderResult(
@@ -118,6 +125,7 @@ class VirusTotalClient(BaseProvider):
                 categories=[], is_malicious=None, is_suspicious=None,
                 raw={}, checked_at=now,
                 error="virustotal: no API key (set VIRUSTOTAL_API_KEY)",
+                state=EnrichmentState.SKIPPED,
             )
 
         await self._bucket.acquire()
@@ -135,26 +143,41 @@ class VirusTotalClient(BaseProvider):
                     categories=[], is_malicious=None, is_suspicious=None,
                     raw={}, checked_at=now,
                     error="virustotal: rate-limited (HTTP 429)",
+                    state=EnrichmentState.RATE_LIMITED,
+                    cached_at=now, cache_ttl_seconds=int(self._cache_ttl),
                 )
                 self._cache[cache_key] = (time.monotonic(), result)
                 return result
             payload = resp.json() if resp.headers.get(
                 "content-type", "").startswith("application/json") else {}
-            result = _parse_vt_response(domain, payload, now)
+            result = _parse_vt_response(domain, payload, now,
+                                        cache_ttl_seconds=int(self._cache_ttl))
         except (httpx.HTTPError, json.JSONDecodeError) as exc:
             result = ProviderResult(
                 provider=self.name, domain=domain,
                 reputation_score=None, confidence=0.0,
                 categories=[], is_malicious=None, is_suspicious=None,
-                raw={}, checked_at=now, error=f"virustotal lookup failed: {exc}",
+                raw={}, checked_at=now,
+                error=f"virustotal lookup failed: {exc}",
+                state=EnrichmentState.UNAVAILABLE,
             )
 
         self._cache[cache_key] = (time.monotonic(), result)
         return result
 
 
+# States that should be preserved through a cache hit — cached
+# rate-limited / unavailable verdict should NOT be reported as a fresh
+# "cached" success.
+_NON_CHECKED_STATES = frozenset({
+    EnrichmentState.RATE_LIMITED, EnrichmentState.UNAVAILABLE,
+    EnrichmentState.SKIPPED, EnrichmentState.DEFERRED,
+})
+
+
 def _parse_vt_response(
     domain: str, payload: dict[str, Any], checked_at: datetime,
+    *, cache_ttl_seconds: int | None = None,
 ) -> ProviderResult:
     data = (payload.get("data") or {}).get("attributes") or {}
     stats = data.get("last_analysis_stats") or {}
@@ -170,6 +193,8 @@ def _parse_vt_response(
             categories=[], is_malicious=None, is_suspicious=None,
             raw=payload, checked_at=checked_at,
             error="virustotal: no analysis stats in response",
+            state=EnrichmentState.UNAVAILABLE,
+            cached_at=checked_at, cache_ttl_seconds=cache_ttl_seconds,
         )
     detect_ratio = (malicious + suspicious) / total
     rep_score = round(detect_ratio * 10.0, 2)
@@ -184,4 +209,8 @@ def _parse_vt_response(
         is_malicious=malicious >= 2,
         is_suspicious=(malicious + suspicious) >= 1,
         raw=payload, checked_at=checked_at,
+        state=EnrichmentState.CHECKED,
+        cached_at=checked_at, cache_ttl_seconds=cache_ttl_seconds,
+        malicious_count=malicious, suspicious_count=suspicious,
+        harmless_count=harmless, undetected_count=undetected,
     )

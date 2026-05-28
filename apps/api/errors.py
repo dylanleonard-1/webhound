@@ -72,6 +72,26 @@ async def internal_exception_handler(
         sentry_sdk.capture_exception(exc)
     except Exception:  # noqa: BLE001
         pass
+    # Also surface in the /control Log Explorer so on-call staff don't need to
+    # tab over to Sentry to see what's happening. Best-effort, runs on its own
+    # session so a DB issue can't shadow the real 500.
+    try:
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        from apps.api.database import get_session_factory
+        from apps.api.services.logs import record_server_error
+        factory = get_session_factory()
+        if factory is not None:
+            async with factory() as db:
+                await record_server_error(
+                    db,
+                    request_method=request.method,
+                    request_path=str(request.url.path),
+                    exception=exc,
+                    request_id=getattr(request.state, "request_id", None),
+                )
+    except Exception:  # noqa: BLE001 — logging must never shadow the real 500
+        pass
     return JSONResponse(
         status_code=500,
         content=_body("internal_error", "An unexpected error occurred."),

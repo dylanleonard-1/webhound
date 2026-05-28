@@ -732,7 +732,22 @@ export const api = {
     maintenanceStatus: () => request<MaintenanceState>('GET', '/internal/maintenance'),
     setMaintenance: (active: boolean, reason: string | null) =>
       request<{ ok: boolean; active: boolean }>('POST', '/internal/maintenance', { active, reason }),
+    searchLogs: (params: LogSearchParams = {}) =>
+      request<LogSearchResponse>('GET', `/internal/logs?${_qs(params)}`),
+    searchAudit: (params: AuditSearchParams = {}) =>
+      request<AuditSearchResponse>('GET', `/internal/audit?${_qs(params)}`),
+    logsCsvUrl: (params: LogSearchParams = {}) => `/internal/logs.csv?${_qs(params)}`,
+    auditCsvUrl: (params: AuditSearchParams = {}) => `/internal/audit.csv?${_qs(params)}`,
   },
+}
+
+function _qs(params: object): string {
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === '') continue
+    qs.set(k, String(v))
+  }
+  return qs.toString()
 }
 
 // SSE stream for live SOC events. Uses fetch (not EventSource) so the Bearer
@@ -1146,6 +1161,69 @@ export interface MaintenanceState {
   active: boolean
   reason: string | null
   error?: string
+}
+
+// Log Explorer + Audit (mirror apps/api/internal/logs.py)
+export interface LogRow {
+  id: string
+  timestamp: string | null
+  source: string
+  severity: string
+  message: string
+  context: Record<string, unknown>
+  request_id: string | null
+  actor_email: string | null
+}
+
+export interface LogSearchParams {
+  source?: string
+  severity?: string
+  severity_at_least?: string
+  q?: string
+  request_id?: string
+  since?: string
+  until?: string
+  limit?: number
+  offset?: number
+}
+
+export interface LogSearchResponse {
+  items: LogRow[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface AuditRow {
+  id: string
+  action: string
+  actor_email: string | null
+  actor_role: string | null
+  target_type: string | null
+  target_id: string | null
+  detail: Record<string, unknown>
+  ip_address: string | null
+  request_id: string | null
+  at: string | null
+}
+
+export interface AuditSearchParams {
+  action?: string
+  actor_email?: string
+  target_type?: string
+  target_id?: string
+  q?: string
+  since?: string
+  until?: string
+  limit?: number
+  offset?: number
+}
+
+export interface AuditSearchResponse {
+  items: AuditRow[]
+  total: number
+  limit: number
+  offset: number
 }
 
 // ---------------------------------------------------------------------------

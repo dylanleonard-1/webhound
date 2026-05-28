@@ -29,3 +29,11 @@ AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         yield session
+
+
+def get_session_factory():
+    """Module-level async sessionmaker for callers outside the request scope
+    (the global exception handler, background coroutines from middleware,
+    etc.). Returns the same factory `get_db()` uses, so connections are
+    routed through the same pool."""
+    return AsyncSessionLocal

@@ -322,15 +322,48 @@ Center surfaces the recent feed. **All future privileged mutations must call it.
   record happy path + READ_ONLY blocked, maintenance toggle is
   SUPER_ADMIN-only and idempotent.
 
-## Roadmap — feature areas 8–18 (phased)
+## Phase 8 — Log Explorer + Audit UI — DELIVERED
+
+- **Schema (migration 0023)**: `logs` table (timestamp, source, severity,
+  message text, JSONB context, request_id, actor_email — indexed by
+  timestamp, source, severity, source+severity, request_id). The Audit
+  browser reuses `admin_audit_logs` from Phase 1 — no new schema there.
+- **Logs service** (`services/logs.py`): `record()` normalizes unknown
+  severities to `info` and caps the message at 8000 chars so a runaway
+  traceback can't blow up the table; `search_logs(...)` supports source +
+  exact severity + `severity_at_least` threshold + free-text `q` ILIKE on
+  message + `request_id` + time window; `logs_to_csv(...)` flattens
+  newlines so each row stays on one CSV line. Same shape for
+  `search_audit(...)` over `admin_audit_logs` with action/actor/target/q/
+  time filters; `audit_to_csv` json-encodes the detail blob.
+- **Server-error emit**: the global `internal_exception_handler` now opens
+  a fresh session via the new `get_session_factory()` helper and calls
+  `record_server_error(...)` — every 500 lands in the Log Explorer with
+  the method, path, exception class, and request_id. Fully best-effort:
+  any failure in the logger never shadows the original 500.
+- **API** (4 routes, READ_ONLY+):
+  - `GET /internal/logs` — paginated search with all the filters above
+  - `GET /internal/logs.csv` — same filters, returns CSV (up to 10 000 rows)
+  - `GET /internal/audit` — paginated audit search
+  - `GET /internal/audit.csv` — audit CSV export
+- **`/control` UI**: new Logs nav tab; `/control/logs` page with two tabs
+  — **Application logs** (free-text search box, source select, exact
+  severity or threshold, severity-colored pill, expandable JSON context
+  per row, CSV export button) and **Audit trail** (free-text q + exact
+  action + actor email filters, action-colored chip, expandable detail
+  blob, CSV export). CSV download goes through `fetch + Authorization`
+  so it inherits the same Bearer auth the API uses.
+- **Tests** (`tests/test_logs.py`, 9 tests, all passing): unknown severity
+  → info; message clipped at 8000 chars; severity-threshold filter; combined
+  source/q/request_id filter; CSV header + newline flattening + exact row
+  count; audit action/target_id/q filters; API logs search + threshold;
+  CSV content-type + body; audit search + CSV; **customer accounts get 403
+  on all four routes**.
+
+## Roadmap — feature areas 9, 18 (phased)
 
 Each phase adds models + `/internal/*` routes + a `/control` page, reusing the
 RBAC + audit foundation.
-
-**Phase 8 — Live Log Explorer + full Audit UI** (areas 11, 12)
-- Tables: `logs` (structured, JSONB, indexed by source/severity/time). Splunk-style
-  full-text search, query builder, severity/time filters, saved searches, export.
-- Full audit-trail browser over `admin_audit_logs`.
 
 **Phase 9 — Future expansion** (area 18)
 - Multi-tenant/MSSP (org_id scoping), AI copilots, automated remediation, threat-

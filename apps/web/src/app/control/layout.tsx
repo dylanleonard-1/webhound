@@ -12,7 +12,7 @@ import { useEffect, useRef, useState, createContext, useContext, useCallback } f
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ShieldHalf, ArrowLeft, Loader2, LayoutDashboard, ScanLine, Cpu, BellRing, Users, CreditCard, ShieldAlert, Ticket, UserCog, Rocket,
+  ShieldHalf, ArrowLeft, Loader2, LayoutDashboard, ScanLine, Cpu, BellRing, Users, CreditCard, ShieldAlert, Ticket, UserCog, Rocket, FileSearch,
 } from 'lucide-react'
 import {
   api, getStoredToken, streamInternalEvents,
@@ -48,6 +48,7 @@ const NAV = [
   { href: '/control/billing', label: 'Billing', icon: CreditCard, badgeKey: null },
   { href: '/control/team', label: 'Team', icon: UserCog, badgeKey: null },
   { href: '/control/deploys', label: 'Deploys', icon: Rocket, badgeKey: null },
+  { href: '/control/logs', label: 'Logs', icon: FileSearch, badgeKey: null },
 ]
 
 function ControlNav({

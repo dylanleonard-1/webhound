@@ -29,12 +29,13 @@ logger = logging.getLogger(__name__)
 # Reason → score weight. Tuning is conservative; only score >= FLAG_THRESHOLD
 # generates a flag, so single weak signals stay silent.
 _WEIGHTS: dict[str, int] = {
-    "excessive_scans":   30,
-    "failed_payments":   20,
-    "auth_failures":     25,
-    "many_ips":          15,
-    "many_user_agents":  10,
-    "high_fail_rate":    15,
+    "excessive_scans":     30,
+    "failed_payments":     20,
+    "auth_failures":       25,
+    "many_ips":            15,
+    "many_user_agents":    10,
+    "high_fail_rate":      15,
+    "threat_intel_ip":     35,   # Phase 9A: login IP appears in a threat feed
 }
 
 FLAG_THRESHOLD = 30   # ignore lone weak signals
@@ -183,6 +184,31 @@ async def _signal_ip_ua_diversity(db: AsyncSession, user_id: uuid.UUID) -> tuple
     )
 
 
+async def _signal_threat_intel_ip(db: AsyncSession, user_id: uuid.UUID) -> tuple[bool, dict]:
+    """Match this user's recent login IPs against the threat-intel feeds.
+    Uses the same 7-day window as the IP-diversity signal."""
+    since = _now() - timedelta(days=7)
+    ips = await db.scalars(
+        select(IPDeviceFingerprint.ip_address).where(
+            IPDeviceFingerprint.user_id == user_id,
+            IPDeviceFingerprint.last_seen_at >= since,
+        ).distinct()
+    )
+    ip_list = [ip for ip in ips.all() if ip]
+    if not ip_list:
+        return False, {}
+
+    from apps.api.services import threat_intel as ti_svc
+    flagged: list[dict] = []
+    for ip in ip_list:
+        hits = await ti_svc.match(db, kind="ip", value=ip)
+        for h in hits:
+            flagged.append({"ip": ip, "source": h.source, "severity": h.severity,
+                            "confidence": h.confidence})
+            break   # one hit per IP is enough to mark it
+    return (bool(flagged), {"hits": flagged, "ips_checked": len(ip_list)})
+
+
 async def _signal_auth_failures(email: str) -> tuple[bool, dict]:
     """Reads the Redis counter our rate limiter increments on bad passwords."""
     if not email:
@@ -240,6 +266,12 @@ async def evaluate_user(db: AsyncSession, user_id: uuid.UUID,
         detail["auth_failures"] = d
         if matched:
             reasons.append("auth_failures")
+
+    # Phase 9A: any of this user's recent login IPs in a threat-intel feed?
+    matched, d = await _signal_threat_intel_ip(db, user_id)
+    detail["threat_intel_ip"] = d
+    if matched:
+        reasons.append("threat_intel_ip")
 
     score = sum(_WEIGHTS.get(r, 0) for r in reasons)
     return {"score": score, "severity": _severity(score),

@@ -738,6 +738,16 @@ export const api = {
       request<AuditSearchResponse>('GET', `/internal/audit?${_qs(params)}`),
     logsCsvUrl: (params: LogSearchParams = {}) => `/internal/logs.csv?${_qs(params)}`,
     auditCsvUrl: (params: AuditSearchParams = {}) => `/internal/audit.csv?${_qs(params)}`,
+    threatIndicators: (params: { kind?: string; source?: string; severity?: string; q?: string; include_expired?: boolean; limit?: number; offset?: number } = {}) =>
+      request<ThreatListResponse>('GET', `/internal/threat-intel/indicators?${_qs(params)}`),
+    threatMatch: (kind: string, value: string) =>
+      request<{ hits: ThreatIndicatorRow[]; count: number }>('GET', `/internal/threat-intel/indicators/match?${_qs({ kind, value })}`),
+    addThreatIndicator: (body: ThreatAddBody) =>
+      request<{ ok: boolean; id: string; created: boolean }>('POST', '/internal/threat-intel/indicators', body),
+    deleteThreatIndicator: (id: string) =>
+      request<{ ok: boolean }>('DELETE', `/internal/threat-intel/indicators/${id}`),
+    importThreatFeed: (body: ThreatImportBody) =>
+      request<{ ok: boolean; created: number; updated: number; skipped: number }>('POST', '/internal/threat-intel/import', body),
   },
 }
 
@@ -1224,6 +1234,47 @@ export interface AuditSearchResponse {
   total: number
   limit: number
   offset: number
+}
+
+// Threat Intelligence (mirror apps/api/internal/threat_intel.py)
+export interface ThreatIndicatorRow {
+  id: string
+  kind: string
+  value: string
+  source: string
+  severity: string
+  confidence: number
+  tags: string[]
+  notes: string | null
+  first_seen_at: string | null
+  last_seen_at: string | null
+  expires_at: string | null
+}
+
+export interface ThreatListResponse {
+  items: ThreatIndicatorRow[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface ThreatAddBody {
+  kind: string
+  value: string
+  source?: string
+  severity?: string
+  confidence?: number
+  tags?: string[]
+  notes?: string | null
+  expires_at?: string | null
+}
+
+export interface ThreatImportBody {
+  source: string
+  rows: { kind: string; value: string; severity?: string; confidence?: number; tags?: string[]; notes?: string }[]
+  default_severity?: string
+  default_confidence?: number
+  expires_in_days?: number | null
 }
 
 // ---------------------------------------------------------------------------

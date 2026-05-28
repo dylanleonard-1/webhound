@@ -360,10 +360,67 @@ Center surfaces the recent feed. **All future privileged mutations must call it.
   CSV content-type + body; audit search + CSV; **customer accounts get 403
   on all four routes**.
 
-## Roadmap — feature areas 9, 18 (phased)
+## Phase 9A — Threat Intelligence — DELIVERED
 
-Each phase adds models + `/internal/*` routes + a `/control` page, reusing the
-RBAC + audit foundation.
+A scoped slice of the broader Phase 9 expansion (full multi-tenant org_id
+scoping is deferred — it touches every model + ACL and is genuinely
+risky against live paying customers; the user keeps explicit control of
+that one). Threat intel is additive and wires straight into Phase 5.
+
+- **Schema (migration 0024)**: `threat_indicators` (kind ip/domain/url/
+  hash/cve, value, source, severity, confidence 0–100, JSONB tags, notes,
+  first/last_seen, optional `expires_at` TTL). Deduped on
+  `(kind, value, source)`.
+- **Service** (`services/threat_intel.py`):
+  - `upsert_indicator` validates kind + severity, clamps confidence to
+    0–100, **normalizes the value** (lowercases domains/URLs/hashes, strips
+    trailing dots) so dedup actually dedups across casing/whitespace.
+  - `match(kind, value)` — fast lookup, excludes expired rows; returns
+    every matching indicator across feeds.
+  - `import_feed(source, rows, default_severity, default_confidence,
+    expires_in_days)` — bulk upsert with per-row override, skips bad rows.
+  - `expire_stale()` — prunes everything past its TTL.
+- **Fraud integration** — `services/fraud._signal_threat_intel_ip` runs
+  the user's distinct login IPs (last 7d) through `ti_svc.match` and
+  adds the new **`threat_intel_ip`** reason (weight 35 — the heaviest
+  single signal). A login from a known-bad IP plus any other signal now
+  flags hard.
+- **API** (`/internal/threat-intel/*`, audited):
+  - `GET /indicators` (READ_ONLY+) — filter kind/source/severity/q +
+    paginated, hides expired by default
+  - `GET /indicators/match?kind=&value=` (READ_ONLY+) — probe
+  - `POST /indicators` (ANALYST+) — manual add (audit logs whether it
+    was a new row or an update)
+  - `DELETE /indicators/{id}` (ADMIN) — explicit deletion
+  - `POST /import` (ADMIN) — bulk feed import; audit detail records
+    counts
+- **`/control` UI**: new Threat Intel nav tab; `/control/threat-intel`
+  page with a **Match Probe** card (severity-colored hits with source +
+  confidence + notes), filter row (search, kind, severity, "show
+  expired" toggle), indicator table with delete buttons (ADMIN), Add
+  dialog (ANALYST), and Bulk Import dialog (ADMIN — paste one indicator
+  per line + pick default kind/severity, shows created/updated/skipped
+  counts when done).
+- **Tests** (`tests/test_threat_intel.py`, 8 tests, all passing): kind/
+  severity validation; value normalization dedups domain casing +
+  trailing dot; confidence clamps to 0–100; `match` excludes expired
+  rows; `import_feed` returns created/updated/skipped exactly; `expire_stale`
+  deletes only rows past their TTL; **the fraud evaluator's new IP
+  signal triggers when a known-bad IP appears in a user's fingerprints
+  and the resulting score alone clears the flag threshold**; API
+  full-lifecycle (add → list → match → import → delete) + RBAC matrix
+  (READ_ONLY blocked from mutations, ANALYST can add not delete/import,
+  ADMIN can do everything).
+
+## Roadmap — Phase 9 remaining
+
+- **Multi-tenant / MSSP** — org_id on every customer-scoped model + ACL
+  rewrite. Deferred: lands on live paying customers; needs an explicit
+  green light + migration plan + dry run.
+- **SIEM / endpoint integrations** — outbound webhook + Splunk HEC
+  shape; sits cleanly on top of the new `logs` + `admin_audit_logs`
+  surfaces.
+- **Multi-region** — Railway-side infra change rather than app schema.
 
 **Phase 9 — Future expansion** (area 18)
 - Multi-tenant/MSSP (org_id scoping), AI copilots, automated remediation, threat-

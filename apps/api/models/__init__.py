@@ -32,6 +32,7 @@ from apps.api.models.scan_result import ScanResultRecord
 from apps.api.models.scan_schedule import ScanSchedule
 from apps.api.models.subscription import Subscription
 from apps.api.models.support_ticket import SupportTicket, SupportTicketEvent
+from apps.api.models.threat_indicator import ThreatIndicator
 from apps.api.models.user import User
 from apps.api.models.website import DomainVerification, Website
 
@@ -63,6 +64,7 @@ __all__ = [
     "Subscription",
     "SupportTicket",
     "SupportTicketEvent",
+    "ThreatIndicator",
     "VerificationStatus",
     "VerificationMethod",
     "ScanStatus",

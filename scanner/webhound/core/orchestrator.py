@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import time
 from datetime import datetime, timezone
@@ -19,6 +20,8 @@ from urllib.parse import urlparse
 
 import httpx
 import tldextract as _tldextract
+
+logger = logging.getLogger(__name__)
 
 from webhound.core.crawler import Crawler
 from webhound.core.extractor import _is_html
@@ -455,6 +458,23 @@ class Scanner:
 
         # 7. False-positive suppression — reduce confidence on known CDN/platform patterns
         ctx.scan_result.findings = FPFilter().filter(ctx.scan_result.findings)
+
+        # 7b. Cross-engine correlation — adds cluster findings + corroboration
+        # bumps when multiple engines independently point at the same threat
+        # chain (e.g. weak CSP + risky third-party + obfuscated inline JS =
+        # supply-chain compromise risk). Defensive: failures here must never
+        # suppress the per-engine findings we already have.
+        try:
+            from webhound.core.correlation import (
+                apply_correlation, correlate_findings,
+            )
+            corr_result = correlate_findings(ctx.scan_result.findings)
+            ctx.scan_result.findings = apply_correlation(
+                ctx.scan_result.findings, corr_result,
+            )
+        except Exception:  # noqa: BLE001
+            logger.warning("correlation pass failed; using per-engine findings only",
+                           exc_info=True)
 
         result = ctx.finish()
 

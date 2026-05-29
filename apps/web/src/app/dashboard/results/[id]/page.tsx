@@ -18,6 +18,7 @@ import { WADESummary } from '@/components/results/wade-summary'
 import { ExternalDomainsSection } from '@/components/results/external-domains-section'
 import { ThreatIntelDomainsSection } from '@/components/results/threat-intel-domains-section'
 import { ComplianceSummary } from '@/components/results/compliance-summary'
+import { ScanInsights } from '@/components/results/scan-insights'
 import { GroupedFindingsTable } from '@/components/results/grouped-findings-table'
 import { EngineDiagnosticsTable } from '@/components/results/engine-diagnostics-table'
 import { ReportDownloads } from '@/components/results/report-downloads'
@@ -225,6 +226,20 @@ export default function ScanResultPage() {
             accent="#a78bfa"
           />
           <ComplianceSummary scanResultId={id} />
+        </motion.div>
+
+        {/* ============================================================ */}
+        {/* Section: Scan Insights — v4 JSON metadata panels             */}
+        {/* (correlated chains, asset map, threat-intel coverage,        */}
+        {/*  evidence quality, browser pass). Renders nothing on older   */}
+        {/*  scans pre-dating these fields.                              */}
+        {/* ============================================================ */}
+        <motion.div
+          className="space-y-3"
+          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.05 }}
+        >
+          <ScanInsights scannerMetadata={result.scanner_metadata} />
         </motion.div>
 
         {/* ============================================================ */}

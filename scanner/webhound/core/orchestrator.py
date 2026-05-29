@@ -482,6 +482,28 @@ class Scanner:
                     "per-page findings only", exc_info=True,
                 )
 
+            # 4c. ASM-lite asset discovery (Phase-4) — only when the
+            # active profile opts in via asm_enabled. Wraps the
+            # passive subdomain pass + common-prefix DNS probe + asset
+            # map aggregation. Stored under metadata.asset_map for the
+            # dashboard. Off by default; ENTERPRISE profile turns it
+            # on. Best-effort — any failure leaves the scan otherwise
+            # intact and the metadata.asset_map flag absent.
+            if self._target.scan_options.asm_enabled:
+                try:
+                    from webhound.core.url_discovery import (
+                        aggregate_host_inventory,
+                    )
+                    _inv = aggregate_host_inventory(host_contributions or [])
+                    await self._run_asm(
+                        ctx, inventory_external_hosts=set(_inv.keys()),
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.warning(
+                        "ASM asset-discovery pass failed; scan output "
+                        "unaffected", exc_info=True,
+                    )
+
             # 5. WADE — build baseline; optionally compare against previous
             self._run_wade(ctx, crawl_results)
 
@@ -654,6 +676,103 @@ class Scanner:
         _add_findings(ctx, await _safe(ctx, self._wix.NAME, self._wix.analyze, artifacts))
         _add_findings(ctx, await _safe(ctx, self._endpoint_discovery.NAME, self._endpoint_discovery.analyze, artifacts))
         _add_findings(ctx, await _safe(ctx, self._threat_intel.NAME, self._threat_intel.analyze, artifacts))
+
+    # ------------------------------------------------------------------
+    # ASM-lite — passive subdomain discovery + DNS probe (Phase-4)
+    # ------------------------------------------------------------------
+
+    async def _run_asm(
+        self,
+        ctx: ScanContext,
+        *,
+        inventory_external_hosts: set[str],
+    ) -> None:
+        """Run the opt-in ASM-lite pass. Gated by ``asm_enabled`` on the
+        scan options. Discovered surface lands in
+        ``scan_result.metadata.asset_map``; failures are logged but
+        never raise out of this method (so the rest of the scan
+        finishes either way).
+
+        ``inventory_external_hosts`` is the deduped third-party host
+        set the threat-intel pipeline already gathered — fed straight
+        into :func:`asm.build_asset_map` so the asset map references
+        every host the scan observed."""
+        import tldextract as _tld
+        from webhound.asm.asset_discovery import (
+            build_asset_map,
+            common_subdomain_check,
+            passive_subdomain_discovery,
+        )
+
+        target_host = (self._target.hostname or "").lower()
+        if not target_host:
+            return
+        ext = _tld.extract(target_host)
+        registrable = (
+            f"{ext.domain}.{ext.suffix}"
+            if ext.domain and ext.suffix else target_host
+        )
+        asm_t0 = time.perf_counter()
+        asm_start = datetime.now(timezone.utc)
+
+        # 1. CT-log lookup. Bounded by httpx timeout inside the
+        #    helper; offline-safe — passes through transport.
+        allow_network = os.getenv(
+            "WEBHOUND_ASM_ALLOW_NETWORK", "1",
+        ) != "0"
+        ct = await passive_subdomain_discovery(
+            registrable, allow_network=allow_network,
+        )
+
+        # 2. Common-prefix DNS probe. Resolver is the asyncio loop's
+        #    getaddrinfo — wrapped so a failed lookup is just a
+        #    no-resolve rather than an exception.
+        async def _resolve(host: str) -> bool:
+            try:
+                loop = asyncio.get_running_loop()
+                infos = await loop.getaddrinfo(
+                    host, None,
+                    family=0, type=0, proto=0, flags=0,
+                )
+                return bool(infos)
+            except (asyncio.CancelledError, KeyboardInterrupt):
+                raise
+            except Exception:  # noqa: BLE001
+                return False
+
+        probe = await common_subdomain_check(
+            registrable, resolve=_resolve,
+        )
+
+        asset_map = build_asset_map(
+            target_host,
+            ct_subdomains=ct.hostnames,
+            common_subdomains=probe.hostnames,
+            external_hosts=inventory_external_hosts,
+        )
+        asm_duration = (time.perf_counter() - asm_t0) * 1000.0
+
+        # Pop the asset map into scan-result metadata in a stable
+        # JSON-shaped form. Sorted lists for deterministic serialisation.
+        ctx.scan_result.metadata["asset_map"] = {
+            "primary_host": asset_map.primary_host,
+            "ct_subdomains": sorted(asset_map.ct_subdomains),
+            "common_subdomains": sorted(asset_map.common_subdomains),
+            "external_hosts": sorted(asset_map.external_hosts),
+            "total_surface_count": asset_map.total_surface_count,
+            "exposure_signals": asset_map.exposure_signals(),
+            "ct_source": ct.source,
+            "ct_deferred": ct.deferred,
+            "ct_error": ct.error,
+        }
+        # Track the ASM pass in the engine tracker so the diagnostics
+        # surface shows it ran (and how long it took).
+        ctx.tracker.record_run(
+            "asm", [], asm_duration, asm_start,
+            datetime.now(timezone.utc),
+        )
+        if "asm" not in ctx.scan_result.engines_run:
+            ctx.scan_result.engines_run.append("asm")
 
     # ------------------------------------------------------------------
     # WADE — Website Anomaly Detection Engine

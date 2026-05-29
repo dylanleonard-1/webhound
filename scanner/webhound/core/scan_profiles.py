@@ -41,6 +41,10 @@ class ScanProfile:
     include_subdomains: bool
     respect_robots_txt: bool
     verify_tls: bool
+    # Phase-4 ASM opt-in — only the ENTERPRISE profile enables it by
+    # default. Off elsewhere so adding asm_enabled doesn't slow any
+    # existing scan tier.
+    asm_enabled: bool = False
 
     def to_scan_options(self) -> ScanOptions:
         """Return a :class:`ScanOptions` instance configured from this profile."""
@@ -52,6 +56,7 @@ class ScanProfile:
             include_subdomains=self.include_subdomains,
             respect_robots_txt=self.respect_robots_txt,
             verify_tls=self.verify_tls,
+            asm_enabled=self.asm_enabled,
         )
 
     def summary(self) -> dict[str, Any]:
@@ -66,6 +71,7 @@ class ScanProfile:
             "include_subdomains": self.include_subdomains,
             "respect_robots_txt": self.respect_robots_txt,
             "verify_tls": self.verify_tls,
+            "asm_enabled": self.asm_enabled,
         }
 
 
@@ -125,9 +131,31 @@ MONITOR = ScanProfile(
     verify_tls=True,
 )
 
+#: Full DEEP-style coverage plus ASM-lite asset discovery.
+#: Adds a passive Certificate-Transparency subdomain lookup + common-
+#: prefix DNS probe after the crawl. The discovered surface is folded
+#: into the scan_result.metadata.asset_map for the dashboard's
+#: attack-surface panel.
+ENTERPRISE = ScanProfile(
+    name="enterprise",
+    description=(
+        "Deep crawl plus ASM-lite asset discovery: passive subdomain "
+        "enumeration via Certificate Transparency logs and a "
+        "common-prefix DNS probe. Use for an attack-surface review."
+    ),
+    max_pages=200,
+    max_depth=5,
+    rate_limit_rps=0.5,
+    request_timeout_seconds=30,
+    include_subdomains=False,
+    respect_robots_txt=True,
+    verify_tls=True,
+    asm_enabled=True,
+)
+
 #: Registry of all built-in profiles, keyed by name.
 PROFILES: dict[str, ScanProfile] = {
-    p.name: p for p in (QUICK, STANDARD, DEEP, MONITOR)
+    p.name: p for p in (QUICK, STANDARD, DEEP, MONITOR, ENTERPRISE)
 }
 
 PROFILE_NAMES: tuple[str, ...] = tuple(sorted(PROFILES))

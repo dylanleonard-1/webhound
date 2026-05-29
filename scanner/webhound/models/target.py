@@ -75,6 +75,11 @@ class ScanOptions(BaseModel):
     engines_disabled: list[str] = Field(default_factory=list)
     verify_tls: bool = Field(default=True)
     respect_robots_txt: bool = Field(default=True)
+    # Phase-4 ASM opt-in. When True the orchestrator runs the asset-
+    # discovery pass after the crawl: passive subdomain enumeration
+    # (CT-log lookup via crt.sh) + common-prefix DNS probe. Default
+    # off so QUICK/STANDARD/DEEP profiles stay unchanged.
+    asm_enabled: bool = Field(default=False)
 
 
 class Target(BaseModel):

@@ -236,6 +236,14 @@ class JsonReport:
             # consumers can render a dedicated "Threat chains" panel that
             # backlinks into the findings list.
             "correlated_chains": correlated_chains,
+            # --- ASM-lite asset discovery (Phase-4) ---
+            # Present only when the active scan profile had asm_enabled.
+            # When the ENTERPRISE profile ran a discovery pass, the
+            # orchestrator stores the asset map under
+            # ``metadata.asset_map``; surface it here verbatim so the
+            # dashboard can render the attack-surface panel without
+            # rummaging through scan_metadata.
+            "asset_map": result.metadata.get("asset_map"),
             # --- Engine provenance ---
             "engines_run": result.engines_run,
             "engine_diagnostics": [

@@ -14,7 +14,6 @@ import {
 import { SectionContainer } from '@/components/layout/section-container'
 import { PrimaryButton } from '@/components/ui/primary-button'
 import { GradientDivider } from '@/components/ui/gradient-divider'
-import { ScanVisualization } from './scan-visualization'
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
@@ -377,18 +376,19 @@ export function LiveScan() {
       </div>
 
       <SectionContainer size="xl">
-        <div ref={inViewRef} className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-12 xl:gap-16 items-center">
-          {/* Left */}
+        {/*
+          Layout: 1 column on mobile (text-only), 2 columns on desktop
+          (text + terminal). Previously a 3-column layout with a center
+          radar/network animation; that visualisation was removed because
+          it didn't match the current branding and rendered as a stranded
+          green graphic between sections on mobile.
+        */}
+        <div ref={inViewRef} className="grid grid-cols-1 lg:grid-cols-2 gap-12 xl:gap-16 items-center">
+          {/* Left — narrative + scan progress */}
           <LeftContent inView={inView} progressWidth={progressWidth} />
 
-          {/* Center */}
-          <div className="flex items-center justify-center">
-            <div className="w-full max-w-[440px] mx-auto">
-              <ScanVisualization />
-            </div>
-          </div>
-
-          {/* Right — hidden on mobile to prevent excessive page height */}
+          {/* Right — live findings terminal, hidden on mobile to keep
+              page height in check */}
           <div className="hidden lg:flex flex-col gap-4">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[9px] font-bold text-[rgba(139,255,62,0.5)] tracking-[0.2em] uppercase">

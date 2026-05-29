@@ -182,29 +182,35 @@ function SampleFindings() {
   )
 }
 
-function LeftContent({ inView, progressWidth }: {
+function LeftContent({ inView, progressWidth, reducedMotion }: {
   inView: boolean
   progressWidth: MotionValue<string>
+  // Slice 3.5 N4 — passed down from the LiveScan section. When
+  // the user prefers reduced motion we pin status to index 0
+  // (no rotation) and freeze the dot opacity so neither the
+  // continuous status-text swap nor the dot pulse animates.
+  reducedMotion: boolean | null
 }) {
   const [statusIdx, setStatusIdx] = useState(0)
 
   useEffect(() => {
     if (!inView) return
+    if (reducedMotion) return    // pin status index when reduced-motion is requested
     const id = setInterval(() => setStatusIdx(i => (i + 1) % STATUSES.length), 2400)
     return () => clearInterval(id)
-  }, [inView])
+  }, [inView, reducedMotion])
 
   return (
     <div className="flex flex-col">
       {/* Label — Slice 3 jargon rewrite (D6): 'Live AI Scanning'
-          → 'Live scan demo'. The slot is still useful for
-          signalling the section's purpose, but stripped of the
-          buzzword-AI framing. */}
+          → 'Live scan demo'. Slice 3.5 N4: dot pulse animates only
+          when reduced-motion is NOT requested; otherwise it's
+          rendered static. */}
       <div className="inline-flex items-center gap-2 mb-7">
         <motion.span
           className="w-1.5 h-1.5 rounded-full bg-[#8BFF3E]"
-          animate={{ opacity: [1, 0.2, 1] }}
-          transition={{ duration: 0.9, repeat: Infinity }}
+          animate={reducedMotion ? undefined : { opacity: [1, 0.2, 1] }}
+          transition={reducedMotion ? undefined : { duration: 0.9, repeat: Infinity }}
           style={{ boxShadow: '0 0 5px rgba(139,255,62,1)' }}
         />
         <span className="text-[10px] font-bold text-[#8BFF3E] tracking-[0.22em] uppercase">
@@ -388,7 +394,7 @@ export function LiveScan() {
         */}
         <div ref={inViewRef} className="grid grid-cols-1 lg:grid-cols-2 gap-10 xl:gap-16 items-center">
           {/* Left — narrative + scan progress */}
-          <LeftContent inView={inView} progressWidth={progressWidth} />
+          <LeftContent inView={inView} progressWidth={progressWidth} reducedMotion={prefersReducedMotion} />
 
           {/* Right — static sample-finding composition. Visible on
               every breakpoint; on mobile this delivers the "see

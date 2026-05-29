@@ -114,10 +114,15 @@ export function WhyMatters() {
             Two minutes is shorter than the call you&apos;d have to make
             after a breach.
           </h3>
+          {/* Slice 3.5 N5 — replaced the lime-green hover halo
+              (rgba(124,255,0,0.45)) that read as garish on the white
+              surface with a neutral slate elevation shadow. Brand
+              green stays the surface color; the elevation cue uses
+              dark slate so the button reads premium on light. */}
           <Link href="/scan">
             <button
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-[10px] text-[14px] font-semibold text-[#020617] transition-all duration-300 hover:shadow-[0_8px_28px_rgba(124,255,0,0.45)] hover:scale-[1.02]"
-              style={{ background: '#7CFF00', boxShadow: '0 4px 18px rgba(124,255,0,0.28)' }}
+              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-[10px] text-[14px] font-semibold text-[#020617] transition-all duration-200 motion-reduce:transition-none hover:shadow-[0_12px_28px_rgba(15,23,42,0.18)] hover:-translate-y-px motion-reduce:hover:translate-y-0"
+              style={{ background: '#7CFF00', boxShadow: '0 4px 14px rgba(15,23,42,0.10)' }}
             >
               Start Free Scan
               <ArrowRight className="w-4 h-4" />

@@ -81,16 +81,21 @@ export function ExampleFindings() {
           viewport={{ once: true, amount: 0.4 }}
           transition={{ duration: 0.5 }}
         >
-          <p className="text-[10px] font-bold tracking-[0.28em] uppercase mb-3" style={{ color: 'rgba(139,255,62,0.65)' }}>
-            What we find
+          {/* Slice 3.5 N3 — eyebrow updated from 'What we find'
+              → 'Sample scan report' so the visitor arriving via
+              the Hero secondary CTA ('See Sample Report') has an
+              immediate confirmation they landed in the right place.
+              The H2 also updates to call out 'sample' explicitly. */}
+          <p className="text-[10px] font-bold tracking-[0.28em] uppercase mb-3" style={{ color: 'rgba(139,255,62,0.7)' }}>
+            Sample scan report
           </p>
           <h2
             className="font-bold leading-[1.05] tracking-[-0.02em] text-white"
             style={{ fontSize: 'clamp(1.8rem, 3.4vw, 2.8rem)' }}
           >
-            Real findings from real scans —
+            What a real scan finds —
             <span className="block" style={{ color: 'rgba(255,255,255,0.55)' }}>
-              in plain English.
+              written in plain English.
             </span>
           </h2>
           {/* Slice 3 D6 jargon rewrite: removed 'CVE-2024-XXXX'

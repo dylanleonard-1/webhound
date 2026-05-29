@@ -58,8 +58,21 @@ export function ThreeDoors() {
   // light break interrupts the dark monotone and signals "calmer
   // documentation entry points" the way Stripe / Linear / Vercel
   // surface their feature-index pages.
+  //
+  // Slice 3.5 N2 — top transition bridge: a 60px soft gradient
+  // fades from the previous (dark) section's surface down into
+  // this section's #FAFAFB so the eye doesn't snap.
   return (
     <section className="relative py-20 lg:py-28 px-6 sm:px-12 xl:px-20" style={{ background: '#FAFAFB' }}>
+      {/* Dark → light transition bridge (top of section) */}
+      <div
+        aria-hidden
+        className="absolute top-0 left-0 right-0 h-[60px] pointer-events-none"
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(2,6,23,0.12) 0%, rgba(2,6,23,0) 100%)',
+        }}
+      />
       <div className="max-w-6xl mx-auto">
         <motion.div
           className="mb-12 max-w-[640px]"

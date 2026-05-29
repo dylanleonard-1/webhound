@@ -56,20 +56,11 @@ const COLS = [
 ]
 
 export function Footer() {
-  // Slice 3.5 N2 — light → dark transition bridge: 60px soft
-  // gradient fades from the previous (light) WhyMatters surface
-  // down into the dark footer so the eye doesn't snap.
+  // Slice 6 — removed the Slice 3.5 N2 light→dark transition
+  // bridge. The landing page is now all-dark end-to-end, so the
+  // bridge has nothing to bridge.
   return (
     <footer className="relative" style={{ background: '#020617', borderTop: '1px solid rgba(139,255,62,0.06)' }}>
-      {/* Light → dark transition bridge */}
-      <div
-        aria-hidden
-        className="absolute top-0 left-0 right-0 h-[60px] pointer-events-none"
-        style={{
-          background:
-            'linear-gradient(180deg, rgba(244,245,247,0.85) 0%, rgba(2,6,23,0) 100%)',
-        }}
-      />
       <div className="relative max-w-[1280px] mx-auto px-6 sm:px-10 xl:px-16 py-16 sm:py-20">
 
         {/* Grid */}

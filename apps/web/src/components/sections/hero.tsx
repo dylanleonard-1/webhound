@@ -1,29 +1,17 @@
 'use client'
 
-import dynamic from 'next/dynamic'
+// Slice 6 — CyberGlobe removed entirely (L5 audit verdict: trust
+// neutral-to-negative, clarity negative, conversion negative —
+// stock-art sphere occupying the slot where the strongest
+// persuasive asset should live). The Hero now reads as a single
+// full-width left-aligned text block on desktop; the LiveScan
+// section immediately below carries the visual proof via the
+// sample-finding composition. F3's product-screenshot composition
+// remains queued for a future slice.
+
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { motion } from 'framer-motion'
-
-const CyberGlobe = dynamic(() => import('./cyber-globe'), {
-  ssr: false,
-  loading: () => <GlobeShell />,
-})
-
-function GlobeShell() {
-  return (
-    <div className="w-full h-full flex items-center justify-center">
-      <div
-        className="w-[75%] aspect-square rounded-full"
-        style={{
-          background: 'radial-gradient(circle at 40% 50%, rgba(124,255,0,0.04) 0%, rgba(2,6,23,0.6) 65%)',
-          boxShadow:  '0 0 100px rgba(124,255,0,0.04)',
-          border:     '1px solid rgba(124,255,0,0.05)',
-        }}
-      />
-    </div>
-  )
-}
 
 // ── Hero ──────────────────────────────────────────────────────────────────────
 
@@ -47,10 +35,13 @@ export function Hero() {
       />
 
       {/* ── Main layout ──────────────────────────────────────── */}
-      <div className="relative z-10 lg:min-h-[calc(100vh-5rem)] flex flex-col lg:flex-row">
+      {/* Slice 6 — Hero is now single-column. Was a 2-column
+          flex layout with globe on the right; the globe is gone
+          and the text breathes full-width on desktop. The
+          LiveScan section directly below carries the proof. */}
+      <div className="relative z-10 lg:min-h-[calc(100vh-5rem)] flex flex-col items-start">
 
-        {/* ── Left: hero content ───────────────────────────── */}
-        <div className="flex flex-col justify-center w-full lg:w-[48%] xl:w-[44%] px-6 sm:px-12 xl:px-20 pt-8 pb-10 lg:pt-0 lg:pb-0">
+        <div className="flex flex-col justify-center w-full max-w-[820px] px-6 sm:px-12 xl:px-20 pt-12 pb-14 lg:pt-20 lg:pb-24">
 
           {/* Eyebrow — persona reveal (Slice 2: D1 approved
               Option 3). Explicit targeting so a 5-second visitor
@@ -136,11 +127,6 @@ export function Hero() {
           </motion.div>
         </div>
 
-      </div>
-
-      {/* ── Globe ─────────────────────────────────────────────── */}
-      <div className="relative h-[30vw] sm:h-[26vw] w-full lg:absolute lg:top-0 lg:h-full lg:w-[60vw] lg:[right:-6vw] pointer-events-none">
-        <CyberGlobe className="absolute inset-0" />
       </div>
 
     </section>

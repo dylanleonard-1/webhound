@@ -28,7 +28,7 @@ const DOORS: Door[] = [
     cta: 'See how a scan works',
     icon: ScanLine,
     accent: '#7CFF00',
-    accentBg: 'rgba(124,255,0,0.06)',
+    accentBg: 'rgba(124,255,0,0.08)',
   },
   {
     question: 'What changes when nobody’s watching',
@@ -38,7 +38,7 @@ const DOORS: Door[] = [
     cta: 'See how monitoring works',
     icon: Activity,
     accent: '#4F9CF9',
-    accentBg: 'rgba(79,156,249,0.07)',
+    accentBg: 'rgba(79,156,249,0.10)',
   },
   {
     question: 'What other scanners miss',
@@ -48,31 +48,19 @@ const DOORS: Door[] = [
     cta: 'See what we catch',
     icon: Brain,
     accent: '#a78bfa',
-    accentBg: 'rgba(167,139,250,0.07)',
+    accentBg: 'rgba(167,139,250,0.10)',
   },
 ]
 
 export function ThreeDoors() {
-  // Slice 3 hybrid-theme: this section is now LIGHT.
-  // Background #FAFAFB; cards white with subtle slate border. The
-  // light break interrupts the dark monotone and signals "calmer
-  // documentation entry points" the way Stripe / Linear / Vercel
-  // surface their feature-index pages.
-  //
-  // Slice 3.5 N2 — top transition bridge: a 60px soft gradient
-  // fades from the previous (dark) section's surface down into
-  // this section's #FAFAFB so the eye doesn't snap.
+  // Slice 6 — reverted to dark surface per user directive
+  // ("two colors looks horrible — either white or dark, not both").
+  // The Slice 3 hybrid #FAFAFB light treatment + N2 transition
+  // bridge were removed. Cards now read as dark elevated tiles
+  // sitting on the same #020617 surface as the surrounding
+  // sections.
   return (
-    <section className="relative py-20 lg:py-28 px-6 sm:px-12 xl:px-20" style={{ background: '#FAFAFB' }}>
-      {/* Dark → light transition bridge (top of section) */}
-      <div
-        aria-hidden
-        className="absolute top-0 left-0 right-0 h-[60px] pointer-events-none"
-        style={{
-          background:
-            'linear-gradient(180deg, rgba(2,6,23,0.12) 0%, rgba(2,6,23,0) 100%)',
-        }}
-      />
+    <section className="relative py-20 lg:py-28 px-6 sm:px-12 xl:px-20" style={{ background: '#020617' }}>
       <div className="max-w-6xl mx-auto">
         <motion.div
           className="mb-12 max-w-[640px]"
@@ -81,12 +69,12 @@ export function ThreeDoors() {
           viewport={{ once: true, amount: 0.4 }}
           transition={{ duration: 0.5 }}
         >
-          <p className="text-[10px] font-bold tracking-[0.28em] uppercase mb-3" style={{ color: 'rgba(38,99,12,0.85)' }}>
+          <p className="text-[10px] font-bold tracking-[0.28em] uppercase mb-3" style={{ color: 'rgba(139,255,62,0.7)' }}>
             Want to know more?
           </p>
           <h2
-            className="font-bold leading-[1.05] tracking-[-0.02em]"
-            style={{ fontSize: 'clamp(1.8rem, 3.4vw, 2.8rem)', color: '#0B1220' }}
+            className="font-bold leading-[1.05] tracking-[-0.02em] text-white"
+            style={{ fontSize: 'clamp(1.8rem, 3.4vw, 2.8rem)' }}
           >
             Pick the part you&apos;re curious about.
           </h2>
@@ -103,17 +91,16 @@ export function ThreeDoors() {
                 viewport={{ once: true, amount: 0.3 }}
                 transition={{ duration: 0.45, delay: i * 0.08 }}
               >
-                {/* Slice 3 hybrid-theme: light card on the light
-                    section. White surface, slate border, dark text. */}
+                {/* Dark elevated card */}
                 <Link
                   href={d.href}
-                  className="group block rounded-[14px] p-6 h-full transition-[border-color,transform,box-shadow] duration-200 motion-reduce:transition-none hover:-translate-y-0.5 motion-reduce:hover:translate-y-0 hover:shadow-[0_8px_24px_rgba(15,23,42,0.06)]"
+                  className="group block rounded-[14px] p-6 h-full transition-[border-color,transform,box-shadow] duration-200 motion-reduce:transition-none hover:-translate-y-0.5 motion-reduce:hover:translate-y-0"
                   style={{
-                    background: '#FFFFFF',
-                    border: '1px solid rgba(15,23,42,0.07)',
+                    background: 'rgba(8,12,22,0.85)',
+                    border: '1px solid rgba(255,255,255,0.06)',
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = `${d.accent}60` }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(15,23,42,0.07)' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = `${d.accent}55` }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)' }}
                 >
                   <div
                     className="w-10 h-10 rounded-[10px] flex items-center justify-center mb-5"
@@ -122,11 +109,11 @@ export function ThreeDoors() {
                     <Icon className="w-4 h-4" style={{ color: d.accent }} />
                   </div>
 
-                  <h3 className="text-[16.5px] font-bold leading-[1.3] mb-3" style={{ color: '#0B1220' }}>
+                  <h3 className="text-[16.5px] font-bold leading-[1.3] mb-3 text-white">
                     {d.question}
                   </h3>
 
-                  <p className="text-[13.5px] leading-[1.65] mb-5" style={{ color: 'rgba(15,23,42,0.62)' }}>
+                  <p className="text-[13.5px] leading-[1.65] mb-5" style={{ color: 'rgba(255,255,255,0.55)' }}>
                     {d.preview}
                   </p>
 

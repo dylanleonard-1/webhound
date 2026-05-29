@@ -9,6 +9,7 @@ import {
   useTransform,
   useSpring,
   useInView,
+  useReducedMotion,
   type MotionValue,
 } from 'framer-motion'
 import { SectionContainer } from '@/components/layout/section-container'
@@ -197,6 +198,100 @@ function ScanTerminal({ inView }: { inView: boolean }) {
 
 // ── Left column ───────────────────────────────────────────────────────────────
 
+// ── Sample findings (Slice 2 — replaces the deleted radar) ────────────────────
+//
+// Static composition of three plain-English findings the scanner
+// actually produces. One CRITICAL + one HIGH + one MEDIUM, severity-
+// tiered the same way ExampleFindings is. Designed to deliver on
+// the "See WebHound scan in real time" headline on every breakpoint
+// (mobile previously had narrative-only after the radar removal).
+//
+// Lives co-located with LiveScan to match the file's existing
+// pattern of holding sub-components inline.
+
+interface SampleFinding {
+  severity: 'critical' | 'high' | 'medium'
+  title: string
+  detail: string
+}
+
+const SAMPLE_FINDINGS: SampleFinding[] = [
+  {
+    severity: 'critical',
+    title: 'Customer database accessible without a password',
+    detail: 'Anyone can read your customer list, including emails and order history.',
+  },
+  {
+    severity: 'high',
+    title: 'Third-party tracking script violates your privacy policy',
+    detail: 'A script on every page sends visitor data to a country your policy says you don’t use.',
+  },
+  {
+    severity: 'medium',
+    title: 'Site certificate expires in 9 days',
+    detail: 'Browsers will show a warning to every visitor. Most don’t come back.',
+  },
+]
+
+const SEVERITY_THEME: Record<SampleFinding['severity'], { label: string; color: string; bg: string; border: string }> = {
+  critical: { label: 'Critical', color: '#ef4444', bg: 'rgba(239,68,68,0.07)', border: 'rgba(239,68,68,0.32)' },
+  high:     { label: 'High',     color: '#f97316', bg: 'rgba(249,115,22,0.07)', border: 'rgba(249,115,22,0.32)' },
+  medium:   { label: 'Medium',   color: '#eab308', bg: 'rgba(234,179,8,0.07)', border: 'rgba(234,179,8,0.32)' },
+}
+
+function SampleFindings() {
+  return (
+    <div
+      className="w-full max-w-[420px] rounded-[16px] p-4 flex flex-col gap-3"
+      style={{
+        background: 'rgba(8,12,22,0.7)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        backdropFilter: 'blur(8px)',
+      }}
+    >
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-2 pb-3"
+        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+      >
+        <span className="text-[9px] font-bold tracking-[0.22em] uppercase" style={{ color: 'rgba(139,255,62,0.7)' }}>
+          Sample scan report
+        </span>
+        <span className="text-[10px] font-mono" style={{ color: 'rgba(255,255,255,0.32)' }}>
+          3 findings
+        </span>
+      </div>
+
+      {/* Finding stack */}
+      {SAMPLE_FINDINGS.map((f, i) => {
+        const s = SEVERITY_THEME[f.severity]
+        return (
+          <div
+            key={i}
+            className="rounded-[10px] p-3 flex flex-col gap-1.5"
+            style={{ background: 'rgba(2,6,23,0.55)', border: '1px solid rgba(255,255,255,0.05)' }}
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider flex-shrink-0"
+                style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}
+              >
+                {s.label}
+              </span>
+              <span className="text-[12.5px] font-semibold text-white leading-[1.3]">
+                {f.title}
+              </span>
+            </div>
+            <p className="text-[11.5px] leading-[1.55] pl-[3px]" style={{ color: 'rgba(255,255,255,0.52)' }}>
+              {f.detail}
+            </p>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function LeftContent({ inView, progressWidth }: {
   inView: boolean
   progressWidth: MotionValue<string>
@@ -306,6 +401,13 @@ export function LiveScan() {
   const inViewRef = useRef<HTMLDivElement>(null)
   const inView = useInView(inViewRef, { once: true, margin: '-80px' })
 
+  // Slice 2 — reduced-motion guard. When the user prefers reduced
+  // motion we drop the two infinite CSS background animations
+  // (grid scroll + scan sweep) and the framer-motion infinite
+  // pulses inherit the prefersReducedMotion default. Respects
+  // WCAG 2.1 Success Criterion 2.3.3.
+  const prefersReducedMotion = useReducedMotion()
+
   const { scrollYProgress } = useScroll({
     target: sectionRef,
     offset: ['start 0.85', 'center 0.4'],
@@ -319,30 +421,36 @@ export function LiveScan() {
       {/* Top divider */}
       <GradientDivider className="absolute top-0 left-0 right-0" glow />
 
-      {/* Animated cyber grid — GPU layer */}
-      <div
-        aria-hidden
-        className="absolute inset-0 pointer-events-none opacity-[0.028] grid-anim-layer"
-        style={{
-          backgroundImage: `
-            linear-gradient(rgba(139,255,62,1) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(139,255,62,1) 1px, transparent 1px)
-          `,
-          backgroundSize: '40px 40px',
-          animation: 'gridScroll 32s linear infinite',
-        }}
-      />
-
-      {/* Moving scan line */}
-      <div aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none">
+      {/* Animated cyber grid — GPU layer. Off entirely under
+          prefers-reduced-motion (static decorative grid would
+          continue to fight for attention). */}
+      {!prefersReducedMotion && (
         <div
-          className="absolute left-0 right-0 h-px"
+          aria-hidden
+          className="absolute inset-0 pointer-events-none opacity-[0.028] grid-anim-layer"
           style={{
-            background: 'linear-gradient(90deg, transparent 0%, rgba(139,255,62,0.12) 40%, rgba(139,255,62,0.12) 60%, transparent 100%)',
-            animation: 'scanSweep 9s linear infinite',
+            backgroundImage: `
+              linear-gradient(rgba(139,255,62,1) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(139,255,62,1) 1px, transparent 1px)
+            `,
+            backgroundSize: '40px 40px',
+            animation: 'gridScroll 32s linear infinite',
           }}
         />
-      </div>
+      )}
+
+      {/* Moving scan line — off under prefers-reduced-motion. */}
+      {!prefersReducedMotion && (
+        <div aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div
+            className="absolute left-0 right-0 h-px"
+            style={{
+              background: 'linear-gradient(90deg, transparent 0%, rgba(139,255,62,0.12) 40%, rgba(139,255,62,0.12) 60%, transparent 100%)',
+              animation: 'scanSweep 9s linear infinite',
+            }}
+          />
+        </div>
+      )}
 
       {/* Center glow fog */}
       <div
@@ -377,18 +485,27 @@ export function LiveScan() {
 
       <SectionContainer size="xl">
         {/*
-          Layout: 1 column on mobile (text-only), 2 columns on desktop
-          (text + terminal). Previously a 3-column layout with a center
-          radar/network animation; that visualisation was removed because
-          it didn't match the current branding and rendered as a stranded
-          green graphic between sections on mobile.
+          Layout: 1 column on mobile (text + sample findings), 3
+          columns on desktop (text + sample findings + terminal).
+          Slice 2 reintroduces a center column with a static
+          sample-finding composition (Q4 approved). Mobile now has
+          a real proof slot — previously the section had only
+          narrative + button on mobile after the radar removal.
         */}
-        <div ref={inViewRef} className="grid grid-cols-1 lg:grid-cols-2 gap-12 xl:gap-16 items-center">
+        <div ref={inViewRef} className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-10 xl:gap-12 items-center">
           {/* Left — narrative + scan progress */}
           <LeftContent inView={inView} progressWidth={progressWidth} />
 
-          {/* Right — live findings terminal, hidden on mobile to keep
-              page height in check */}
+          {/* Center — static sample-finding composition. Visible on
+              every breakpoint; on mobile this delivers the "see
+              what a real scan looks like" promise the headline
+              makes. */}
+          <div className="flex items-center justify-center">
+            <SampleFindings />
+          </div>
+
+          {/* Right — live findings terminal, hidden on mobile to
+              keep page height in check */}
           <div className="hidden lg:flex flex-col gap-4">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[9px] font-bold text-[rgba(139,255,62,0.5)] tracking-[0.2em] uppercase">

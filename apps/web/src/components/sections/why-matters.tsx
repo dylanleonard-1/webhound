@@ -10,16 +10,22 @@ interface Stake {
   body: string
 }
 
+// Slice 2 Q3 — stat softening with explicit IBM citation on
+// retained numbers. Removed the widely-disputed "60% close within
+// six months" stat (the canonical source traces to a misreported
+// NCSA piece and is risky to keep on a security-product trust
+// surface). Replaced with a citable detection-time stat from the
+// same IBM report.
 const STAKES: Stake[] = [
   {
     icon: DollarSign,
     stat: '$4.45M',
-    body: 'is the average cost of a data breach at a small business in 2024. Most of that is incident response, legal fees, and lost customers — not the breach itself.',
+    body: 'is the average cost of a data breach (IBM Cost of a Data Breach Report, 2024). Most of that is incident response, legal fees, and lost customers — not the breach itself.',
   },
   {
     icon: TrendingDown,
-    stat: '60%',
-    body: 'of small businesses that suffer a serious breach close within six months. The damage isn’t the attack; it’s the recovery.',
+    stat: '200+ days',
+    body: 'is the average time before a breach is even detected (IBM, 2024). That’s months of exposure before anyone notices — long enough for data to leave and never come back.',
   },
   {
     icon: FileWarning,

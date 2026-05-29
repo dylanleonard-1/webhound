@@ -52,9 +52,10 @@ export function Hero() {
         {/* ── Left: hero content ───────────────────────────── */}
         <div className="flex flex-col justify-center w-full lg:w-[48%] xl:w-[44%] px-6 sm:px-12 xl:px-20 pt-8 pb-10 lg:pt-0 lg:pb-0">
 
-          {/* Eyebrow — positioning copy (replaces the prior
-              "webhoundsecurity.com" decorative-domain badge, which
-              told visitors the URL they were already on). */}
+          {/* Eyebrow — persona reveal (Slice 2: D1 approved
+              Option 3). Explicit targeting so a 5-second visitor
+              sees who the product is for before they decide whether
+              to stay. */}
           <motion.div
             className="inline-flex items-center gap-2 mb-5 w-fit"
             initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
@@ -65,33 +66,40 @@ export function Hero() {
               style={{ background: '#7CFF00', boxShadow: '0 0 8px rgba(124,255,0,0.9)' }}
             />
             <span className="text-[10px] font-bold tracking-[0.28em] uppercase" style={{ color: 'rgba(139,255,62,0.75)' }}>
-              Continuous website security
+              Built for small business owners
             </span>
           </motion.div>
 
-          {/* Headline */}
+          {/* Headline — Slice 2 D1 approved. One sentence that says
+              what WebHound does. The clarity is the hook; no glow,
+              no fear-led framing. */}
           <motion.h1
-            className="font-bold leading-[0.98] tracking-[-0.03em] mb-5"
+            className="font-bold leading-[1.02] tracking-[-0.03em] mb-5 text-white"
             style={{ fontSize: 'clamp(2.4rem, 4.8vw, 4.4rem)' }}
             initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.12 }}
           >
-            <span className="text-white block">Hackers scan your</span>
-            <span className="text-white block">website every day.</span>
-            <span className="block mt-2" style={{ color: '#7CFF00', textShadow: '0 0 60px rgba(124,255,0,0.28)' }}>
-              You should too.
-            </span>
+            Website security without the security team.
           </motion.h1>
 
-          {/* Subtext */}
+          {/* Sub-head — Slice 2 D1 approved. Spells out the three
+              product capabilities (find / monitor / explain) and
+              folds three risk-reversal signals (two minutes /
+              no card / no jargon) into one rhythm so the 5-second
+              visitor sees them in the Hero, not three sections
+              deep. */}
           <motion.p
-            className="leading-[1.65] max-w-[460px] mb-7 text-[15px]"
-            style={{ color: 'rgba(255,255,255,0.55)' }}
+            className="leading-[1.65] max-w-[520px] mb-7 text-[15px]"
+            style={{ color: 'rgba(255,255,255,0.62)' }}
             initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.22 }}
           >
-            WebHound finds the security holes that put your customers,
-            your data, and your reputation at risk — before anyone else can.
+            WebHound finds vulnerabilities, monitors your website
+            for changes, and explains what we found in plain English
+            so you know what to fix first.
+            <span className="block mt-2" style={{ color: 'rgba(255,255,255,0.45)' }}>
+              Two minutes to start. No credit card. No jargon.
+            </span>
           </motion.p>
 
           {/* CTA buttons */}
@@ -110,14 +118,19 @@ export function Hero() {
               </button>
             </Link>
 
-            <a href="#live-scan" tabIndex={-1}>
+            {/* Secondary CTA — Slice 2 D1 approved.
+                Anchors to ExampleFindings which IS the sample
+                report (real findings rendered in plain English).
+                Prior anchor (#live-scan) promised a live scan
+                that the section couldn't fully deliver. */}
+            <a href="#example-findings" tabIndex={-1}>
               <button
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-[9px] text-[14px] font-medium transition-all duration-300 hover:bg-[rgba(255,255,255,0.05)]"
                 style={{ border: '1px solid rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.6)' }}
                 onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.9)')}
                 onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.6)')}
               >
-                See it run
+                See Sample Report
               </button>
             </a>
           </motion.div>

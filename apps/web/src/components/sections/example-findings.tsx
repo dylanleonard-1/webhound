@@ -16,21 +16,30 @@ const FINDINGS: Finding[] = [
     title: 'Your customer database is exposed to the internet',
     plainEnglish:
       'Anyone with a web browser can read your customer list, including names, emails, and order history. No password required.',
-    whoCares: 'GDPR fines start at €10M for breaches like this.',
+    // Slice 2 Q3 — softened from "GDPR fines start at €10M for
+    // breaches like this." Uncited specific-number framing reads
+    // as marketing claim; this version is honest and still gives
+    // the visitor the stake.
+    whoCares: 'GDPR fines for breaches like this can reach into the millions.',
   },
   {
     severity: 'high',
     title: 'Your site loads a tracking script that violates GDPR',
     plainEnglish:
       'A third-party advertising script sends visitor data to a server in a country your privacy policy says you don’t use.',
-    whoCares: 'Lawsuits in this category averaged $1.2M last year.',
+    // Slice 2 Q3 — softened from "Lawsuits in this category
+    // averaged $1.2M last year."
+    whoCares: 'Lawsuits in this category routinely settle for seven figures.',
   },
   {
     severity: 'medium',
     title: 'Your SSL certificate expires in 9 days',
     plainEnglish:
       'When it does, every browser will show a giant red warning to anyone visiting your site. Most people leave.',
-    whoCares: 'Average traffic drop: 87% during a cert expiry.',
+    // Slice 2 Q3 — softened from "Average traffic drop: 87%
+    // during a cert expiry." Specific-number variant didn't trace
+    // to a citable source.
+    whoCares: 'Traffic drops sharply when browsers display a warning — and most visitors don’t come back.',
   },
 ]
 
@@ -60,7 +69,7 @@ const STYLES: Record<Finding['severity'], { color: string; bg: string; border: s
 
 export function ExampleFindings() {
   return (
-    <section className="relative py-20 lg:py-28 px-6 sm:px-12 xl:px-20" style={{ background: '#020617' }}>
+    <section id="example-findings" className="relative py-20 lg:py-28 px-6 sm:px-12 xl:px-20" style={{ background: '#020617' }}>
       <div className="max-w-6xl mx-auto">
         <motion.div
           className="mb-12 max-w-[640px]"

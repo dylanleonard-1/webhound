@@ -14,11 +14,16 @@ interface Door {
   accentBg: string
 }
 
+// Slice 2 D2 — copy reframe. Card titles moved from
+// internal-question / engine-name framing ("AI baseline", "WADE")
+// to outcome-named for the small business owner mental model.
+// Routes unchanged; engine names removed from marketing-visible
+// copy.
 const DOORS: Door[] = [
   {
-    question: 'How does the scan work?',
+    question: 'What you get from a single scan',
     preview:
-      'A scan is like a security checkup for your website — we look at it the same way an attacker would, but we never touch anything.',
+      'A plain-English report listing every issue we found on your site, ranked by what to fix first.',
     href: '/scanner',
     cta: 'See how a scan works',
     icon: ScanLine,
@@ -26,9 +31,9 @@ const DOORS: Door[] = [
     accentBg: 'rgba(124,255,0,0.06)',
   },
   {
-    question: 'Will you keep watching after the scan?',
+    question: 'What changes when nobody’s watching',
     preview:
-      'Yes. We re-scan daily, compare against your baseline, and alert you the moment something changes — before it becomes a breach.',
+      'We re-scan your site daily and tell you the moment something changes — before it becomes a breach.',
     href: '/monitoring',
     cta: 'See how monitoring works',
     icon: Activity,
@@ -36,11 +41,11 @@ const DOORS: Door[] = [
     accentBg: 'rgba(79,156,249,0.07)',
   },
   {
-    question: 'What does the AI baseline catch?',
+    question: 'What other scanners miss',
     preview:
-      'WADE learns what your site normally looks like and flags anomalies traditional scanners miss — like a script that quietly appeared at 2am.',
+      'WebHound learns what your site normally looks like and flags anything unusual — like a new script that quietly appeared overnight.',
     href: '/wade',
-    cta: 'See what WADE catches',
+    cta: 'See what we catch',
     icon: Brain,
     accent: '#a78bfa',
     accentBg: 'rgba(167,139,250,0.07)',
@@ -80,15 +85,24 @@ export function ThreeDoors() {
                 viewport={{ once: true, amount: 0.3 }}
                 transition={{ duration: 0.45, delay: i * 0.08 }}
               >
+                {/* Slice 2 — replaced JS-driven mouseEnter/Leave
+                    hover with pure CSS `:hover` via the existing
+                    `group` class + Tailwind hover modifiers. The
+                    JS path bypassed prefers-reduced-motion and
+                    fought React's render cycle. CSS hover respects
+                    the reduced-motion media query automatically. */}
                 <Link
                   href={d.href}
-                  className="group block rounded-[14px] p-6 h-full transition-all duration-200"
+                  className="group block rounded-[14px] p-6 h-full transition-[border-color,transform] duration-200 motion-reduce:transition-none hover:-translate-y-0.5 motion-reduce:hover:translate-y-0"
                   style={{
                     background: 'rgba(8,12,22,0.95)',
                     border: '1px solid rgba(255,255,255,0.06)',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = `${d.accent}50`; e.currentTarget.style.transform = 'translateY(-2px)' }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'; e.currentTarget.style.transform = 'translateY(0)' }}
+                    // CSS custom property so the hover state can
+                    // read the per-door accent without inline JS.
+                    ['--accent' as string]: d.accent,
+                  } as React.CSSProperties}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = `${d.accent}50` }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)' }}
                 >
                   <div
                     className="w-10 h-10 rounded-[10px] flex items-center justify-center mb-5"

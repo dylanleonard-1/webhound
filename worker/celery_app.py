@@ -37,6 +37,7 @@ celery = Celery(
         "worker.fraud_tasks",
         "worker.infra_tasks",
         "worker.threat_intel_tasks",
+        "worker.guest_cleanup_tasks",
     ],
 )
 
@@ -76,6 +77,13 @@ celery.conf.update(
             "task": "worker.threat_intel_tasks.import_threat_feeds",
             # Sunday 03:15 UTC. Opt-in via WEBHOUND_THREAT_FEEDS_ENABLED=1.
             "schedule": crontab(day_of_week="sun", hour=3, minute=15),
+        },
+        # Slice 4.A follow-up — daily GC of unclaimed guest scans
+        # (Websites with user_id IS NULL whose scan_job is older
+        # than WEBHOUND_GUEST_RETENTION_HOURS, default 24h).
+        "cleanup-expired-guest-scans": {
+            "task": "worker.guest_cleanup_tasks.cleanup_expired_guest_scans",
+            "schedule": crontab(hour=4, minute=15),    # daily 04:15 UTC
         },
     },
 )

@@ -24,8 +24,10 @@ from apps.api.models.enums import ScanProfile, ScanStatus
 from apps.api.models.scan_job import ScanJob
 from apps.api.models.website import Website
 from apps.api.services.public_scan import (
+    ClaimError,
     PublicScanError,
     _normalise_url,
+    claim_guest_scan,
     create_guest_scan,
     get_guest_scan_status,
 )
@@ -175,3 +177,85 @@ def _denied_rate_check():
     async def _no(key, *, limit, window_seconds):
         return RateDecision(allowed=False, remaining=0, reset_seconds=window_seconds)
     return _no
+
+
+# ---------------------------------------------------------------------------
+# Slice 4.C — claim
+# ---------------------------------------------------------------------------
+
+
+async def _make_user(db) -> tuple[uuid.UUID, str]:
+    from apps.api.models.enums import PlanTier
+    from apps.api.models.user import User
+    from apps.api.security import hash_password
+
+    u = User(
+        email=f"u-{uuid.uuid4()}@x.test",
+        hashed_password=hash_password("pw"),
+        is_active=True, plan=PlanTier.FREE,
+    )
+    db.add(u)
+    await db.flush()
+    return u.id, u.email
+
+
+async def _seed_guest_scan(db) -> uuid.UUID:
+    with patch(
+        "apps.api.services.public_scan.check_rate",
+        new=_unlimited_rate_check(),
+    ), patch(
+        "worker.scan_tasks.run_scan",
+        new=MagicMock(delay=MagicMock(return_value=_fake_celery_task())),
+    ):
+        payload = await create_guest_scan(
+            db, raw_url="acme-cafe.com", client_ip="203.0.113.5",
+        )
+    return uuid.UUID(payload["guest_token"])
+
+
+@pytest.mark.asyncio
+async def test_claim_attaches_website_to_user(db_engine) -> None:
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as db:
+        user_id, _ = await _make_user(db)
+        token = await _seed_guest_scan(db)
+        out = await claim_guest_scan(db, guest_token=token, user_id=user_id)
+        assert out["status"] == "queued"
+        site = await db.scalar(sa.select(Website).limit(1))
+        assert site is not None
+        assert site.user_id == user_id
+
+
+@pytest.mark.asyncio
+async def test_claim_is_idempotent_for_same_user(db_engine) -> None:
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as db:
+        user_id, _ = await _make_user(db)
+        token = await _seed_guest_scan(db)
+        await claim_guest_scan(db, guest_token=token, user_id=user_id)
+        # Second claim by same user: succeeds, no-op.
+        out = await claim_guest_scan(db, guest_token=token, user_id=user_id)
+        assert out["status"] == "queued"
+
+
+@pytest.mark.asyncio
+async def test_claim_unknown_token_raises(db_engine) -> None:
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as db:
+        user_id, _ = await _make_user(db)
+        with pytest.raises(ClaimError):
+            await claim_guest_scan(
+                db, guest_token=uuid.uuid4(), user_id=user_id,
+            )
+
+
+@pytest.mark.asyncio
+async def test_claim_rejects_different_user(db_engine) -> None:
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as db:
+        u1, _ = await _make_user(db)
+        u2, _ = await _make_user(db)
+        token = await _seed_guest_scan(db)
+        await claim_guest_scan(db, guest_token=token, user_id=u1)
+        with pytest.raises(ClaimError):
+            await claim_guest_scan(db, guest_token=token, user_id=u2)

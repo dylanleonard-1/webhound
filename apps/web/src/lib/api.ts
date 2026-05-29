@@ -578,6 +578,24 @@ export const api = {
       request<WadeHistoryResponse>('GET', `/websites/${websiteId}/wade/history${qs(params)}`),
   },
 
+  // Slice 4.A + 4.C — public/guest scan flow.
+  // create() is unauthenticated; claim() is authenticated and
+  // migrates a guest scan to the calling user's account.
+  publicScan: {
+    create: (url: string) =>
+      request<{ scan_id: string; guest_token: string; status: string; target_url: string; profile: string; rate_limit_remaining: number }>(
+        'POST', '/public/scan', { url },
+      ),
+    status: (guestToken: string) =>
+      request<{ scan_id: string; guest_token: string; status: string; target_url: string; profile: string; started_at: string | null; completed_at: string | null; error_message: string | null; result: unknown }>(
+        'GET', `/public/scan/${guestToken}`,
+      ),
+    claim: (guestToken: string) =>
+      request<{ scan_id: string; guest_token: string; website_id: string; status: string; target_url: string }>(
+        'POST', `/public/scan/${guestToken}/claim`,
+      ),
+  },
+
   billing: {
     plans: () => request<PlanResponse[]>('GET', '/billing/plans'),
 

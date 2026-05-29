@@ -135,6 +135,22 @@ async def _execute(
         )
         await db.commit()
 
+    # Slice 4.B — publish scan.started event so the public SSE
+    # endpoint can stream live progress to /scan/[token]/status.
+    # Best-effort: a Redis pub-sub hiccup must not affect the
+    # actual scan execution.
+    try:
+        from apps.api.telemetry import Event, EventKind, publish_event
+        await publish_event(Event(
+            kind=EventKind.SCAN_STARTED,
+            source="worker",
+            target_type="scan_job",
+            target_id=job_id,
+            detail={"target_url": target_url, "profile": profile},
+        ))
+    except Exception:
+        logger.debug("publish scan.started failed (non-fatal)", exc_info=True)
+
     scan_options = get_profile(profile).to_scan_options()
     target = Target.from_url(target_url, scan_options=scan_options)
     scanner = Scanner(target, previous_baseline=previous_baseline)
@@ -161,11 +177,39 @@ async def _execute(
                 job_uuid,
                 ScanJobStatusUpdate(status=ScanStatus.FAILED, error_message=error_msg),
             )
+            try:
+                from apps.api.telemetry import Event, EventKind, publish_event, Severity
+                await publish_event(Event(
+                    kind=EventKind.SCAN_FAILED,
+                    severity=Severity.HIGH,
+                    source="worker",
+                    target_type="scan_job",
+                    target_id=job_id,
+                    message=error_msg,
+                    detail={"target_url": target_url},
+                ))
+            except Exception:
+                logger.debug("publish scan.failed failed (non-fatal)", exc_info=True)
         else:
             result_record = await persist_scan_result(db, job_uuid, result)
             await sj_service.update_scan_job_status(
                 db, job_uuid, ScanJobStatusUpdate(status=ScanStatus.COMPLETED)
             )
+            try:
+                from apps.api.telemetry import Event, EventKind, publish_event
+                await publish_event(Event(
+                    kind=EventKind.SCAN_COMPLETED,
+                    source="worker",
+                    target_type="scan_job",
+                    target_id=job_id,
+                    detail={
+                        "target_url": target_url,
+                        "risk_score": result_record.risk_score if result_record else None,
+                        "total_findings": result_record.total_findings if result_record else 0,
+                    },
+                ))
+            except Exception:
+                logger.debug("publish scan.completed failed (non-fatal)", exc_info=True)
             if save_baseline_flag and scanner.current_baseline is not None and job is not None:
                 try:
                     await _save_baseline_record(db, job.website_id, scanner.current_baseline)

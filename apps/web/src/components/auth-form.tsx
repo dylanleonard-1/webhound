@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '@/contexts/auth'
-import type { LoginChallenge, UseCase } from '@/lib/api'
+import { api, type LoginChallenge, type UseCase } from '@/lib/api'
 import { resolvePostLoginPath } from '@/lib/post-login'
 
 const USE_CASES: Array<{ value: UseCase; label: string }> = [
@@ -322,6 +322,25 @@ export function AuthForm({ mode }: AuthFormProps) {
           use_case: useCase || null,
         })
         if (devVerifyUrl) sessionStorage.setItem('dev_verify_url', devVerifyUrl)
+
+        // Slice 4.C — Save my report. If the visitor arrived here
+        // via the post-scan "Save my report" CTA on
+        // /scan/[token]/status (URL: /register?save={guest_token}),
+        // immediately call /public/scan/{token}/claim now that the
+        // register response auto-signed them in. Failures are
+        // silenced into a stored hint so the verify-email page can
+        // surface them — but never block the auth flow.
+        const saveToken = searchParams?.get('save')
+        if (saveToken) {
+          try {
+            await api.publicScan.claim(saveToken)
+            sessionStorage.setItem('webhound:scan_saved', saveToken)
+          } catch {
+            // Non-fatal — claim is retried inside the dashboard if
+            // the user lands there with a stored save token.
+          }
+        }
+
         // next is preserved in sessionStorage; verify-email page consumes it.
         router.replace('/verify-email')
       }

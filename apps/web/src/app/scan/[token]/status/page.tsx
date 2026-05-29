@@ -68,39 +68,88 @@ export default function ScanStatusPage(props: {
   const [pollCount, setPollCount] = useState(0)
   const [statusIdx, setStatusIdx] = useState(0)
 
-  // Poll every 2 seconds until terminal status. Self-clears on
-  // unmount and on terminal-status arrival.
+  // Live updates. Slice 4.B — prefer SSE; fall back to polling
+  // if EventSource fails or the browser doesn't support it. Either
+  // path lands the same payload shape into setData(), so the rest
+  // of the page is unaware which transport is in use.
   useEffect(() => {
     let cancelled = false
-    async function poll() {
-      try {
-        const res = await fetch(`${API_BASE}/public/scan/${token}`)
-        const body: ScanStatusResponse | { detail?: string } =
-          await res.json().catch(() => ({}))
+    let es: EventSource | null = null
+    let pollTimer: ReturnType<typeof setTimeout> | null = null
+
+    async function startPolling() {
+      async function poll() {
         if (cancelled) return
-        if (!res.ok) {
-          const detail = (body as { detail?: string }).detail ||
-            'We couldn’t find that scan.'
-          setErrorMessage(detail)
-          return
+        try {
+          const res = await fetch(`${API_BASE}/public/scan/${token}`)
+          const body: ScanStatusResponse | { detail?: string } =
+            await res.json().catch(() => ({}))
+          if (cancelled) return
+          if (!res.ok) {
+            const detail = (body as { detail?: string }).detail ||
+              'We couldn’t find that scan.'
+            setErrorMessage(detail)
+            return
+          }
+          const ok = body as ScanStatusResponse
+          setData(ok)
+          setPollCount((p) => p + 1)
+          if (ok.status !== 'completed' && ok.status !== 'failed' && ok.status !== 'cancelled') {
+            pollTimer = setTimeout(poll, POLL_INTERVAL_MS)
+          }
+        } catch {
+          if (cancelled) return
+          pollTimer = setTimeout(poll, POLL_INTERVAL_MS)
         }
-        const ok = body as ScanStatusResponse
-        setData(ok)
-        setPollCount((p) => p + 1)
-        // Continue polling unless terminal.
-        if (ok.status !== 'completed' && ok.status !== 'failed' && ok.status !== 'cancelled') {
-          setTimeout(poll, POLL_INTERVAL_MS)
+      }
+      poll()
+    }
+
+    function tryEventSource() {
+      if (typeof window === 'undefined' || typeof EventSource === 'undefined') {
+        startPolling()
+        return
+      }
+      try {
+        es = new EventSource(`${API_BASE}/public/scan/${token}/events`)
+        es.addEventListener('snapshot', (ev) => {
+          try {
+            const parsed = JSON.parse((ev as MessageEvent).data) as ScanStatusResponse
+            if (!cancelled) {
+              setData(parsed)
+              setPollCount((p) => p + 1)
+            }
+          } catch { /* ignore malformed snapshot */ }
+        })
+        // Lifecycle frames — refetch the current state so the
+        // status card always reflects the latest server-side
+        // truth (no need to merge partial events client-side).
+        es.onmessage = async () => {
+          if (cancelled) return
+          try {
+            const res = await fetch(`${API_BASE}/public/scan/${token}`)
+            const body = await res.json().catch(() => null)
+            if (!cancelled && res.ok && body) {
+              setData(body as ScanStatusResponse)
+              setPollCount((p) => p + 1)
+            }
+          } catch { /* ignore — keep stream open */ }
+        }
+        es.onerror = () => {
+          if (es) { es.close(); es = null }
+          if (!cancelled) startPolling()
         }
       } catch {
-        if (cancelled) return
-        // Transient network failures: try again on the same cadence
-        // rather than surface an alarming error. The status page
-        // should feel patient and helpful.
-        setTimeout(poll, POLL_INTERVAL_MS)
+        startPolling()
       }
     }
-    poll()
-    return () => { cancelled = true }
+
+    tryEventSource()
+    return () => {
+      cancelled = true
+      if (es) { es.close(); es = null }
+      if (pollTimer) clearTimeout(pollTimer)
+    }
   }, [token])
 
   // Rotate the running-status copy locally so the page feels

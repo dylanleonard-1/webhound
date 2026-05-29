@@ -257,3 +257,56 @@ def _iso(dt: datetime | None) -> str | None:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.isoformat()
+
+
+# ---------------------------------------------------------------------------
+# Slice 4.C — Save my report. The visitor's guest scan is migrated
+# to their newly-registered account; the Website row gains the
+# user_id, the scan_job stays but is no longer guest-scoped.
+# ---------------------------------------------------------------------------
+
+
+class ClaimError(ValueError):
+    """Visitor-facing errors that should surface as 4xx."""
+
+
+async def claim_guest_scan(
+    db: AsyncSession,
+    *,
+    guest_token: uuid.UUID,
+    user_id: uuid.UUID,
+) -> dict[str, Any]:
+    """Attach a guest scan to an authenticated user. Idempotent —
+    re-claiming the same scan returns the same payload, useful
+    because the front-end's post-register redirect can retry.
+
+    Validation:
+      * Scan exists by guest token.
+      * Scan's Website hasn't already been claimed by a *different*
+        user. (Same user re-claiming is fine.)
+
+    Side-effects:
+      * Sets ``Website.user_id`` to the caller's user_id.
+      * Leaves ``guest_token`` set so the same status endpoint
+        keeps working — saved scans simply have an owner now.
+    """
+    job = await db.scalar(
+        sa.select(ScanJob).where(ScanJob.guest_token == guest_token),
+    )
+    if job is None:
+        raise ClaimError("That scan link isn’t recognised. It may have expired.")
+    website = await db.get(Website, job.website_id)
+    if website is None:
+        raise ClaimError("That scan link isn’t recognised. It may have expired.")
+    if website.user_id is not None and website.user_id != user_id:
+        raise ClaimError("That scan has already been saved to a different account.")
+    if website.user_id is None:
+        website.user_id = user_id
+        await db.flush()
+    return {
+        "scan_id": str(job.id),
+        "guest_token": str(job.guest_token),
+        "website_id": str(website.id),
+        "status": job.status.value,
+        "target_url": job.requested_url,
+    }

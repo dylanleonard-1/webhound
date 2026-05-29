@@ -26,7 +26,7 @@ from apps.api.schemas.scan_jobs import (
     ScanJobResponse,
     ScanJobStatusUpdate,
 )
-from apps.api.security import get_current_user
+from apps.api.security import get_active_org_id, get_current_user
 from apps.api.services import scan_jobs as sj_service
 from worker.scan_tasks import run_scan
 
@@ -36,6 +36,12 @@ router = APIRouter(prefix="/scan-jobs", tags=["scan-jobs"])
 
 _DB = Annotated[AsyncSession, Depends(get_db)]
 _CurrentUser = Annotated[User, Depends(get_current_user)]
+# Phase-4: optional active-org context resolved from the X-Org-Id header.
+# None means single-tenant legacy semantics; a UUID restricts queries to
+# (col IS NULL) OR (col = active_org_id). Membership is validated in the
+# dependency itself — a header pointing at an org the caller isn't a
+# member of returns 403, never silently falls back to None.
+_ActiveOrg = Annotated[uuid.UUID | None, Depends(get_active_org_id)]
 
 
 def _uid(user: User) -> uuid.UUID | None:
@@ -106,6 +112,7 @@ async def create_scan_job(
 async def list_scan_jobs(
     db: _DB,
     current_user: _CurrentUser,
+    active_org_id: _ActiveOrg,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
     website_id: uuid.UUID | None = None,
@@ -120,6 +127,7 @@ async def list_scan_jobs(
         status=status,
         profile=profile.value if profile else None,
         user_id=_uid(current_user),
+        active_org_id=active_org_id,
     )
     return ScanJobListResponse(
         items=[ScanJobResponse.model_validate(j) for j in items],

@@ -26,13 +26,14 @@ from apps.api.schemas.scan_results import (
     ScanResultSummary,
     WebsiteSummary,
 )
-from apps.api.security import get_current_user
+from apps.api.security import get_active_org_id, get_current_user
 from apps.api.services import scan_results as sr_service
 
 router = APIRouter(prefix="/scan-results", tags=["scan-results"])
 
 _DB = Annotated[AsyncSession, Depends(get_db)]
 _CurrentUser = Annotated[User, Depends(get_current_user)]
+_ActiveOrg = Annotated[uuid.UUID | None, Depends(get_active_org_id)]
 
 _VALID_RISK_LEVELS = frozenset({"low", "medium", "high", "critical"})
 
@@ -65,6 +66,7 @@ def _to_summary(record) -> ScanResultSummary:
 async def list_scan_results(
     db: _DB,
     current_user: _CurrentUser,
+    active_org_id: _ActiveOrg,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
     website_id: uuid.UUID | None = None,
@@ -92,6 +94,7 @@ async def list_scan_results(
         created_from=created_from,
         created_to=created_to,
         user_id=_uid(current_user),
+        active_org_id=active_org_id,
     )
     return ScanResultListResponse(
         items=[_to_summary(r) for r in items],

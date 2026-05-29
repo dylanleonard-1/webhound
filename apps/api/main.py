@@ -29,6 +29,7 @@ from apps.api.routers import (
     health,
     notifications,
     oauth,
+    orgs,
     phone,
     scan_jobs,
     scan_results,
@@ -111,6 +112,7 @@ app.include_router(health.router, tags=["health"])
 app.include_router(auth.router)
 app.include_router(oauth.router)
 app.include_router(phone.router)
+app.include_router(orgs.router)
 app.include_router(websites.router)
 app.include_router(scan_jobs.router)
 app.include_router(scan_results.router)

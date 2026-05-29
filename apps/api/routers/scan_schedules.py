@@ -16,13 +16,14 @@ from apps.api.schemas.scan_schedules import (
     ScanSchedulePatch,
     ScanScheduleResponse,
 )
-from apps.api.security import get_current_user
+from apps.api.security import get_active_org_id, get_current_user
 from apps.api.services import scan_schedules as ss_service
 
 router = APIRouter(prefix="/scan-schedules", tags=["scan-schedules"])
 
 _DB = Annotated[AsyncSession, Depends(get_db)]
 _CurrentUser = Annotated[User, Depends(get_current_user)]
+_ActiveOrg = Annotated[uuid.UUID | None, Depends(get_active_org_id)]
 
 
 def _uid(user: User) -> uuid.UUID | None:
@@ -51,12 +52,15 @@ async def create_scan_schedule(
 async def list_scan_schedules(
     db: _DB,
     current_user: _CurrentUser,
+    active_org_id: _ActiveOrg,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
     website_id: uuid.UUID | None = None,
 ) -> ScanScheduleListResponse:
     items, total = await ss_service.list_schedules(
-        db, _uid(current_user), website_id=website_id, limit=limit, offset=offset
+        db, _uid(current_user), website_id=website_id,
+        limit=limit, offset=offset,
+        active_org_id=active_org_id,
     )
     return ScanScheduleListResponse(
         items=[ScanScheduleResponse.model_validate(s) for s in items],

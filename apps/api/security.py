@@ -148,3 +148,59 @@ async def get_current_user(
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or inactive")
     return user
+
+
+# ---------------------------------------------------------------------------
+# Phase-4 active-org context resolution
+# ---------------------------------------------------------------------------
+
+
+async def get_active_org_id(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    x_org_id: Annotated[
+        str | None,
+        # FastAPI maps ``X-Org-Id`` header to this parameter via the
+        # Header() dependency. Default lives on the parameter, not
+        # inside Header() — FastAPI rejects default-inside-Annotated.
+        __import__("fastapi").Header(alias="X-Org-Id"),
+    ] = None,
+) -> uuid.UUID | None:
+    """Resolve the caller's currently-active org for tenant-scoped queries.
+
+    Returns:
+      * ``None`` when no ``X-Org-Id`` header is set — single-tenant
+        legacy behaviour. Services that accept ``active_org_id=None``
+        will return *all* visible rows (the OR-NULL branch of the
+        tenant filter), preserving today's UX while the org switcher
+        rolls out incrementally.
+      * The supplied UUID when the user has an accepted membership in
+        that org. The downstream list queries restrict to
+        ``(col IS NULL) OR (col = active_org_id)`` so legacy rows
+        remain visible alongside the tenant's own rows.
+
+    Raises:
+      * ``HTTPException(400)`` when the header is malformed.
+      * ``HTTPException(403)`` when the header references a real
+        UUID but the user is NOT a member — never silently fall back
+        to None, that would leak rows.
+    """
+    if not x_org_id:
+        return None
+    try:
+        org_id = uuid.UUID(x_org_id)
+    except ValueError:
+        raise HTTPException(status_code=400,
+                             detail="X-Org-Id is not a valid UUID")
+    # Lazy import — keeps security.py free of model imports at module
+    # load time so the JWT path stays cheap.
+    from apps.api.services.orgs import get_membership
+    membership = await get_membership(
+        db, org_id=org_id, user_id=current_user.id,
+    )
+    if membership is None:
+        raise HTTPException(
+            status_code=403,
+            detail="not a member of this org",
+        )
+    return org_id

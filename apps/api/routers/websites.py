@@ -24,7 +24,7 @@ from apps.api.schemas.websites import (
     WebsitePatch,
     WebsiteResponse,
 )
-from apps.api.security import get_current_user
+from apps.api.security import get_active_org_id, get_current_user
 from apps.api.services import websites as ws_service
 from apps.api.services import verification as verify_service
 
@@ -33,6 +33,8 @@ router = APIRouter(prefix="/websites", tags=["websites"])
 
 _DB = Annotated[AsyncSession, Depends(get_db)]
 _CurrentUser = Annotated[User, Depends(get_current_user)]
+# Phase-4 active-org context; see routers/scan_jobs.py for rationale.
+_ActiveOrg = Annotated[uuid.UUID | None, Depends(get_active_org_id)]
 
 
 def _uid(user: User) -> uuid.UUID | None:
@@ -71,6 +73,7 @@ async def create_website(
 async def list_websites(
     db: _DB,
     current_user: _CurrentUser,
+    active_org_id: _ActiveOrg,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
     verification_status: VerificationStatus | None = None,
@@ -83,6 +86,7 @@ async def list_websites(
         verification_status=verification_status,
         hostname=hostname,
         user_id=_uid(current_user),
+        active_org_id=active_org_id,
     )
     return WebsiteListResponse(
         items=[WebsiteResponse.model_validate(w) for w in items],

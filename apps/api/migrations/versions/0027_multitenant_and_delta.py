@@ -89,6 +89,21 @@ def upgrade() -> None:
     # orgs
     # ------------------------------------------------------------------
     if not _has_table(bind, "orgs"):
+        # plantier was already created by an earlier migration (users
+        # table). Reuse it via the dialect-specific reference with
+        # create_type=False so this migration doesn't fail with
+        # DuplicateObjectError on environments that already have it.
+        # SQLite tests round-trip the same way via the generic Enum.
+        if dialect == "postgresql":
+            plan_tier_type = postgresql.ENUM(
+                "free", "starter", "pro", "business", "enterprise",
+                name="plantier", create_type=False,
+            )
+        else:
+            plan_tier_type = sa.Enum(
+                "free", "starter", "pro", "business", "enterprise",
+                name="plantier",
+            )
         op.create_table(
             "orgs",
             sa.Column("id", sa.Uuid(as_uuid=True), primary_key=True),
@@ -96,11 +111,7 @@ def upgrade() -> None:
             sa.Column("name", sa.String(255), nullable=False),
             sa.Column("billing_email", sa.String(255)),
             sa.Column(
-                "plan_tier",
-                sa.Enum(
-                    "free", "starter", "pro", "business", "enterprise",
-                    name="plantier",
-                ),
+                "plan_tier", plan_tier_type,
                 nullable=False, server_default="free",
             ),
             sa.Column(

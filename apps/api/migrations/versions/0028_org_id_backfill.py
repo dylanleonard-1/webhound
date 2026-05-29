@@ -89,12 +89,14 @@ def upgrade() -> None:
 
     # ------------------------------------------------------------------
     # 2. Owner membership. Idempotent via UNIQUE(org_id, user_id).
+    # org_memberships uses TimestampMixin (created_at only — no
+    # updated_at), so do not insert into a non-existent column.
     # ------------------------------------------------------------------
     op.execute("""
         INSERT INTO org_memberships (id, org_id, user_id, role,
-                                     accepted_at, created_at, updated_at)
+                                     accepted_at, created_at)
         SELECT
-            gen_random_uuid(), o.id, u.id, 'owner', now(), now(), now()
+            gen_random_uuid(), o.id, u.id, 'owner', now(), now()
         FROM users u
         JOIN orgs o ON o.slug = 'personal-' || replace(u.id::text, '-', '')
         WHERE NOT EXISTS (

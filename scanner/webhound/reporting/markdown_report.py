@@ -188,47 +188,48 @@ class MarkdownReport:
         lines.append("---")
 
     def _compliance_summary(self, result: ScanResult, lines: list[str]) -> None:
-        """Per-framework counts of findings — PCI / ISO / SOC / HIPAA."""
-        if not result.grouped_findings:
+        """Structured compliance rollup — separates controls impacted
+        from findings mapped from confirmed violations. Same numbers
+        as the JSON / CSV / SARIF exports, sourced from
+        reporting/compliance.py so every consumer sees one truth."""
+        if not result.grouped_findings and not result.active_findings:
             return
-        frameworks = [
-            ("PCI DSS 4.0",  "pci_dss"),
-            ("ISO 27001",    "iso_27001"),
-            ("SOC 2",        "soc2"),
-            ("HIPAA",        "hipaa"),
-            ("OWASP Top 10", "owasp_top10"),
-            ("NIST 800-53",  "nist_controls"),
-        ]
-        rows: list[tuple[str, int, int]] = []  # (label, findings, unique_refs)
-        for label, attr in frameworks:
-            total = 0
-            refs: set[str] = set()
-            for gf in result.grouped_findings:
-                values = getattr(gf.framework, attr, None) or []
-                if values:
-                    total += 1
-                    refs.update(values)
-            if total > 0:
-                rows.append((label, total, len(refs)))
-        if not rows:
+        from webhound.reporting.compliance import build_compliance_rollup
+        rollup = build_compliance_rollup(result)
+        # Only render rows whose controls_impacted > 0 — otherwise the
+        # framework didn't fire at all and an empty row is just noise.
+        active_rows = [fr for fr in rollup.frameworks
+                        if fr.controls_impacted > 0]
+        if not active_rows:
             return
-        known_exploited = sum(
-            1 for gf in result.grouped_findings
-            if gf.framework.exploitability
-            and gf.framework.exploitability.value == "known_exploited"
-        )
         lines.append("")
         lines.append("### Compliance &amp; Standards Coverage")
         lines.append("")
-        lines.append("| Framework | Findings | Unique Refs |")
-        lines.append("|-----------|----------|-------------|")
-        for label, total, refs in rows:
-            lines.append(f"| {label} | {total} | {refs} |")
-        if known_exploited > 0:
+        lines.append("| Framework | Controls impacted | Findings mapped "
+                      "| Confirmed violations | Advisory only |")
+        lines.append("|-----------|-------------------|-----------------"
+                      "|----------------------|---------------|")
+        for fr in active_rows:
+            lines.append(
+                f"| {fr.label} | {fr.controls_impacted} "
+                f"| {fr.findings_mapped} "
+                f"| {fr.confirmed_violations} "
+                f"| {fr.advisory_controls} |"
+            )
+        lines.append("")
+        lines.append(
+            f"**{rollup.total_controls_impacted}** distinct control(s) "
+            f"impacted across all frameworks; "
+            f"**{rollup.total_confirmed_violations}** confirmed "
+            "violation(s) (high-severity findings with confirmed/likely "
+            "quality)."
+        )
+        if rollup.known_exploited_finding_count > 0:
             lines.append("")
             lines.append(
-                f"**{known_exploited}** finding(s) flagged as "
-                "`KNOWN_EXPLOITED` — working exploits exist in the wild."
+                f"**{rollup.known_exploited_finding_count}** finding(s) "
+                "flagged as `KNOWN_EXPLOITED` — working exploits exist "
+                "in the wild."
             )
 
     def _recommended_actions(self, result: ScanResult, lines: list[str]) -> None:

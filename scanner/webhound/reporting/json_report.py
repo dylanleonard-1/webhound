@@ -8,6 +8,11 @@
 #   v3 — added per-finding tags, quality_label, finding id, and
 #         metadata.corroborated_by; added top-level correlated_chains
 #         section listing every threat-chain cluster + its constituents
+#   v4 — added top-level compliance rollup (controls_impacted vs
+#         findings_mapped vs advisory_controls vs confirmed_violations
+#         per framework), evidence_graph (nodes + edges with stable
+#         content-addressed ids), and asset_map carry-through (set by
+#         the orchestrator's ASM pass on the ENTERPRISE profile)
 
 from __future__ import annotations
 
@@ -18,13 +23,28 @@ from typing import Any
 from webhound.core.performance import ScanTelemetry
 from webhound.models.scan_result import ScanResult
 
-_REPORT_SCHEMA_VERSION = 3
+_REPORT_SCHEMA_VERSION = 4
 
 # Engine name used by the post-engine correlation pass (see
 # webhound/core/correlation.py). Findings with this engine are threat-chain
 # *cluster* findings — they aggregate multiple per-engine signals into one
 # corroborated story rather than describing a single observation.
 _CORRELATION_ENGINE = "correlation"
+
+
+def _compliance_section(result: ScanResult) -> dict[str, Any]:
+    """Phase-3 reformed compliance rollup — separates controls
+    impacted from findings mapped from confirmed violations."""
+    # Lazy import keeps json_report importable when reporting/
+    # is being introspected during package init.
+    from webhound.reporting.compliance import build_compliance_rollup
+    return build_compliance_rollup(result).to_dict()
+
+
+def _evidence_graph_section(result: ScanResult) -> dict[str, Any]:
+    """Phase-3 evidence graph."""
+    from webhound.reporting.evidence_graph import build_evidence_graph
+    return build_evidence_graph(result).to_dict()
 
 
 def _wade_section(result: ScanResult) -> dict[str, Any]:
@@ -244,6 +264,21 @@ class JsonReport:
             # dashboard can render the attack-surface panel without
             # rummaging through scan_metadata.
             "asset_map": result.metadata.get("asset_map"),
+            # --- Compliance rollup (Phase-3 reform) ---
+            # Structured breakdown: per-framework controls_impacted vs
+            # findings_mapped vs advisory_controls vs confirmed_violations
+            # so the dashboard can render a posture grid that doesn't
+            # conflate "30 low-confidence advisory findings touching a
+            # control" with "1 confirmed violation against the same
+            # control". See reporting/compliance.py for the rules.
+            "compliance": _compliance_section(result),
+            # --- Evidence graph (Phase-3) ---
+            # Stable, content-addressed graph of scan→engine→finding→
+            # evidence→page (+ corroboration edges + asset host nodes).
+            # Designed so the dashboard can render a network or
+            # explorer view without recomputing relationships per
+            # request.
+            "evidence_graph": _evidence_graph_section(result),
             # --- Engine provenance ---
             "engines_run": result.engines_run,
             "engine_diagnostics": [

@@ -148,9 +148,22 @@ def _result_from_grouped(
         "affected_url_count": gf.affected_url_count,
         **_framework_properties(gf.framework),
     }
-    tags = _exploit_tags(gf.framework)
-    if tags:
-        props["tags"] = tags
+    # Phase-3/4 v4 fields — surface the same quality + correlation
+    # metadata SIEM ingestion already sees in the JSON/CSV exports.
+    q_label = getattr(gf, "quality_label", None)
+    if q_label:
+        props["quality_label"] = q_label
+    md = getattr(gf, "metadata", None) or {}
+    if md.get("corroborated_by"):
+        props["corroborated_by"] = list(md["corroborated_by"])
+    if md.get("chain_name"):
+        props["chain_name"] = md["chain_name"]
+    sarif_tags = _exploit_tags(gf.framework)
+    finding_tags = list(getattr(gf, "tags", None) or [])
+    combined = sarif_tags + [t for t in finding_tags
+                              if t not in sarif_tags]
+    if combined:
+        props["tags"] = combined
     return {
         "ruleId": rule_id,
         "level": level,
@@ -170,9 +183,20 @@ def _result_from_finding(rule_id: str, f: Finding, url: str) -> dict[str, Any]:
         "evidence_count": f.evidence_count,
         **_framework_properties(f.framework),
     }
-    tags = _exploit_tags(f.framework)
-    if tags:
-        props["tags"] = tags
+    q_label = getattr(f, "quality_label", None)
+    if q_label:
+        props["quality_label"] = q_label
+    md = getattr(f, "metadata", None) or {}
+    if md.get("corroborated_by"):
+        props["corroborated_by"] = list(md["corroborated_by"])
+    if md.get("chain_name"):
+        props["chain_name"] = md["chain_name"]
+    sarif_tags = _exploit_tags(f.framework)
+    finding_tags = list(getattr(f, "tags", None) or [])
+    combined = sarif_tags + [t for t in finding_tags
+                              if t not in sarif_tags]
+    if combined:
+        props["tags"] = combined
     return {
         "ruleId": rule_id,
         "level": level,

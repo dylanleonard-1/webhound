@@ -19,6 +19,10 @@ from typing import Any
 from webhound.models.scan_result import ScanResult
 
 # Column order for grouped-findings CSV
+# Phase-3 / Phase-4 export-parity additions (v4 schema):
+#   quality_label, tags, corroborated_by, chain_name — surfaced so
+#   downstream SIEM ingestion can see the same scrub-able fields
+#   the dashboard renders.
 GROUPED_HEADERS: list[str] = [
     "title",
     "severity",
@@ -27,6 +31,10 @@ GROUPED_HEADERS: list[str] = [
     "affected_url",
     "affected_url_count",
     "confidence",
+    "quality_label",
+    "tags",
+    "corroborated_by",
+    "chain_name",
     "remediation",
     "evidence_count",
     # OWASP / CWE / NIST
@@ -53,6 +61,10 @@ RAW_HEADERS: list[str] = [
     "engine",
     "affected_url",
     "confidence",
+    "quality_label",
+    "tags",
+    "corroborated_by",
+    "chain_name",
     "remediation",
     "evidence_count",
     "owasp_top10",
@@ -107,6 +119,13 @@ class CsvReport:
         for gf in result.grouped_findings:
             first_url = gf.affected_urls[0] if gf.affected_urls else ""
             fa = gf.framework
+            tags = list(getattr(gf, "tags", None) or [])
+            corroborated_by = (getattr(gf, "metadata", None) or {}).get(
+                "corroborated_by", []
+            ) or []
+            chain_name = (getattr(gf, "metadata", None) or {}).get(
+                "chain_name", ""
+            ) or ""
             writer.writerow({
                 "title": gf.title,
                 "severity": gf.severity.value,
@@ -115,6 +134,10 @@ class CsvReport:
                 "affected_url": first_url,
                 "affected_url_count": gf.affected_url_count,
                 "confidence": round(gf.confidence, 4),
+                "quality_label": getattr(gf, "quality_label", "") or "",
+                "tags": ";".join(tags),
+                "corroborated_by": ";".join(corroborated_by),
+                "chain_name": chain_name,
                 "remediation": gf.remediation or "",
                 "evidence_count": gf.evidence_count,
                 "owasp_top10": ";".join(fa.owasp_top10),
@@ -141,6 +164,13 @@ class CsvReport:
         for f in result.active_findings:
             loc = f.evidence[0].location if f.evidence else ""
             fa = f.framework
+            tags = list(getattr(f, "tags", None) or [])
+            corroborated_by = (getattr(f, "metadata", None) or {}).get(
+                "corroborated_by", []
+            ) or []
+            chain_name = (getattr(f, "metadata", None) or {}).get(
+                "chain_name", ""
+            ) or ""
             writer.writerow({
                 "title": f.title,
                 "severity": f.severity.value,
@@ -148,6 +178,10 @@ class CsvReport:
                 "engine": f.scanner_engine,
                 "affected_url": loc,
                 "confidence": round(f.confidence, 4),
+                "quality_label": getattr(f, "quality_label", "") or "",
+                "tags": ";".join(tags),
+                "corroborated_by": ";".join(corroborated_by),
+                "chain_name": chain_name,
                 "remediation": f.remediation or "",
                 "evidence_count": f.evidence_count,
                 "owasp_top10": ";".join(fa.owasp_top10),

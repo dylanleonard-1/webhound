@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from .finding import FindingCategory, FrameworkAlignment
@@ -41,4 +43,27 @@ class GroupedFinding(BaseModel):
     # Back-references to raw findings (UUID strings)
     finding_ids: list[str] = Field(default_factory=list)
 
+    # Phase-3/4 v4 surface — tags (e.g. 'corroborated', 'cluster',
+    # 'heuristic'), free-form metadata bag (mirrors Finding.metadata),
+    # and the derived quality_label that the dashboard / SIEM
+    # consumers rely on. Default empty so existing fixtures keep
+    # working unchanged.
+    tags: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
     model_config = {"frozen": False, "populate_by_name": True}
+
+    @property
+    def quality_label(self) -> str:
+        """Mirror of :pyattr:`Finding.quality_label`."""
+        tags = {t.lower() for t in (self.tags or [])}
+        if self.severity == Severity.INFO:
+            return "advisory" if "advisory" in tags else "informational"
+        if ("heuristic" in tags or "weak_signal" in tags
+                or self.confidence < 0.55):
+            return "heuristic"
+        if "confirmed" in tags or self.confidence >= 0.9:
+            return "confirmed"
+        if "likely" in tags or self.confidence >= 0.7:
+            return "likely"
+        return "heuristic"

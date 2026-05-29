@@ -70,6 +70,30 @@ class FindingGrouper:
         confidence = max(f.confidence for f in findings)
         scores = [f.anomaly_score for f in findings if f.anomaly_score is not None]
 
+        # Phase-3/4 v4: union tags across raw findings, harvest
+        # correlation metadata (chain_name / corroborated_by) from any
+        # constituent so the grouped view carries the same provenance
+        # the per-finding exports already see.
+        merged_tags: list[str] = []
+        seen_tags: set[str] = set()
+        merged_corroborated: set[str] = set()
+        chain_name: str | None = None
+        for f in findings:
+            for t in (f.tags or []):
+                if t not in seen_tags:
+                    seen_tags.add(t)
+                    merged_tags.append(t)
+            md = f.metadata or {}
+            for c in (md.get("corroborated_by") or []):
+                merged_corroborated.add(c)
+            if not chain_name and md.get("chain_name"):
+                chain_name = md["chain_name"]
+        merged_metadata: dict = {}
+        if merged_corroborated:
+            merged_metadata["corroborated_by"] = sorted(merged_corroborated)
+        if chain_name:
+            merged_metadata["chain_name"] = chain_name
+
         return GroupedFinding(
             title=first.title,
             severity=first.severity,
@@ -84,4 +108,6 @@ class FindingGrouper:
             framework=first.framework,
             anomaly_score=max(scores) if scores else None,
             finding_ids=[str(f.id) for f in findings],
+            tags=merged_tags,
+            metadata=merged_metadata,
         )

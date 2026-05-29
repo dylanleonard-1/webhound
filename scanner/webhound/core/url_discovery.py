@@ -389,20 +389,82 @@ def _dedupe(items: list[str]) -> list[str]:
 
 @dataclass
 class HostInventoryEntry:
-    """One unique third-party host the scan discovered, with provenance."""
+    """One unique third-party host the scan discovered, with provenance.
+
+    Phase-5B expansion: tracks *which discovery mechanism* surfaced the
+    host (static HTML, JS literal, browser telemetry, redirect chain,
+    DNS reference, CSP source, iframe), the ``last_seen_page`` in
+    addition to first, and per-host fields populated downstream by the
+    enrichment + classification pipeline (vendor classification,
+    threat-intel state, VirusTotal status, WADE baseline status).
+
+    Each "downstream" field defaults to None and is set by its owner
+    service when it runs. A host that's never enriched still serialises
+    correctly — every consumer must tolerate None for these fields."""
 
     hostname: str
     registrable_domain: str | None = None
     kinds: set[str] = field(default_factory=set)         # script / fetch / preconnect / …
+    discovery_sources: set[str] = field(default_factory=set)
     first_seen_page: str | None = None
+    last_seen_page: str | None = None
     sample_urls: list[str] = field(default_factory=list)  # capped, dedup'd
+    # Downstream-populated (Phase-5C / WADE / threat-intel):
+    vendor_classification: str | None = None    # 'trusted' | 'risky' | …
+    threat_intel_state: str | None = None       # 'pending' | 'checked' | …
+    vt_status: str | None = None                # 'clean' | 'suspicious' | …
+    baseline_status: str | None = None          # 'known' | 'new' | …
 
     _SAMPLE_CAP = 5
+    # Mapping from the kind string (the per-(url, kind) pair the
+    # caller passes in) to the high-level discovery_source bucket.
+    # New buckets fall back to ``"static"`` to stay backwards-
+    # compatible with engines that pre-date Phase-5.
+    _KIND_TO_SOURCE: dict[str, str] = field(default_factory=lambda: {
+        "script":          "static_html",
+        "stylesheet":      "static_html",
+        "image":           "static_html",
+        "link":            "static_html",
+        "form_action":     "static_html",
+        "iframe":          "iframe",
+        "preconnect":      "static_html",
+        "dns_prefetch":    "static_html",
+        "preload":         "static_html",
+        "manifest":        "static_html",
+        "canonical":       "static_html",
+        "css_import":      "static_html",
+        "og_url":          "static_html",
+        "twitter_url":     "static_html",
+        "jsonld":          "static_html",
+        "js_request":      "js_literal",
+        "js_fetch":        "js_literal",
+        "js_xhr":          "js_literal",
+        "js_eventsource":  "js_literal",
+        "js_websocket":    "js_literal",
+        "js_import":       "js_literal",
+        "js_literal":      "js_literal",
+        "fetch":           "browser",
+        "xhr":             "browser",
+        "websocket":       "browser",
+        "eventsource":     "browser",
+        "dynamic_import":  "browser",
+        "navigation":      "browser",
+        "redirect":        "redirect",
+        "dns":             "dns",
+        "csp":             "csp",
+    })
 
     def add(self, *, kind: str, url: str, page_url: str | None) -> None:
         self.kinds.add(kind)
+        # Bucket the kind into a high-level discovery_source so the
+        # dashboard / JSON export can render "this host was found via:
+        # static_html + browser" rather than the granular kind list.
+        source = self._KIND_TO_SOURCE.get(kind, "static")
+        self.discovery_sources.add(source)
         if self.first_seen_page is None and page_url:
             self.first_seen_page = page_url
+        if page_url:
+            self.last_seen_page = page_url
         if url not in self.sample_urls and len(self.sample_urls) < self._SAMPLE_CAP:
             self.sample_urls.append(url)
 
@@ -430,6 +492,101 @@ def aggregate_host_inventory(
                 inventory[host] = entry
             entry.add(kind=kind, url=url, page_url=page.page_url)
     return inventory
+
+
+# ---------------------------------------------------------------------------
+# Phase-5B: extend the inventory with signals the per-page contribution
+# loop doesn't capture (CSP source hosts, redirect-chain intermediaries).
+# Called by the orchestrator post-crawl. Idempotent — re-running adds
+# nothing new.
+# ---------------------------------------------------------------------------
+
+
+_CSP_DIRECTIVES_WITH_HOSTS = (
+    "default-src", "script-src", "script-src-elem", "script-src-attr",
+    "style-src", "style-src-elem", "style-src-attr",
+    "img-src", "font-src", "connect-src", "media-src", "object-src",
+    "frame-src", "child-src", "form-action", "frame-ancestors",
+    "worker-src", "manifest-src", "prefetch-src",
+)
+
+
+def _csp_source_hosts(csp_value: str) -> list[str]:
+    """Parse a Content-Security-Policy header value, return every
+    host (or registrable domain) listed in a source-list directive.
+
+    Skips ``'self'``, ``'unsafe-*'``, ``data:``, ``blob:``, ``*``,
+    and nonce / hash sources — only real host names land in the
+    output. Wildcards like ``*.example.com`` keep the literal base
+    domain so the inventory at least records ``example.com``."""
+    hosts: list[str] = []
+    if not csp_value:
+        return hosts
+    for chunk in csp_value.split(";"):
+        parts = chunk.strip().split()
+        if not parts:
+            continue
+        directive = parts[0].lower()
+        if directive not in _CSP_DIRECTIVES_WITH_HOSTS:
+            continue
+        for src in parts[1:]:
+            s = src.strip().strip("'\"")
+            if not s or s in (
+                "self", "none", "unsafe-inline", "unsafe-eval",
+                "unsafe-hashes", "strict-dynamic", "report-sample",
+                "*",
+            ):
+                continue
+            if s.startswith(("nonce-", "sha256-", "sha384-", "sha512-")):
+                continue
+            if ":" in s and "//" not in s and not s.startswith("*."):
+                # data:, blob:, filesystem:, mediastream:
+                continue
+            # Strip scheme + wildcard prefix to get a bare host.
+            host = s
+            for prefix in ("http://", "https://", "wss://", "ws://"):
+                if host.startswith(prefix):
+                    host = host[len(prefix):]
+                    break
+            host = host.split("/", 1)[0].lstrip("*.").lower()
+            if host and "." in host:
+                hosts.append(host)
+    return hosts
+
+
+def build_response_inventory_contribution(
+    page_url: str,
+    *,
+    headers: dict[str, str] | None = None,
+    redirect_chain: list[str] | None = None,
+) -> "PageHostContribution":
+    """Build a synthetic ``PageHostContribution`` representing every
+    host the page's HTTP response surfaced via CSP source-list +
+    redirect-chain intermediaries.
+
+    The orchestrator appends these contributions to the existing
+    per-page list before calling ``aggregate_host_inventory`` so the
+    canonical inventory includes CSP-allowed vendors that no element
+    on the page actually references, and redirect hops the static
+    crawler followed transparently. Backwards-compatible — when both
+    inputs are empty the resulting contribution carries zero URLs and
+    is a harmless no-op in the aggregator."""
+    pairs: list[tuple[str, str]] = []
+    csp = (headers or {}).get(
+        "content-security-policy",
+        (headers or {}).get("Content-Security-Policy", ""),
+    )
+    if csp:
+        for h in _csp_source_hosts(csp):
+            pairs.append((f"https://{h}/", "csp"))
+    for r in (redirect_chain or []):
+        if r:
+            pairs.append((r, "redirect"))
+    return PageHostContribution(
+        page_url=page_url,
+        page_host=_hostname(page_url),
+        urls=pairs,
+    )
 
 
 @dataclass

@@ -482,6 +482,36 @@ class Scanner:
                         "intact", exc_info=True,
                     )
 
+            # 3c. Phase-5B canonical inventory extension. Walk every
+            # crawled page's response and append a synthetic
+            # PageHostContribution carrying the CSP source-list hosts
+            # (vendors the page is *allowed* to load from, even if no
+            # element references them) + the redirect-chain hops the
+            # static crawler followed. Pure post-processing — does not
+            # touch network. Best-effort; ignored on failure.
+            try:
+                from webhound.core.url_discovery import (
+                    build_response_inventory_contribution,
+                )
+                for r in crawl_results:
+                    resp = getattr(r, "response", None)
+                    if resp is None or getattr(resp, "failed", True):
+                        continue
+                    host_contributions.append(
+                        build_response_inventory_contribution(
+                            resp.url,
+                            headers=getattr(resp, "headers", None) or {},
+                            redirect_chain=getattr(
+                                resp, "redirect_chain", None,
+                            ) or [],
+                        ),
+                    )
+            except Exception:  # noqa: BLE001
+                logger.debug(
+                    "csp/redirect inventory extension failed",
+                    exc_info=True,
+                )
+
             # 4. TLS / DNS — blocking I/O, run in thread pool
             await self._run_tls_dns(ctx)
 

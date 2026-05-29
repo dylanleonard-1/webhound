@@ -17,14 +17,18 @@ function isGroup(item: NavItem): item is NavGroup {
   return 'children' in item
 }
 
+// Slice 3 D6 — engine name 'WADE' removed from marketing-visible
+// nav (still the route slug). 'AI baseline + anomaly detection'
+// was a feature description; 'Catches what other scanners miss'
+// is the outcome an SBO recognises.
 const NAV_ITEMS: NavItem[] = [
   {
     label: 'Product',
     children: [
-      { label: 'Scanner',    href: '/scanner',    desc: 'How a scan works'                },
-      { label: 'Monitoring', href: '/monitoring', desc: 'What we watch after the scan'    },
-      { label: 'WADE',       href: '/wade',       desc: 'AI baseline + anomaly detection' },
-      { label: 'Reports',    href: '/reports',    desc: 'What you get in writing'         },
+      { label: 'Security scan',          href: '/scanner',    desc: 'A plain-English checkup of your website'   },
+      { label: 'Continuous monitoring',  href: '/monitoring', desc: 'We watch for changes after the scan'        },
+      { label: 'Smart change detection', href: '/wade',       desc: 'Catches what other scanners miss'           },
+      { label: 'Reports',                href: '/reports',    desc: 'What you get in writing after every scan'   },
     ],
   },
   { label: 'Pricing', href: '/pricing' },

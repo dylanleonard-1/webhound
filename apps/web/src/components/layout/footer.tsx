@@ -78,7 +78,7 @@ export function Footer() {
             </Link>
             <p className="text-[13px] leading-relaxed max-w-[220px]" style={{ color: 'rgba(255,255,255,0.42)' }}>
               Continuous website security for small business owners.
-              Find vulnerabilities and monitor for changes — no
+              Find security issues and monitor for changes — no
               security team required.
             </p>
             {/* Footer CTA — unified to /scan per Slice 1.

@@ -94,7 +94,7 @@ export function Hero() {
             initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.22 }}
           >
-            WebHound finds vulnerabilities, monitors your website
+            WebHound finds security issues, monitors your website
             for changes, and explains what we found in plain English
             so you know what to fix first.
             <span className="block mt-2" style={{ color: 'rgba(255,255,255,0.45)' }}>

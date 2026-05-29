@@ -17,39 +17,30 @@ import { PrimaryButton } from '@/components/ui/primary-button'
 import { GradientDivider } from '@/components/ui/gradient-divider'
 
 // ── Data ──────────────────────────────────────────────────────────────────────
+//
+// Slice 3 jargon rewrite (D6): plain-English status + metric labels.
+// Replaced 'attack surface', 'enumerating technologies', 'vulnerability
+// checks', 'security posture', 'threat intelligence', 'remediation
+// report' with outcomes a small business owner recognises. Removed
+// the LOG_ENTRIES + LEVEL_COLOR fake terminal feed (ScanTerminal was
+// dropped per D5 — simulated theatre that competed with the real
+// sample-finding composition for the proof slot).
 
 const STATUSES = [
-  'Mapping attack surface...',
-  'Enumerating technologies...',
-  'Running vulnerability checks...',
-  'Analyzing security posture...',
-  'Correlating threat intelligence...',
-  'Building remediation report...',
+  'Looking at every page on your site...',
+  'Checking the tools your site uses...',
+  'Finding security weaknesses...',
+  'Ranking by what to fix first...',
+  'Comparing against known threats...',
+  'Writing your plain-English report...',
 ]
 
 const METRICS = [
-  { label: 'Assets Discovered', value: 245 },
-  { label: 'Technologies Identified', value: 38 },
-  { label: 'Vulnerabilities Found', value: 18 },
-  { label: 'Critical Risks', value: 4 },
+  { label: 'Pages checked',           value: 245 },
+  { label: 'Tools & vendors found',   value: 38  },
+  { label: 'Issues found',            value: 18  },
+  { label: 'Need urgent attention',   value: 4   },
 ]
-
-const LOG_ENTRIES = [
-  { level: 'INFO',     text: 'Tech stack detected: Next.js' },
-  { level: 'INFO',     text: 'Cloud provider: AWS' },
-  { level: 'WARN',     text: 'Missing CSP header' },
-  { level: 'WARN',     text: 'Outdated dependency detected' },
-  { level: 'CRITICAL', text: 'Public admin endpoint exposed' },
-  { level: 'INFO',     text: 'SSL/TLS configuration validated' },
-  { level: 'WARN',     text: 'Cookie missing Secure flag' },
-  { level: 'INFO',     text: 'Scan report generated' },
-]
-
-const LEVEL_COLOR: Record<string, string> = {
-  INFO:     'rgba(139,255,62,0.65)',
-  WARN:     'rgba(234,179,8,0.75)',
-  CRITICAL: 'rgba(239,68,68,0.9)',
-}
 
 // ── Metric count-up ───────────────────────────────────────────────────────────
 
@@ -88,113 +79,12 @@ function MetricItem({ label, value, inView, delay = 0 }: {
   )
 }
 
-// ── Terminal ──────────────────────────────────────────────────────────────────
-
-function ScanTerminal({ inView }: { inView: boolean }) {
-  const [visibleCount, setVisibleCount] = useState(0)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const scrollRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!inView) return
-    let count = 0
-
-    function step() {
-      if (count < LOG_ENTRIES.length) {
-        count++
-        setVisibleCount(count)
-        timerRef.current = setTimeout(step, 1100 + Math.random() * 700)
-      } else {
-        timerRef.current = setTimeout(() => {
-          setVisibleCount(0)
-          count = 0
-          timerRef.current = setTimeout(step, 400)
-        }, 2800)
-      }
-    }
-
-    timerRef.current = setTimeout(step, 600)
-    return () => clearTimeout(timerRef.current)
-  }, [inView])
-
-  // Auto-scroll to bottom
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [visibleCount])
-
-  return (
-    <div
-      className="rounded-[16px] border border-[rgba(139,255,62,0.12)] overflow-hidden flex flex-col"
-      style={{ background: 'rgba(3,7,18,0.92)', height: 340 }}
-    >
-      {/* Terminal header */}
-      <div
-        className="flex items-center gap-2 px-4 py-2.5 border-b border-[rgba(139,255,62,0.08)] flex-shrink-0"
-        style={{ background: 'rgba(139,255,62,0.04)' }}
-      >
-        <div className="flex gap-1.5">
-          {['rgba(239,68,68,0.6)', 'rgba(234,179,8,0.6)', 'rgba(139,255,62,0.6)'].map((c, i) => (
-            <div key={i} className="w-2.5 h-2.5 rounded-full" style={{ background: c }} />
-          ))}
-        </div>
-        <span className="text-[9px] font-mono text-[rgba(255,255,255,0.3)] ml-1">
-          webhound — live scan feed
-        </span>
-        <div className="ml-auto flex items-center gap-1.5">
-          <motion.div
-            className="w-1.5 h-1.5 rounded-full bg-[#8BFF3E]"
-            animate={{ opacity: [1, 0.2, 1] }}
-            transition={{ duration: 0.9, repeat: Infinity }}
-          />
-          <span className="text-[8px] font-bold text-[rgba(139,255,62,0.6)] tracking-widest">LIVE</span>
-        </div>
-      </div>
-
-      {/* Log feed */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 flex flex-col gap-1.5"
-        style={{ scrollbarWidth: 'none' }}>
-        <AnimatePresence>
-          {LOG_ENTRIES.slice(0, visibleCount).map((entry, i) => (
-            <motion.div
-              key={i}
-              className="flex items-start gap-2 font-mono"
-              initial={{ opacity: 0, x: -6 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.25 }}
-            >
-              <span className="text-[rgba(255,255,255,0.22)] text-[9px] flex-shrink-0 mt-px font-mono">
-                {String(i).padStart(2, '0')}
-              </span>
-              <span
-                className="text-[9px] font-bold flex-shrink-0"
-                style={{ color: LEVEL_COLOR[entry.level] }}
-              >
-                [{entry.level}]
-              </span>
-              <span className="text-[9px] text-[rgba(255,255,255,0.65)] break-words">
-                {entry.text}
-              </span>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-
-        {/* Blinking cursor */}
-        {visibleCount > 0 && visibleCount <= LOG_ENTRIES.length && (
-          <div className="flex items-center gap-2 font-mono mt-0.5">
-            <span className="text-[rgba(255,255,255,0.22)] text-[9px]">&gt;</span>
-            <motion.span
-              className="w-1.5 h-3 bg-[rgba(139,255,62,0.8)] inline-block"
-              animate={{ opacity: [1, 0] }}
-              transition={{ duration: 0.55, repeat: Infinity, repeatType: 'reverse' }}
-            />
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
+// Slice 3 D5 — removed the simulated ScanTerminal component
+// entirely. Reasons documented inline in the slice commit:
+// developer-aesthetic, hardcoded log data labelled "LIVE", competed
+// with the real sample-finding composition for the proof slot.
+// The sample composition (added Slice 2) now occupies that slot and
+// uses plain English that the SBO mental model accepts.
 
 // ── Left column ───────────────────────────────────────────────────────────────
 
@@ -306,7 +196,10 @@ function LeftContent({ inView, progressWidth }: {
 
   return (
     <div className="flex flex-col">
-      {/* Label */}
+      {/* Label — Slice 3 jargon rewrite (D6): 'Live AI Scanning'
+          → 'Live scan demo'. The slot is still useful for
+          signalling the section's purpose, but stripped of the
+          buzzword-AI framing. */}
       <div className="inline-flex items-center gap-2 mb-7">
         <motion.span
           className="w-1.5 h-1.5 rounded-full bg-[#8BFF3E]"
@@ -315,35 +208,36 @@ function LeftContent({ inView, progressWidth }: {
           style={{ boxShadow: '0 0 5px rgba(139,255,62,1)' }}
         />
         <span className="text-[10px] font-bold text-[#8BFF3E] tracking-[0.22em] uppercase">
-          Live AI Scanning
+          Live scan demo
         </span>
       </div>
 
-      {/* Heading */}
+      {/* Heading — Slice 3 outcome-named. 'See WebHound scan in
+          real time' was a feature description; this is what the
+          visitor cares about: what they'll actually find. */}
       <h2
-        className="font-bold leading-[0.9] tracking-[-0.025em] mb-6"
+        className="font-bold leading-[0.95] tracking-[-0.025em] mb-6 text-white"
         style={{ fontSize: 'clamp(2.2rem, 3.5vw, 3.6rem)' }}
       >
-        <span className="text-white block">See WebHound</span>
-        <span
-          className="block text-[#8BFF3E]"
-          style={{ textShadow: '0 0 48px rgba(139,255,62,0.28)' }}
-        >
-          Scan In Real Time.
-        </span>
+        See what your site is exposing right now.
       </h2>
 
-      {/* Description */}
-      <p className="text-[rgba(255,255,255,0.44)] text-base leading-relaxed max-w-[400px] mb-8">
-        WebHound continuously maps attack surfaces, analyzes vulnerabilities,
-        and prioritizes threats with AI-assisted intelligence.
+      {/* Description — Slice 3 D6 rewrite. Removed banned jargon
+          ('attack surface', 'vulnerabilities', 'AI-assisted
+          intelligence'). Replaced with the three-clause SBO
+          mental-model: what we look at, what we find, what we tell
+          you. */}
+      <p className="text-[rgba(255,255,255,0.62)] text-base leading-relaxed max-w-[440px] mb-8">
+        WebHound looks at your website the same way an attacker
+        would — every page, every script, every form — and tells
+        you in plain English what we found and what to fix first.
       </p>
 
       {/* Progress bar */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-bold text-[rgba(255,255,255,0.45)] tracking-wider uppercase">
-            Scan Progress
+          <span className="text-[10px] font-bold text-[rgba(255,255,255,0.55)] tracking-wider uppercase">
+            Scan progress
           </span>
           <span className="text-[10px] font-bold text-[#8BFF3E] font-mono">In progress</span>
         </div>
@@ -485,34 +379,22 @@ export function LiveScan() {
 
       <SectionContainer size="xl">
         {/*
-          Layout: 1 column on mobile (text + sample findings), 3
-          columns on desktop (text + sample findings + terminal).
-          Slice 2 reintroduces a center column with a static
-          sample-finding composition (Q4 approved). Mobile now has
-          a real proof slot — previously the section had only
-          narrative + button on mobile after the radar removal.
+          Slice 3 D5 layout: 1 column on mobile (text + sample),
+          2 columns on desktop (text + sample). ScanTerminal column
+          removed — simulated developer-aesthetic that competed
+          with the real sample-finding composition for the proof
+          slot. The sample composition now occupies the proof slot
+          on every breakpoint.
         */}
-        <div ref={inViewRef} className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-10 xl:gap-12 items-center">
+        <div ref={inViewRef} className="grid grid-cols-1 lg:grid-cols-2 gap-10 xl:gap-16 items-center">
           {/* Left — narrative + scan progress */}
           <LeftContent inView={inView} progressWidth={progressWidth} />
 
-          {/* Center — static sample-finding composition. Visible on
+          {/* Right — static sample-finding composition. Visible on
               every breakpoint; on mobile this delivers the "see
-              what a real scan looks like" promise the headline
-              makes. */}
-          <div className="flex items-center justify-center">
+              what a scan looks like" promise the headline makes. */}
+          <div className="flex items-center justify-center lg:justify-end">
             <SampleFindings />
-          </div>
-
-          {/* Right — live findings terminal, hidden on mobile to
-              keep page height in check */}
-          <div className="hidden lg:flex flex-col gap-4">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-[9px] font-bold text-[rgba(139,255,62,0.5)] tracking-[0.2em] uppercase">
-                Live Findings Feed
-              </span>
-            </div>
-            <ScanTerminal inView={inView} />
           </div>
         </div>
       </SectionContainer>

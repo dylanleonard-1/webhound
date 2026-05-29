@@ -33,7 +33,10 @@ const FINDINGS: Finding[] = [
   },
   {
     severity: 'medium',
-    title: 'Your SSL certificate expires in 9 days',
+    // Slice 3 D6 jargon rewrite: 'SSL certificate' → 'the
+    // certificate that secures your site' (SSL is in the
+    // banned-terms list).
+    title: 'The certificate that secures your site expires in 9 days',
     plainEnglish:
       'When it does, every browser will show a giant red warning to anyone visiting your site. Most people leave.',
     // Slice 2 Q3 — softened from "Average traffic drop: 87%
@@ -90,9 +93,13 @@ export function ExampleFindings() {
               in plain English.
             </span>
           </h2>
-          <p className="text-[14.5px] mt-4 leading-[1.65]" style={{ color: 'rgba(255,255,255,0.5)' }}>
-            Most security tools tell you you have a CVE-2024-XXXX. We tell you what it means, who&apos;s affected,
-            and what it costs if you ignore it.
+          {/* Slice 3 D6 jargon rewrite: removed 'CVE-2024-XXXX'
+              foil. Same rhetorical point made without the banned
+              term — the contrast still lands. */}
+          <p className="text-[14.5px] mt-4 leading-[1.65]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+            Most security tools hand you a technical label and a
+            code. We tell you what it means, who it affects, and
+            what it costs if you ignore it.
           </p>
         </motion.div>
 

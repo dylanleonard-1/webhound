@@ -172,6 +172,24 @@ async def _execute(
                 except Exception:
                     logger.warning("failed to save baseline for job %s", job_id)
 
+            # Continuous-monitoring delta + drift-alert dispatch.
+            # Best-effort and isolated — a failure here never marks the
+            # scan failed. The scan is already COMPLETED at this point.
+            if job is not None:
+                try:
+                    from apps.api.services.monitoring import (
+                        handle_scan_completion,
+                    )
+                    await handle_scan_completion(
+                        db, scan_job_id=job_uuid,
+                        website_id=job.website_id,
+                    )
+                except Exception:
+                    logger.warning(
+                        "monitoring delta failed for job %s (non-fatal)",
+                        job_id,
+                    )
+
         if user_id is not None and job is not None:
             await generate_scan_notifications(
                 db,

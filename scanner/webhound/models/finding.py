@@ -137,6 +137,24 @@ class Finding(BaseModel):
     remediation: str | None = Field(default=None)
     references: list[str] = Field(default_factory=list)
 
+    # Phase-5D evidence hardening: every finding must explain WHY it
+    # fired. ``severity_rationale`` is the one-line explanation of why
+    # severity was set where it was; ``confidence_rationale`` is the
+    # one-line explanation of why confidence was set where it was.
+    # Both default to None for back-compat — the
+    # ``validate_evidence_quality`` validator flags any active finding
+    # missing them.
+    severity_rationale: str | None = Field(
+        default=None,
+        description=("Plain-language reason this severity was chosen "
+                      "(one line). Required for non-INFO findings."),
+    )
+    confidence_rationale: str | None = Field(
+        default=None,
+        description=("Plain-language reason for this confidence value "
+                      "(one line). Required for non-INFO findings."),
+    )
+
     # Classification tags for filtering / reporting
     tags: list[str] = Field(default_factory=list)
 

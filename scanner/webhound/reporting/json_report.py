@@ -272,6 +272,11 @@ class JsonReport:
             # Phase-5A browser-pass summary — None when the profile
             # didn't opt in.
             "browser_pass": result.metadata.get("browser_pass"),
+            # Phase-5D evidence-quality audit report. None when the
+            # orchestrator skipped the audit. Consumed by the
+            # dashboard's "evidence complete" badges + the
+            # production-readiness score.
+            "evidence_quality": result.metadata.get("evidence_quality"),
             # --- Compliance rollup (Phase-3 reform) ---
             # Structured breakdown: per-framework controls_impacted vs
             # findings_mapped vs advisory_controls vs confirmed_violations

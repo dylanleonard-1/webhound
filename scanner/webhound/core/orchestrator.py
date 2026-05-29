@@ -624,6 +624,21 @@ class Scanner:
         # 8. Group findings for clean reporting and fair risk scoring
         result.grouped_findings = FindingGrouper().group(result.active_findings)
 
+        # 8b. Phase-5D evidence-quality audit. Advisory — does not
+        # mutate findings. Report lands in
+        # metadata.evidence_quality so the dashboard can render an
+        # "evidence complete" / "evidence incomplete (N)" badge per
+        # engine and the production-readiness module can use the
+        # completeness ratio.
+        try:
+            from webhound.core.evidence_quality import audit_findings
+            quality_report = audit_findings(result.active_findings)
+            result.metadata["evidence_quality"] = quality_report.to_dict()
+        except Exception:  # noqa: BLE001
+            logger.debug(
+                "evidence quality audit failed", exc_info=True,
+            )
+
         # 9. Risk scoring — uses grouped findings to avoid penalising repeated issues
         risk_score, risk_level = _compute_risk_score(result)
         result.metadata["risk_score"] = risk_score

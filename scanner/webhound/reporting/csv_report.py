@@ -77,6 +77,9 @@ RAW_HEADERS: list[str] = [
     "cvss_score",
     "cvss_vector",
     "exploitability",
+    # Phase-5D — every finding explains WHY it fired.
+    "severity_rationale",
+    "confidence_rationale",
 ]
 
 
@@ -194,4 +197,6 @@ class CsvReport:
                 "cvss_score": fa.cvss_score if fa.cvss_score is not None else "",
                 "cvss_vector": fa.cvss_vector or "",
                 "exploitability": fa.exploitability.value if fa.exploitability else "",
+                "severity_rationale": getattr(f, "severity_rationale", "") or "",
+                "confidence_rationale": getattr(f, "confidence_rationale", "") or "",
             })

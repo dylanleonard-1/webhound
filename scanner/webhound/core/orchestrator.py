@@ -639,6 +639,20 @@ class Scanner:
                 "evidence quality audit failed", exc_info=True,
             )
 
+        # 8c. Phase-5H WADE quality review. Advisory only — flags
+        # possible FPs, weak evidence, duplicates, missing
+        # corroboration, suspicious scoring. Does not invent
+        # findings, does not mutate severity/confidence. Report
+        # lands in metadata.wade_quality_review.
+        try:
+            from webhound.wade.quality_review import review_scan
+            wade_review = review_scan(result)
+            result.metadata["wade_quality_review"] = wade_review.to_dict()
+        except Exception:  # noqa: BLE001
+            logger.debug(
+                "WADE quality review failed", exc_info=True,
+            )
+
         # 9. Risk scoring — uses grouped findings to avoid penalising repeated issues
         risk_score, risk_level = _compute_risk_score(result)
         result.metadata["risk_score"] = risk_score

@@ -277,6 +277,11 @@ class JsonReport:
             # dashboard's "evidence complete" badges + the
             # production-readiness score.
             "evidence_quality": result.metadata.get("evidence_quality"),
+            # Phase-5H WADE quality review — advisory observations.
+            # None when the orchestrator skipped the review.
+            "wade_quality_review": result.metadata.get(
+                "wade_quality_review",
+            ),
             # --- Compliance rollup (Phase-3 reform) ---
             # Structured breakdown: per-framework controls_impacted vs
             # findings_mapped vs advisory_controls vs confirmed_violations

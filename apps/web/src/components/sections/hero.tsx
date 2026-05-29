@@ -52,7 +52,9 @@ export function Hero() {
         {/* ── Left: hero content ───────────────────────────── */}
         <div className="flex flex-col justify-center w-full lg:w-[48%] xl:w-[44%] px-6 sm:px-12 xl:px-20 pt-8 pb-10 lg:pt-0 lg:pb-0">
 
-          {/* Eyebrow */}
+          {/* Eyebrow — positioning copy (replaces the prior
+              "webhoundsecurity.com" decorative-domain badge, which
+              told visitors the URL they were already on). */}
           <motion.div
             className="inline-flex items-center gap-2 mb-5 w-fit"
             initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
@@ -60,10 +62,10 @@ export function Hero() {
           >
             <span
               className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-              style={{ background: '#7CFF00', boxShadow: '0 0 8px rgba(124,255,0,0.9)', animation: 'pulse 2s ease-in-out infinite' }}
+              style={{ background: '#7CFF00', boxShadow: '0 0 8px rgba(124,255,0,0.9)' }}
             />
             <span className="text-[10px] font-bold tracking-[0.28em] uppercase" style={{ color: 'rgba(139,255,62,0.75)' }}>
-              webhoundsecurity.com
+              Continuous website security
             </span>
           </motion.div>
 
@@ -98,7 +100,7 @@ export function Hero() {
             initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.32 }}
           >
-            <Link href="/register" tabIndex={-1}>
+            <Link href="/scan" tabIndex={-1}>
               <button
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-[9px] text-[14px] font-semibold text-[#020617] transition-all duration-300 hover:shadow-[0_0_30px_rgba(124,255,0,0.35)] hover:scale-[1.02]"
                 style={{ background: '#7CFF00', boxShadow: '0 0 18px rgba(124,255,0,0.2)' }}

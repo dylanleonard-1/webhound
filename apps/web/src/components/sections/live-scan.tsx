@@ -291,8 +291,8 @@ function LeftContent({ inView, progressWidth }: {
         ))}
       </div>
 
-      {/* CTA */}
-      <Link href="/dashboard" tabIndex={-1}>
+      {/* CTA — unified to /scan per landing-page rebuild Slice 1 */}
+      <Link href="/scan" tabIndex={-1}>
         <PrimaryButton>Start Free Scan</PrimaryButton>
       </Link>
     </div>

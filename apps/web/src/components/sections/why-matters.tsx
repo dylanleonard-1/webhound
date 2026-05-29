@@ -100,7 +100,7 @@ export function WhyMatters() {
             Two minutes is shorter than the call you&apos;d have to make
             after a breach.
           </h3>
-          <Link href="/register">
+          <Link href="/scan">
             <button
               className="inline-flex items-center gap-2 px-7 py-3.5 rounded-[10px] text-[14px] font-semibold text-[#020617] transition-all duration-300 hover:shadow-[0_0_30px_rgba(124,255,0,0.4)] hover:scale-[1.02]"
               style={{ background: '#7CFF00', boxShadow: '0 0 20px rgba(124,255,0,0.22)' }}

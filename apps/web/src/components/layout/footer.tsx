@@ -3,6 +3,18 @@
 import Link from 'next/link'
 import Image from 'next/image'
 
+// Footer link columns — landing-rebuild Slice 1 cleanup:
+//   * Removed duplicate Security link from the Company column
+//     (was also in Resources).
+//   * Removed duplicate Docs link from the Company column (was also
+//     in Resources).
+//   * Renamed Resources "Security" → "Security & Trust" so the
+//     security buyer recognises the trust-surface entry point.
+//   * Added explicit "Report a Vulnerability" link in Company —
+//     standard for security platforms; absent footer link was
+//     flagged as a credibility issue in the audit.
+//   * Added "About" to Company so the footer answers "is this a
+//     real company?" without three clicks.
 const COLS = [
   {
     heading: 'Product',
@@ -17,18 +29,18 @@ const COLS = [
   {
     heading: 'Resources',
     links: [
-      { label: 'How It Works', href: '/how-it-works' },
-      { label: 'Documentation',href: '/docs'         },
-      { label: 'Dashboard',    href: '/dashboard'    },
-      { label: 'Security',     href: '/security'     },
+      { label: 'How It Works',     href: '/how-it-works' },
+      { label: 'Documentation',    href: '/docs'         },
+      { label: 'Dashboard',        href: '/dashboard'    },
+      { label: 'Security & Trust', href: '/security'     },
     ],
   },
   {
     heading: 'Company',
     links: [
-      { label: 'Security',  href: '/security' },
-      { label: 'Contact',   href: '/contact'  },
-      { label: 'Docs',      href: '/docs'     },
+      { label: 'About',                  href: '/about'   },
+      { label: 'Contact',                href: '/contact' },
+      { label: 'Report a Vulnerability', href: '/security#disclosure' },
     ],
   },
   {
@@ -64,24 +76,17 @@ export function Footer() {
               />
               <span className="text-white font-bold text-sm tracking-[0.14em] uppercase">WebHound</span>
             </Link>
-            <p className="text-[13px] leading-relaxed max-w-[200px]" style={{ color: 'rgba(255,255,255,0.32)' }}>
-              AI-powered attack surface intelligence. Find vulnerabilities before attackers do.
+            <p className="text-[13px] leading-relaxed max-w-[220px]" style={{ color: 'rgba(255,255,255,0.42)' }}>
+              Continuous website security for small business owners.
+              Find vulnerabilities and monitor for changes — no
+              security team required.
             </p>
-            <div className="mt-5">
-              <span
-                className="text-[10px] font-bold tracking-[0.15em] uppercase px-2.5 py-1 rounded-full"
-                style={{
-                  background: 'rgba(139,255,62,0.07)',
-                  border: '1px solid rgba(139,255,62,0.18)',
-                  color: 'rgba(139,255,62,0.7)',
-                }}
-              >
-                webhoundsecurity.com
-              </span>
-            </div>
-            <div className="mt-5">
+            {/* Footer CTA — unified to /scan per Slice 1.
+                Removed the prior "webhoundsecurity.com" decorative
+                badge (told visitors the URL they were already on). */}
+            <div className="mt-6">
               <Link
-                href="/dashboard"
+                href="/scan"
                 className="inline-flex items-center px-4 py-2 rounded-full text-[12px] font-bold transition-all duration-300 hover:shadow-[0_0_20px_rgba(139,255,62,0.4)]"
                 style={{ background: '#8BFF3E', color: '#020617', boxShadow: '0 0 12px rgba(139,255,62,0.2)' }}
               >

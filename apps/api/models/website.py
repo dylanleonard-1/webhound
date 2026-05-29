@@ -34,6 +34,14 @@ class Website(Base, UpdatedAtMixin):
         sa.ForeignKey("users.id", ondelete="CASCADE"),
         index=True,
     )
+    # Multi-tenancy scoping (Phase-4). Nullable until the backfill +
+    # cutover migration runs — existing single-tenant rows continue to
+    # validate; new rows should set it when an org context is available.
+    org_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        sa.ForeignKey("orgs.id", ondelete="SET NULL"),
+        index=True,
+    )
     url: Mapped[str] = mapped_column(sa.String(2048), nullable=False)
     hostname: Mapped[str] = mapped_column(sa.String(255), nullable=False, index=True)
     scheme: Mapped[str] = mapped_column(sa.String(16), nullable=False)

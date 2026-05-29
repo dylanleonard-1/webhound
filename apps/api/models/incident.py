@@ -51,6 +51,15 @@ class Incident(Base, UpdatedAtMixin):
     target_type: Mapped[str | None] = mapped_column(sa.String(48))
     target_id: Mapped[str | None] = mapped_column(sa.String(64))
 
+    # Multi-tenancy scoping (Phase-4). Nullable until backfill / cutover.
+    # Incidents are typically about a customer asset, so this is normally
+    # populated by the correlator from the related alert / scan_job.
+    org_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("orgs.id", ondelete="SET NULL"),
+        index=True,
+    )
+
     detail: Mapped[dict] = mapped_column(
         JSONB().with_variant(sa.JSON(), "sqlite"),
         default=dict, server_default="{}",

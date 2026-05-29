@@ -12,8 +12,10 @@ from apps.api.models.enums import (
     AdminRole,
     AlertSeverity,
     AlertStatus,
+    DriftSeverity,
     NotificationSeverity,
     NotificationType,
+    OrgRole,
     PlanTier,
     ReportFormat,
     ScheduleFrequency,
@@ -23,6 +25,8 @@ from apps.api.models.enums import (
     VerificationMethod,
     VerificationStatus,
 )
+from apps.api.models.org import Org, OrgMembership
+from apps.api.models.scan_delta import ScanDelta
 from apps.api.models.finding import FindingRecord
 from apps.api.models.grouped_finding import GroupedFindingRecord
 from apps.api.models.internal_note import InternalNote
@@ -80,4 +84,10 @@ __all__ = [
     "NotificationSeverity",
     "PlanTier",
     "SubscriptionStatus",
+    # Phase-4 multi-tenancy + continuous-monitoring delta
+    "Org",
+    "OrgMembership",
+    "OrgRole",
+    "ScanDelta",
+    "DriftSeverity",
 ]

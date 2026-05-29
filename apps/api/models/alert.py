@@ -58,6 +58,15 @@ class Alert(Base, UpdatedAtMixin):
     assignee_id: Mapped[uuid.UUID | None] = mapped_column(
         sa.Uuid(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL")
     )
+
+    # Multi-tenancy scoping (Phase-4). Nullable until backfill — set by the
+    # alert evaluator from the upstream target's website.org_id when known.
+    org_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("orgs.id", ondelete="SET NULL"),
+        index=True,
+    )
+
     acknowledged_by_email: Mapped[str | None] = mapped_column(sa.String(320))
     acknowledged_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
     resolved_by_email: Mapped[str | None] = mapped_column(sa.String(320))

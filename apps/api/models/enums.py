@@ -131,3 +131,42 @@ class SubscriptionStatus(str, enum.Enum):
     INCOMPLETE = "incomplete"
     INCOMPLETE_EXPIRED = "incomplete_expired"
     PAUSED = "paused"
+
+
+class OrgRole(str, enum.Enum):
+    """Tenant-scoped RBAC roles within a single :class:`Org`.
+
+    Distinct from :class:`AdminRole`, which is *platform-wide* internal-SOC
+    access. An ``OrgRole`` only authorises actions on the org it's attached
+    to — a user can be ``OWNER`` of one org and ``VIEWER`` of another.
+
+    Ordered low → high via ORG_ROLE_RANK below."""
+    VIEWER = "viewer"       # read findings + scan results only
+    BILLING = "billing"     # billing surface + read findings
+    ANALYST = "analyst"     # acknowledge alerts, manage suppressions, start scans
+    ADMIN = "admin"         # manage members + integrations + everything below
+    OWNER = "owner"         # owner privilege, can transfer ownership
+
+
+# Privilege ranking — higher = more access. has_org_role(min_role) compares
+# against this so OWNER implicitly satisfies every check.
+ORG_ROLE_RANK: dict[OrgRole, int] = {
+    OrgRole.VIEWER: 10,
+    OrgRole.BILLING: 20,
+    OrgRole.ANALYST: 30,
+    OrgRole.ADMIN: 80,
+    OrgRole.OWNER: 100,
+}
+
+
+class DriftSeverity(str, enum.Enum):
+    """Severity of a scan-to-scan delta (continuous-monitoring drift).
+
+    ``NONE`` is emitted explicitly when a delta was computed but no
+    meaningful change was found — so the UI can distinguish "we looked,
+    nothing happened" from "we haven't looked yet"."""
+    NONE = "none"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"

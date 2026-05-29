@@ -32,6 +32,12 @@ class ScanSchedule(Base, UpdatedAtMixin):
         nullable=False,
         index=True,
     )
+    # Multi-tenancy scoping (Phase-4). Nullable until backfill.
+    org_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        sa.ForeignKey("orgs.id", ondelete="SET NULL"),
+        index=True,
+    )
     website_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
         sa.ForeignKey("websites.id", ondelete="CASCADE"),

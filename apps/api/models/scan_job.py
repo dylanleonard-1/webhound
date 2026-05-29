@@ -30,6 +30,14 @@ class ScanJob(Base, UpdatedAtMixin):
         nullable=False,
         index=True,
     )
+    # Multi-tenancy scoping (Phase-4) — denormalised from
+    # ``website.org_id`` so org-scoped scan queries don't need a join.
+    # Nullable until the backfill migration runs.
+    org_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        sa.ForeignKey("orgs.id", ondelete="SET NULL"),
+        index=True,
+    )
     status: Mapped[ScanStatus] = mapped_column(
         SAEnum(ScanStatus, name="scanstatus", values_callable=lambda x: [e.value for e in x]),
         nullable=False,

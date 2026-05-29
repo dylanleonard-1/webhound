@@ -282,6 +282,12 @@ class JsonReport:
             "wade_quality_review": result.metadata.get(
                 "wade_quality_review",
             ),
+            # Phase-5I production readiness rollup — single 0-100
+            # score, grade A-F, ready boolean, per-dimension
+            # breakdown, actionable gap list.
+            "production_readiness": result.metadata.get(
+                "production_readiness",
+            ),
             # --- Compliance rollup (Phase-3 reform) ---
             # Structured breakdown: per-framework controls_impacted vs
             # findings_mapped vs advisory_controls vs confirmed_violations

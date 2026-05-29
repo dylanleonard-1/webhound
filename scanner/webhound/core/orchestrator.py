@@ -653,6 +653,18 @@ class Scanner:
                 "WADE quality review failed", exc_info=True,
             )
 
+        # 8d. Phase-5I production readiness scoring. Rolls every
+        # audit signal into one 0-100 score + per-dimension
+        # breakdown + actionable gap list.
+        try:
+            from webhound.reporting.production_readiness import score_scan
+            readiness = score_scan(result)
+            result.metadata["production_readiness"] = readiness.to_dict()
+        except Exception:  # noqa: BLE001
+            logger.debug(
+                "production readiness scoring failed", exc_info=True,
+            )
+
         # 9. Risk scoring — uses grouped findings to avoid penalising repeated issues
         risk_score, risk_level = _compute_risk_score(result)
         result.metadata["risk_score"] = risk_score

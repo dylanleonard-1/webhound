@@ -31,6 +31,7 @@ from apps.api.routers import (
     oauth,
     orgs,
     phone,
+    suppressions,
     scan_jobs,
     scan_results,
     scan_schedules,
@@ -113,6 +114,7 @@ app.include_router(auth.router)
 app.include_router(oauth.router)
 app.include_router(phone.router)
 app.include_router(orgs.router)
+app.include_router(suppressions.router)
 app.include_router(websites.router)
 app.include_router(scan_jobs.router)
 app.include_router(scan_results.router)

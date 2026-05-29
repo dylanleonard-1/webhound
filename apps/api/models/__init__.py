@@ -27,6 +27,7 @@ from apps.api.models.enums import (
 )
 from apps.api.models.org import Org, OrgMembership
 from apps.api.models.scan_delta import ScanDelta
+from apps.api.models.suppression import Suppression, SuppressionScope
 from apps.api.models.finding import FindingRecord
 from apps.api.models.grouped_finding import GroupedFindingRecord
 from apps.api.models.internal_note import InternalNote
@@ -90,4 +91,6 @@ __all__ = [
     "OrgRole",
     "ScanDelta",
     "DriftSeverity",
+    "Suppression",
+    "SuppressionScope",
 ]

@@ -1,28 +1,30 @@
 'use client'
 
 // WebHound — components/sections/hero.tsx
-// Hero v3 — above-the-fold composition with the product as
-// the star.
+// Hero v4 — cinematic blended background, no card framing.
 //
-// Changes from v2 (this revision):
-//   1. Tablet/dashboard +35%  → max-w 980 (was 720). Right
-//      column also gets more grid weight (1.35fr vs 1fr left).
-//   2. Right side feels integrated — image bleeds to the right
-//      edge of the viewport on desktop instead of sitting in a
-//      centered card; ambient green glow expands behind it.
-//   3. Projector base enlarged — handled by HeroHologram which
-//      now renders a 2x wider base puck on top of the in-image
-//      projector.
-//   4. Hologram is rebuilt — float + rotation + scanlines +
-//      pulse glow + projection beam (see hero-hologram.tsx).
-//   5. Above-the-fold on 1920x1080 — top + bottom padding cut
-//      ~40%; min-h removed; section uses content-driven height.
-//   6. Grid background opacity reduced ~70% (0.018 → 0.005).
-//   7. Empty space tightened — eyebrow, headline, subhead, CTA
-//      gaps reduced.
-//   8. Right side is now visually dominant.
-//   9. Performance: no canvas, all CSS + Framer Motion, every
-//      animation respects prefers-reduced-motion.
+// Architecture change from v3:
+//   v3 used a 2-column grid (text | image-card). The image
+//   read as a rectangle "pasted onto" the hero.
+//   v4 treats the right ~58% of the section as a CINEMATIC
+//   BACKGROUND LAYER. The image is absolutely positioned,
+//   mask-image fades all four edges into the page surface,
+//   and a dark gradient veil keeps the text readable on the
+//   left without any visible boundary between text and visual.
+//
+// Per the v3 review:
+//   1. Hard rectangle gone — no border-radius, no card, no
+//      drop-shadow box, no aspect-ratio wrapper.
+//   2. Multi-edge mask blends image into the surrounding dark.
+//   3. Image feels like the room the copy sits in.
+//   4. Image width raised again (now covers the right 58% of
+//      the section), but the mask crops it cinematically.
+//   5. Hologram shrunk ~41% (see hero-hologram.tsx).
+//   6. Hologram positioned closer to the projector base.
+//   7. Beam thinner, glow halved (see hero-hologram.tsx).
+//   8. Above-the-fold on 1920×1080 maintained.
+//   9. Mobile: visual layer hidden — copy + CTA prioritized,
+//      hologram dropped, no horizontal scroll.
 
 import Link from 'next/link'
 import Image from 'next/image'
@@ -36,9 +38,16 @@ export function Hero() {
   return (
     <section
       className="relative overflow-hidden pt-10 lg:pt-12"
-      style={{ background: '#020617' }}
+      style={{
+        // Section height is constrained so the entire hero
+        // fits above the fold on 1920×1080 (after subtracting
+        // a ~64–80px sticky header). 720px works at 1080p; on
+        // taller viewports the section naturally grows.
+        background: '#020617',
+        minHeight: 'min(92vh, 760px)',
+      }}
     >
-      {/* Subtle noise — kept very faint */}
+      {/* Subtle noise */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-[0.012]"
@@ -48,10 +57,7 @@ export function Hero() {
         }}
       />
 
-      {/* Brief item 6 — grid background reduced ~70%
-          (0.018 → 0.005). It's still there for texture but you
-          have to look for it instead of it competing with the
-          product. */}
+      {/* Faint grid — kept barely visible (~28% of v2) */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-[0.005]"
@@ -62,235 +68,231 @@ export function Hero() {
         }}
       />
 
-      {/* Expanded ambient glow behind the visual side — wider
-          and brighter than v2 so the right column "belongs" to
-          the hero instead of looking pasted on. */}
+      {/* ─────────────── CINEMATIC IMAGE LAYER ───────────────
+          Desktop only. Absolutely positioned over the right
+          ~58% of the section. The image fills that box with
+          object-cover, then a four-edge mask softens every
+          edge into transparency so it blends into the dark
+          surface instead of sitting as a clipped rectangle.
+
+          We use two stacked linear-gradient masks composited
+          with `mask-composite: intersect` (modern spec) +
+          `-webkit-mask-composite: source-in` (older WebKit) —
+          one fades left/right, the other fades top/bottom.
+          Together they produce a soft-edged vignette without
+          turning the image into a circle.
+
+          Hidden on <lg breakpoints so mobile/tablet prioritize
+          the copy. */}
+      <div
+        aria-hidden
+        className="hidden lg:block absolute top-0 right-0 h-full pointer-events-none"
+        style={{ width: '58%' }}
+      >
+        <div
+          className="relative w-full h-full"
+          style={{
+            // Four-edge soft vignette mask.
+            maskImage:
+              'linear-gradient(90deg, transparent 0%, black 22%, black 90%, transparent 100%), linear-gradient(180deg, transparent 0%, black 14%, black 86%, transparent 100%)',
+            WebkitMaskImage:
+              'linear-gradient(90deg, transparent 0%, black 22%, black 90%, transparent 100%), linear-gradient(180deg, transparent 0%, black 14%, black 86%, transparent 100%)',
+            maskComposite: 'intersect',
+            WebkitMaskComposite: 'source-in',
+          }}
+        >
+          <Image
+            src="/images/hero-background-1.png"
+            alt=""
+            fill
+            priority
+            sizes="58vw"
+            className="object-cover"
+            style={{ objectPosition: '40% 50%' }}
+          />
+        </div>
+      </div>
+
+      {/* Dark gradient veil between text and visual.
+          Sits *over* the image, fading from full dark on the
+          left to fully transparent on the right. This is what
+          keeps the copy readable without ever introducing a
+          visible boundary between text and image. */}
+      <div
+        aria-hidden
+        className="hidden lg:block absolute inset-y-0 left-0 pointer-events-none"
+        style={{
+          width: '70%',
+          background:
+            'linear-gradient(90deg, #020617 0%, rgba(2,6,23,0.95) 25%, rgba(2,6,23,0.7) 55%, rgba(2,6,23,0.25) 80%, transparent 100%)',
+        }}
+      />
+
+      {/* Soft ambient green wash — keeps the green brand color
+          present even where the image fades out. */}
       <div
         aria-hidden
         className="pointer-events-none absolute top-0 right-0 hidden lg:block"
         style={{
-          width: '65%',
+          width: '60%',
           height: '100%',
           background:
-            'radial-gradient(ellipse at 65% 50%, rgba(124,255,0,0.14) 0%, rgba(124,255,0,0.04) 35%, transparent 65%)',
+            'radial-gradient(ellipse at 65% 50%, rgba(124,255,0,0.10) 0%, rgba(124,255,0,0.02) 40%, transparent 70%)',
         }}
       />
 
-      <div className="relative z-10 max-w-[1480px] mx-auto pl-6 sm:pl-10 xl:pl-16 pr-0 sm:pr-0 pt-2 pb-8 lg:pt-4 lg:pb-10">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.35fr] gap-8 lg:gap-6 items-center">
+      {/* ─────────────── COPY LAYER ─────────────── */}
+      <div className="relative z-10 max-w-[1480px] mx-auto px-6 sm:px-10 xl:px-16 pt-2 pb-6 lg:pt-4 lg:pb-8">
+        <div className="max-w-[560px]">
 
-          {/* ───────────────── LEFT — copy + CTAs ───────────────── */}
-          <div className="flex flex-col justify-center max-w-[600px] pr-6 sm:pr-10 xl:pr-0">
-
-            {/* Eyebrow pill */}
-            <motion.div
-              className="inline-flex items-center gap-2 mb-4 w-fit px-3 py-1.5 rounded-full"
+          <motion.div
+            className="inline-flex items-center gap-2 mb-4 w-fit px-3 py-1.5 rounded-full"
+            style={{
+              background: 'rgba(124,255,0,0.08)',
+              border: '1px solid rgba(124,255,0,0.25)',
+            }}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.05 }}
+          >
+            <span
+              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
               style={{
-                background: 'rgba(124,255,0,0.08)',
-                border: '1px solid rgba(124,255,0,0.25)',
+                background: '#7CFF00',
+                boxShadow: '0 0 8px rgba(124,255,0,0.9)',
               }}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.05 }}
+            />
+            <span
+              className="text-[10.5px] font-bold tracking-[0.22em] uppercase"
+              style={{ color: '#8BFF3E' }}
             >
+              AI-powered website security
+            </span>
+          </motion.div>
+
+          <motion.h1
+            className="font-bold leading-[1.02] tracking-[-0.03em] mb-5"
+            style={{ fontSize: 'clamp(2.2rem, 4.4vw, 4rem)' }}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.12 }}
+          >
+            <span className="block text-white">See what hackers can see.</span>
+            <span className="block" style={{ color: '#7CFF00' }}>
+              Protect what matters.
+            </span>
+          </motion.h1>
+
+          <motion.p
+            className="leading-[1.6] max-w-[500px] mb-6 text-[15px]"
+            style={{ color: 'rgba(255,255,255,0.68)' }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.22 }}
+          >
+            WebHound scans your website in minutes, finds hidden
+            vulnerabilities, explains them in plain English, and
+            Wade AI watches your site 24/7.
+          </motion.p>
+
+          <motion.div
+            className="flex flex-col sm:flex-row items-start sm:items-center gap-3"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.32 }}
+          >
+            <div className="flex flex-col items-start">
+              <Link href="/scan" tabIndex={-1}>
+                <button
+                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-[10px] text-[14.5px] font-semibold text-[#020617] transition-all duration-200 motion-reduce:transition-none hover:shadow-[0_0_40px_rgba(124,255,0,0.45)] hover:-translate-y-px motion-reduce:hover:translate-y-0"
+                  style={{
+                    background: '#7CFF00',
+                    boxShadow: '0 0 22px rgba(124,255,0,0.28)',
+                  }}
+                >
+                  Start Free Scan
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </Link>
               <span
-                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                style={{
-                  background: '#7CFF00',
-                  boxShadow: '0 0 8px rgba(124,255,0,0.9)',
-                }}
-              />
-              <span
-                className="text-[10.5px] font-bold tracking-[0.22em] uppercase"
-                style={{ color: '#8BFF3E' }}
+                className="text-[11px] mt-2 ml-1"
+                style={{ color: 'rgba(255,255,255,0.42)' }}
               >
-                AI-powered website security
+                No credit card required
               </span>
-            </motion.div>
+            </div>
 
-            {/* Headline — slightly tightened size to help the
-                whole hero stay above the fold on 1920x1080. */}
-            <motion.h1
-              className="font-bold leading-[1.02] tracking-[-0.03em] mb-5"
-              style={{ fontSize: 'clamp(2.2rem, 4.6vw, 4.2rem)' }}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.12 }}
-            >
-              <span className="block text-white">See what hackers can see.</span>
-              <span className="block" style={{ color: '#7CFF00' }}>
-                Protect what matters.
-              </span>
-            </motion.h1>
+            <a href="#example-findings" tabIndex={-1}>
+              <button
+                className="inline-flex items-center gap-2 px-6 py-3.5 rounded-[10px] text-[14.5px] font-medium transition-all duration-200 motion-reduce:transition-none hover:bg-[rgba(255,255,255,0.05)]"
+                style={{
+                  border: '1px solid rgba(255,255,255,0.14)',
+                  color: 'rgba(255,255,255,0.78)',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.color = 'rgba(255,255,255,0.95)'
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.28)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.color = 'rgba(255,255,255,0.78)'
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)'
+                }}
+              >
+                See Sample Report
+              </button>
+            </a>
+          </motion.div>
 
-            <motion.p
-              className="leading-[1.6] max-w-[520px] mb-6 text-[15px]"
-              style={{ color: 'rgba(255,255,255,0.68)' }}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.22 }}
-            >
-              WebHound scans your website in minutes, finds hidden
-              vulnerabilities, explains them in plain English, and
-              Wade AI watches your site 24/7.
-            </motion.p>
-
-            {/* CTA row */}
-            <motion.div
-              className="flex flex-col sm:flex-row items-start sm:items-center gap-3"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.32 }}
-            >
-              <div className="flex flex-col items-start">
-                <Link href="/scan" tabIndex={-1}>
-                  <button
-                    className="inline-flex items-center gap-2 px-7 py-3.5 rounded-[10px] text-[14.5px] font-semibold text-[#020617] transition-all duration-200 motion-reduce:transition-none hover:shadow-[0_0_40px_rgba(124,255,0,0.45)] hover:-translate-y-px motion-reduce:hover:translate-y-0"
+          <motion.div
+            className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-6"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.42 }}
+          >
+            {TRUST_ITEMS.map((label, i) => (
+              <div key={label} className="flex items-center gap-2.5">
+                {i > 0 && (
+                  <span
+                    aria-hidden
+                    className="w-1 h-1 rounded-full"
+                    style={{ background: 'rgba(255,255,255,0.22)' }}
+                  />
+                )}
+                <span
+                  className="inline-flex items-center gap-1.5 text-[12px] font-medium"
+                  style={{ color: 'rgba(255,255,255,0.62)' }}
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full"
                     style={{
                       background: '#7CFF00',
-                      boxShadow: '0 0 22px rgba(124,255,0,0.28)',
+                      boxShadow: '0 0 6px rgba(124,255,0,0.7)',
                     }}
-                  >
-                    Start Free Scan
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </Link>
-                <span
-                  className="text-[11px] mt-2 ml-1"
-                  style={{ color: 'rgba(255,255,255,0.42)' }}
-                >
-                  No credit card required
+                  />
+                  {label}
                 </span>
               </div>
-
-              <a href="#example-findings" tabIndex={-1}>
-                <button
-                  className="inline-flex items-center gap-2 px-6 py-3.5 rounded-[10px] text-[14.5px] font-medium transition-all duration-200 motion-reduce:transition-none hover:bg-[rgba(255,255,255,0.05)]"
-                  style={{
-                    border: '1px solid rgba(255,255,255,0.14)',
-                    color: 'rgba(255,255,255,0.78)',
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.color = 'rgba(255,255,255,0.95)'
-                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.28)'
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.color = 'rgba(255,255,255,0.78)'
-                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)'
-                  }}
-                >
-                  See Sample Report
-                </button>
-              </a>
-            </motion.div>
-
-            {/* Trust row — tightened margin */}
-            <motion.div
-              className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-6"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.42 }}
-            >
-              {TRUST_ITEMS.map((label, i) => (
-                <div key={label} className="flex items-center gap-2.5">
-                  {i > 0 && (
-                    <span
-                      aria-hidden
-                      className="w-1 h-1 rounded-full"
-                      style={{ background: 'rgba(255,255,255,0.22)' }}
-                    />
-                  )}
-                  <span
-                    className="inline-flex items-center gap-1.5 text-[12px] font-medium"
-                    style={{ color: 'rgba(255,255,255,0.62)' }}
-                  >
-                    <span
-                      className="w-1.5 h-1.5 rounded-full"
-                      style={{
-                        background: '#7CFF00',
-                        boxShadow: '0 0 6px rgba(124,255,0,0.7)',
-                      }}
-                    />
-                    {label}
-                  </span>
-                </div>
-              ))}
-            </motion.div>
-          </div>
-
-          {/* ───────────────── RIGHT — product as the star ───────────────── */}
-          {/* The image is allowed to bleed off the right edge
-              on desktop so it stops feeling like a card. On
-              mobile/tablet it stays contained inside the
-              padded container. */}
-          <motion.div
-            className="relative w-full"
-            initial={{ opacity: 0, scale: 0.97 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.7, delay: 0.18 }}
-          >
-            <div
-              className="relative w-full"
-              style={{
-                // 16/10 keeps the tablet readable. maxWidth bumped
-                // 720 → 980 (+36%) per brief item 1.
-                aspectRatio: '16 / 10',
-                maxWidth: 980,
-                marginLeft: 'auto',
-              }}
-            >
-              {/* Background blur halo behind the tablet for
-                  integration — sits behind the image and feels
-                  like product light bleeding into the room. */}
-              <div
-                aria-hidden
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  background:
-                    'radial-gradient(ellipse at 50% 55%, rgba(124,255,0,0.16) 0%, rgba(124,255,0,0.04) 40%, transparent 70%)',
-                  filter: 'blur(30px)',
-                  transform: 'scale(1.1)',
-                }}
-              />
-
-              <Image
-                src="/images/hero-background-1.png"
-                alt="WebHound dashboard on a tablet showing security score and recent findings"
-                fill
-                priority
-                sizes="(max-width: 1024px) 100vw, 980px"
-                className="object-contain opacity-85 lg:opacity-100"
-                style={{
-                  filter:
-                    'drop-shadow(0 40px 80px rgba(0,0,0,0.6)) drop-shadow(0 0 60px rgba(124,255,0,0.15))',
-                }}
-              />
-
-              {/* Hologram — anchored over the projector base on
-                  the bottom-right of the image. Larger sizes on
-                  all breakpoints to match the bigger product. */}
-              <div
-                className="absolute pointer-events-none"
-                style={{
-                  // Centered over the projector puck in the
-                  // background image. Empirically tuned.
-                  right: '4%',
-                  bottom: '4%',
-                }}
-              >
-                <div className="hidden lg:block">
-                  <HeroHologram size={220} />
-                </div>
-                <div className="hidden sm:block lg:hidden">
-                  <HeroHologram size={160} />
-                </div>
-                <div className="block sm:hidden">
-                  <HeroHologram size={110} />
-                </div>
-              </div>
-            </div>
+            ))}
           </motion.div>
         </div>
+      </div>
+
+      {/* ─────────────── HOLOGRAM LAYER ───────────────
+          Anchored to the bottom-right of the section so it sits
+          over the projector base in the background image. Sized
+          per breakpoint; hidden on mobile (where the image
+          itself is hidden so there's nothing to project from). */}
+      <div
+        className="hidden lg:block absolute pointer-events-none"
+        style={{ right: '11%', bottom: '4%' }}
+      >
+        <HeroHologram size={130} />
+      </div>
+      <div
+        className="hidden md:block lg:hidden absolute pointer-events-none"
+        style={{ right: '8%', bottom: '4%' }}
+      >
+        <HeroHologram size={100} />
       </div>
     </section>
   )

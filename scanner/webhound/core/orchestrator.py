@@ -539,6 +539,28 @@ class Scanner:
                 ctx.scan_result.metadata["scan_wide_threat_intel_findings"] = (
                     len(inv_findings)
                 )
+                # Phase-5C: audit every inventory host against the local
+                # classifier so the JSON export carries threat-intel
+                # coverage stats + the per-host inventory entries get
+                # vendor_classification / threat_intel_state populated.
+                try:
+                    from webhound.threat_intel.coverage import (
+                        audit_threat_intel_coverage,
+                    )
+                    enriched_hosts = {
+                        h for h in inventory.keys() if h in already
+                    }
+                    cov_report = audit_threat_intel_coverage(
+                        inventory, already_enriched=enriched_hosts,
+                    )
+                    ctx.scan_result.metadata["threat_intel_coverage"] = (
+                        cov_report.to_dict()
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.debug(
+                        "threat-intel coverage audit failed",
+                        exc_info=True,
+                    )
             except Exception:  # noqa: BLE001
                 logger.warning(
                     "scan-wide threat-intel inventory pass failed; using "

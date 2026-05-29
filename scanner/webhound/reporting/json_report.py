@@ -264,6 +264,14 @@ class JsonReport:
             # dashboard can render the attack-surface panel without
             # rummaging through scan_metadata.
             "asset_map": result.metadata.get("asset_map"),
+            # Phase-5C threat-intel coverage report — None when the
+            # orchestrator skipped the audit (zero hosts in inventory).
+            "threat_intel_coverage": result.metadata.get(
+                "threat_intel_coverage",
+            ),
+            # Phase-5A browser-pass summary — None when the profile
+            # didn't opt in.
+            "browser_pass": result.metadata.get("browser_pass"),
             # --- Compliance rollup (Phase-3 reform) ---
             # Structured breakdown: per-framework controls_impacted vs
             # findings_mapped vs advisory_controls vs confirmed_violations

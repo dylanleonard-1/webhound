@@ -45,6 +45,11 @@ class ScanProfile:
     # default. Off elsewhere so adding asm_enabled doesn't slow any
     # existing scan tier.
     asm_enabled: bool = False
+    # Phase-5A Playwright browser pass — also ENTERPRISE-only. Adds a
+    # real headless Chromium navigation per page so SPA traffic
+    # (fetch/XHR/WebSocket) is captured. Off elsewhere so no profile
+    # accidentally pulls in the browser dependency.
+    browser_enabled: bool = False
 
     def to_scan_options(self) -> ScanOptions:
         """Return a :class:`ScanOptions` instance configured from this profile."""
@@ -57,6 +62,7 @@ class ScanProfile:
             respect_robots_txt=self.respect_robots_txt,
             verify_tls=self.verify_tls,
             asm_enabled=self.asm_enabled,
+            browser_enabled=self.browser_enabled,
         )
 
     def summary(self) -> dict[str, Any]:
@@ -72,6 +78,7 @@ class ScanProfile:
             "respect_robots_txt": self.respect_robots_txt,
             "verify_tls": self.verify_tls,
             "asm_enabled": self.asm_enabled,
+            "browser_enabled": self.browser_enabled,
         }
 
 
@@ -139,9 +146,12 @@ MONITOR = ScanProfile(
 ENTERPRISE = ScanProfile(
     name="enterprise",
     description=(
-        "Deep crawl plus ASM-lite asset discovery: passive subdomain "
-        "enumeration via Certificate Transparency logs and a "
-        "common-prefix DNS probe. Use for an attack-surface review."
+        "Deep crawl plus ASM-lite asset discovery and Playwright "
+        "browser execution. Passive subdomain enumeration via CT "
+        "logs, common-prefix DNS probe, and a headless Chromium "
+        "navigation per page so SPA traffic (fetch / XHR / WebSocket) "
+        "is captured. Use for an attack-surface review of a modern "
+        "SPA-heavy site."
     ),
     max_pages=200,
     max_depth=5,
@@ -151,6 +161,7 @@ ENTERPRISE = ScanProfile(
     respect_robots_txt=True,
     verify_tls=True,
     asm_enabled=True,
+    browser_enabled=True,
 )
 
 #: Registry of all built-in profiles, keyed by name.

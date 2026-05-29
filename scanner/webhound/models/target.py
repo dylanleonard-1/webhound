@@ -80,6 +80,13 @@ class ScanOptions(BaseModel):
     # (CT-log lookup via crt.sh) + common-prefix DNS probe. Default
     # off so QUICK/STANDARD/DEEP profiles stay unchanged.
     asm_enabled: bool = Field(default=False)
+    # Phase-5A Playwright browser pass opt-in. When True the
+    # orchestrator drives a headless Chromium against each crawled
+    # page to capture fetch/XHR/WebSocket/EventSource/iframe traffic.
+    # Default off; ENTERPRISE profile turns it on. Requires the
+    # ``playwright`` package + ``playwright install chromium`` on
+    # the worker box; missing dependencies degrade gracefully.
+    browser_enabled: bool = Field(default=False)
 
 
 class Target(BaseModel):

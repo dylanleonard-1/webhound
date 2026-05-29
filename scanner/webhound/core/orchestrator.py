@@ -23,6 +23,17 @@ import tldextract as _tldextract
 
 logger = logging.getLogger(__name__)
 
+
+def _safe_hostname(url: str | None) -> str | None:
+    """Best-effort hostname extraction used by browser-pass plumbing.
+    Returns None when ``url`` is falsy or malformed."""
+    if not url:
+        return None
+    try:
+        return (urlparse(url).hostname or "").lower() or None
+    except Exception:  # noqa: BLE001
+        return None
+
 from webhound.core.crawler import Crawler
 from webhound.core.extractor import _is_html
 from webhound.core.http_client import SafeHttpClient
@@ -449,6 +460,28 @@ class Scanner:
                 # Capture HTTP stats before the client closes
                 _http_stats = client.fetch_stats.to_dict()
 
+            # 3b. Optional Playwright browser pass — opt-in via
+            # ScanOptions.browser_enabled (set by ENTERPRISE profile).
+            # Captures fetch/XHR/WebSocket/EventSource/iframe traffic
+            # that the static crawler can't see on SPA / Next.js /
+            # React / Vue / Angular pages. Best-effort: missing
+            # Playwright install / missing Chromium / per-page errors
+            # all degrade gracefully — telemetry is recorded for
+            # whatever pages succeeded and the rest of the scan
+            # proceeds normally.
+            browser_telemetries: list = []
+            if self._target.scan_options.browser_enabled:
+                try:
+                    await self._run_browser_pass(
+                        ctx, crawl_results, browser_telemetries,
+                        host_contributions,
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.warning(
+                        "browser pass failed; static crawl results "
+                        "intact", exc_info=True,
+                    )
+
             # 4. TLS / DNS — blocking I/O, run in thread pool
             await self._run_tls_dns(ctx)
 
@@ -680,6 +713,114 @@ class Scanner:
     # ------------------------------------------------------------------
     # ASM-lite — passive subdomain discovery + DNS probe (Phase-4)
     # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Playwright browser pass (Phase-5A)
+    # ------------------------------------------------------------------
+
+    async def _run_browser_pass(
+        self,
+        ctx: ScanContext,
+        crawl_results: list,
+        browser_telemetries: list,
+        host_contributions: list,
+    ) -> None:
+        """Drive a headless Chromium against every successfully-crawled
+        page, capture every fetch / XHR / WebSocket / EventSource /
+        iframe artifact, and fold the discovered hosts back into the
+        scan-wide ``host_contributions`` list so the existing
+        threat-intel inventory pass + ASM aggregator see them.
+
+        Best-effort. Per-page errors land in
+        ``BrowserTelemetry.errors``; runner-level failures
+        (Playwright not installed, Chromium missing) produce a
+        deferred result that's logged and ignored. Either way, the
+        rest of the scan completes."""
+        from webhound.browser.models import (
+            aggregate_browser_hosts,
+        )
+        from webhound.browser.playwright_runner import (
+            browser_pass_enabled,
+            run_browser_pass,
+        )
+        from webhound.core.url_discovery import PageHostContribution
+
+        # The browser pass needs *real* navigation, so allow_network
+        # is gated by the WEBHOUND_BROWSER_ENABLED operator env var in
+        # addition to the profile flag. This means "the profile asked
+        # for it AND the operator has opted in on this worker box".
+        allow_net = browser_pass_enabled()
+
+        page_urls = [
+            r.response.url for r in crawl_results
+            if getattr(r, "response", None)
+            and not getattr(r.response, "failed", True)
+        ]
+        if not page_urls:
+            return
+
+        t0 = time.perf_counter()
+        started_at = datetime.now(timezone.utc)
+        result = await run_browser_pass(
+            page_urls, allow_network=allow_net,
+            user_agent=self._target.scan_options.user_agent,
+        )
+        duration_ms = (time.perf_counter() - t0) * 1000.0
+
+        # Record diagnostics regardless of deferred/error state so
+        # operators can see whether the pass ran.
+        if result.deferred:
+            ctx.tracker.record_skip(
+                "browser", result.error or "deferred",
+            )
+        else:
+            browser_telemetries.extend(result.telemetries)
+            for tel in result.telemetries:
+                # Each browser-observed external URL contributes to
+                # the scan-wide host inventory as a new (url, kind)
+                # pair attributed to this page. PageHostContribution
+                # already knows how to dedupe inside
+                # aggregate_host_inventory, so duplicates are fine.
+                pairs = [
+                    (art.url, art.initiator_kind or "browser")
+                    for art in tel.artifacts
+                    if art.url
+                ]
+                host_contributions.append(
+                    PageHostContribution(
+                        page_url=tel.page_url,
+                        page_host=_safe_hostname(tel.page_url),
+                        urls=pairs,
+                    ),
+                )
+            ctx.tracker.record_run(
+                "browser", [], duration_ms, started_at,
+                datetime.now(timezone.utc),
+            )
+            if "browser" not in ctx.scan_result.engines_run:
+                ctx.scan_result.engines_run.append("browser")
+
+        # Roll up browser-specific host inventory for the JSON export.
+        try:
+            primary = (self._target.hostname or "").lower()
+            browser_inv = aggregate_browser_hosts(
+                browser_telemetries, primary_host=primary,
+            )
+            ctx.scan_result.metadata["browser_pass"] = {
+                "deferred": result.deferred,
+                "error": result.error,
+                "page_count": len(result.telemetries),
+                "artifact_count": sum(
+                    len(t.artifacts) for t in result.telemetries
+                ),
+                "host_count": len(browser_inv),
+                "duration_ms": round(duration_ms, 2),
+                "hosts": sorted(browser_inv.keys()),
+            }
+        except Exception:  # noqa: BLE001
+            logger.debug(
+                "browser-pass metadata write failed", exc_info=True,
+            )
 
     async def _run_asm(
         self,

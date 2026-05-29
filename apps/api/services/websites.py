@@ -65,7 +65,10 @@ async def list_websites(
     verification_status: VerificationStatus | None = None,
     hostname: str | None = None,
     user_id: uuid.UUID | None = None,
+    active_org_id: uuid.UUID | None = None,
 ) -> tuple[list[Website], int]:
+    from apps.api.services.tenant import apply_org_scope
+
     base = sa.select(Website)
     count_base = sa.select(sa.func.count()).select_from(Website)
 
@@ -83,6 +86,10 @@ async def list_websites(
         pattern = f"%{hostname}%"
         base = base.where(Website.hostname.ilike(pattern))
         count_base = count_base.where(Website.hostname.ilike(pattern))
+
+    # Phase-4 tenancy scope. Legacy NULL rows always pass.
+    base = apply_org_scope(base, Website.org_id, active_org_id)
+    count_base = apply_org_scope(count_base, Website.org_id, active_org_id)
 
     total: int = (await db.scalar(count_base)) or 0
     rows = await db.scalars(

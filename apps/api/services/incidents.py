@@ -164,7 +164,10 @@ async def search(
     assignee_id: uuid.UUID | None = None,
     breached_only: bool = False,
     limit: int = 50, offset: int = 0,
+    active_org_id: uuid.UUID | None = None,
 ) -> tuple[list[Incident], int]:
+    from apps.api.services.tenant import apply_org_scope
+
     base = select(Incident)
     count_base = select(func.count()).select_from(Incident)
     conds = []
@@ -183,6 +186,9 @@ async def search(
     for c in conds:
         base = base.where(c)
         count_base = count_base.where(c)
+    # Phase-4 tenancy scope. Legacy NULL rows always pass.
+    base = apply_org_scope(base, Incident.org_id, active_org_id)
+    count_base = apply_org_scope(count_base, Incident.org_id, active_org_id)
     total = await db.scalar(count_base) or 0
     rows = await db.scalars(
         base.order_by(Incident.last_seen_at.desc()).limit(limit).offset(offset)

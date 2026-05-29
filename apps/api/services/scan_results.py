@@ -72,17 +72,25 @@ async def list_scan_results(
     created_from: datetime | None = None,
     created_to: datetime | None = None,
     user_id: uuid.UUID | None = None,
+    active_org_id: uuid.UUID | None = None,
 ) -> tuple[list[ScanResultRecord], int]:
+    from apps.api.services.tenant import apply_org_scope
+
     base = sa.select(ScanResultRecord).options(
         selectinload(ScanResultRecord.scan_job).selectinload(ScanJob.website)
     )
     count_base = sa.select(sa.func.count()).select_from(ScanResultRecord)
 
-    if user_id is not None or website_id is not None:
+    if user_id is not None or website_id is not None or active_org_id is not None:
         base = base.join(ScanJob, ScanResultRecord.scan_job_id == ScanJob.id)
         count_base = count_base.join(
             ScanJob, ScanResultRecord.scan_job_id == ScanJob.id
         )
+
+    # Phase-4 tenancy scope on the parent ScanJob.org_id.
+    if active_org_id is not None:
+        base = apply_org_scope(base, ScanJob.org_id, active_org_id)
+        count_base = apply_org_scope(count_base, ScanJob.org_id, active_org_id)
 
     if user_id is not None:
         base = base.join(Website, ScanJob.website_id == Website.id).where(

@@ -111,7 +111,10 @@ async def list_scan_jobs(
     status: ScanStatus | None = None,
     profile: str | None = None,
     user_id: uuid.UUID | None = None,
+    active_org_id: uuid.UUID | None = None,
 ) -> tuple[list[ScanJob], int]:
+    from apps.api.services.tenant import apply_org_scope
+
     base = sa.select(ScanJob)
     count_base = sa.select(sa.func.count()).select_from(ScanJob)
 
@@ -133,6 +136,11 @@ async def list_scan_jobs(
     if profile is not None:
         base = base.where(ScanJob.profile == profile)
         count_base = count_base.where(ScanJob.profile == profile)
+
+    # Phase-4 tenancy: scope to the caller's active org when supplied.
+    # Legacy NULL rows always pass — see services/tenant.py.
+    base = apply_org_scope(base, ScanJob.org_id, active_org_id)
+    count_base = apply_org_scope(count_base, ScanJob.org_id, active_org_id)
 
     total: int = (await db.scalar(count_base)) or 0
     rows = await db.scalars(

@@ -65,7 +65,10 @@ async def list_schedules(
     website_id: uuid.UUID | None = None,
     limit: int = 20,
     offset: int = 0,
+    active_org_id: uuid.UUID | None = None,
 ) -> tuple[list[ScanSchedule], int]:
+    from apps.api.services.tenant import apply_org_scope
+
     base = sa.select(ScanSchedule)
     count_base = sa.select(sa.func.count()).select_from(ScanSchedule)
 
@@ -76,6 +79,12 @@ async def list_schedules(
     if website_id is not None:
         base = base.where(ScanSchedule.website_id == website_id)
         count_base = count_base.where(ScanSchedule.website_id == website_id)
+
+    # Phase-4 tenancy scope. Legacy NULL rows always pass.
+    base = apply_org_scope(base, ScanSchedule.org_id, active_org_id)
+    count_base = apply_org_scope(
+        count_base, ScanSchedule.org_id, active_org_id,
+    )
 
     total: int = (await db.scalar(count_base)) or 0
     rows = await db.scalars(

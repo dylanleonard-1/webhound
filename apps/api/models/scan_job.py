@@ -61,6 +61,16 @@ class ScanJob(Base, UpdatedAtMixin):
     error_message: Mapped[str | None] = mapped_column(sa.Text)
     celery_task_id: Mapped[str | None] = mapped_column(sa.String(255))
 
+    # Slice 4.A — public/guest scan flow. When a visitor enters a
+    # URL on /scan without an account, we create the scan_job with
+    # a guest_token; the public router only looks up jobs by this
+    # token (never by id) so a guest can't enumerate other scans.
+    # Nullable for every existing scan path (authenticated scans
+    # don't set it).
+    guest_token: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), index=True, unique=True,
+    )
+
     website: Mapped["Website"] = relationship("Website", back_populates="scan_jobs")
     result: Mapped["ScanResultRecord | None"] = relationship(
         "ScanResultRecord", back_populates="scan_job", uselist=False,

@@ -188,3 +188,62 @@ async def check_ownership(
     if membership is None:
         return False
     return has_org_role(membership.role, minimum_role)
+
+
+# ---------------------------------------------------------------------------
+# Post-backfill drift audit (Phase-4 slice 3)
+# ---------------------------------------------------------------------------
+
+
+async def audit_org_id_drift(db: AsyncSession) -> dict[str, int]:
+    """Return counts of rows where ``org_id`` is unexpectedly missing.
+
+    Intended for the /admin diagnostics surface and for post-deploy
+    smoke tests after migration 0028. A clean prod environment after
+    backfill returns zero on every ``inconsistent_*`` key — non-zero
+    indicates rows the application created via a code path that
+    forgot to set ``org_id``, or that the migration missed.
+
+    Returned keys::
+
+      websites_missing_org_with_owner — owned websites lacking org_id
+      scan_jobs_org_mismatch          — scan_job.org_id ≠ website.org_id
+      scan_jobs_missing_org_with_website_org
+                                       — scan_job.org_id IS NULL while
+                                         its website has one
+      scan_schedules_missing_org_with_website_org — same shape for
+                                                     schedules
+    """
+    from apps.api.models.scan_job import ScanJob
+    from apps.api.models.scan_schedule import ScanSchedule
+    from apps.api.models.website import Website
+
+    w_missing_with_owner = await db.scalar(
+        sa.select(sa.func.count(Website.id))
+        .where(Website.user_id.is_not(None), Website.org_id.is_(None)),
+    ) or 0
+    sj_mismatch = await db.scalar(
+        sa.select(sa.func.count(ScanJob.id))
+        .join(Website, ScanJob.website_id == Website.id)
+        .where(
+            Website.org_id.is_not(None),
+            ScanJob.org_id.is_not(None),
+            ScanJob.org_id != Website.org_id,
+        ),
+    ) or 0
+    sj_missing = await db.scalar(
+        sa.select(sa.func.count(ScanJob.id))
+        .join(Website, ScanJob.website_id == Website.id)
+        .where(Website.org_id.is_not(None), ScanJob.org_id.is_(None)),
+    ) or 0
+    sched_missing = await db.scalar(
+        sa.select(sa.func.count(ScanSchedule.id))
+        .join(Website, ScanSchedule.website_id == Website.id)
+        .where(Website.org_id.is_not(None), ScanSchedule.org_id.is_(None)),
+    ) or 0
+    return {
+        "websites_missing_org_with_owner": int(w_missing_with_owner),
+        "scan_jobs_org_mismatch": int(sj_mismatch),
+        "scan_jobs_missing_org_with_website_org": int(sj_missing),
+        "scan_schedules_missing_org_with_website_org": int(sched_missing),
+    }

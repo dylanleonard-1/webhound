@@ -32,6 +32,8 @@ async def create_schedule(
 
     schedule = ScanSchedule(
         user_id=user_id,
+        # Phase-4 invariant: inherit tenancy from the parent website.
+        org_id=website.org_id,
         website_id=data.website_id,
         profile=data.profile,
         frequency=data.frequency,

@@ -83,6 +83,12 @@ async def create_scan_job(
         status=ScanStatus.QUEUED,
         use_latest_baseline=data.use_latest_baseline,
         save_baseline=data.save_baseline,
+        # Phase-4 invariant: a scan job inherits its parent website's
+        # tenancy. Backfill migration 0028 ensures every existing
+        # website.org_id is populated where appropriate; this line
+        # ensures every *new* scan job lands with the same org_id
+        # without needing a separate maintenance script.
+        org_id=website.org_id,
     )
     db.add(job)
     await db.flush()

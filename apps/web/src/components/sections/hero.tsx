@@ -1,28 +1,14 @@
 'use client'
 
 // WebHound — components/sections/hero.tsx
-// Hero v5 — zoomed-out cinematic visual, smaller hologram
-// anchored to the projector base.
-//
-// v4 review fixes baked in here:
-//   1. Image zoomed out (~20%) — switched from object-cover
-//      ("40% 50%", which cropped top/right of the tablet) to
-//      object-contain anchored bottom-right. Full tablet +
-//      full projector are visible.
-//   2. Image repositioned right + down — layer top inset to
-//      6%, right inset to 2%, image anchored to 'right
-//      bottom' inside the layer. Visible breathing room on
-//      top + right edges.
-//   3. Hologram lives INSIDE the image layer so it stays
-//      glued to the projector base regardless of viewport.
-//      Right/bottom offsets tuned over the in-image base.
-//   4. Hero vertical height tightened — section minHeight
-//      cap dropped 760 → 700px; container pb cut 8 → 6.
-//      Whole hero (eyebrow → trust row) fits at 1920×1080.
-//   5. Blend preserved — four-edge mask + dark gradient veil
-//      kept; image is still a background, not a card.
+// Hero v11 — keep the cinematic tablet+projector background image,
+// but the projector STAND now generates the new self-contained
+// hologram projection (HologramPrototype) instead of the old flat
+// 140px shield. The hologram box is anchored over the in-image puck
+// so the stand visibly projects the shield.
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { ArrowRight } from 'lucide-react'
 import { motion } from 'framer-motion'
 import HologramPrototype from '@/components/experiments/HologramPrototype'
@@ -34,12 +20,6 @@ export function Hero() {
     <section
       className="relative overflow-hidden pt-14 lg:pt-16"
       style={{
-        // v4 cap was 760; v5 drops to 700 so the entire hero
-        // fits at 1920×1080 below a 64–80px header without
-        // overlap of the next section.
-        // v8: top padding bumped pt-10/12 → pt-14/16 so the
-        // eyebrow pill sits clear of the nav bar (try-1
-        // screenshot showed it touching the nav).
         background: '#020617',
         minHeight: 'min(86vh, 700px)',
       }}
@@ -65,35 +45,64 @@ export function Hero() {
         }}
       />
 
-      {/* ────────── NEW HOLOGRAM PROJECTOR LAYER ──────────
-          Self-contained projection scene (projector base + beams +
-          particles + floating WebHound shield) — replaces the old
-          tablet-background image and the 140px standalone shield.
-          Fills the right column; a four-edge mask fades the
-          projection into the hero so there's no visible box edge,
-          and it overlaps the left dark-veil for a clean blend. */}
+      {/* ────────── CINEMATIC IMAGE + HOLOGRAM LAYER ──────────
+          Layer wraps BOTH the masked background image (tablet +
+          standalone projector puck) AND the new hologram so they
+          move together. The hologram box is positioned over the
+          in-image puck so the stand appears to project the shield. */}
       <div
-        aria-hidden
         className="hidden lg:block absolute pointer-events-none"
         style={{
-          top: 0,
-          right: 0,
+          top: '6%',
+          right: '2%',
           bottom: 0,
           width: '58%',
-          maskImage:
-            'linear-gradient(90deg, transparent 0%, black 20%, black 97%, transparent 100%), linear-gradient(180deg, transparent 0%, black 4%, black 96%, transparent 100%)',
-          WebkitMaskImage:
-            'linear-gradient(90deg, transparent 0%, black 20%, black 97%, transparent 100%), linear-gradient(180deg, transparent 0%, black 4%, black 96%, transparent 100%)',
-          maskComposite: 'intersect',
-          WebkitMaskComposite: 'source-in',
         }}
       >
-        <HologramPrototype embedded />
+        {/* Masked background image — four-edge soft vignette. */}
+        <div
+          aria-hidden
+          className="absolute inset-0"
+          style={{
+            maskImage:
+              'linear-gradient(90deg, transparent 0%, black 18%, black 94%, transparent 100%), linear-gradient(180deg, transparent 0%, black 10%, black 92%, transparent 100%)',
+            WebkitMaskImage:
+              'linear-gradient(90deg, transparent 0%, black 18%, black 94%, transparent 100%), linear-gradient(180deg, transparent 0%, black 10%, black 92%, transparent 100%)',
+            maskComposite: 'intersect',
+            WebkitMaskComposite: 'source-in',
+          }}
+        >
+          <Image
+            src="/images/hero-background-2.jpeg"
+            alt=""
+            fill
+            priority
+            sizes="60vw"
+            className="object-contain"
+            style={{ objectPosition: 'center bottom' }}
+          />
+        </div>
+
+        {/* NEW hologram — self-contained projection (base + beams +
+            particles + floating shield) sitting ON the in-image
+            projector puck. Box anchored over the puck; the hologram
+            auto-fits inside it so the base lands on the stand and the
+            shield rises above. Offsets tuned over the bg2 puck. */}
+        <div
+          aria-hidden
+          className="absolute pointer-events-none"
+          style={{
+            right: '2%',
+            bottom: '4%',
+            width: '40%',
+            height: '86%',
+          }}
+        >
+          <HologramPrototype embedded />
+        </div>
       </div>
 
-      {/* Dark veil between text and visual. Image-side
-          unchanged from v4; this is what keeps the headline
-          readable without a visible card edge. */}
+      {/* Dark veil between text and visual. */}
       <div
         aria-hidden
         className="hidden lg:block absolute inset-y-0 left-0 pointer-events-none"

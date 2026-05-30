@@ -12,6 +12,7 @@ import Image from 'next/image'
 import { ArrowRight } from 'lucide-react'
 import { motion } from 'framer-motion'
 import HologramPrototype from '@/components/experiments/HologramPrototype'
+import { HeroTabletDashboard } from './hero-tablet-dashboard'
 
 const TRUST_ITEMS = ['2 minutes', 'Read-only', 'No changes made', '100% safe']
 
@@ -82,6 +83,11 @@ export function Hero() {
             style={{ objectPosition: 'center bottom' }}
           />
         </div>
+
+        {/* WebHound dashboard pinned inside the tablet screen-glass.
+            Overlays the image box; matrix3d corner-pins the UI onto the
+            measured perspective quad. pointer-events:none, hero-only. */}
+        <HeroTabletDashboard />
 
         {/* NEW hologram — self-contained projection (base + beams +
             particles + floating shield) sitting ON the in-image

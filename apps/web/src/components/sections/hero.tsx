@@ -122,24 +122,22 @@ export function Hero() {
 
         {/* Hologram — positioned over the standalone projector
             puck on the right of bg2.
-            v8 retune (try-1 review):
-              right:  21% → 17%   (shield was landing too far
-                                    left of the puck; move it
-                                    right toward the puck)
-              bottom: 23% → 30%   (shield was sitting INSIDE
-                                    the puck instead of ABOVE
-                                    it; move it up so the
-                                    hologram base aligns with
-                                    the puck's top emitter
-                                    ring) */}
+            v9 retune (post-direct-snap review):
+              size:   108 → 140   (+30% — shield was too small
+                                    relative to the puck and
+                                    read as a sticker)
+              bottom: 30% → 33%   (lift ~3% so the projection
+                                    cone has visible runway
+                                    between puck top + shield
+                                    bottom) */}
         <div
           className="absolute pointer-events-none"
           style={{
             right: '17%',
-            bottom: '30%',
+            bottom: '33%',
           }}
         >
-          <HeroHologram size={108} />
+          <HeroHologram size={140} />
         </div>
       </div>
 

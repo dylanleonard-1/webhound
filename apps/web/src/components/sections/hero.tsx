@@ -67,15 +67,19 @@ export function Hero() {
           Layer wraps BOTH the masked image and the hologram so
           they move together. Hologram offsets are relative to
           this layer, which keeps the shield glued to the in-
-          image projector base regardless of viewport size.
+          image projector puck regardless of viewport size.
 
-          Layer insets:
-            top: 6%   — breathing room at top
-            right: 2% — breathing room at right
-            width: 56% — slightly narrower than v4 (was 58%)
-                         so the image has room to breathe
-                         without being shoved to the corner
-            bottom: 0
+          v7 — swapped to background 2:
+            • Wider 16:9 aspect (vs bg1's 16:10) → layer width
+              bumped 56% → 60% to keep the tablet+puck pair at
+              a comfortable size without cropping.
+            • Tablet is centered-left in bg2 and the projector
+              puck is a separate object further to the right.
+              The image now anchors to 'center bottom' so the
+              centered composition stays visually balanced.
+            • Hologram retuned to sit over the new standalone
+              puck (much further right of the tablet than
+              bg1's attached base).
        */}
       <div
         className="hidden lg:block absolute pointer-events-none"
@@ -83,7 +87,7 @@ export function Hero() {
           top: '6%',
           right: '2%',
           bottom: 0,
-          width: '56%',
+          width: '60%',
         }}
       >
         {/* Masked image — four-edge soft vignette. */}
@@ -92,42 +96,35 @@ export function Hero() {
           className="absolute inset-0"
           style={{
             maskImage:
-              'linear-gradient(90deg, transparent 0%, black 22%, black 92%, transparent 100%), linear-gradient(180deg, transparent 0%, black 12%, black 90%, transparent 100%)',
+              'linear-gradient(90deg, transparent 0%, black 18%, black 94%, transparent 100%), linear-gradient(180deg, transparent 0%, black 10%, black 92%, transparent 100%)',
             WebkitMaskImage:
-              'linear-gradient(90deg, transparent 0%, black 22%, black 92%, transparent 100%), linear-gradient(180deg, transparent 0%, black 12%, black 90%, transparent 100%)',
+              'linear-gradient(90deg, transparent 0%, black 18%, black 94%, transparent 100%), linear-gradient(180deg, transparent 0%, black 10%, black 92%, transparent 100%)',
             maskComposite: 'intersect',
             WebkitMaskComposite: 'source-in',
           }}
         >
           <Image
-            src="/images/hero-background-1.png"
+            src="/images/hero-background-2.jpeg"
             alt=""
             fill
             priority
-            sizes="56vw"
-            // v4 was object-cover (cropped top/right). v5
-            // switches to object-contain so the full tablet
-            // and projector are visible. objectPosition anchors
-            // the contained image to the bottom-right corner
-            // of the layer.
+            sizes="60vw"
             className="object-contain"
-            style={{ objectPosition: 'right bottom' }}
+            style={{ objectPosition: 'center bottom' }}
           />
         </div>
 
-        {/* Hologram — positioned over the projector base.
-            v6 retune: shield was sitting too far right and
-            too high relative to the in-image projector puck.
-              right: 6%   → 13% of layer  (moves shield LEFT)
-              bottom: 11% → 6%  of layer  (moves shield DOWN)
-              size: 95    → 108           (+14%)
-            Inside the same wrapper so it follows the image
-            as the viewport scales. */}
+        {/* Hologram — positioned over the standalone projector
+            puck on the right of bg2.
+            Puck center sits roughly at image-x 76%, image-y
+            75% → in layer coords with object-contain center-
+            bottom that maps to about right: 21%, bottom: 23%.
+            Empirically tuned; will iterate once you eyeball it. */}
         <div
           className="absolute pointer-events-none"
           style={{
-            right: '13%',
-            bottom: '6%',
+            right: '21%',
+            bottom: '23%',
           }}
         >
           <HeroHologram size={108} />

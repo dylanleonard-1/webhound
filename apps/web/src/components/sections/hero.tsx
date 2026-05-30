@@ -96,6 +96,9 @@ export function Hero() {
             bottom: '4%',
             width: '40%',
             height: '86%',
+            // Fine-tune over the in-image puck: nudge right +28px and
+            // down +20px (positive translateY moves down).
+            transform: 'translate(28px, 20px)',
           }}
         >
           <HologramPrototype embedded />

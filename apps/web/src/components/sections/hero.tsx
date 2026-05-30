@@ -116,18 +116,21 @@ export function Hero() {
         </div>
 
         {/* Hologram — positioned over the projector base.
-            Offsets are empirically tuned for the image at
-            object-contain 'right bottom' inside this layer.
+            v6 retune: shield was sitting too far right and
+            too high relative to the in-image projector puck.
+              right: 6%   → 13% of layer  (moves shield LEFT)
+              bottom: 11% → 6%  of layer  (moves shield DOWN)
+              size: 95    → 108           (+14%)
             Inside the same wrapper so it follows the image
             as the viewport scales. */}
         <div
           className="absolute pointer-events-none"
           style={{
-            right: '6%',
-            bottom: '11%',
+            right: '13%',
+            bottom: '6%',
           }}
         >
-          <HeroHologram size={95} />
+          <HeroHologram size={108} />
         </div>
       </div>
 

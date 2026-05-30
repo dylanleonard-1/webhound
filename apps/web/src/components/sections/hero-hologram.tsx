@@ -1,23 +1,24 @@
 'use client'
 
 // WebHound — components/sections/hero-hologram.tsx
-// Hero v5 — restrained "light projected upward" hologram.
+// Hero v6 — projection that visibly connects base to shield.
 //
-// v4 review fixes baked in here:
-//   • Shield ~27% smaller (130 → 95 default).
-//   • The "green rectangle/glow block" is gone — removed the
-//     outer green halo (size*1.55) and inner cyan core
-//     (size*0.95) plus the wide conic projection cone. Those
-//     were the three layers reading as a glow block.
-//   • Replaced the single thick beam with **five thin
-//     projection rays** rising from the base to the shield —
-//     reads as light, not a blob.
-//   • Tiny projector base puck (no big halo around it).
-//   • Subtle opacity flicker + scanlines only. No scanner
-//     sweep, no rotating orbital halo.
+// v5 review fixes baked in here:
+//   • Shield +14% bigger (95 → 108 default) so it reads as
+//     a projected image, not a sticker.
+//   • Soft cone-shaped green/cyan glow added BEHIND the
+//     shield. Narrow at the projector base, widens upward to
+//     just past the shield. This is what visually bridges the
+//     base to the shield — the "projected upward" cue.
+//   • Five thin projection rays brightened (opacity bases
+//     0.85/0.55 → 0.92/0.68) and middle ray thickened 1.5 →
+//     2px so the path from base to shield reads clearly.
+//   • Small radial glow under the shield itself so the
+//     shield sits on the cone instead of hovering above it.
+//   • Scanlines + flicker + float kept.
+//   • Outer green halo block stays REMOVED.
 //
-// Pure CSS + Framer Motion. No canvas. Every animation
-// collapses to a static frame when prefers-reduced-motion.
+// All animations respect prefers-reduced-motion.
 
 import Image from 'next/image'
 import { motion, useReducedMotion } from 'framer-motion'
@@ -27,7 +28,7 @@ interface HeroHologramProps {
   size?: number
 }
 
-export function HeroHologram({ size = 95 }: HeroHologramProps) {
+export function HeroHologram({ size = 108 }: HeroHologramProps) {
   const reduce = useReducedMotion()
   const containerW = size * 1.05
   const containerH = size * 1.55
@@ -37,12 +38,13 @@ export function HeroHologram({ size = 95 }: HeroHologramProps) {
     : { opacity: [1, 0.97, 1, 0.99, 1, 1, 0.94, 1] }
 
   // Five thin rays. Middle is brightest + slightly thicker;
-  // outer two are dimmer + thinner. Reads as "light projected
-  // upward" instead of "glow block".
+  // outer rays dimmer + thinner. Reads as "light projected
+  // upward". v6: opacities bumped so the connection from base
+  // to shield is unambiguous.
   const RAYS: Array<{ xFrac: number; w: number; mid: boolean }> = [
     { xFrac: -0.18, w: 1,   mid: false },
     { xFrac: -0.09, w: 1,   mid: false },
-    { xFrac:  0,    w: 1.5, mid: true  },
+    { xFrac:  0,    w: 2,   mid: true  },
     { xFrac:  0.09, w: 1,   mid: false },
     { xFrac:  0.18, w: 1,   mid: false },
   ]
@@ -53,8 +55,7 @@ export function HeroHologram({ size = 95 }: HeroHologramProps) {
       style={{ width: containerW, height: containerH }}
       aria-hidden
     >
-      {/* ─── Projector base puck ────────────────────────────
-          Small. Just enough to ground the shield. */}
+      {/* ─── 1. Projector base puck ────────────────────── */}
       <motion.div
         className="absolute left-1/2 -translate-x-1/2 rounded-full"
         style={{
@@ -62,7 +63,7 @@ export function HeroHologram({ size = 95 }: HeroHologramProps) {
           width: size * 0.7,
           height: size * 0.11,
           background:
-            'radial-gradient(ellipse at center, rgba(140,255,235,0.45) 0%, rgba(124,255,0,0.18) 40%, transparent 80%)',
+            'radial-gradient(ellipse at center, rgba(140,255,235,0.5) 0%, rgba(124,255,0,0.2) 40%, transparent 80%)',
           filter: 'blur(3px)',
           mixBlendMode: 'screen',
         }}
@@ -75,20 +76,20 @@ export function HeroHologram({ size = 95 }: HeroHologramProps) {
         }
       />
 
-      {/* ─── Inner base hotspot ─────────────────────────── */}
+      {/* ─── 2. Inner base hotspot ────────────────────── */}
       <motion.div
         className="absolute left-1/2 -translate-x-1/2 rounded-full"
         style={{
           bottom: size * 0.025,
-          width: size * 0.28,
-          height: size * 0.06,
+          width: size * 0.3,
+          height: size * 0.07,
           background:
-            'radial-gradient(ellipse at center, rgba(220,255,255,0.85) 0%, transparent 70%)',
+            'radial-gradient(ellipse at center, rgba(220,255,255,0.9) 0%, transparent 70%)',
           filter: 'blur(1.5px)',
           mixBlendMode: 'screen',
         }}
         initial={{ opacity: 1 }}
-        animate={reduce ? { opacity: 1 } : { opacity: [0.7, 1, 0.7] }}
+        animate={reduce ? { opacity: 1 } : { opacity: [0.75, 1, 0.75] }}
         transition={
           reduce
             ? undefined
@@ -96,11 +97,54 @@ export function HeroHologram({ size = 95 }: HeroHologramProps) {
         }
       />
 
-      {/* ─── Thin projection rays ───────────────────────────
-          The "light projected upward" cue. Five thin shafts
-          rising from the base to the shield. Each shimmers on
-          its own offset cycle so the projection feels alive
-          rather than uniform. */}
+      {/* ─── 3. Soft cone-shaped green/cyan glow ────────────
+          The "projection beam" the brief asked for. A narrow
+          cone widening from the base up to just past the
+          shield. Soft, low opacity — bridges base ↔ shield. */}
+      <motion.div
+        className="absolute left-1/2 -translate-x-1/2"
+        style={{
+          bottom: size * 0.04,
+          width: containerW * 0.55,
+          height: containerH * 0.92,
+          background:
+            'conic-gradient(from 90deg at 50% 100%, rgba(124,255,0,0) 0deg, rgba(124,255,0,0.20) 12deg, rgba(140,255,235,0.12) 22deg, rgba(124,255,0,0) 38deg)',
+          filter: 'blur(10px)',
+          mixBlendMode: 'screen',
+        }}
+        initial={{ opacity: 0.7 }}
+        animate={reduce ? { opacity: 0.7 } : { opacity: [0.55, 0.85, 0.55] }}
+        transition={
+          reduce
+            ? undefined
+            : { duration: 4.5, repeat: Infinity, ease: 'easeInOut' }
+        }
+      />
+
+      {/* ─── 3b. Cyan core inside the cone ─────────────────
+          Tighter, cyan-leaning, just inside the cone. Sells
+          the "real holographic light" temperature. */}
+      <motion.div
+        className="absolute left-1/2 -translate-x-1/2"
+        style={{
+          bottom: size * 0.06,
+          width: containerW * 0.3,
+          height: containerH * 0.75,
+          background:
+            'conic-gradient(from 90deg at 50% 100%, rgba(140,255,235,0) 0deg, rgba(140,255,235,0.22) 10deg, rgba(140,255,235,0) 22deg)',
+          filter: 'blur(6px)',
+          mixBlendMode: 'screen',
+        }}
+        initial={{ opacity: 0.7 }}
+        animate={reduce ? { opacity: 0.7 } : { opacity: [0.55, 0.85, 0.55] }}
+        transition={
+          reduce
+            ? undefined
+            : { duration: 3.2, repeat: Infinity, ease: 'easeInOut' }
+        }
+      />
+
+      {/* ─── 4. Thin projection rays (brighter than v5) ─── */}
       {RAYS.map((ray, i) => (
         <motion.div
           key={i}
@@ -112,20 +156,20 @@ export function HeroHologram({ size = 95 }: HeroHologramProps) {
             width: ray.w,
             height: size * 1.0,
             background: ray.mid
-              ? 'linear-gradient(180deg, rgba(140,255,235,0) 0%, rgba(140,255,235,0.45) 45%, rgba(220,255,255,0.78) 100%)'
-              : 'linear-gradient(180deg, rgba(140,255,235,0) 0%, rgba(140,255,235,0.22) 45%, rgba(140,255,235,0.5) 100%)',
+              ? 'linear-gradient(180deg, rgba(140,255,235,0) 0%, rgba(140,255,235,0.55) 45%, rgba(220,255,255,0.92) 100%)'
+              : 'linear-gradient(180deg, rgba(140,255,235,0) 0%, rgba(140,255,235,0.32) 45%, rgba(140,255,235,0.65) 100%)',
             filter: 'blur(0.6px)',
             mixBlendMode: 'screen',
-            opacity: ray.mid ? 0.85 : 0.55,
+            opacity: ray.mid ? 0.92 : 0.68,
           }}
           animate={
             reduce
               ? undefined
               : {
                   opacity: [
-                    ray.mid ? 0.7 : 0.4,
-                    ray.mid ? 0.95 : 0.65,
-                    ray.mid ? 0.7 : 0.4,
+                    ray.mid ? 0.78 : 0.52,
+                    ray.mid ? 1 : 0.78,
+                    ray.mid ? 0.78 : 0.52,
                   ],
                 }
           }
@@ -141,11 +185,34 @@ export function HeroHologram({ size = 95 }: HeroHologramProps) {
         />
       ))}
 
-      {/* ─── The shield ─────────────────────────────────────
-          Sits at the top of the container, anchored above the
-          rays. Subtle float, subtle flicker, restrained drop
-          shadow. No big halo box behind it — drop-shadow is
-          shaped to the shield silhouette. */}
+      {/* ─── 5. Soft radial glow seated under the shield ──
+          Tight, low-opacity, shaped to the shield silhouette
+          so the shield sits ON the cone instead of hovering
+          above it. */}
+      <motion.div
+        className="absolute left-1/2 -translate-x-1/2 rounded-full"
+        style={{
+          top: size * 0.05,
+          width: size * 1.1,
+          height: size * 1.1,
+          background:
+            'radial-gradient(circle at center, rgba(124,255,0,0.20) 0%, rgba(140,255,235,0.10) 35%, transparent 70%)',
+          filter: 'blur(12px)',
+          mixBlendMode: 'screen',
+        }}
+        initial={{ opacity: 0.65 }}
+        animate={reduce ? { opacity: 0.65 } : { opacity: [0.5, 0.8, 0.5] }}
+        transition={
+          reduce
+            ? undefined
+            : { duration: 3.5, repeat: Infinity, ease: 'easeInOut' }
+        }
+      />
+
+      {/* ─── 6. The shield ──────────────────────────────────
+          v5 floated at y 0→-3→0 and felt disconnected from the
+          base. v6 reduces float amplitude (−2) so the shield
+          stays visibly seated on the cone. */}
       <motion.div
         className="absolute left-1/2 -translate-x-1/2"
         style={{
@@ -153,7 +220,7 @@ export function HeroHologram({ size = 95 }: HeroHologramProps) {
           width: size,
           height: size,
         }}
-        animate={reduce ? undefined : { y: [0, -3, 0] }}
+        animate={reduce ? undefined : { y: [0, -2, 0] }}
         transition={
           reduce
             ? undefined
@@ -174,9 +241,8 @@ export function HeroHologram({ size = 95 }: HeroHologramProps) {
                 }
           }
           style={{
-            // Silhouette-shaped glow only; no halo block.
             filter:
-              'drop-shadow(0 0 6px rgba(124,255,0,0.45)) drop-shadow(0 0 14px rgba(124,255,0,0.20))',
+              'drop-shadow(0 0 6px rgba(124,255,0,0.50)) drop-shadow(0 0 14px rgba(124,255,0,0.24))',
           }}
         >
           <Image
@@ -191,14 +257,13 @@ export function HeroHologram({ size = 95 }: HeroHologramProps) {
             }}
           />
 
-          {/* ─── Subtle vertical-moving scanlines ──────────
-              Clipped to the shield via mix-blend-mode. */}
+          {/* ─── 7. Subtle vertical-moving scanlines ─────── */}
           {!reduce && (
             <motion.div
               className="absolute inset-0 pointer-events-none"
               style={{
                 backgroundImage:
-                  'repeating-linear-gradient(0deg, rgba(220,255,235,0.05) 0px, rgba(220,255,235,0.05) 1px, transparent 1px, transparent 4px)',
+                  'repeating-linear-gradient(0deg, rgba(220,255,235,0.06) 0px, rgba(220,255,235,0.06) 1px, transparent 1px, transparent 4px)',
                 backgroundSize: '100% 8px',
                 mixBlendMode: 'overlay',
               }}

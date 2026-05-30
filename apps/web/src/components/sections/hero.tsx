@@ -23,10 +23,9 @@
 //      kept; image is still a background, not a card.
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { ArrowRight } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { HeroHologram } from './hero-hologram'
+import HologramPrototype from '@/components/experiments/HologramPrototype'
 
 const TRUST_ITEMS = ['2 minutes', 'Read-only', 'No changes made', '100% safe']
 
@@ -66,73 +65,30 @@ export function Hero() {
         }}
       />
 
-      {/* ────────── CINEMATIC IMAGE + HOLOGRAM LAYER ──────────
-          Layer wraps BOTH the masked image and the hologram so
-          they move together. Hologram offsets are relative to
-          this layer, which keeps the shield glued to the in-
-          image projector puck regardless of viewport size.
-
-          v7 — swapped to background 2:
-            • Wider 16:9 aspect (vs bg1's 16:10) → layer width
-              bumped 56% → 60% to keep the tablet+puck pair at
-              a comfortable size without cropping.
-            • Tablet is centered-left in bg2 and the projector
-              puck is a separate object further to the right.
-              The image now anchors to 'center bottom' so the
-              centered composition stays visually balanced.
-            • Hologram retuned to sit over the new standalone
-              puck (much further right of the tablet than
-              bg1's attached base).
-       */}
+      {/* ────────── NEW HOLOGRAM PROJECTOR LAYER ──────────
+          Self-contained projection scene (projector base + beams +
+          particles + floating WebHound shield) — replaces the old
+          tablet-background image and the 140px standalone shield.
+          Fills the right column; a four-edge mask fades the
+          projection into the hero so there's no visible box edge,
+          and it overlaps the left dark-veil for a clean blend. */}
       <div
+        aria-hidden
         className="hidden lg:block absolute pointer-events-none"
         style={{
-          top: '6%',
-          right: '2%',
+          top: 0,
+          right: 0,
           bottom: 0,
-          // v8: 60% → 58% so the standalone projector puck on
-          // the right of bg2 keeps a couple percent of right-
-          // edge breathing room on narrower viewports.
           width: '58%',
+          maskImage:
+            'linear-gradient(90deg, transparent 0%, black 20%, black 97%, transparent 100%), linear-gradient(180deg, transparent 0%, black 4%, black 96%, transparent 100%)',
+          WebkitMaskImage:
+            'linear-gradient(90deg, transparent 0%, black 20%, black 97%, transparent 100%), linear-gradient(180deg, transparent 0%, black 4%, black 96%, transparent 100%)',
+          maskComposite: 'intersect',
+          WebkitMaskComposite: 'source-in',
         }}
       >
-        {/* Masked image — four-edge soft vignette. */}
-        <div
-          aria-hidden
-          className="absolute inset-0"
-          style={{
-            maskImage:
-              'linear-gradient(90deg, transparent 0%, black 18%, black 94%, transparent 100%), linear-gradient(180deg, transparent 0%, black 10%, black 92%, transparent 100%)',
-            WebkitMaskImage:
-              'linear-gradient(90deg, transparent 0%, black 18%, black 94%, transparent 100%), linear-gradient(180deg, transparent 0%, black 10%, black 92%, transparent 100%)',
-            maskComposite: 'intersect',
-            WebkitMaskComposite: 'source-in',
-          }}
-        >
-          <Image
-            src="/images/hero-background-2.jpeg"
-            alt=""
-            fill
-            priority
-            sizes="60vw"
-            className="object-contain"
-            style={{ objectPosition: 'center bottom' }}
-          />
-        </div>
-
-        {/* Hologram — positioned over the standalone projector
-            puck on the right of bg2.
-            v10b polish: right: 17% → 16% — direct-snap showed
-            the shield ~1-2% left of the puck's axis. */}
-        <div
-          className="absolute pointer-events-none"
-          style={{
-            right: '16%',
-            bottom: '22%',
-          }}
-        >
-          <HeroHologram size={140} />
-        </div>
+        <HologramPrototype embedded />
       </div>
 
       {/* Dark veil between text and visual. Image-side

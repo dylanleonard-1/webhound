@@ -16,7 +16,7 @@
    ──────────────────────────────────────────────────────────────────────── */
 
 import Image from 'next/image'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 /* ===========================================================================
    TUNABLE VARIABLES  — everything is easy to tweak from this one object.
@@ -63,14 +63,26 @@ const GREEN = '#8BFF3E'
 const GREEN_DIM = '#5fcc1a'
 const GREEN_DEEP = '#2e7a08'
 
-export default function HologramPrototype() {
+/**
+ * @param embedded  When true the scene fills its positioned parent (instead
+ *   of the viewport), uses a transparent/blended background, measures its own
+ *   box for auto-fit, and disables the debug panel + "D" key listener. Use
+ *   this for dropping the hologram into the hero. Default false = standalone
+ *   full-screen sandbox.
+ */
+export default function HologramPrototype({
+  embedded = false,
+}: { embedded?: boolean } = {}) {
   const [cfg, setCfg] = useState<HoloConfig>(DEFAULTS)
   const [debug, setDebug] = useState(false)
   const [reduce, setReduce] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const enableDebug = !embedded
 
-  // Debug from URL (?holo-debug) + "D" key toggle.
+  // Debug from URL (?holo-debug) + "D" key toggle. Disabled when embedded
+  // so the homepage never hijacks the "d" key or shows the tuning panel.
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    if (typeof window === 'undefined' || !enableDebug) return
     const params = new URLSearchParams(window.location.search)
     if (params.has('holo-debug')) setDebug(true)
 
@@ -81,7 +93,7 @@ export default function HologramPrototype() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [enableDebug])
 
   // prefers-reduced-motion
   useEffect(() => {
@@ -105,9 +117,13 @@ export default function HologramPrototype() {
   })
   useEffect(() => {
     if (typeof window === 'undefined') return
+    const el = rootRef.current
     const recompute = () => {
-      const vw = window.innerWidth
-      const vh = window.innerHeight
+      // Measure the component's own box so this works identically whether
+      // it fills the viewport (standalone) or a hero column (embedded).
+      const rect = el?.getBoundingClientRect()
+      const vw = rect?.width || window.innerWidth
+      const vh = rect?.height || window.innerHeight
       // Distance from the projector baseline up to the top of the
       // shield (incl. its glow), and down to the floor reflection.
       const top = cfg.beamHeight + cfg.shieldSize * 1.04
@@ -115,13 +131,19 @@ export default function HologramPrototype() {
       const compH = top + bottom
       const compW = Math.max(cfg.shieldSize * 1.5, cfg.beamSpread * 1.4, 680)
       const scale = Math.min(1, (vh * 0.94) / compH, (vw * 0.94) / compW)
-      // Baseline screen-Y (px) that vertically centers the scaled scene.
+      // Baseline Y (px, box-local) that vertically centers the scaled scene.
       const baselineY = vh / 2 + (scale * (top - bottom)) / 2
       setFit({ scale, anchorY: baselineY })
     }
     recompute()
+    const ro =
+      el && 'ResizeObserver' in window ? new ResizeObserver(recompute) : null
+    if (ro && el) ro.observe(el)
     window.addEventListener('resize', recompute)
-    return () => window.removeEventListener('resize', recompute)
+    return () => {
+      window.removeEventListener('resize', recompute)
+      ro?.disconnect()
+    }
   }, [cfg.beamHeight, cfg.shieldSize, cfg.beamSpread])
 
   // Pre-compute beam descriptors (positions / speeds / brightness vary).
@@ -182,7 +204,8 @@ export default function HologramPrototype() {
 
   return (
     <div
-      className={`holo-root${debug ? ' holo-debug' : ''}${noMotion ? ' holo-reduce' : ''}`}
+      ref={rootRef}
+      className={`holo-root${embedded ? ' holo-embedded' : ''}${debug ? ' holo-debug' : ''}${noMotion ? ' holo-reduce' : ''}`}
       style={rootStyle}
     >
       <style>{CSS}</style>
@@ -357,7 +380,7 @@ function DebugPanel({
    =========================================================================== */
 const CSS = `
 .holo-root{
-  position:fixed; inset:0; overflow:hidden;
+  position:absolute; inset:0; overflow:hidden;
   background:#000;
   background:
     radial-gradient(120% 90% at 50% 78%, #04140a 0%, #020806 45%, #000 100%);
@@ -365,6 +388,12 @@ const CSS = `
   --gv: var(--glow);
 }
 .holo-root *{ pointer-events:none; }
+/* Embedded in the hero: no opaque box — let the projection's own glow
+   float over the hero background, with a soft dark-green pool for depth. */
+.holo-embedded{
+  background:radial-gradient(70% 70% at 55% 60%,
+    rgba(4,20,10,0.55) 0%, rgba(2,6,23,0) 72%) !important;
+}
 
 /* ---------- environmental ambient ---------- */
 .holo-ambient{

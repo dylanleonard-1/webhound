@@ -20,21 +20,25 @@
      TL 24.5,15.5 · TR 70.5,11.5 · BR 66.0,72.5 · BL 18.5,69.0
    ──────────────────────────────────────────────────────────────────────── */
 
+import Image from 'next/image'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 // Image natural aspect (1672×941) — matches object-contain math.
 const NAT_AR = 1672 / 941
 
 // Screen-glass quad as % of the rendered image content box.
+// Tightened to the bezel + extra keystone so the panel seats into the
+// tablet's perspective (right edge pushed out, bottom dropped slightly).
 const QUAD = {
-  TL: [24.5, 15.5],
-  TR: [70.5, 11.5],
-  BR: [66.0, 72.5],
-  BL: [18.5, 69.0],
+  TL: [24.8, 16.2],
+  TR: [71.8, 11.2],
+  BR: [69.0, 73.8],
+  BL: [19.0, 68.2],
 } as const
 
-// Inset the UI ~3.5% inside the quad so nothing kisses the bezel glow.
-const INSET = 0.035
+// Inset the UI ~2.2% inside the quad — fills more of the glass while
+// still clearing the rounded bezel corners.
+const INSET = 0.022
 
 // Authored design space (the matrix maps this rect onto the quad).
 const DESIGN_W = 725
@@ -146,13 +150,20 @@ export function HeroTabletDashboard() {
 
         {/* glass surface */}
         <div className="htd-glass">
-          {/* scanning line sweeping the whole dashboard */}
-          <div className="htd-scanline" />
+          {/* top-edge LCD sheen (static — reads as a glossy screen) */}
+          <div className="htd-sheen" />
 
           {/* ── header ── */}
           <div className="htd-header">
             <div className="htd-brand">
-              <span className="htd-logo" />
+              <Image
+                src="/images/webhound-logo-1.png"
+                alt=""
+                width={20}
+                height={20}
+                className="htd-logo"
+                draggable={false}
+              />
               WebHound
             </div>
             <div className="htd-scanning">
@@ -340,21 +351,23 @@ const CSS = `
   position:absolute; inset:0; border-radius:14px; overflow:hidden;
   padding:22px 24px;
   display:flex; flex-direction:column; gap:14px;
+  /* Neutral near-black LCD — green is accent only, no projection tint. */
   background:
-    linear-gradient(160deg, rgba(20,28,24,0.92) 0%, rgba(8,12,16,0.95) 60%, rgba(6,10,12,0.97) 100%);
-  border:1px solid rgba(139,255,62,0.16);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), inset 0 0 60px rgba(139,255,62,0.04);
+    linear-gradient(165deg, #0b0f16 0%, #070a10 55%, #05080c 100%);
+  border:1px solid rgba(255,255,255,0.08);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
 }
-.htd-scanline{
-  position:absolute; left:0; right:0; top:0; height:120px;
-  background:linear-gradient(180deg, rgba(139,255,62,0.10), transparent 80%);
-  animation: htd-sweep 6s linear infinite;
+/* static top-edge sheen so it reads as a glossy 4K screen, not a hologram */
+.htd-sheen{
+  position:absolute; left:0; right:0; top:0; height:42%;
+  background:linear-gradient(180deg, rgba(255,255,255,0.045), transparent 92%);
+  pointer-events:none;
 }
 /* header */
 .htd-header{ display:flex; align-items:center; gap:14px; }
 .htd-brand{ display:flex; align-items:center; gap:8px; font-weight:700; font-size:16px; letter-spacing:-0.01em; }
-.htd-logo{ width:14px; height:16px; border-radius:3px 3px 5px 5px;
-  background:linear-gradient(160deg, ${G}, #2e7a08); box-shadow:0 0 8px rgba(139,255,62,0.6); }
+.htd-logo{ width:20px; height:20px; object-fit:contain;
+  filter:drop-shadow(0 0 5px rgba(139,255,62,0.35)); }
 .htd-scanning{ font-size:12.5px; color:#9A9AA0; margin-left:2px; }
 .htd-domain{ color:#EDEDED; font-weight:600; }
 .htd-live{ margin-left:auto; display:flex; align-items:center; gap:7px;
@@ -437,18 +450,15 @@ const CSS = `
 @keyframes htd-pulse{ 0%,100%{ opacity:1; transform:scale(1);} 50%{ opacity:0.45; transform:scale(0.82);} }
 @keyframes htd-spin{ to{ transform:rotate(360deg);} }
 @keyframes htd-fadein{ to{ opacity:1; transform:translateY(0);} }
-@keyframes htd-sweep{ 0%{ transform:translateY(-130px);} 100%{ transform:translateY(520px);} }
 @keyframes htd-progress{ 0%{ width:38%;} 50%{ width:74%;} 100%{ width:38%;} }
 @keyframes htd-shimmer{ 0%,100%{ transform:translateX(-100%);} 55%,70%{ transform:translateX(100%);} }
 
 /* reduced motion: hold everything in its resting/visible state */
-.htd-reduce .htd-scanline,
 .htd-reduce .htd-live-dot,
 .htd-reduce .htd-mon-dot,
 .htd-reduce .htd-bar-fill,
 .htd-reduce .htd-steps li.active .htd-step-ic,
 .htd-reduce .htd-wade::after{ animation:none !important; }
 .htd-reduce .htd-findings li{ opacity:1 !important; transform:none !important; animation:none !important; }
-.htd-reduce .htd-scanline{ display:none; }
 .htd-reduce .htd-bar-fill{ width:62%; }
 `

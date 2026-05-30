@@ -100,7 +100,8 @@ export function HeroHologram({ size = 108 }: HeroHologramProps) {
       {/* ─── 3. Soft cone-shaped green/cyan glow ────────────
           The "projection beam" the brief asked for. A narrow
           cone widening from the base up to just past the
-          shield. Soft, low opacity — bridges base ↔ shield. */}
+          shield. v8: opacity raised 0.20 → 0.26 so the
+          projection clearly outshines the puck's own LED. */}
       <motion.div
         className="absolute left-1/2 -translate-x-1/2"
         style={{
@@ -108,12 +109,12 @@ export function HeroHologram({ size = 108 }: HeroHologramProps) {
           width: containerW * 0.55,
           height: containerH * 0.92,
           background:
-            'conic-gradient(from 90deg at 50% 100%, rgba(124,255,0,0) 0deg, rgba(124,255,0,0.20) 12deg, rgba(140,255,235,0.12) 22deg, rgba(124,255,0,0) 38deg)',
+            'conic-gradient(from 90deg at 50% 100%, rgba(124,255,0,0) 0deg, rgba(124,255,0,0.26) 12deg, rgba(140,255,235,0.16) 22deg, rgba(124,255,0,0) 38deg)',
           filter: 'blur(10px)',
           mixBlendMode: 'screen',
         }}
-        initial={{ opacity: 0.7 }}
-        animate={reduce ? { opacity: 0.7 } : { opacity: [0.55, 0.85, 0.55] }}
+        initial={{ opacity: 0.78 }}
+        animate={reduce ? { opacity: 0.78 } : { opacity: [0.62, 0.92, 0.62] }}
         transition={
           reduce
             ? undefined
@@ -144,7 +145,10 @@ export function HeroHologram({ size = 108 }: HeroHologramProps) {
         }
       />
 
-      {/* ─── 4. Thin projection rays (brighter than v5) ─── */}
+      {/* ─── 4. Thin projection rays (brighter than v5) ───
+          v8: middle ray pulse target raised to 1.0 (was
+          0.95) and base opacity to 1.0 so the central beam
+          clearly outshines the puck's built-in LED. */}
       {RAYS.map((ray, i) => (
         <motion.div
           key={i}
@@ -156,20 +160,20 @@ export function HeroHologram({ size = 108 }: HeroHologramProps) {
             width: ray.w,
             height: size * 1.0,
             background: ray.mid
-              ? 'linear-gradient(180deg, rgba(140,255,235,0) 0%, rgba(140,255,235,0.55) 45%, rgba(220,255,255,0.92) 100%)'
-              : 'linear-gradient(180deg, rgba(140,255,235,0) 0%, rgba(140,255,235,0.32) 45%, rgba(140,255,235,0.65) 100%)',
+              ? 'linear-gradient(180deg, rgba(140,255,235,0) 0%, rgba(140,255,235,0.62) 45%, rgba(220,255,255,1) 100%)'
+              : 'linear-gradient(180deg, rgba(140,255,235,0) 0%, rgba(140,255,235,0.36) 45%, rgba(140,255,235,0.72) 100%)',
             filter: 'blur(0.6px)',
             mixBlendMode: 'screen',
-            opacity: ray.mid ? 0.92 : 0.68,
+            opacity: ray.mid ? 1 : 0.74,
           }}
           animate={
             reduce
               ? undefined
               : {
                   opacity: [
-                    ray.mid ? 0.78 : 0.52,
-                    ray.mid ? 1 : 0.78,
-                    ray.mid ? 0.78 : 0.52,
+                    ray.mid ? 0.85 : 0.58,
+                    ray.mid ? 1 : 0.82,
+                    ray.mid ? 0.85 : 0.58,
                   ],
                 }
           }

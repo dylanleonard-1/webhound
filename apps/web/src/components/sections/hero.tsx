@@ -33,11 +33,14 @@ const TRUST_ITEMS = ['2 minutes', 'Read-only', 'No changes made', '100% safe']
 export function Hero() {
   return (
     <section
-      className="relative overflow-hidden pt-10 lg:pt-12"
+      className="relative overflow-hidden pt-14 lg:pt-16"
       style={{
         // v4 cap was 760; v5 drops to 700 so the entire hero
         // fits at 1920×1080 below a 64–80px header without
         // overlap of the next section.
+        // v8: top padding bumped pt-10/12 → pt-14/16 so the
+        // eyebrow pill sits clear of the nav bar (try-1
+        // screenshot showed it touching the nav).
         background: '#020617',
         minHeight: 'min(86vh, 700px)',
       }}
@@ -87,7 +90,10 @@ export function Hero() {
           top: '6%',
           right: '2%',
           bottom: 0,
-          width: '60%',
+          // v8: 60% → 58% so the standalone projector puck on
+          // the right of bg2 keeps a couple percent of right-
+          // edge breathing room on narrower viewports.
+          width: '58%',
         }}
       >
         {/* Masked image — four-edge soft vignette. */}
@@ -116,15 +122,21 @@ export function Hero() {
 
         {/* Hologram — positioned over the standalone projector
             puck on the right of bg2.
-            Puck center sits roughly at image-x 76%, image-y
-            75% → in layer coords with object-contain center-
-            bottom that maps to about right: 21%, bottom: 23%.
-            Empirically tuned; will iterate once you eyeball it. */}
+            v8 retune (try-1 review):
+              right:  21% → 17%   (shield was landing too far
+                                    left of the puck; move it
+                                    right toward the puck)
+              bottom: 23% → 30%   (shield was sitting INSIDE
+                                    the puck instead of ABOVE
+                                    it; move it up so the
+                                    hologram base aligns with
+                                    the puck's top emitter
+                                    ring) */}
         <div
           className="absolute pointer-events-none"
           style={{
-            right: '21%',
-            bottom: '23%',
+            right: '17%',
+            bottom: '30%',
           }}
         >
           <HeroHologram size={108} />

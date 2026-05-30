@@ -93,6 +93,31 @@ export default function HologramPrototype() {
     return () => mq.removeEventListener('change', apply)
   }, [])
 
+  // Auto-fit: center the whole projector→shield composition in the
+  // viewport and scale it down if it would overflow, so the full
+  // hologram is always visible at any window size / slider value.
+  const [fit, setFit] = useState({ scale: 1, anchorY: 0.62 })
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const recompute = () => {
+      const vw = window.innerWidth
+      const vh = window.innerHeight
+      // Distance from the projector baseline up to the top of the
+      // shield (incl. its glow), and down to the floor reflection.
+      const top = cfg.beamHeight + cfg.shieldSize * 1.04
+      const bottom = 130
+      const compH = top + bottom
+      const compW = Math.max(cfg.shieldSize * 1.5, cfg.beamSpread * 1.4, 680)
+      const scale = Math.min(1, (vh * 0.94) / compH, (vw * 0.94) / compW)
+      // Baseline screen-Y (px) that vertically centers the scaled scene.
+      const baselineY = vh / 2 + (scale * (top - bottom)) / 2
+      setFit({ scale, anchorY: baselineY })
+    }
+    recompute()
+    window.addEventListener('resize', recompute)
+    return () => window.removeEventListener('resize', recompute)
+  }, [cfg.beamHeight, cfg.shieldSize, cfg.beamSpread])
+
   // Pre-compute beam descriptors (positions / speeds / brightness vary).
   const beams = useMemo(() => {
     const n = cfg.beamCount
@@ -140,6 +165,8 @@ export default function HologramPrototype() {
     '--flicker-low': Math.max(0, cfg.shieldOpacity * (1 - cfg.flickerStrength)),
     '--scanline-opacity': cfg.scanlineOpacity,
     '--glow': cfg.glowIntensity,
+    '--fit': fit.scale,
+    '--anchor-y': `${fit.anchorY}px`,
     '--green': GREEN,
     '--green-dim': GREEN_DIM,
     '--green-deep': GREEN_DEEP,
@@ -361,7 +388,7 @@ const CSS = `
   animation:holo-grid-pan 12s linear infinite;
 }
 .holo-floor-glow{
-  position:absolute; left:50%; top:62%;
+  position:absolute; left:50%; top:var(--anchor-y, 62%);
   width:680px; height:200px; transform:translate(-50%,-50%);
   background:radial-gradient(ellipse at center,
     color-mix(in srgb, var(--green) 32%, transparent) 0%, transparent 70%);
@@ -371,10 +398,10 @@ const CSS = `
 
 /* ---------- centering stage ---------- */
 .holo-stage{
-  position:absolute; left:50%; top:50%;
-  transform:translate(-50%,-50%);
+  position:absolute; left:50%; top:var(--anchor-y, 62%);
+  transform:translateX(-50%) scale(var(--fit, 1));
+  transform-origin:50% 100%;
   width:0; height:0;
-  display:flex; align-items:flex-end; justify-content:center;
 }
 
 /* ---------- beams ---------- */

@@ -1,30 +1,26 @@
 'use client'
 
 // WebHound — components/sections/hero.tsx
-// Hero v4 — cinematic blended background, no card framing.
+// Hero v5 — zoomed-out cinematic visual, smaller hologram
+// anchored to the projector base.
 //
-// Architecture change from v3:
-//   v3 used a 2-column grid (text | image-card). The image
-//   read as a rectangle "pasted onto" the hero.
-//   v4 treats the right ~58% of the section as a CINEMATIC
-//   BACKGROUND LAYER. The image is absolutely positioned,
-//   mask-image fades all four edges into the page surface,
-//   and a dark gradient veil keeps the text readable on the
-//   left without any visible boundary between text and visual.
-//
-// Per the v3 review:
-//   1. Hard rectangle gone — no border-radius, no card, no
-//      drop-shadow box, no aspect-ratio wrapper.
-//   2. Multi-edge mask blends image into the surrounding dark.
-//   3. Image feels like the room the copy sits in.
-//   4. Image width raised again (now covers the right 58% of
-//      the section), but the mask crops it cinematically.
-//   5. Hologram shrunk ~41% (see hero-hologram.tsx).
-//   6. Hologram positioned closer to the projector base.
-//   7. Beam thinner, glow halved (see hero-hologram.tsx).
-//   8. Above-the-fold on 1920×1080 maintained.
-//   9. Mobile: visual layer hidden — copy + CTA prioritized,
-//      hologram dropped, no horizontal scroll.
+// v4 review fixes baked in here:
+//   1. Image zoomed out (~20%) — switched from object-cover
+//      ("40% 50%", which cropped top/right of the tablet) to
+//      object-contain anchored bottom-right. Full tablet +
+//      full projector are visible.
+//   2. Image repositioned right + down — layer top inset to
+//      6%, right inset to 2%, image anchored to 'right
+//      bottom' inside the layer. Visible breathing room on
+//      top + right edges.
+//   3. Hologram lives INSIDE the image layer so it stays
+//      glued to the projector base regardless of viewport.
+//      Right/bottom offsets tuned over the in-image base.
+//   4. Hero vertical height tightened — section minHeight
+//      cap dropped 760 → 700px; container pb cut 8 → 6.
+//      Whole hero (eyebrow → trust row) fits at 1920×1080.
+//   5. Blend preserved — four-edge mask + dark gradient veil
+//      kept; image is still a background, not a card.
 
 import Link from 'next/link'
 import Image from 'next/image'
@@ -39,12 +35,11 @@ export function Hero() {
     <section
       className="relative overflow-hidden pt-10 lg:pt-12"
       style={{
-        // Section height is constrained so the entire hero
-        // fits above the fold on 1920×1080 (after subtracting
-        // a ~64–80px sticky header). 720px works at 1080p; on
-        // taller viewports the section naturally grows.
+        // v4 cap was 760; v5 drops to 700 so the entire hero
+        // fits at 1920×1080 below a 64–80px header without
+        // overlap of the next section.
         background: '#020617',
-        minHeight: 'min(92vh, 760px)',
+        minHeight: 'min(86vh, 700px)',
       }}
     >
       {/* Subtle noise */}
@@ -57,7 +52,7 @@ export function Hero() {
         }}
       />
 
-      {/* Faint grid — kept barely visible (~28% of v2) */}
+      {/* Faint grid — barely visible */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-[0.005]"
@@ -68,35 +63,38 @@ export function Hero() {
         }}
       />
 
-      {/* ─────────────── CINEMATIC IMAGE LAYER ───────────────
-          Desktop only. Absolutely positioned over the right
-          ~58% of the section. The image fills that box with
-          object-cover, then a four-edge mask softens every
-          edge into transparency so it blends into the dark
-          surface instead of sitting as a clipped rectangle.
+      {/* ────────── CINEMATIC IMAGE + HOLOGRAM LAYER ──────────
+          Layer wraps BOTH the masked image and the hologram so
+          they move together. Hologram offsets are relative to
+          this layer, which keeps the shield glued to the in-
+          image projector base regardless of viewport size.
 
-          We use two stacked linear-gradient masks composited
-          with `mask-composite: intersect` (modern spec) +
-          `-webkit-mask-composite: source-in` (older WebKit) —
-          one fades left/right, the other fades top/bottom.
-          Together they produce a soft-edged vignette without
-          turning the image into a circle.
-
-          Hidden on <lg breakpoints so mobile/tablet prioritize
-          the copy. */}
+          Layer insets:
+            top: 6%   — breathing room at top
+            right: 2% — breathing room at right
+            width: 56% — slightly narrower than v4 (was 58%)
+                         so the image has room to breathe
+                         without being shoved to the corner
+            bottom: 0
+       */}
       <div
-        aria-hidden
-        className="hidden lg:block absolute top-0 right-0 h-full pointer-events-none"
-        style={{ width: '58%' }}
+        className="hidden lg:block absolute pointer-events-none"
+        style={{
+          top: '6%',
+          right: '2%',
+          bottom: 0,
+          width: '56%',
+        }}
       >
+        {/* Masked image — four-edge soft vignette. */}
         <div
-          className="relative w-full h-full"
+          aria-hidden
+          className="absolute inset-0"
           style={{
-            // Four-edge soft vignette mask.
             maskImage:
-              'linear-gradient(90deg, transparent 0%, black 22%, black 90%, transparent 100%), linear-gradient(180deg, transparent 0%, black 14%, black 86%, transparent 100%)',
+              'linear-gradient(90deg, transparent 0%, black 22%, black 92%, transparent 100%), linear-gradient(180deg, transparent 0%, black 12%, black 90%, transparent 100%)',
             WebkitMaskImage:
-              'linear-gradient(90deg, transparent 0%, black 22%, black 90%, transparent 100%), linear-gradient(180deg, transparent 0%, black 14%, black 86%, transparent 100%)',
+              'linear-gradient(90deg, transparent 0%, black 22%, black 92%, transparent 100%), linear-gradient(180deg, transparent 0%, black 12%, black 90%, transparent 100%)',
             maskComposite: 'intersect',
             WebkitMaskComposite: 'source-in',
           }}
@@ -106,30 +104,47 @@ export function Hero() {
             alt=""
             fill
             priority
-            sizes="58vw"
-            className="object-cover"
-            style={{ objectPosition: '40% 50%' }}
+            sizes="56vw"
+            // v4 was object-cover (cropped top/right). v5
+            // switches to object-contain so the full tablet
+            // and projector are visible. objectPosition anchors
+            // the contained image to the bottom-right corner
+            // of the layer.
+            className="object-contain"
+            style={{ objectPosition: 'right bottom' }}
           />
+        </div>
+
+        {/* Hologram — positioned over the projector base.
+            Offsets are empirically tuned for the image at
+            object-contain 'right bottom' inside this layer.
+            Inside the same wrapper so it follows the image
+            as the viewport scales. */}
+        <div
+          className="absolute pointer-events-none"
+          style={{
+            right: '6%',
+            bottom: '11%',
+          }}
+        >
+          <HeroHologram size={95} />
         </div>
       </div>
 
-      {/* Dark gradient veil between text and visual.
-          Sits *over* the image, fading from full dark on the
-          left to fully transparent on the right. This is what
-          keeps the copy readable without ever introducing a
-          visible boundary between text and image. */}
+      {/* Dark veil between text and visual. Image-side
+          unchanged from v4; this is what keeps the headline
+          readable without a visible card edge. */}
       <div
         aria-hidden
         className="hidden lg:block absolute inset-y-0 left-0 pointer-events-none"
         style={{
-          width: '70%',
+          width: '68%',
           background:
             'linear-gradient(90deg, #020617 0%, rgba(2,6,23,0.95) 25%, rgba(2,6,23,0.7) 55%, rgba(2,6,23,0.25) 80%, transparent 100%)',
         }}
       />
 
-      {/* Soft ambient green wash — keeps the green brand color
-          present even where the image fades out. */}
+      {/* Ambient brand-green wash */}
       <div
         aria-hidden
         className="pointer-events-none absolute top-0 right-0 hidden lg:block"
@@ -141,8 +156,8 @@ export function Hero() {
         }}
       />
 
-      {/* ─────────────── COPY LAYER ─────────────── */}
-      <div className="relative z-10 max-w-[1480px] mx-auto px-6 sm:px-10 xl:px-16 pt-2 pb-6 lg:pt-4 lg:pb-8">
+      {/* ────────── COPY LAYER ────────── */}
+      <div className="relative z-10 max-w-[1480px] mx-auto px-6 sm:px-10 xl:px-16 pt-2 pb-5 lg:pt-3 lg:pb-6">
         <div className="max-w-[560px]">
 
           <motion.div
@@ -172,7 +187,7 @@ export function Hero() {
 
           <motion.h1
             className="font-bold leading-[1.02] tracking-[-0.03em] mb-5"
-            style={{ fontSize: 'clamp(2.2rem, 4.4vw, 4rem)' }}
+            style={{ fontSize: 'clamp(2.1rem, 4.2vw, 3.8rem)' }}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.12 }}
@@ -184,7 +199,7 @@ export function Hero() {
           </motion.h1>
 
           <motion.p
-            className="leading-[1.6] max-w-[500px] mb-6 text-[15px]"
+            className="leading-[1.6] max-w-[500px] mb-5 text-[14.5px]"
             style={{ color: 'rgba(255,255,255,0.68)' }}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -244,7 +259,7 @@ export function Hero() {
           </motion.div>
 
           <motion.div
-            className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-6"
+            className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-5"
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.42 }}
@@ -275,24 +290,6 @@ export function Hero() {
             ))}
           </motion.div>
         </div>
-      </div>
-
-      {/* ─────────────── HOLOGRAM LAYER ───────────────
-          Anchored to the bottom-right of the section so it sits
-          over the projector base in the background image. Sized
-          per breakpoint; hidden on mobile (where the image
-          itself is hidden so there's nothing to project from). */}
-      <div
-        className="hidden lg:block absolute pointer-events-none"
-        style={{ right: '11%', bottom: '4%' }}
-      >
-        <HeroHologram size={130} />
-      </div>
-      <div
-        className="hidden md:block lg:hidden absolute pointer-events-none"
-        style={{ right: '8%', bottom: '4%' }}
-      >
-        <HeroHologram size={100} />
       </div>
     </section>
   )

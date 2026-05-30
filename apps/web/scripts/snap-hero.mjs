@@ -13,9 +13,10 @@
 //      assistant (or you) can open them.
 //
 // Usage:
-//   node apps/web/scripts/snap-hero.mjs                  # default: home page, all breakpoints
-//   node apps/web/scripts/snap-hero.mjs /scan            # different route
-//   node apps/web/scripts/snap-hero.mjs / desktop,mobile # subset of breakpoints
+//   node apps/web/scripts/snap-hero.mjs                            # default: home page, all breakpoints
+//   node apps/web/scripts/snap-hero.mjs /scan                      # different route
+//   node apps/web/scripts/snap-hero.mjs / desktop,mobile           # subset of breakpoints
+//   node apps/web/scripts/snap-hero.mjs / desktop right:16%        # require a marker in served HTML
 //
 // The dev server is NOT started by this script (Turbopack
 // boot takes ~10-20s and stays warm between iterations).
@@ -25,6 +26,15 @@
 //
 // If the server isn't up, this script exits non-zero with a
 // clear hint.
+//
+// The optional 3rd arg is a MARKER STRING. Before
+// screenshotting, the script fetches the served HTML and
+// checks the marker appears. If it doesn't, the script exits
+// with a clear error instead of saving a fake screenshot.
+// Use this to detect WSL+OneDrive Turbopack file-watcher
+// staleness: pass a unique string from your latest edit
+// (e.g. "right:16%" or "ellipse 75%") and you'll catch a
+// stale dev server before it produces a misleading PNG.
 
 import { chromium } from 'playwright'
 import { existsSync, mkdirSync } from 'node:fs'
@@ -47,6 +57,7 @@ const VIEWPORTS = {
 // ── argv ─────────────────────────────────────────────────────
 const route = process.argv[2] || '/'
 const requested = (process.argv[3] || '').split(',').filter(Boolean)
+const marker = process.argv[4] || ''
 const targets = requested.length
   ? requested.filter(name => VIEWPORTS[name])
   : Object.keys(VIEWPORTS)
@@ -75,6 +86,25 @@ if (!(await ping(BASE_URL))) {
   console.error(`   Start it first:`)
   console.error(`     cd apps/web && npm run dev`)
   process.exit(1)
+}
+
+// ── stale-HMR guard ──────────────────────────────────────────
+// If a marker was provided, verify it appears in the served
+// HTML for the route. Catches WSL+OneDrive Turbopack file-
+// watcher staleness BEFORE we save a misleading PNG.
+if (marker) {
+  const bust = `${BASE_URL}${route}${route.includes('?') ? '&' : '?'}cb=${Date.now()}`
+  const html = await fetch(bust, { cache: 'no-store' }).then(r => r.text())
+  if (!html.includes(marker)) {
+    console.error(`✖  Stale dev server — marker "${marker}" not in served HTML.`)
+    console.error(`   Turbopack on WSL+OneDrive sometimes misses file changes.`)
+    console.error(`   Fix:`)
+    console.error(`     1. pkill -9 -f "next dev|next-server"`)
+    console.error(`     2. rm -rf apps/web/.next`)
+    console.error(`     3. cd apps/web && CHOKIDAR_USEPOLLING=1 npm run dev`)
+    process.exit(3)
+  }
+  console.log(`✓ marker "${marker}" present in served HTML`)
 }
 
 // ── shoot ────────────────────────────────────────────────────

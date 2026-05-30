@@ -1,24 +1,33 @@
 'use client'
 
 // WebHound — components/sections/hero-hologram.tsx
-// Hero v6 — projection that visibly connects base to shield.
+// Hero v10 — "the shield IS the projected light".
 //
-// v5 review fixes baked in here:
-//   • Shield +14% bigger (95 → 108 default) so it reads as
-//     a projected image, not a sticker.
-//   • Soft cone-shaped green/cyan glow added BEHIND the
-//     shield. Narrow at the projector base, widens upward to
-//     just past the shield. This is what visually bridges the
-//     base to the shield — the "projected upward" cue.
-//   • Five thin projection rays brightened (opacity bases
-//     0.85/0.55 → 0.92/0.68) and middle ray thickened 1.5 →
-//     2px so the path from base to shield reads clearly.
-//   • Small radial glow under the shield itself so the
-//     shield sits on the cone instead of hovering above it.
-//   • Scanlines + flicker + float kept.
-//   • Outer green halo block stays REMOVED.
+// Rebuilt visual metaphor: v6–v9 treated the shield as an
+// object lit from below by a stack of rays + cone. That read
+// as "shield on a popsicle stick" because (a) the bunched
+// rays formed a visible vertical pillar, (b) the shield had
+// a hard solid bottom edge that contacted the pillar.
 //
-// All animations respect prefers-reduced-motion.
+// v10 changes:
+//   • Dropped the 5-ray fan entirely (the stick).
+//   • Shield bottom is masked to transparent — its lower 28%
+//     dissolves INTO the projection cone instead of touching
+//     it as a hard edge. This is the single biggest fix.
+//   • Cone is much wider (containerW × 0.85 vs 0.55) so it
+//     envelops the shield, taller (containerH × 1.05 vs 0.92)
+//     so its tip reaches the shield center, and brighter
+//     (stops 0.42/0.30 vs 0.34/0.22).
+//   • LED-emitter hotspot scaled up (size × 0.32 vs 0.18)
+//     to clearly outshine the in-image puck LED.
+//   • Shield image filter pushed: brightness 1.12 → 1.25,
+//     saturate 1.08 → 1.18, plus opacity 0.92 so it reads as
+//     emitted light, not a PNG sticker.
+//   • Scanlines opacity 0.06 → 0.12 so the holographic
+//     texture reads at normal viewing distance.
+//
+// Pure CSS + Framer Motion. All animations gated on
+// prefers-reduced-motion.
 
 import Image from 'next/image'
 import { motion, useReducedMotion } from 'framer-motion'
@@ -30,24 +39,12 @@ interface HeroHologramProps {
 
 export function HeroHologram({ size = 140 }: HeroHologramProps) {
   const reduce = useReducedMotion()
-  const containerW = size * 1.05
-  const containerH = size * 1.55
+  const containerW = size * 1.4
+  const containerH = size * 1.6
 
   const flicker = reduce
     ? { opacity: 1 }
     : { opacity: [1, 0.97, 1, 0.99, 1, 1, 0.94, 1] }
-
-  // Five thin rays. Middle is brightest + slightly thicker;
-  // outer rays dimmer + thinner. Reads as "light projected
-  // upward". v6: opacities bumped so the connection from base
-  // to shield is unambiguous.
-  const RAYS: Array<{ xFrac: number; w: number; mid: boolean }> = [
-    { xFrac: -0.18, w: 1,   mid: false },
-    { xFrac: -0.09, w: 1,   mid: false },
-    { xFrac:  0,    w: 2,   mid: true  },
-    { xFrac:  0.09, w: 1,   mid: false },
-    { xFrac:  0.18, w: 1,   mid: false },
-  ]
 
   return (
     <div
@@ -55,20 +52,20 @@ export function HeroHologram({ size = 140 }: HeroHologramProps) {
       style={{ width: containerW, height: containerH }}
       aria-hidden
     >
-      {/* ─── 1. Projector base puck ────────────────────── */}
+      {/* ─── 1. Projector base puck (background glow) ─────── */}
       <motion.div
         className="absolute left-1/2 -translate-x-1/2 rounded-full"
         style={{
           bottom: 0,
-          width: size * 0.7,
-          height: size * 0.11,
+          width: containerW * 0.75,
+          height: size * 0.13,
           background:
-            'radial-gradient(ellipse at center, rgba(140,255,235,0.5) 0%, rgba(124,255,0,0.2) 40%, transparent 80%)',
-          filter: 'blur(3px)',
+            'radial-gradient(ellipse at center, rgba(140,255,235,0.55) 0%, rgba(124,255,0,0.22) 40%, transparent 80%)',
+          filter: 'blur(4px)',
           mixBlendMode: 'screen',
         }}
         initial={{ opacity: 0.9 }}
-        animate={reduce ? { opacity: 0.9 } : { opacity: [0.75, 1, 0.75] }}
+        animate={reduce ? { opacity: 0.9 } : { opacity: [0.78, 1, 0.78] }}
         transition={
           reduce
             ? undefined
@@ -76,20 +73,18 @@ export function HeroHologram({ size = 140 }: HeroHologramProps) {
         }
       />
 
-      {/* ─── 1c. LED-emitter hotspot ─────────────────────
-          v9 add: a tiny bright dot at the very base of the
-          hologram, exactly where the in-image puck's LED ring
-          sits. This is what tells the eye "the projector is
-          ON" — without it the puck reads as decoration. */}
+      {/* ─── 2. LED-emitter hotspot ────────────────────────
+          v10: scaled up substantially (size × 0.32 × 0.08)
+          so 'the projector is on' is unambiguous. */}
       <motion.div
         className="absolute left-1/2 -translate-x-1/2 rounded-full"
         style={{
-          bottom: -size * 0.01,
-          width: size * 0.18,
-          height: size * 0.05,
+          bottom: -size * 0.005,
+          width: size * 0.32,
+          height: size * 0.08,
           background:
-            'radial-gradient(ellipse at center, rgba(220,255,255,1) 0%, rgba(140,255,235,0.7) 50%, transparent 85%)',
-          filter: 'blur(1px)',
+            'radial-gradient(ellipse at center, rgba(240,255,250,1) 0%, rgba(140,255,235,0.75) 45%, rgba(124,255,0,0.25) 75%, transparent 95%)',
+          filter: 'blur(1.5px)',
           mixBlendMode: 'screen',
         }}
         initial={{ opacity: 1 }}
@@ -101,46 +96,30 @@ export function HeroHologram({ size = 140 }: HeroHologramProps) {
         }
       />
 
-      {/* ─── 2. Inner base hotspot ────────────────────── */}
-      <motion.div
-        className="absolute left-1/2 -translate-x-1/2 rounded-full"
-        style={{
-          bottom: size * 0.025,
-          width: size * 0.3,
-          height: size * 0.07,
-          background:
-            'radial-gradient(ellipse at center, rgba(220,255,255,0.9) 0%, transparent 70%)',
-          filter: 'blur(1.5px)',
-          mixBlendMode: 'screen',
-        }}
-        initial={{ opacity: 1 }}
-        animate={reduce ? { opacity: 1 } : { opacity: [0.75, 1, 0.75] }}
-        transition={
-          reduce
-            ? undefined
-            : { duration: 2.2, repeat: Infinity, ease: 'easeInOut' }
-        }
-      />
-
-      {/* ─── 3. Soft cone-shaped green/cyan glow ────────────
-          The "projection beam" the brief asked for. A narrow
-          cone widening from the base up to just past the
-          shield. v9: stops 0.26/0.16 → 0.34/0.22 and opacity
-          envelope 0.62-0.92 → 0.72-1.0 so the cone reads as
-          a focused beam rather than haze. */}
+      {/* ─── 3. Wide soft projection cone ───────────────────
+          v10b: dropped conic-gradient (angles were placing
+          the bright region off-canvas at the bottom edge —
+          that's why prior versions looked like a thin
+          pillar). Switched to radial-gradient at the bottom
+          center, which naturally fans upward as a soft
+          cone-shaped half-ellipse. Wider (0.95) and brighter. */}
       <motion.div
         className="absolute left-1/2 -translate-x-1/2"
         style={{
-          bottom: size * 0.04,
-          width: containerW * 0.55,
-          height: containerH * 0.92,
+          bottom: size * 0.02,
+          // v10b polish: cone broadened so its tip at the
+          // shield reads as a wider envelope.
+          // width: 0.95 → 1.05
+          // ellipse radii: 65/100 → 75/100
+          width: containerW * 1.05,
+          height: containerH * 1.05,
           background:
-            'conic-gradient(from 90deg at 50% 100%, rgba(124,255,0,0) 0deg, rgba(124,255,0,0.34) 12deg, rgba(140,255,235,0.22) 22deg, rgba(124,255,0,0) 38deg)',
-          filter: 'blur(10px)',
+            'radial-gradient(ellipse 75% 100% at 50% 100%, rgba(124,255,0,0.55) 0%, rgba(124,255,0,0.30) 25%, rgba(140,255,235,0.18) 50%, transparent 80%)',
+          filter: 'blur(16px)',
           mixBlendMode: 'screen',
         }}
-        initial={{ opacity: 0.86 }}
-        animate={reduce ? { opacity: 0.86 } : { opacity: [0.72, 1, 0.72] }}
+        initial={{ opacity: 0.95 }}
+        animate={reduce ? { opacity: 0.95 } : { opacity: [0.82, 1, 0.82] }}
         transition={
           reduce
             ? undefined
@@ -148,22 +127,22 @@ export function HeroHologram({ size = 140 }: HeroHologramProps) {
         }
       />
 
-      {/* ─── 3b. Cyan core inside the cone ─────────────────
-          Tighter, cyan-leaning, just inside the cone. Sells
-          the "real holographic light" temperature. */}
+      {/* ─── 3b. Tighter cyan core inside the cone ──────────
+          Narrower radial-gradient, cyan-leaning. Sells the
+          temperature of holographic light. */}
       <motion.div
         className="absolute left-1/2 -translate-x-1/2"
         style={{
-          bottom: size * 0.06,
-          width: containerW * 0.3,
-          height: containerH * 0.75,
+          bottom: size * 0.04,
+          width: containerW * 0.5,
+          height: containerH * 0.95,
           background:
-            'conic-gradient(from 90deg at 50% 100%, rgba(140,255,235,0) 0deg, rgba(140,255,235,0.22) 10deg, rgba(140,255,235,0) 22deg)',
-          filter: 'blur(6px)',
+            'radial-gradient(ellipse 50% 100% at 50% 100%, rgba(140,255,235,0.55) 0%, rgba(140,255,235,0.22) 35%, transparent 75%)',
+          filter: 'blur(10px)',
           mixBlendMode: 'screen',
         }}
-        initial={{ opacity: 0.7 }}
-        animate={reduce ? { opacity: 0.7 } : { opacity: [0.55, 0.85, 0.55] }}
+        initial={{ opacity: 0.9 }}
+        animate={reduce ? { opacity: 0.9 } : { opacity: [0.75, 1, 0.75] }}
         transition={
           reduce
             ? undefined
@@ -171,80 +150,36 @@ export function HeroHologram({ size = 140 }: HeroHologramProps) {
         }
       />
 
-      {/* ─── 4. Thin projection rays (brighter than v8) ───
-          v9: outer rays raised so the 5-ray fan reads as a
-          visible silhouette of the projection cone instead
-          of 5 faint lines.
-            outer base opacity 0.74 → 0.85
-            outer gradient end 0.72 → 0.85 */}
-      {RAYS.map((ray, i) => (
-        <motion.div
-          key={i}
-          className="absolute"
-          style={{
-            left: `calc(50% + ${ray.xFrac * size}px)`,
-            transform: 'translateX(-50%)',
-            bottom: size * 0.04,
-            width: ray.w,
-            height: size * 1.0,
-            background: ray.mid
-              ? 'linear-gradient(180deg, rgba(140,255,235,0) 0%, rgba(140,255,235,0.62) 45%, rgba(220,255,255,1) 100%)'
-              : 'linear-gradient(180deg, rgba(140,255,235,0) 0%, rgba(140,255,235,0.42) 45%, rgba(140,255,235,0.85) 100%)',
-            filter: 'blur(0.6px)',
-            mixBlendMode: 'screen',
-            opacity: ray.mid ? 1 : 0.85,
-          }}
-          animate={
-            reduce
-              ? undefined
-              : {
-                  opacity: [
-                    ray.mid ? 0.85 : 0.7,
-                    ray.mid ? 1 : 0.92,
-                    ray.mid ? 0.85 : 0.7,
-                  ],
-                }
-          }
-          transition={
-            reduce
-              ? undefined
-              : {
-                  duration: 2.4 + i * 0.35,
-                  repeat: Infinity,
-                  ease: 'easeInOut',
-                }
-          }
-        />
-      ))}
-
-      {/* ─── 5. Soft radial glow seated under the shield ──
-          Tight, low-opacity, shaped to the shield silhouette
-          so the shield sits ON the cone instead of hovering
-          above it. */}
+      {/* ─── 4. Shield-seat halo behind the shield ──────────
+          Soft circular glow sitting where the shield will be.
+          Gives the shield an aura that says 'this object
+          emits light' rather than 'this object reflects light'. */}
       <motion.div
         className="absolute left-1/2 -translate-x-1/2 rounded-full"
         style={{
           top: size * 0.05,
-          width: size * 1.1,
-          height: size * 1.1,
+          width: size * 1.3,
+          height: size * 1.3,
           background:
-            'radial-gradient(circle at center, rgba(124,255,0,0.20) 0%, rgba(140,255,235,0.10) 35%, transparent 70%)',
-          filter: 'blur(12px)',
+            'radial-gradient(circle at center, rgba(124,255,0,0.28) 0%, rgba(140,255,235,0.14) 35%, transparent 70%)',
+          filter: 'blur(16px)',
           mixBlendMode: 'screen',
         }}
-        initial={{ opacity: 0.65 }}
-        animate={reduce ? { opacity: 0.65 } : { opacity: [0.5, 0.8, 0.5] }}
+        initial={{ opacity: 0.75 }}
+        animate={reduce ? { opacity: 0.75 } : { opacity: [0.6, 0.9, 0.6] }}
         transition={
           reduce
             ? undefined
-            : { duration: 3.5, repeat: Infinity, ease: 'easeInOut' }
+            : { duration: 3.6, repeat: Infinity, ease: 'easeInOut' }
         }
       />
 
-      {/* ─── 6. The shield ──────────────────────────────────
-          v5 floated at y 0→-3→0 and felt disconnected from the
-          base. v6 reduces float amplitude (−2) so the shield
-          stays visibly seated on the cone. */}
+      {/* ─── 5. The shield ──────────────────────────────────
+          v10: bottom 28% masked to transparency so it
+          DISSOLVES into the cone instead of touching it as
+          a hard edge. Slightly translucent (opacity 0.92)
+          and brighter saturation so it reads as emitted
+          light. Subtle float kept. */}
       <motion.div
         className="absolute left-1/2 -translate-x-1/2"
         style={{
@@ -274,7 +209,16 @@ export function HeroHologram({ size = 140 }: HeroHologramProps) {
           }
           style={{
             filter:
-              'drop-shadow(0 0 6px rgba(124,255,0,0.50)) drop-shadow(0 0 14px rgba(124,255,0,0.24))',
+              'drop-shadow(0 0 10px rgba(124,255,0,0.55)) drop-shadow(0 0 26px rgba(124,255,0,0.30)) drop-shadow(0 0 50px rgba(140,255,235,0.18))',
+            opacity: 0.92,
+            // The single biggest fix in v10 — the shield's
+            // bottom dissolves into the projection cone rather
+            // than presenting a hard edge that contacts the
+            // rays/cone.
+            maskImage:
+              'linear-gradient(180deg, black 0%, black 72%, transparent 100%)',
+            WebkitMaskImage:
+              'linear-gradient(180deg, black 0%, black 72%, transparent 100%)',
           }}
         >
           <Image
@@ -285,22 +229,27 @@ export function HeroHologram({ size = 140 }: HeroHologramProps) {
             priority
             style={{
               objectFit: 'contain',
-              filter: 'brightness(1.12) saturate(1.08)',
+              filter: 'brightness(1.25) saturate(1.18) contrast(1.05)',
             }}
           />
 
-          {/* ─── 7. Subtle vertical-moving scanlines ─────── */}
+          {/* ─── 6. Visible scanlines (clipped to shield) ──
+              v10: opacity 0.06 → 0.12. The holographic texture
+              should be visible at normal viewing distance, not
+              just up close. */}
           {!reduce && (
             <motion.div
               className="absolute inset-0 pointer-events-none"
               style={{
                 backgroundImage:
-                  'repeating-linear-gradient(0deg, rgba(220,255,235,0.06) 0px, rgba(220,255,235,0.06) 1px, transparent 1px, transparent 4px)',
+                  'repeating-linear-gradient(0deg, rgba(220,255,235,0.12) 0px, rgba(220,255,235,0.12) 1px, transparent 1px, transparent 4px)',
                 backgroundSize: '100% 8px',
                 mixBlendMode: 'overlay',
               }}
               animate={{ backgroundPositionY: ['0px', '16px'] }}
-              transition={{ duration: 2.8, repeat: Infinity, ease: 'linear' }}
+              // v10b polish: 2.8s → 2.0s so scanlines read as
+              // alive instead of static at normal viewing.
+              transition={{ duration: 2.0, repeat: Infinity, ease: 'linear' }}
             />
           )}
         </motion.div>

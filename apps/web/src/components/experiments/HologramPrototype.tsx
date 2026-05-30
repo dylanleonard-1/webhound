@@ -388,12 +388,23 @@ const CSS = `
   --gv: var(--glow);
 }
 .holo-root *{ pointer-events:none; }
-/* Embedded in the hero: no opaque box — let the projection's own glow
-   float over the hero background, with a soft dark-green pool for depth. */
+/* Embedded in the hero: fully transparent (no box fill) and radially
+   alpha-masked so every child — including the full-bleed ambient glow
+   and scanline overlay — fades to nothing well before the container's
+   rectangular edge. Result: no detectable box, just the volumetric
+   projection blending into the hero background. */
 .holo-embedded{
-  background:radial-gradient(70% 70% at 55% 60%,
-    rgba(4,20,10,0.55) 0%, rgba(2,6,23,0) 72%) !important;
+  background:transparent !important;
+  -webkit-mask-image:radial-gradient(68% 72% at 55% 58%,
+    #000 0%, #000 42%, rgba(0,0,0,0.35) 66%, transparent 82%);
+  mask-image:radial-gradient(68% 72% at 55% 58%,
+    #000 0%, #000 42%, rgba(0,0,0,0.35) 66%, transparent 82%);
 }
+/* In embedded mode the full-bleed layers are the box culprits — the
+   root mask already feathers them, but drop the ambient's hard fill
+   and the scanline sheet to viewport-glow-free so no rectangle reads. */
+.holo-embedded .holo-global-scan{ display:none; }
+.holo-embedded .holo-ambient{ opacity:calc(0.6 * var(--gv)); }
 
 /* ---------- environmental ambient ---------- */
 .holo-ambient{

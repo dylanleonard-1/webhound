@@ -96,7 +96,13 @@ export default function HologramPrototype() {
   // Auto-fit: center the whole projector→shield composition in the
   // viewport and scale it down if it would overflow, so the full
   // hologram is always visible at any window size / slider value.
-  const [fit, setFit] = useState({ scale: 1, anchorY: 0.62 })
+  // anchorY is null until measured on the client, so the server and the
+  // first client render emit an identical "62%" fallback (no hydration
+  // mismatch). The real pixel anchor is applied after mount.
+  const [fit, setFit] = useState<{ scale: number; anchorY: number | null }>({
+    scale: 1,
+    anchorY: null,
+  })
   useEffect(() => {
     if (typeof window === 'undefined') return
     const recompute = () => {
@@ -166,7 +172,7 @@ export default function HologramPrototype() {
     '--scanline-opacity': cfg.scanlineOpacity,
     '--glow': cfg.glowIntensity,
     '--fit': fit.scale,
-    '--anchor-y': `${fit.anchorY}px`,
+    '--anchor-y': fit.anchorY === null ? '62%' : `${fit.anchorY}px`,
     '--green': GREEN,
     '--green-dim': GREEN_DIM,
     '--green-deep': GREEN_DEEP,

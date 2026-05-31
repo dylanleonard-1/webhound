@@ -31,15 +31,15 @@ const NAT_AR = 1672 / 941
 // the matrix3d corner-pin reproduces the tablet's true perspective: top
 // edge rises to the right, left side recedes (shorter), bottom widens.
 const QUAD = {
-  TL: [24.3, 13.0],
-  TR: [69.6, 10.3],
-  BR: [70.8, 72.8],
-  BL: [16.6, 68.6],
+  TL: [23.4, 12.4],
+  TR: [71.6, 10.0],
+  BR: [73.0, 74.2],
+  BL: [15.8, 69.4],
 } as const
 
-// Inset the UI ~2.2% inside the quad — fills the glass while clearing
-// the rounded bezel corners.
-const INSET = 0.022
+// Near-zero inset so the panel runs full-bleed to the bezel; the bezel's
+// rounded mask provides the corners. (Small value just clears AA fringe.)
+const INSET = 0.006
 
 // Authored design space (the matrix maps this rect onto the quad).
 const DESIGN_W = 725
@@ -349,8 +349,8 @@ const G = '#8BFF3E'
 const CSS = `
 .htd{ font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color:#EDEDED; }
 .htd-glass{
-  position:absolute; inset:0; border-radius:14px; overflow:hidden;
-  padding:22px 24px;
+  position:absolute; inset:0; border-radius:6px; overflow:hidden;
+  padding:20px 22px;
   display:flex; flex-direction:column; gap:14px;
   /* Neutral near-black LCD — green is accent only, no projection tint. */
   background:

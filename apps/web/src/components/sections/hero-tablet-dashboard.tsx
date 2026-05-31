@@ -27,17 +27,18 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 const NAT_AR = 1672 / 941
 
 // Screen-glass quad as % of the rendered image content box.
-// Tightened to the bezel + extra keystone so the panel seats into the
-// tablet's perspective (right edge pushed out, bottom dropped slightly).
+// Corners read directly off the bezel highlight at 5× zoom per corner, so
+// the matrix3d corner-pin reproduces the tablet's true perspective: top
+// edge rises to the right, left side recedes (shorter), bottom widens.
 const QUAD = {
-  TL: [24.8, 16.2],
-  TR: [71.8, 11.2],
-  BR: [69.0, 73.8],
-  BL: [19.0, 68.2],
+  TL: [24.3, 13.0],
+  TR: [69.6, 10.3],
+  BR: [70.8, 72.8],
+  BL: [16.6, 68.6],
 } as const
 
-// Inset the UI ~2.2% inside the quad — fills more of the glass while
-// still clearing the rounded bezel corners.
+// Inset the UI ~2.2% inside the quad — fills the glass while clearing
+// the rounded bezel corners.
 const INSET = 0.022
 
 // Authored design space (the matrix maps this rect onto the quad).

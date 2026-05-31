@@ -91,23 +91,36 @@ export function Hero() {
 
         {/* NEW hologram — self-contained projection (base + beams +
             particles + floating shield) sitting ON the in-image
-            projector puck. Box anchored over the puck; the hologram
-            auto-fits inside it so the base lands on the stand and the
-            shield rises above. Offsets tuned over the bg2 puck. */}
+            projector puck.
+
+            The image is object-contain/center-bottom, so its CONTENT box
+            shrinks vertically as the viewport narrows while this layer's
+            height stays fixed. Positioning the hologram against the layer
+            made it drift off the puck on resize. Fix: this inner wrapper
+            reproduces the image content box exactly (width = layer width,
+            aspect-ratio 1672/941, bottom-anchored), so the hologram's %
+            offsets track the puck at every size — same anchor the
+            dashboard overlay uses. */}
         <div
           aria-hidden
-          className="absolute pointer-events-none"
+          className="absolute inset-x-0 bottom-0 pointer-events-none"
           style={{
-            right: '2%',
-            bottom: '4%',
-            width: '40%',
-            height: '86%',
-            // Fine-tune over the in-image puck: nudge right +28px and
-            // down +20px (positive translateY moves down).
-            transform: 'translate(28px, 20px)',
+            aspectRatio: '1672 / 941',
+            maxHeight: '100%',
           }}
         >
-          <HologramPrototype embedded />
+          <div
+            aria-hidden
+            className="absolute pointer-events-none"
+            style={{
+              left: '60.5%',
+              top: '8.7%',
+              width: '40%',
+              height: '90.3%',
+            }}
+          >
+            <HologramPrototype embedded />
+          </div>
         </div>
       </div>
 

@@ -117,6 +117,8 @@ export function Hero() {
               top: '8.7%',
               width: '40%',
               height: '90.3%',
+              // nudge: 1px left, 2px back (up)
+              transform: 'translate(-1px, -2px)',
             }}
           >
             <HologramPrototype embedded />

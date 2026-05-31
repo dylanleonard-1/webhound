@@ -21,6 +21,7 @@
    ──────────────────────────────────────────────────────────────────────── */
 
 import Image from 'next/image'
+import type React from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 // Image natural aspect (1672×941) — matches object-contain math.
@@ -45,11 +46,30 @@ const INSET = 0.022
 const DESIGN_W = 725
 const DESIGN_H = 500
 
+type Corner = 'TL' | 'TR' | 'BR' | 'BL'
+type Quad = Record<Corner, [number, number]>
+
 export function HeroTabletDashboard() {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [matrix, setMatrix] = useState<string | null>(null)
   const [reduce, setReduce] = useState(false)
   const [mounted, setMounted] = useState(false)
+
+  // ── live corner tuner (temporary; enable with ?htd-tune) ──
+  const [tune, setTune] = useState(false)
+  const [quad, setQuad] = useState<Quad>(() => ({
+    TL: [...QUAD.TL] as [number, number],
+    TR: [...QUAD.TR] as [number, number],
+    BR: [...QUAD.BR] as [number, number],
+    BL: [...QUAD.BL] as [number, number],
+  }))
+  // Content-box geometry (viewport px) so the tuner maps px <-> image-%.
+  const geomRef = useRef({ left: 0, top: 0, cx: 0, cy: 0, cw: 1, ch: 1 })
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (new URLSearchParams(window.location.search).has('htd-tune')) setTune(true)
+  }, [])
 
   // prefers-reduced-motion
   useEffect(() => {
@@ -77,10 +97,13 @@ export function HeroTabletDashboard() {
       if (NAT_AR > elAR) { cw = w; ch = w / NAT_AR; cx = 0; cy = h - ch }
       else { ch = h; cw = h * NAT_AR; cy = 0; cx = (w - cw) / 2 }
 
+      // Stash geometry for the tuner (viewport-relative).
+      geomRef.current = { left: r.left, top: r.top, cx, cy, cw, ch }
+
       // Quad corners in px (relative to overlay top-left), with inset.
       const toPx = ([px, py]: readonly [number, number]) =>
         [cx + (px / 100) * cw, cy + (py / 100) * ch] as [number, number]
-      let TL = toPx(QUAD.TL), TR = toPx(QUAD.TR), BR = toPx(QUAD.BR), BL = toPx(QUAD.BL)
+      let TL = toPx(quad.TL), TR = toPx(quad.TR), BR = toPx(quad.BR), BL = toPx(quad.BL)
       // Apply inset toward the quad centroid.
       const cX = (TL[0] + TR[0] + BR[0] + BL[0]) / 4
       const cY = (TL[1] + TR[1] + BR[1] + BL[1]) / 4
@@ -97,11 +120,13 @@ export function HeroTabletDashboard() {
     const ro = 'ResizeObserver' in window ? new ResizeObserver(recompute) : null
     ro?.observe(el)
     window.addEventListener('resize', recompute)
+    window.addEventListener('scroll', recompute, { passive: true })
     return () => {
       ro?.disconnect()
       window.removeEventListener('resize', recompute)
+      window.removeEventListener('scroll', recompute)
     }
-  }, [])
+  }, [quad])
 
   // Count-up for the security score (respects reduced motion).
   const TARGET = 72
@@ -127,6 +152,7 @@ export function HeroTabletDashboard() {
   }, [score])
 
   return (
+    <>
     <div
       ref={wrapRef}
       aria-hidden
@@ -263,8 +289,134 @@ export function HeroTabletDashboard() {
         </div>
       </div>
     </div>
+    {tune && <TabletTuner quad={quad} setQuad={setQuad} geomRef={geomRef} />}
+    </>
   )
 }
+
+/* ── live corner tuner overlay (temporary; ?htd-tune) ── */
+function TabletTuner({
+  quad,
+  setQuad,
+  geomRef,
+}: {
+  quad: Quad
+  setQuad: React.Dispatch<React.SetStateAction<Quad>>
+  geomRef: React.RefObject<{ left: number; top: number; cx: number; cy: number; cw: number; ch: number }>
+}) {
+  const [sel, setSel] = useState<Corner>('TL')
+  const [, force] = useState(0)
+
+  useEffect(() => {
+    const f = () => force((n) => n + 1)
+    window.addEventListener('resize', f)
+    window.addEventListener('scroll', f, { passive: true })
+    const id = setInterval(f, 250)
+    return () => {
+      window.removeEventListener('resize', f)
+      window.removeEventListener('scroll', f)
+      clearInterval(id)
+    }
+  }, [])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const step = e.shiftKey ? 0.5 : 0.1
+      const d: Record<string, [number, number]> = {
+        ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step],
+      }
+      if (!d[e.key]) return
+      e.preventDefault()
+      setQuad((q) => ({ ...q, [sel]: [round(q[sel][0] + d[e.key][0]), round(q[sel][1] + d[e.key][1])] }))
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [sel, setQuad])
+
+  const g = geomRef.current
+  const toVp = (c: Corner): [number, number] => [
+    g.left + g.cx + (quad[c][0] / 100) * g.cw,
+    g.top + g.cy + (quad[c][1] / 100) * g.ch,
+  ]
+  const toPct = (x: number, y: number): [number, number] => [
+    round(((x - g.left - g.cx) / g.cw) * 100),
+    round(((y - g.top - g.cy) / g.ch) * 100),
+  ]
+
+  const startDrag = (c: Corner) => (e: React.PointerEvent) => {
+    e.preventDefault()
+    setSel(c)
+    const move = (ev: PointerEvent) => setQuad((q) => ({ ...q, [c]: toPct(ev.clientX, ev.clientY) }))
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
+  const corners: Corner[] = ['TL', 'TR', 'BR', 'BL']
+  const code = `const QUAD = {\n  TL: [${quad.TL}],\n  TR: [${quad.TR}],\n  BR: [${quad.BR}],\n  BL: [${quad.BL}],\n} as const`
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 99999, pointerEvents: 'none' }}>
+      <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0 }}>
+        <polygon
+          points={corners.map((c) => toVp(c).join(',')).join(' ')}
+          fill="rgba(0,224,255,0.06)" stroke="#00e0ff" strokeWidth={1.5}
+        />
+      </svg>
+      {corners.map((c) => {
+        const [x, y] = toVp(c)
+        return (
+          <div
+            key={c}
+            onPointerDown={startDrag(c)}
+            title={c}
+            style={{
+              position: 'fixed', left: x - 11, top: y - 11, width: 22, height: 22,
+              borderRadius: '50%', cursor: 'grab', pointerEvents: 'auto',
+              background: sel === c ? '#ffd000' : '#00e0ff',
+              border: '2px solid #000', boxShadow: '0 0 0 1px #fff',
+            }}
+          />
+        )
+      })}
+      <div
+        style={{
+          position: 'fixed', top: 12, left: 12, zIndex: 100000, pointerEvents: 'auto',
+          font: '11px ui-monospace, monospace', color: '#bdffa0',
+          background: 'rgba(2,12,6,0.92)', border: '1px solid rgba(139,255,62,0.4)',
+          borderRadius: 8, padding: 10, width: 250,
+        }}
+      >
+        <div style={{ fontWeight: 700, color: '#8BFF3E', marginBottom: 6 }}>htd-tune · drag dots / arrows</div>
+        {corners.map((c) => (
+          <div
+            key={c}
+            onClick={() => setSel(c)}
+            style={{ cursor: 'pointer', color: sel === c ? '#ffd000' : '#bdffa0', padding: '1px 0' }}
+          >
+            {sel === c ? '▶ ' : '  '}{c}: [{quad[c][0]}, {quad[c][1]}]
+          </div>
+        ))}
+        <button
+          onClick={() => navigator.clipboard?.writeText(code)}
+          style={{
+            marginTop: 8, width: '100%', padding: 5, cursor: 'pointer', font: 'inherit',
+            background: 'rgba(139,255,62,0.2)', color: '#eafff0',
+            border: '1px solid rgba(139,255,62,0.45)', borderRadius: 6,
+          }}
+        >
+          copy QUAD
+        </button>
+        <div style={{ marginTop: 6, opacity: 0.55 }}>click row to select · ⇧ = bigger step</div>
+      </div>
+    </div>
+  )
+}
+
+const round = (n: number) => Math.round(n * 10) / 10
 
 /* ── data ── */
 const COUNTS = [

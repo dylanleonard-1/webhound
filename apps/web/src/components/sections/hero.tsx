@@ -292,6 +292,22 @@ export function Hero() {
           </motion.div>
         </div>
       </div>
+
+      {/* ────────── MOBILE HOLOGRAM (lg:hidden) ──────────
+          The desktop tablet+hologram composition above is hidden below the
+          lg (1024px) breakpoint. So phones/tablets still get the signature
+          visual, render the standalone hologram projection here, centered in
+          the space beneath the copy. The shared HologramPrototype auto-fits
+          to this box; its radial edge-mask blends it into the dark hero with
+          no hard border. Desktop keeps the in-image puck version above. */}
+      <div
+        aria-hidden
+        className="lg:hidden relative z-10 w-full flex justify-center pointer-events-none pb-4"
+      >
+        <div className="relative w-full max-w-[360px] h-[340px]">
+          <HologramPrototype embedded />
+        </div>
+      </div>
     </section>
   )
 }

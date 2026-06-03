@@ -16,7 +16,10 @@ class DuplicateWebsiteError(Exception):
 
 
 async def create_website(
-    db: AsyncSession, data: WebsiteCreate, user_id: uuid.UUID | None = None
+    db: AsyncSession,
+    data: WebsiteCreate,
+    user_id: uuid.UUID | None = None,
+    org_id: uuid.UUID | None = None,
 ) -> Website:
     try:
         normalized_url, scheme, hostname = normalize_url(data.url)
@@ -31,6 +34,15 @@ async def create_website(
             f"A website with this URL already exists: {normalized_url}"
         )
 
+    # Owned websites must carry an org_id (chk_websites_owned_has_org).
+    # Honour an explicit active-org context when supplied, else fall back
+    # to the owner's personal org. Guest / admin-imported rows
+    # (user_id is None) stay org-less, which the constraint permits.
+    if org_id is None and user_id is not None:
+        from apps.api.services.orgs import ensure_personal_org
+
+        org_id = (await ensure_personal_org(db, user_id)).id
+
     website = Website(
         url=normalized_url,
         hostname=hostname,
@@ -38,6 +50,7 @@ async def create_website(
         display_name=data.display_name,
         verification_status=VerificationStatus.UNVERIFIED,
         user_id=user_id,
+        org_id=org_id,
     )
     db.add(website)
     await db.flush()

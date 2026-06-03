@@ -43,7 +43,10 @@ def _uid(user: User) -> uuid.UUID | None:
 
 @router.post("", response_model=WebsiteResponse, status_code=201)
 async def create_website(
-    data: WebsiteCreate, db: _DB, current_user: _CurrentUser
+    data: WebsiteCreate,
+    db: _DB,
+    current_user: _CurrentUser,
+    active_org: _ActiveOrg = None,
 ) -> WebsiteResponse:
     if not admin_quota_bypass(current_user):
         violation = await check_website_quota(db, current_user)
@@ -60,7 +63,9 @@ async def create_website(
             detail={"error": exc.code, "message": exc.reason},
         )
     try:
-        website = await ws_service.create_website(db, data, user_id=current_user.id)
+        website = await ws_service.create_website(
+            db, data, user_id=current_user.id, org_id=active_org
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     except ws_service.DuplicateWebsiteError as exc:

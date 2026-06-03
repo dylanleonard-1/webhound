@@ -302,6 +302,12 @@ async def claim_guest_scan(
         raise ClaimError("That scan has already been saved to a different account.")
     if website.user_id is None:
         website.user_id = user_id
+        # Claiming makes the row *owned*, so it must also gain an org_id
+        # (chk_websites_owned_has_org). Attach the claimer's personal org.
+        if website.org_id is None:
+            from apps.api.services.orgs import ensure_personal_org
+
+            website.org_id = (await ensure_personal_org(db, user_id)).id
         await db.flush()
     return {
         "scan_id": str(job.id),

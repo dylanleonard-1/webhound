@@ -90,6 +90,59 @@ async def create_org(
     return org
 
 
+async def ensure_personal_org(
+    db: AsyncSession, user_id: uuid.UUID,
+) -> Org:
+    """Return the user's personal org, creating it (and the owner
+    membership) on first use.
+
+    Idempotent: the slug is derived deterministically from the user id
+    as ``personal-<uuid-no-dashes>``, matching migration 0028's backfill,
+    so a pre-existing personal org is reused rather than duplicated.
+
+    Every *owned* website / scan must carry an ``org_id``
+    (``chk_websites_owned_has_org``). Users created before 0028 already
+    have a personal org from the backfill; users created after it get
+    theirs lazily here on their first owned write (registration does not
+    create one). Caller is responsible for the surrounding commit."""
+    from apps.api.models.user import User
+
+    slug = f"personal-{user_id.hex}"
+    org = await db.scalar(sa.select(Org).where(Org.slug == slug))
+    if org is None:
+        user = await db.get(User, user_id)
+        email = (getattr(user, "email", None) or "").strip()
+        plan_tier = getattr(user, "plan", None) or PlanTier.FREE
+        org = Org(
+            slug=slug,
+            name=f"{email or 'Personal'}'s Workspace"[:255],
+            plan_tier=plan_tier,
+            is_active=True,
+        )
+        db.add(org)
+        await db.flush()
+
+    # Defensive: the org may exist (0028 backfill) without us having seen
+    # its membership, or have just been created — ensure the owner row.
+    membership = await db.scalar(
+        sa.select(OrgMembership).where(
+            OrgMembership.org_id == org.id,
+            OrgMembership.user_id == user_id,
+        )
+    )
+    if membership is None:
+        db.add(
+            OrgMembership(
+                org_id=org.id,
+                user_id=user_id,
+                role=OrgRole.OWNER,
+                accepted_at=datetime.now(timezone.utc),
+            )
+        )
+        await db.flush()
+    return org
+
+
 async def add_membership(
     db: AsyncSession,
     *,

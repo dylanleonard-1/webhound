@@ -1,6 +1,15 @@
 'use client'
 
 // WebHound — components/sections/hero-hologram.tsx
+//
+// 🗄️ OBSOLETE / DEV ARCHIVE — NOT USED IN PRODUCTION OR ANYWHERE.
+// Zero imports reference this file. It is an earlier hologram experiment
+// (Hero v10) that was SUPERSEDED by the live path:
+//   app/page.tsx → hero.tsx → <HologramPrototype embedded />.
+// Kept for reference only. Do NOT wire this into the hero by mistake, and
+// do not confuse it with the live hologram. (Safe to delete later, but the
+// owner asked to keep it for now.)
+//
 // Hero v10 — "the shield IS the projected light".
 //
 // Rebuilt visual metaphor: v6–v9 treated the shield as an

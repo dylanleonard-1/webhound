@@ -1,6 +1,14 @@
 'use client'
 
 // WebHound — components/sections/hero.tsx
+//
+// ✅ PRODUCTION — THIS IS THE LIVE HOMEPAGE HERO.
+// app/page.tsx imports { Hero } from here. This is the ONLY hero rendered
+// on webhoundsecurity.com. The hologram positioning (translate nudges over
+// the puck) lives in THIS file. Edit here to change what's live.
+// Live deps it pulls in: HologramPrototype (embedded) + HeroTabletDashboard.
+// NOTE: hero-hologram.tsx and hero-shell.tsx are OBSOLETE orphans — not used.
+//
 // Hero v11 — keep the cinematic tablet+projector background image,
 // but the projector STAND now generates the new self-contained
 // hologram projection (HologramPrototype) instead of the old flat

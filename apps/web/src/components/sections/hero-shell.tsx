@@ -1,3 +1,10 @@
+// WebHound — components/sections/hero-shell.tsx
+//
+// 🗄️ OBSOLETE / DEV ARCHIVE — NOT USED IN PRODUCTION OR ANYWHERE.
+// Zero imports reference this <HeroShell> component. The live hero is
+// app/page.tsx → hero.tsx (NOT this file). Kept for reference only; do not
+// confuse with the live hero. (Owner asked to keep it rather than delete.)
+
 import { GlowBackground } from '@/components/effects/glow-background'
 import { SectionContainer } from '@/components/layout/section-container'
 import { AnimatedFadeIn } from '@/components/effects/animated-fade-in'

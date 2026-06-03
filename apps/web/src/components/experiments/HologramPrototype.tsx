@@ -1,13 +1,25 @@
 'use client'
 
 /* ────────────────────────────────────────────────────────────────────────
-   WebHound — Standalone Hologram Prototype
+   WebHound — Hologram (SHARED component)
    components/experiments/HologramPrototype.tsx
 
-   A self-contained, full-screen holographic projection sandbox. NOT wired
-   into the homepage / hero / nav — this is a lab to perfect the look before
-   integration. Renders a futuristic projector generating a floating
-   WebHound shield with beams, particles, scanlines and layered glow.
+   ⚠️ PRODUCTION-CRITICAL — DO NOT DELETE OR TREAT AS THROWAWAY.
+   This component IS LIVE on the homepage. hero.tsx renders it as
+   <HologramPrototype embedded /> over the tablet puck — it is the real
+   hologram visitors see on webhoundsecurity.com.
+
+   It is ALSO used standalone by the dev-only sandbox route /hologram-test
+   (app/hologram-test/page.tsx) for tuning. So this single file is shared by
+   BOTH the live hero (embedded mode) and the dev lab (standalone mode).
+   Any edit here affects production.
+
+   (Historical note: an earlier header claimed this was "NOT wired into the
+   homepage." That was true pre-integration and is now obsolete — it has
+   since been embedded into the live hero.)
+
+   Renders a futuristic projector generating a floating WebHound shield with
+   beams, particles, scanlines and layered glow.
 
    • Pure CSS animation (transform / opacity only) — no canvas, no libs.
    • Respects prefers-reduced-motion.

@@ -293,19 +293,67 @@ export function Hero() {
         </div>
       </div>
 
-      {/* ────────── MOBILE HOLOGRAM (lg:hidden) ──────────
-          The desktop tablet+hologram composition above is hidden below the
-          lg (1024px) breakpoint. So phones/tablets still get the signature
-          visual, render the standalone hologram projection here, centered in
-          the space beneath the copy. The shared HologramPrototype auto-fits
-          to this box; its radial edge-mask blends it into the dark hero with
-          no hard border. Desktop keeps the in-image puck version above. */}
+      {/* ────────── MOBILE HERO VISUAL (lg:hidden) ──────────
+          The desktop composition above is hidden below the lg (1024px)
+          breakpoint. Rather than drop it, render the SAME full scene here for
+          phones/tablets — tablet background image + pinned dashboard + the
+          hologram on its in-image puck — just scaled down and placed in-flow
+          beneath the copy. The container's aspect-ratio matches the image's
+          (1672/941), so object-contain fills it edge-to-edge and the
+          hologram's % offsets land on the puck at any width (same anchoring
+          the desktop version uses). Desktop version above is unchanged. */}
       <div
         aria-hidden
-        className="lg:hidden relative z-10 w-full flex justify-center pointer-events-none pb-4"
+        className="lg:hidden relative z-10 w-full px-4 pb-6 pointer-events-none"
       >
-        <div className="relative w-full max-w-[360px] h-[340px]">
-          <HologramPrototype embedded />
+        <div className="relative w-full" style={{ aspectRatio: '1672 / 941' }}>
+          {/* Masked tablet background image — same four-edge vignette. */}
+          <div
+            aria-hidden
+            className="absolute inset-0"
+            style={{
+              maskImage:
+                'linear-gradient(90deg, transparent 0%, black 18%, black 94%, transparent 100%), linear-gradient(180deg, transparent 0%, black 10%, black 92%, transparent 100%)',
+              WebkitMaskImage:
+                'linear-gradient(90deg, transparent 0%, black 18%, black 94%, transparent 100%), linear-gradient(180deg, transparent 0%, black 10%, black 92%, transparent 100%)',
+              maskComposite: 'intersect',
+              WebkitMaskComposite: 'source-in',
+            }}
+          >
+            <Image
+              src="/images/hero-background-2.jpeg"
+              alt=""
+              fill
+              sizes="100vw"
+              className="object-contain"
+              style={{ objectPosition: 'center bottom' }}
+            />
+          </div>
+
+          {/* Dashboard pinned inside the tablet glass (own measurement). */}
+          <HeroTabletDashboard />
+
+          {/* Hologram on the in-image puck — identical anchoring + nudge to
+              the desktop version, so it tracks the puck at mobile scale. */}
+          <div
+            aria-hidden
+            className="absolute inset-x-0 bottom-0 pointer-events-none"
+            style={{ aspectRatio: '1672 / 941', maxHeight: '100%' }}
+          >
+            <div
+              aria-hidden
+              className="absolute pointer-events-none"
+              style={{
+                left: '60.5%',
+                top: '8.7%',
+                width: '40%',
+                height: '90.3%',
+                transform: 'translate(3px, -8px)',
+              }}
+            >
+              <HologramPrototype embedded />
+            </div>
+          </div>
         </div>
       </div>
     </section>

@@ -11,7 +11,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
   AlertTriangle,
@@ -40,20 +40,21 @@ interface Callout {
   icon: Icon
   side: 'left' | 'right'
   top: string // card vertical placement within the stage
-  node: { x: number; y: number } // line endpoint at the callout (stage %)
-  edge: { x: number; y: number } // line endpoint + glow dot on the preview edge
+  // termination point on the preview, as a fraction of the preview box —
+  // routed to a *meaningful* spot on the site (nav, URL lock, search, cart…).
+  target: { fx: number; fy: number }
 }
 
 // 3 left · 5 right, exactly like the reference.
 const CALLOUTS: Callout[] = [
-  { id: 'headers', label: 'Headers', description: 'Security headers can reveal weaknesses.', icon: ShieldCheck, side: 'left', top: '13%', node: { x: 18, y: 17 }, edge: { x: 21, y: 19 } },
-  { id: 'ssl', label: 'SSL Certificate', description: 'Expired or weak certificates create trust issues.', icon: Lock, side: 'left', top: '40%', node: { x: 18, y: 44 }, edge: { x: 21, y: 44 } },
-  { id: 'dns', label: 'DNS Records', description: 'Misconfigurations can expose infrastructure.', icon: Globe, side: 'left', top: '67%', node: { x: 18, y: 71 }, edge: { x: 21, y: 69 } },
-  { id: 'forms', label: 'Forms', description: 'Forms can be abused to steal data or inject attacks.', icon: FileText, side: 'right', top: '4%', node: { x: 82, y: 9 }, edge: { x: 79, y: 14 } },
-  { id: 'javascript', label: 'JavaScript', description: 'Third-party scripts can introduce vulnerabilities.', icon: Code2, side: 'right', top: '24%', node: { x: 82, y: 29 }, edge: { x: 79, y: 31 } },
-  { id: 'third', label: 'Third Parties', description: 'External services increase your attack surface.', icon: Share2, side: 'right', top: '44%', node: { x: 82, y: 49 }, edge: { x: 79, y: 49 } },
-  { id: 'admin', label: 'Admin Pages', description: 'Exposed admin pages are a top target for attackers.', icon: ShieldAlert, side: 'right', top: '64%', node: { x: 82, y: 69 }, edge: { x: 79, y: 67 } },
-  { id: 'api', label: 'API Endpoints', description: 'Unprotected APIs can leak sensitive information.', icon: Webhook, side: 'right', top: '84%', node: { x: 82, y: 89 }, edge: { x: 79, y: 85 } },
+  { id: 'headers', label: 'Headers', description: 'Security headers can reveal weaknesses.', icon: ShieldCheck, side: 'left', top: '13%', target: { fx: 0.46, fy: 0.15 } },
+  { id: 'ssl', label: 'SSL Certificate', description: 'Expired or weak certificates create trust issues.', icon: Lock, side: 'left', top: '40%', target: { fx: 0.09, fy: 0.045 } },
+  { id: 'dns', label: 'DNS Records', description: 'Misconfigurations can expose infrastructure.', icon: Globe, side: 'left', top: '67%', target: { fx: 0.14, fy: 0.3 } },
+  { id: 'forms', label: 'Forms', description: 'Forms can be abused to steal data or inject attacks.', icon: FileText, side: 'right', top: '4%', target: { fx: 0.8, fy: 0.16 } },
+  { id: 'javascript', label: 'JavaScript', description: 'Third-party scripts can introduce vulnerabilities.', icon: Code2, side: 'right', top: '24%', target: { fx: 0.6, fy: 0.5 } },
+  { id: 'third', label: 'Third Parties', description: 'External services increase your attack surface.', icon: Share2, side: 'right', top: '44%', target: { fx: 0.5, fy: 0.93 } },
+  { id: 'admin', label: 'Admin Pages', description: 'Exposed admin pages are a top target for attackers.', icon: ShieldAlert, side: 'right', top: '64%', target: { fx: 0.9, fy: 0.16 } },
+  { id: 'api', label: 'API Endpoints', description: 'Unprotected APIs can leak sensitive information.', icon: Webhook, side: 'right', top: '84%', target: { fx: 0.95, fy: 0.16 } },
 ]
 
 const PROCESS: { title: string; body: string; icon: Icon }[] = [
@@ -118,7 +119,69 @@ export function WhatAttackersSeeSection() {
 
 // ── Top area (copy + visual stage) ───────────────────────────────────────────
 
+interface Connector {
+  id: string
+  d: string
+  tx: number
+  ty: number
+}
+
 function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount: number } }) {
+  const stageRef = useRef<HTMLDivElement | null>(null)
+  const previewRef = useRef<HTMLDivElement | null>(null)
+  const nodeRefs = useRef<Record<string, HTMLSpanElement | null>>({})
+  const [hovered, setHovered] = useState<string | null>(null)
+  const [geo, setGeo] = useState<{ w: number; h: number; lines: Connector[] }>({ w: 0, h: 0, lines: [] })
+
+  // Measure node-centre and preview pixel positions, then build quadratic
+  // bezier paths in true pixel space (uniform viewBox) so curves + travelling
+  // packets are never distorted. Recomputed on resize / layout settle.
+  useEffect(() => {
+    const stage = stageRef.current
+    if (!stage) return
+    const compute = () => {
+      const sr = stage.getBoundingClientRect()
+      const pv = previewRef.current
+      if (sr.width < 10 || !pv) return // hidden (mobile) — skip
+      const pr = pv.getBoundingClientRect()
+      const lines: Connector[] = []
+      for (const c of CALLOUTS) {
+        const el = nodeRefs.current[c.id]
+        if (!el) continue
+        const nr = el.getBoundingClientRect()
+        const ox = nr.x + nr.width / 2 - sr.x
+        const oy = nr.y + nr.height / 2 - sr.y
+        const tx = pr.x - sr.x + c.target.fx * pr.width
+        const ty = pr.y - sr.y + c.target.fy * pr.height
+        // gentle curve: bow the control point perpendicular to the chord
+        const dx = tx - ox
+        const dy = ty - oy
+        const dist = Math.hypot(dx, dy) || 1
+        const bow = dist * 0.14 * (c.side === 'left' ? 1 : -1)
+        const cx = (ox + tx) / 2 + (-dy / dist) * bow
+        const cy = (oy + ty) / 2 + (dx / dist) * bow
+        lines.push({
+          id: c.id,
+          d: `M ${ox.toFixed(1)} ${oy.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${tx.toFixed(1)} ${ty.toFixed(1)}`,
+          tx,
+          ty,
+        })
+      }
+      setGeo({ w: Math.round(sr.width), h: Math.round(sr.height), lines })
+    }
+    compute()
+    const ro = new ResizeObserver(compute)
+    ro.observe(stage)
+    if (previewRef.current) ro.observe(previewRef.current)
+    window.addEventListener('resize', compute)
+    const settle = window.setTimeout(compute, 450) // after image/fonts settle
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', compute)
+      window.clearTimeout(settle)
+    }
+  }, [])
+
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-[24%_76%] lg:gap-2">
       {/* LEFT copy */}
@@ -157,55 +220,48 @@ function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount
 
       {/* RIGHT visual stage (desktop) */}
       <div className="hidden lg:block">
-        <div className="relative mx-auto h-[480px] w-full">
-          {/* connector lines */}
-          <svg aria-hidden className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-            {CALLOUTS.map((c, i) => (
-              <motion.line
-                key={c.id}
-                x1={c.node.x}
-                y1={c.node.y}
-                x2={c.edge.x}
-                y2={c.edge.y}
-                stroke={GREEN}
-                strokeWidth={1}
-                strokeOpacity={0.45}
-                vectorEffect="non-scaling-stroke"
-                initial={{ pathLength: reduce ? 1 : 0, opacity: reduce ? 1 : 0 }}
-                whileInView={{ pathLength: 1, opacity: 1 }}
-                viewport={show}
-                transition={{ duration: reduce ? 0 : 0.5, delay: reduce ? 0 : 0.5 + i * 0.1 }}
-              />
-            ))}
-          </svg>
-          {/* pulsing edge dots */}
-          {CALLOUTS.map((c, i) => (
-            <motion.span
-              key={`${c.id}-dot`}
-              aria-hidden
-              className="absolute h-2 w-2 rounded-full"
-              style={{ left: `${c.edge.x}%`, top: `${c.edge.y}%`, transform: 'translate(-50%,-50%)', background: GREEN, boxShadow: '0 0 8px rgba(124,255,0,0.9)' }}
-              initial={{ opacity: 0, scale: 0 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={show}
-              transition={{ duration: 0.3, delay: reduce ? 0 : 0.5 + i * 0.1 }}
-            >
-              {!reduce && (
-                <motion.span className="absolute inset-0 rounded-full" style={{ background: GREEN }} animate={{ opacity: [0.6, 0, 0.6], scale: [1, 2.6, 1] }} transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut', delay: i * 0.18 }} />
-              )}
-            </motion.span>
-          ))}
-
-          {/* central preview — large + dominant. Centering lives on the
-              static outer wrapper; the float lives on the inner motion div so
-              Framer's transform never clobbers the translate centering. */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: 'clamp(460px, 38vw, 600px)' }}>
+        <div ref={stageRef} className="relative mx-auto h-[480px] w-full">
+          {/* central preview — large + dominant. Centering lives on the static
+              outer wrapper (also the connector anchor); the float lives on the
+              inner motion div so Framer's transform never clobbers centering. */}
+          <div ref={previewRef} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: 'clamp(460px, 38vw, 600px)' }}>
             <motion.div animate={reduce ? undefined : { y: [0, -10, 0] }} transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}>
               <BrowserPreview />
             </motion.div>
           </div>
 
-          {/* callouts */}
+          {/* connector map — real bezier paths from node → meaningful preview
+              spots, drawn in true pixel space (uniform viewBox). */}
+          <svg aria-hidden className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 ${geo.w || 1} ${geo.h || 1}`} preserveAspectRatio="none">
+            {geo.lines.map((l, i) => {
+              const active = hovered === l.id
+              return (
+                <g key={l.id} style={{ opacity: active ? 1 : 0.6, transition: 'opacity 0.25s' }}>
+                  <motion.path
+                    d={l.d}
+                    fill="none"
+                    stroke={GREEN}
+                    strokeWidth={active ? 1.9 : 1.2}
+                    strokeLinecap="round"
+                    initial={{ pathLength: reduce ? 1 : 0 }}
+                    whileInView={{ pathLength: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: reduce ? 0 : 1, delay: reduce ? 0 : 0.3 + i * 0.1 }}
+                  />
+                  {/* termination marker on the preview */}
+                  <circle cx={l.tx} cy={l.ty} r={active ? 3.4 : 2.4} fill={GREEN} style={{ filter: 'drop-shadow(0 0 5px rgba(124,255,0,0.85))' }} />
+                  {/* travelling data packet */}
+                  {!reduce && (
+                    <circle r="2.6" fill="#e9ffc4" style={{ filter: 'drop-shadow(0 0 6px rgba(124,255,0,1))' }}>
+                      <animateMotion dur="3s" begin={`${(i * 0.36).toFixed(2)}s`} repeatCount="indefinite" path={l.d} />
+                    </circle>
+                  )}
+                </g>
+              )
+            })}
+          </svg>
+
+          {/* callouts (above the connectors so labels stay readable) */}
           {CALLOUTS.map((c, i) => (
             <motion.div
               key={c.id}
@@ -215,8 +271,10 @@ function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount
               whileInView={{ opacity: 1, x: 0 }}
               viewport={show}
               transition={{ duration: 0.45, delay: reduce ? 0 : 0.35 + i * 0.09 }}
+              onMouseEnter={() => setHovered(c.id)}
+              onMouseLeave={() => setHovered(h => (h === c.id ? null : h))}
             >
-              <CalloutItem callout={c} />
+              <CalloutItem callout={c} iconRef={el => { nodeRefs.current[c.id] = el }} />
             </motion.div>
           ))}
         </div>
@@ -237,13 +295,21 @@ function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount
   )
 }
 
-function CalloutItem({ callout, stacked = false }: { callout: Callout; stacked?: boolean }) {
+function CalloutItem({
+  callout,
+  stacked = false,
+  iconRef,
+}: {
+  callout: Callout
+  stacked?: boolean
+  iconRef?: (el: HTMLSpanElement | null) => void
+}) {
   const Icon = callout.icon
   // On the desktop stage, right-side callouts read icon-left/text-right too,
   // matching the reference. Left callouts align their text away from the edge.
   return (
     <div className={`flex items-start gap-2.5 ${stacked ? 'rounded-[14px] p-3.5' : ''}`} style={stacked ? { background: 'rgba(8,14,24,0.72)', border: '1px solid rgba(132,255,58,0.16)' } : undefined}>
-      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" style={{ background: 'rgba(124,255,0,0.06)', border: '1px solid rgba(124,255,0,0.3)' }}>
+      <span ref={iconRef} className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" style={{ background: 'rgba(124,255,0,0.06)', border: '1px solid rgba(124,255,0,0.3)' }}>
         <Icon className="h-4 w-4" style={{ color: GREEN }} />
       </span>
       <div>

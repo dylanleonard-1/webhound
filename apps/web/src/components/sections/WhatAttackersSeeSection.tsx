@@ -85,19 +85,6 @@ export function WhatAttackersSeeSection() {
         viewport={show}
         transition={{ duration: 0.6 }}
       >
-        {/* subtle grid overlay */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.05]"
-          style={{
-            backgroundImage:
-              'linear-gradient(rgba(132,255,58,1) 1px, transparent 1px), linear-gradient(90deg, rgba(132,255,58,1) 1px, transparent 1px)',
-            backgroundSize: '60px 60px',
-            maskImage: 'radial-gradient(ellipse 90% 70% at 55% 30%, #000 0%, transparent 80%)',
-            WebkitMaskImage: 'radial-gradient(ellipse 90% 70% at 55% 30%, #000 0%, transparent 80%)',
-          }}
-        />
-
         <div className="relative px-6 pt-10 sm:px-10 lg:px-12 lg:pt-12">
           {/* ── TOP: copy + visual stage ── */}
           <TopArea reduce={!!reduce} show={show} />
@@ -223,32 +210,54 @@ function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount
         </div>
       </div>
 
-      {/* RIGHT visual (mobile/tablet stacked) */}
+      {/* RIGHT visual (mobile/tablet wheel) */}
       <div className="lg:hidden">
         <div className="relative mx-auto max-w-[560px]">
           <BrowserPreview />
         </div>
-        <div className="relative z-20 mt-6 flex flex-col gap-3.5 sm:grid sm:grid-cols-2">
-          <div aria-hidden className="pointer-events-none absolute bottom-10 left-[26px] top-5 hidden w-px bg-gradient-to-b from-transparent via-[rgba(124,255,0,0.34)] to-transparent shadow-[0_0_18px_rgba(124,255,0,0.28)] sm:hidden" />
-          {CALLOUTS.map((c, i) => (
-            <motion.div
-              key={c.id}
-              className={`relative z-10 ${i % 2 === 1 ? 'ml-5' : 'mr-5'} sm:m-0`}
-              initial={{ opacity: 0, y: reduce ? 0 : 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={show}
-              transition={{ duration: 0.36, delay: reduce ? 0 : i * 0.04 }}
-            >
-              <CalloutItem callout={c} stacked />
-            </motion.div>
-          ))}
-        </div>
+        <MobileScanWheel reduce={reduce} />
       </div>
     </div>
   )
 }
 
-function CalloutItem({ callout, stacked = false }: { callout: Callout; stacked?: boolean }) {
+function MobileScanWheel({ reduce }: { reduce: boolean }) {
+  return (
+    <div
+      className="relative z-20 mx-auto mt-7 h-[430px] max-w-[560px] overflow-y-auto overflow-x-hidden rounded-[24px] px-3 py-6 [perspective:900px]"
+      style={{
+        background: 'rgba(2,6,14,0.92)',
+        border: '1px solid rgba(124,255,0,0.16)',
+        WebkitOverflowScrolling: 'touch',
+        scrollbarWidth: 'thin',
+      }}
+    >
+      <div className="sticky top-0 z-20 -mx-3 -mt-6 mb-4 px-6 py-4" style={{ background: 'linear-gradient(180deg, rgba(2,6,14,0.98), rgba(2,6,14,0.76), transparent)' }}>
+        <p className="text-[10px] font-bold uppercase tracking-[0.24em]" style={{ color: 'rgba(124,255,0,0.78)' }}>Scan wheel</p>
+        <p className="mt-1 text-[11px]" style={{ color: 'rgba(255,255,255,0.45)' }}>Swipe the findings or keep scrolling past.</p>
+      </div>
+
+      <div className="relative flex flex-col gap-3 pb-6">
+        <div aria-hidden className="pointer-events-none absolute bottom-10 left-[34px] top-2 w-px bg-gradient-to-b from-transparent via-[rgba(124,255,0,0.34)] to-transparent" />
+        {CALLOUTS.map((c, i) => (
+          <motion.div
+            key={c.id}
+            className="relative z-10"
+            initial={{ opacity: 0, y: reduce ? 0 : 16, rotateX: reduce ? 0 : -10 }}
+            whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
+            viewport={{ once: true, amount: 0.45 }}
+            transition={{ duration: 0.36, delay: reduce ? 0 : i * 0.035 }}
+            style={{ transformOrigin: 'center center' }}
+          >
+            <CalloutItem callout={c} stacked index={i + 1} />
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CalloutItem({ callout, stacked = false, index }: { callout: Callout; stacked?: boolean; index?: number }) {
   const Icon = callout.icon
   // On the desktop stage, right-side callouts read icon-left/text-right too,
   // matching the reference. Left callouts align their text away from the edge.
@@ -258,7 +267,7 @@ function CalloutItem({ callout, stacked = false }: { callout: Callout; stacked?:
       style={
         stacked
           ? {
-              background: 'linear-gradient(135deg, rgba(5,10,20,0.72), rgba(5,10,20,0.5))',
+              background: 'linear-gradient(135deg, rgba(5,10,20,0.82), rgba(5,10,20,0.58))',
               border: '1px solid rgba(124,255,0,0.25)',
               backdropFilter: 'blur(16px)',
               WebkitBackdropFilter: 'blur(16px)',
@@ -275,7 +284,7 @@ function CalloutItem({ callout, stacked = false }: { callout: Callout; stacked?:
         />
       )}
       <span className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full" style={{ background: 'rgba(124,255,0,0.075)', border: '1px solid rgba(124,255,0,0.34)', boxShadow: stacked ? '0 0 18px rgba(124,255,0,0.13)' : undefined }}>
-        <Icon className="h-4 w-4" style={{ color: GREEN }} />
+        {typeof index === 'number' ? <span className="text-[10px] font-bold" style={{ color: GREEN }}>{String(index).padStart(2, '0')}</span> : <Icon className="h-4 w-4" style={{ color: GREEN }} />}
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
@@ -289,6 +298,12 @@ function CalloutItem({ callout, stacked = false }: { callout: Callout; stacked?:
         <p className="mt-1 text-[11px] leading-[1.45]" style={{ color: 'rgba(255,255,255,0.52)' }}>
           {callout.description}
         </p>
+        {typeof index === 'number' && (
+          <div className="mt-2 flex items-center gap-2">
+            <Icon className="h-3.5 w-3.5" style={{ color: GREEN }} />
+            <span className="text-[9px] font-semibold uppercase tracking-[0.16em]" style={{ color: 'rgba(255,255,255,0.34)' }}>Mapped surface</span>
+          </div>
+        )}
       </div>
     </div>
   )

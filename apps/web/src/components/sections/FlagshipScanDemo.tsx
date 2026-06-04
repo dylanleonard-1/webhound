@@ -139,17 +139,16 @@ function getScanProgress(phase: Phase, assetStep: number, findingStep: number) {
 }
 
 function getMobileCopy(phase: Phase, assetStep: number, findingStep: number) {
-  if (phase === 'idle') return { eyebrow: 'Live scan demo', title: 'See your website checked in real time.', status: 'Ready to scan', detail: 'Safe read-only scan. No changes made.', step: 'Ready' }
+  if (phase === 'idle') return { eyebrow: 'Live scan demo', title: 'See your website checked in real time.', status: 'Ready to scan', detail: 'Safe read-only scan. No changes made.' }
   if (phase === 'discovering') {
     const current = ASSETS[Math.max(0, Math.min(assetStep - 1, ASSETS.length - 1))]
-    return { eyebrow: 'Discovering', title: 'Mapping the website.', status: current ? `${current.label} discovered` : 'Finding public pages', detail: `${Math.round((assetStep / ASSETS.length) * 31)} assets found so far`, step: 'Discover' }
+    return { eyebrow: 'Discovering', title: 'Mapping the website.', status: current ? `${current.label} discovered` : 'Finding public pages', detail: `${Math.round((assetStep / ASSETS.length) * 31)} assets found so far` }
   }
   if (phase === 'analyzing') {
-    const current = FINDINGS[Math.max(0, Math.min(findingStep - 1, FINDINGS.length - 1))]
-    return { eyebrow: 'Analyzing', title: 'Checking for security risks.', status: current ? current.title : 'Reviewing discovered surfaces', detail: `${findingStep} of ${FINDINGS.length} findings surfaced`, step: 'Analyze' }
+    return { eyebrow: 'Analyzing', title: 'Checking for security risks.', status: 'Reviewing discovered surfaces', detail: `${findingStep} of ${FINDINGS.length} findings surfaced` }
   }
-  if (phase === 'complete') return { eyebrow: 'Results dashboard', title: 'Security risk report.', status: '3 findings prepared', detail: 'Review the risk score and open the critical finding.', step: 'Report' }
-  return { eyebrow: 'WADE explanation', title: 'Admin Portal Exposed.', status: 'Critical risk explained', detail: 'Risk, impact, and recommended fix.', step: 'Explain' }
+  if (phase === 'complete') return { eyebrow: 'Results dashboard', title: 'Security risk report.', status: '3 findings prepared', detail: 'Review the risk score and open the critical finding.' }
+  return { eyebrow: 'WADE explanation', title: 'Admin Portal Exposed.', status: 'Critical risk explained', detail: 'Risk, impact, and recommended fix.' }
 }
 
 function MobileDemo({ phase, elapsed, assetStep, findingStep, assetsFound, progress, onStart, onRestart, onOpenCritical }: { phase: Phase; elapsed: number; assetStep: number; findingStep: number; assetsFound: number; progress: number; onStart: () => void; onRestart: () => void; onOpenCritical: () => void }) {
@@ -184,10 +183,9 @@ function MobileDemo({ phase, elapsed, assetStep, findingStep, assetsFound, progr
 
           {phase === 'idle' && <button onClick={onStart} className="flex w-full items-center justify-center gap-3 rounded-xl px-5 py-4 text-lg font-bold text-[#020817] shadow-[0_0_34px_rgba(132,255,0,0.2)]" style={{ background: `linear-gradient(135deg, ${GREEN}, #b6ff3f)` }}>Start Scan <ArrowRight className="h-5 w-5" /></button>}
           {phase === 'discovering' && <CompactEventCard label="Currently checking" title={copy.status} body={`${assetsFound} assets discovered`} />}
-          {phase === 'analyzing' && <CompactFindingCard finding={FINDINGS[Math.max(0, findingStep - 1)] ?? FINDINGS[0]} />}
+          {phase === 'analyzing' && <MobileFindingsList count={findingStep} />}
           {phase === 'complete' && <MobileResultsDashboard onOpenCritical={onOpenCritical} />}
           {phase === 'detail' && <MobileDetail />}
-          <MobileStepper active={copy.step} />
         </div>
       </div>
 
@@ -217,6 +215,20 @@ function ScanOverlay({ phase, assetStep, findingStep, progress, assetsFound }: {
   )
 }
 
+function MobileFindingsList({ count }: { count: number }) {
+  return (
+    <div className="rounded-[22px] border border-white/[0.08] bg-black/25 p-3">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Findings surfaced</p>
+        <span className="text-xs text-slate-500">{count}/3</span>
+      </div>
+      <div className="space-y-2">
+        {FINDINGS.slice(0, count).map((finding, index) => <FindingRow key={finding.title} finding={finding} featured={index === 0} />)}
+      </div>
+    </div>
+  )
+}
+
 function MobileResultsDashboard({ onOpenCritical }: { onOpenCritical: () => void }) {
   return (
     <div className="rounded-[26px] border border-white/[0.08] bg-[radial-gradient(circle_at_100%_0%,rgba(255,84,84,0.12),transparent_34%),linear-gradient(180deg,rgba(5,11,24,0.96),rgba(2,8,23,0.96))] p-4 shadow-[0_28px_70px_rgba(0,0,0,0.45)] backdrop-blur">
@@ -235,58 +247,39 @@ function MobileResultsDashboard({ onOpenCritical }: { onOpenCritical: () => void
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.08]">
           <div className="h-full w-[72%] rounded-full bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 shadow-[0_0_20px_rgba(255,84,84,0.3)]" />
         </div>
-      </div>
-
-      <div className="mt-3 grid grid-cols-4 gap-2">
-        <RiskTile label="Critical" value="1" color="#ff5454" active />
-        <RiskTile label="High" value="1" color="#ff9f43" />
-        <RiskTile label="Medium" value="1" color="#facc15" />
-        <RiskTile label="Low" value="0" color={GREEN} />
+        <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-slate-300">
+          <SummaryPill label="Critical" value="1" color="#ff5454" />
+          <SummaryPill label="High" value="1" color="#ff9f43" />
+          <SummaryPill label="Medium" value="1" color="#facc15" />
+          <SummaryPill label="Low" value="0" color={GREEN} />
+        </div>
       </div>
 
       <div className="mt-4 rounded-[22px] border border-white/[0.07] bg-black/25 p-3">
         <div className="mb-3 flex items-center justify-between">
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Findings</p>
-          <span className="rounded-full border border-white/[0.08] px-2 py-1 text-[10px] text-slate-400">Click critical</span>
+          <span className="rounded-full border border-white/[0.08] px-2 py-1 text-[10px] text-slate-400">Open critical</span>
         </div>
-        <button onClick={onOpenCritical} className="group mb-2 block w-full rounded-2xl border border-red-400/35 bg-[linear-gradient(135deg,rgba(255,84,84,0.12),rgba(255,84,84,0.035))] p-4 text-left shadow-[0_0_26px_rgba(255,84,84,0.12)]">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500/15 text-red-300"><ShieldAlert className="h-5 w-5" /></span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-red-300">Critical</span>
-              <span className="mt-1 block text-lg font-bold">Admin Portal Found</span>
-              <span className="mt-1 block text-xs text-slate-400">Open this finding to see the risk and fix.</span>
-            </span>
-            <ArrowRight className="h-5 w-5 shrink-0 transition-transform group-hover:translate-x-1" style={{ color: GREEN }} />
-          </div>
+        <button onClick={onOpenCritical} className="block w-full text-left">
+          <FindingRow finding={FINDINGS[0]} featured cta />
         </button>
-        <ResultRow severity="High" title="Outdated JavaScript Library" tone="#ff9f43" />
-        <ResultRow severity="Medium" title="Missing Security Headers" tone="#facc15" />
+        <FindingRow finding={FINDINGS[1]} />
+        <FindingRow finding={FINDINGS[2]} />
       </div>
     </div>
   )
 }
 
-function RiskTile({ label, value, color, active = false }: { label: string; value: string; color: string; active?: boolean }) {
-  return <div className={`rounded-2xl border p-3 text-center ${active ? 'border-red-400/25 bg-red-500/[0.055]' : 'border-white/[0.06] bg-white/[0.035]'}`}><span className="mx-auto mb-2 block h-2 w-2 rounded-full" style={{ background: color }} /><b className="block text-2xl">{value}</b><span className="text-[9px] text-slate-500">{label}</span></div>
+function SummaryPill({ label, value, color }: { label: string; value: string; color: string }) {
+  return <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.07] bg-white/[0.035] px-3 py-2"><span className="h-2 w-2 rounded-full" style={{ background: color }} /><b>{value}</b><span className="text-slate-500">{label}</span></span>
 }
 
-function ResultRow({ severity, title, tone }: { severity: string; title: string; tone: string }) {
-  return <div className="mt-2 flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-3 text-sm"><span className="truncate pr-3 text-slate-200">{title}</span><span className="text-xs font-semibold" style={{ color: tone }}>{severity}</span></div>
+function FindingRow({ finding, featured = false, cta = false }: { finding: (typeof FINDINGS)[number]; featured?: boolean; cta?: boolean }) {
+  return <div className={`mt-2 rounded-2xl border px-3 py-3 ${featured ? 'border-red-400/30 bg-red-500/[0.055] shadow-[0_0_22px_rgba(255,84,84,0.08)]' : 'border-white/[0.06] bg-white/[0.025]'}`}><div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: `${finding.tone}18`, color: finding.tone }}><ShieldAlert className="h-4 w-4" /></span><span className="min-w-0 flex-1"><span className="block text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: finding.tone }}>{finding.severity}</span><span className="block truncate font-bold text-slate-100">{finding.title}</span></span>{cta ? <ArrowRight className="h-5 w-5 shrink-0" style={{ color: GREEN }} /> : <span className="text-xs font-semibold" style={{ color: finding.tone }}>{finding.severity === 'CRITICAL' ? 'Open' : finding.severity[0] + finding.severity.slice(1).toLowerCase()}</span>}</div></div>
 }
 
 function CompactEventCard({ label, title, body }: { label: string; title: string; body: string }) {
   return <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">{label}</p><h3 className="mt-2 text-xl font-bold">{title}</h3><p className="mt-1 text-sm text-slate-400">{body}</p></div>
-}
-
-function CompactFindingCard({ finding }: { finding: (typeof FINDINGS)[number] }) {
-  const isCritical = finding.severity === 'CRITICAL'
-  return <div className="rounded-2xl border bg-[linear-gradient(135deg,rgba(255,255,255,0.045),rgba(255,255,255,0.015))] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.25)]" style={{ borderColor: isCritical ? 'rgba(255,84,84,0.28)' : 'rgba(255,255,255,0.08)' }}><div className="flex items-center gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: isCritical ? 'rgba(255,84,84,0.1)' : 'rgba(255,255,255,0.04)', color: finding.tone }}><ShieldAlert className="h-5 w-5" /></span><div><p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: finding.tone }}>{finding.severity}</p><h3 className="mt-1 text-lg font-bold">{finding.title}</h3><p className="mt-1 text-sm text-slate-400">{finding.body}</p></div></div></div>
-}
-
-function MobileStepper({ active }: { active: string }) {
-  const steps = ['Discover', 'Analyze', 'Report', 'Explain']
-  return <div className="grid grid-cols-4 gap-2 rounded-2xl border border-white/[0.06] bg-black/25 p-2">{steps.map(step => <div key={step} className="rounded-xl px-2 py-2 text-center text-[10px] font-bold uppercase tracking-[0.08em]" style={{ color: active === step ? '#020817' : '#94a3b8', background: active === step ? GREEN : 'transparent' }}>{step}</div>)}</div>
 }
 
 function MobileDetail() { return <div className="relative z-10 rounded-2xl border border-red-500/20 bg-red-500/[0.035] p-5"><p className="text-xs font-bold uppercase tracking-[0.2em] text-red-400">Critical</p><h3 className="mt-2 text-2xl font-bold">Admin Portal Exposed</h3><p className="mt-3 text-sm text-slate-400">Administrative interfaces are publicly accessible at /admin.</p><div className="mt-5 space-y-3"><InfoBox title="Why it matters" body="Admin panels are frequent targets for credential attacks and account takeover." /><InfoBox title="Recommendation" body="Restrict access with MFA, VPN, IP allowlists, or admin gateways." /></div></div> }

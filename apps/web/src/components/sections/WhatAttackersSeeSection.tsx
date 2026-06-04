@@ -1,13 +1,14 @@
 'use client'
 
 // WebHound — components/sections/WhatAttackersSeeSection.tsx
-// "What Attackers See" — a faithful recreation of the reference composition:
-// left copy column + small info card, a large browser-framed website preview
-// in the centre with security callouts wired to it left/right by thin green
-// connector lines + pulsing edge dots, a GreenWaveField dot-wave band, and a
-// bottom panel with the "Everything is discovered" headline, a six-step
-// process row, and a CTA box on the right. Dark navy (#020617), neon green
-// (#7CFF00 / #84FF3A). Presentational only; respects prefers-reduced-motion.
+// "What Attackers See" — left copy column + small info card, a large
+// browser-framed website preview in the centre with floating security
+// discovery nodes around it. There are NO permanent connectors: a short green
+// pulse periodically travels from the website to a node ("just discovered that
+// asset"). Beneath sits a flowing particle/network-telemetry field, then a
+// bottom panel with the "Everything is discovered" headline, a six-step process
+// row, and a CTA box. Dark navy (#020617), neon green (#7CFF00 / #84FF3A).
+// Presentational only; respects prefers-reduced-motion.
 
 import Image from 'next/image'
 import Link from 'next/link'
@@ -136,26 +137,23 @@ export function WhatAttackersSeeSection() {
 
 // ── Top area (copy + visual stage) ───────────────────────────────────────────
 
-interface Connector {
+// Discovery geometry: per node, a SOURCE point on the website edge and the
+// node anchor. No permanent line is drawn — a transient pulse travels src→node
+// to signal "WebHound discovered that asset". Measured in stage pixel space.
+interface NodeGeo {
   id: string
-  d: string
-  ex: number
-  ey: number
+  sx: number // source on the preview edge
+  sy: number
+  nx: number // node inner edge (the side facing the website)
+  ny: number
 }
 
 function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount: number } }) {
   const stageRef = useRef<HTMLDivElement | null>(null)
   const previewRef = useRef<HTMLDivElement | null>(null)
   const nodeRefs = useRef<Record<string, HTMLDivElement | null>>({})
-  const [hovered, setHovered] = useState<string | null>(null)
-  const [geo, setGeo] = useState<{ w: number; h: number; lines: Connector[] }>({ w: 0, h: 0, lines: [] })
+  const [geo, setGeo] = useState<{ w: number; h: number; nodes: NodeGeo[] }>({ w: 0, h: 0, nodes: [] })
 
-  // Clean technical-diagram routing: each node owns ONE destination on the
-  // preview's near edge, at the node's own height (clamped to the preview).
-  // Route = horizontal run + single bend into the edge. Measured in true pixel
-  // space (uniform viewBox) so paths + packets are never distorted. Because the
-  // edge points are monotonic with the (evenly spaced) nodes, lines never cross
-  // each other, never pass through the website, and never hit another node.
   useEffect(() => {
     const stage = stageRef.current
     if (!stage) return
@@ -167,25 +165,18 @@ function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount
       const pTop = pr.y - sr.y
       const pH = pr.height
       const pad = pH * 0.12
-      const lines: Connector[] = []
+      const nodes: NodeGeo[] = []
       for (const c of CALLOUTS) {
         const el = nodeRefs.current[c.id]
         if (!el) continue
         const nr = el.getBoundingClientRect()
-        const oy = nr.y + nr.height / 2 - sr.y
-        // originate from the callout's inner edge (the side facing the preview)
-        const ox = c.side === 'left' ? nr.x + nr.width - sr.x : nr.x - sr.x
-        const ex = c.side === 'left' ? pr.x - sr.x : pr.x - sr.x + pr.width
-        const ey = Math.min(pTop + pH - pad, Math.max(pTop + pad, oy))
-        // horizontal run to a bend just outside the edge, then in. The bend
-        // offset adapts to the gutter so the run is always FORWARD (no hook).
-        const gutter = Math.abs(ex - ox)
-        const k = Math.min(22, Math.max(6, gutter * 0.45))
-        const bend = c.side === 'left' ? ex - k : ex + k
-        const d = `M ${ox.toFixed(1)} ${oy.toFixed(1)} L ${bend.toFixed(1)} ${oy.toFixed(1)} L ${ex.toFixed(1)} ${ey.toFixed(1)}`
-        lines.push({ id: c.id, d, ex, ey })
+        const ny = nr.y + nr.height / 2 - sr.y
+        const nx = c.side === 'left' ? nr.x + nr.width - sr.x : nr.x - sr.x
+        const sx = c.side === 'left' ? pr.x - sr.x : pr.x - sr.x + pr.width
+        const sy = Math.min(pTop + pH - pad, Math.max(pTop + pad, ny))
+        nodes.push({ id: c.id, sx, sy, nx, ny })
       }
-      setGeo({ w: Math.round(sr.width), h: Math.round(sr.height), lines })
+      setGeo({ w: Math.round(sr.width), h: Math.round(sr.height), nodes })
     }
     compute()
     const ro = new ResizeObserver(compute)
@@ -254,52 +245,53 @@ function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount
             </motion.div>
           </div>
 
-          {/* connector map — clean orthogonal routing in true pixel space. */}
-          <svg aria-hidden className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 ${geo.w || 1} ${geo.h || 1}`} preserveAspectRatio="none">
-            {geo.lines.map((l, i) => {
-              const active = hovered === l.id
-              return (
-                <g key={l.id} style={{ opacity: active ? 1 : 0.6, transition: 'opacity 0.25s' }}>
-                  <motion.path
-                    d={l.d}
-                    fill="none"
-                    stroke={GREEN}
-                    strokeWidth={active ? 1.8 : 1.1}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    initial={{ pathLength: reduce ? 1 : 0 }}
-                    whileInView={{ pathLength: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: reduce ? 0 : 0.9, delay: reduce ? 0 : 0.3 + i * 0.09 }}
-                  />
-                  {/* termination marker on the preview edge */}
-                  <circle cx={l.ex} cy={l.ey} r={active ? 3.4 : 2.3} fill={GREEN} style={{ filter: 'drop-shadow(0 0 5px rgba(124,255,0,0.85))' }} />
-                  {/* travelling data packet (pulse along the path every 3s) */}
-                  {!reduce && (
-                    <circle r="2.5" fill="#e9ffc4" style={{ filter: 'drop-shadow(0 0 6px rgba(124,255,0,1))' }}>
-                      <animateMotion dur="3s" begin={`${(i * 0.34).toFixed(2)}s`} repeatCount="indefinite" path={l.d} />
-                    </circle>
-                  )}
-                </g>
-              )
-            })}
-          </svg>
+          {/* discovery pulses — NO permanent lines. A short green pulse travels
+              from the website to each node every few seconds (~0.5s) then
+              vanishes: "WebHound just discovered that asset". */}
+          {!reduce &&
+            geo.nodes.map((n, i) => (
+              <motion.span
+                key={`${n.id}-pulse`}
+                aria-hidden
+                className="pointer-events-none absolute left-0 top-0 h-[7px] w-[7px] rounded-full"
+                style={{ background: '#eaffc4', boxShadow: '0 0 10px 2px rgba(124,255,0,0.9)' }}
+                initial={{ x: n.sx, y: n.sy, opacity: 0, scale: 0.5 }}
+                animate={{
+                  x: [n.sx, n.sx, n.nx, n.nx, n.nx],
+                  y: [n.sy, n.sy, n.ny, n.ny, n.ny],
+                  opacity: [0, 1, 1, 0, 0],
+                  scale: [0.5, 1, 1, 0.4, 0.4],
+                }}
+                transition={{
+                  duration: 4.6,
+                  times: [0, 0.02, 0.12, 0.17, 1],
+                  ease: 'easeOut',
+                  repeat: Infinity,
+                  delay: 0.6 + i * 0.5,
+                }}
+              />
+            ))}
 
-          {/* callouts (above the connectors so labels stay readable) */}
+          {/* floating discovery nodes (icon + label + subtle glow). The outer
+              wrapper is the measured rest anchor; the float lives on the inner
+              div so the pulse target stays stable. */}
           {CALLOUTS.map((c, i) => (
             <motion.div
               key={c.id}
               ref={el => { nodeRefs.current[c.id] = el }}
               className="absolute"
               style={c.side === 'left' ? { left: 0, top: c.top, width: '14%' } : { right: 0, top: c.top, width: '14%' }}
-              initial={{ opacity: 0, x: reduce ? 0 : c.side === 'left' ? -12 : 12 }}
-              whileInView={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, scale: reduce ? 1 : 0.8 }}
+              whileInView={{ opacity: 1, scale: 1 }}
               viewport={show}
-              transition={{ duration: 0.45, delay: reduce ? 0 : 0.35 + i * 0.09 }}
-              onMouseEnter={() => setHovered(c.id)}
-              onMouseLeave={() => setHovered(h => (h === c.id ? null : h))}
+              transition={{ duration: 0.45, delay: reduce ? 0 : 0.3 + i * 0.09 }}
             >
-              <CalloutItem callout={c} reduce={reduce} pulseDelay={i * 0.3} />
+              <motion.div
+                animate={reduce ? undefined : { y: [0, -6, 0, 5, 0], x: [0, 3, 0, -3, 0] }}
+                transition={{ duration: 7 + (i % 4) * 1.3, repeat: Infinity, ease: 'easeInOut', delay: i * 0.4 }}
+              >
+                <CalloutItem callout={c} reduce={reduce} pulseDelay={i * 0.3} glow />
+              </motion.div>
             </motion.div>
           ))}
         </div>
@@ -325,30 +317,43 @@ function CalloutItem({
   stacked = false,
   reduce = false,
   pulseDelay = 0,
+  glow = false,
 }: {
   callout: Callout
   stacked?: boolean
   reduce?: boolean
   pulseDelay?: number
+  glow?: boolean
 }) {
   const Icon = callout.icon
   // On the desktop stage, right-side callouts read icon-left/text-right too,
   // matching the reference. Left callouts align their text away from the edge.
   return (
     <div
-      className={`flex items-start gap-2.5 ${stacked ? 'rounded-[14px] p-3.5 transition-colors duration-300 hover:border-[rgba(132,255,58,0.35)]' : ''}`}
+      className={`group flex items-start gap-2.5 ${stacked ? 'rounded-[14px] p-3.5 transition-colors duration-300 hover:border-[rgba(132,255,58,0.35)]' : ''}`}
       style={stacked ? { background: 'rgba(8,14,24,0.72)', border: '1px solid rgba(132,255,58,0.16)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)' } : undefined}
     >
-      <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" style={{ background: 'rgba(124,255,0,0.06)', border: '1px solid rgba(124,255,0,0.3)' }}>
+      <span
+        className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-shadow duration-300 group-hover:shadow-[0_0_18px_rgba(124,255,0,0.55)]"
+        style={{
+          background: 'rgba(124,255,0,0.07)',
+          border: '1px solid rgba(124,255,0,0.32)',
+          boxShadow: glow ? '0 0 16px rgba(124,255,0,0.22)' : undefined,
+        }}
+      >
+        {/* subtle radial glow behind the node */}
+        {glow && (
+          <span aria-hidden className="pointer-events-none absolute -inset-2 rounded-full" style={{ background: 'radial-gradient(closest-side, rgba(124,255,0,0.22), transparent 75%)' }} />
+        )}
         {!reduce && (
           <motion.span
             aria-hidden
             className="absolute inset-0 rounded-full"
-            animate={{ boxShadow: ['0 0 0 0 rgba(124,255,0,0.35)', '0 0 0 6px rgba(124,255,0,0)'] }}
+            animate={{ boxShadow: ['0 0 0 0 rgba(124,255,0,0.4)', '0 0 0 7px rgba(124,255,0,0)'] }}
             transition={{ duration: 2.8, repeat: Infinity, ease: 'easeOut', delay: pulseDelay }}
           />
         )}
-        <Icon className="h-4 w-4" style={{ color: GREEN }} />
+        <Icon className="relative h-4 w-4" style={{ color: GREEN }} />
       </span>
       <div>
         <h3 className="text-[13px] font-bold leading-tight text-white">{callout.label}</h3>
@@ -490,16 +495,40 @@ function BottomPanel({ reduce, show }: { reduce: boolean; show: { once: true; am
   )
 }
 
-// ── GreenWaveField — animated dot-wave terrain (canvas, no image) ─────────────
+// ── GreenWaveField — flowing particle / network-telemetry field (canvas) ──────
 
-// Layered, edge-to-edge perspective particle fields — "streams of data moving
-// under the website". Three bands at different depths/speeds give parallax;
-// additive blending makes the dense centre glow without a hard blob.
-const WAVE_LAYERS = [
-  { cols: 250, rows: 18, yTop: 0.24, yBot: 1.05, spread: 1.26, dot: 1.7, bright: 0.6, speed: 1.0, amp: 18, drift: 0.018 },
-  { cols: 270, rows: 22, yTop: 0.12, yBot: 1.0, spread: 1.14, dot: 1.45, bright: 0.78, speed: 1.45, amp: 14, drift: 0.03 },
-  { cols: 230, rows: 16, yTop: 0.04, yBot: 0.82, spread: 0.94, dot: 1.05, bright: 0.4, speed: 0.7, amp: 10, drift: 0.012 },
+// Three parallax layers of particles streaming horizontally beneath the site —
+// "flowing network traffic", not a sine wave. L1 small dots, L2 larger dots,
+// L3 glowing particles; each layer moves at a different speed for depth.
+interface ParticleLayer {
+  count: number
+  sizeMin: number
+  sizeMax: number
+  speedMin: number // px/s — flow speed
+  speedMax: number
+  alphaMin: number
+  alphaMax: number
+  glow: boolean
+}
+
+const PARTICLE_LAYERS: ParticleLayer[] = [
+  // L1 — small dots, far/slow (dense background telemetry)
+  { count: 460, sizeMin: 0.5, sizeMax: 1.2, speedMin: 32, speedMax: 70, alphaMin: 0.22, alphaMax: 0.5, glow: false },
+  // L2 — larger dots, mid
+  { count: 180, sizeMin: 1.3, sizeMax: 2.4, speedMin: 55, speedMax: 120, alphaMin: 0.35, alphaMax: 0.7, glow: false },
+  // L3 — glowing particles, near/fast (the bright streaks)
+  { count: 50, sizeMin: 2.2, sizeMax: 3.8, speedMin: 95, speedMax: 200, alphaMin: 0.55, alphaMax: 0.95, glow: true },
 ]
+
+interface Particle {
+  x: number
+  y: number
+  vx: number
+  vy: number
+  s: number
+  a: number
+  glow: boolean
+}
 
 function GreenWaveField({ reduce }: { reduce: boolean }) {
   const ref = useRef<HTMLCanvasElement | null>(null)
@@ -515,6 +544,28 @@ function GreenWaveField({ reduce }: { reduce: boolean }) {
     let h = 0
     let dpr = 1
     let visible = true
+    let last = 0
+    let dots: Particle[] = []
+    let glows: Particle[] = []
+
+    const build = () => {
+      dots = []
+      glows = []
+      for (const L of PARTICLE_LAYERS) {
+        for (let i = 0; i < L.count; i++) {
+          const p: Particle = {
+            x: Math.random() * w,
+            y: Math.random() * h,
+            vx: L.speedMin + Math.random() * (L.speedMax - L.speedMin),
+            vy: (Math.random() - 0.5) * 6,
+            s: L.sizeMin + Math.random() * (L.sizeMax - L.sizeMin),
+            a: L.alphaMin + Math.random() * (L.alphaMax - L.alphaMin),
+            glow: L.glow,
+          }
+          ;(L.glow ? glows : dots).push(p)
+        }
+      }
+    }
 
     const resize = () => {
       dpr = Math.min(window.devicePixelRatio || 1, 2)
@@ -523,43 +574,53 @@ function GreenWaveField({ reduce }: { reduce: boolean }) {
       canvas.width = Math.max(1, Math.floor(w * dpr))
       canvas.height = Math.max(1, Math.floor(h * dpr))
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      build()
     }
 
-    const render = (ms: number) => {
-      const t = ms * 0.000216 // ~35% faster than before
-      ctx.clearRect(0, 0, w, h)
-      ctx.globalCompositeOperation = 'lighter' // additive: dense streams glow
-      for (const L of WAVE_LAYERS) {
-        const flow = t * L.speed
-        const driftX = Math.sin(t * 0.25 * L.speed) * w * L.drift
-        for (let r = 0; r < L.rows; r++) {
-          const rz = r / (L.rows - 1) // 0 far → 1 near
-          const persp = Math.pow(rz, 1.4)
-          const rowY = h * (L.yTop + persp * (L.yBot - L.yTop))
-          const spread = L.spread * (0.5 + rz * 0.7)
-          const dotR = L.dot * (0.4 + rz * 1.0)
-          const amp = 2 + rz * L.amp
-          const rb = L.bright * (0.18 + rz)
-          for (let c = 0; c < L.cols; c++) {
-            const cx = c / (L.cols - 1) - 0.5 // -0.5..0.5
-            const phase = cx * 7
-            const wave =
-              Math.sin(phase + flow + rz * 2.2) * 0.55 +
-              Math.sin(cx * 15 - flow * 0.7 + rz * 4) * 0.27 +
-              Math.sin(cx * 3.2 + flow * 0.4) * 0.3
-            const x = w / 2 + cx * w * spread + driftX
-            const y = rowY + wave * amp
-            const crest = 0.6 + 0.4 * Math.sin(phase + flow + rz * 2.2)
-            const edgeFade = Math.max(0, 1 - Math.pow(Math.abs(cx) * 2, 1.6))
-            let a = rb * edgeFade * crest
-            if (a < 0.014) continue
-            if (a > 0.85) a = 0.85
-            ctx.fillStyle = `rgba(124,255,0,${a})`
-            ctx.fillRect(x, y, dotR, dotR)
-          }
-        }
+    const fade = 90 // px horizontal in/out fade (streams flow in & out)
+    const step = (p: Particle, dt: number) => {
+      p.x += p.vx * dt
+      p.y += p.vy * dt
+      if (p.x > w + 6) {
+        p.x = -6
+        p.y = Math.random() * h
       }
+      if (p.y < -6) p.y = h + 6
+      else if (p.y > h + 6) p.y = -6
+    }
+    const edgeAlpha = (x: number) => Math.max(0, Math.min(1, x / fade) * Math.min(1, (w - x) / fade))
+
+    const render = (ms: number) => {
+      const dt = last ? Math.min(0.05, (ms - last) / 1000) : 0
+      last = ms
+      ctx.clearRect(0, 0, w, h)
+
+      // dots (source-over)
       ctx.globalCompositeOperation = 'source-over'
+      for (const p of dots) {
+        step(p, dt)
+        const a = p.a * edgeAlpha(p.x)
+        if (a < 0.02) continue
+        ctx.fillStyle = `rgba(124,255,0,${a})`
+        ctx.fillRect(p.x, p.y, p.s, p.s)
+      }
+
+      // glowing particles (additive + soft glow)
+      ctx.globalCompositeOperation = 'lighter'
+      ctx.shadowColor = 'rgba(124,255,0,0.95)'
+      for (const p of glows) {
+        step(p, dt)
+        const a = p.a * edgeAlpha(p.x)
+        if (a < 0.02) continue
+        ctx.shadowBlur = p.s * 3.5
+        ctx.fillStyle = `rgba(180,255,110,${a})`
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.s, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      ctx.shadowBlur = 0
+      ctx.globalCompositeOperation = 'source-over'
+
       if (!reduce && visible) raf = window.requestAnimationFrame(render)
     }
 
@@ -571,7 +632,10 @@ function GreenWaveField({ reduce }: { reduce: boolean }) {
       entries => {
         const wasVisible = visible
         visible = entries[0]?.isIntersecting ?? true
-        if (visible && !wasVisible && !reduce) raf = window.requestAnimationFrame(render)
+        if (visible && !wasVisible && !reduce) {
+          last = 0
+          raf = window.requestAnimationFrame(render)
+        }
       },
       { rootMargin: '140px' },
     )
@@ -593,10 +657,8 @@ function GreenWaveField({ reduce }: { reduce: boolean }) {
       aria-hidden
       className="absolute inset-0 h-full w-full"
       style={{
-        maskImage:
-          'radial-gradient(145% 165% at 50% 70%, #000 52%, rgba(0,0,0,0.5) 76%, transparent 96%)',
-        WebkitMaskImage:
-          'radial-gradient(145% 165% at 50% 70%, #000 52%, rgba(0,0,0,0.5) 76%, transparent 96%)',
+        maskImage: 'linear-gradient(180deg, transparent 0%, #000 16%, #000 84%, transparent 100%)',
+        WebkitMaskImage: 'linear-gradient(180deg, transparent 0%, #000 16%, #000 84%, transparent 100%)',
       }}
     />
   )

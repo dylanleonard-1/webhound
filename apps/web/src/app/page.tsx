@@ -23,8 +23,12 @@ import { PageReveal } from '@/components/effects/page-reveal'
 // Slice 2: Testimonials removed; awaiting verified quotes.
 // Slice 6: Industry-recognition + blog placeholder omitted per
 //   user (silence > fake validation).
-const LiveScan = dynamic(() =>
-  import('@/components/sections/live-scan').then(m => ({ default: m.LiveScan }))
+// "What Attackers See" replaces LiveScan in the slot directly under the hero.
+// (live-scan.tsx is kept in the tree, just no longer rendered here.)
+const WhatAttackersSeeSection = dynamic(() =>
+  import('@/components/sections/WhatAttackersSeeSection').then(m => ({
+    default: m.WhatAttackersSeeSection,
+  }))
 )
 const ExampleFindings = dynamic(() =>
   import('@/components/sections/example-findings').then(m => ({ default: m.ExampleFindings }))
@@ -59,7 +63,7 @@ export default function HomePage() {
     <>
       <PageReveal />
       <Hero />
-      <LiveScan />
+      <WhatAttackersSeeSection />
       <ExampleFindings />
       <WebHoundAdvantage />
       <PlatformStack />

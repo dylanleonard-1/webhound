@@ -148,7 +148,7 @@ function getMobileCopy(phase: Phase, assetStep: number, findingStep: number) {
     const current = FINDINGS[Math.max(0, Math.min(findingStep - 1, FINDINGS.length - 1))]
     return { eyebrow: 'Analyzing', title: 'Checking for security risks.', status: current ? current.title : 'Reviewing discovered surfaces', detail: `${findingStep} of ${FINDINGS.length} findings surfaced`, step: 'Analyze' }
   }
-  if (phase === 'complete') return { eyebrow: 'Report ready', title: 'Scan complete.', status: '3 findings prepared', detail: 'Tap the critical finding to see the explanation.', step: 'Report' }
+  if (phase === 'complete') return { eyebrow: 'Results dashboard', title: 'Security risk report.', status: '3 findings prepared', detail: 'Review the risk score and open the critical finding.', step: 'Report' }
   return { eyebrow: 'WADE explanation', title: 'Admin Portal Exposed.', status: 'Critical risk explained', detail: 'Risk, impact, and recommended fix.', step: 'Explain' }
 }
 
@@ -175,9 +175,9 @@ function MobileDemo({ phase, elapsed, assetStep, findingStep, assetsFound, progr
       <div className="relative overflow-hidden p-4">
         <TelemetryField />
         <div className="relative z-10 space-y-4">
-          {phase !== 'detail' && (
+          {phase !== 'detail' && phase !== 'complete' && (
             <div className="relative">
-              <WebsiteCard scanning={phase !== 'idle' && phase !== 'complete'} large />
+              <WebsiteCard scanning={phase !== 'idle'} large />
               {phase !== 'idle' && <ScanOverlay phase={phase} assetStep={assetStep} findingStep={findingStep} progress={progress} assetsFound={assetsFound} />}
             </div>
           )}
@@ -185,7 +185,7 @@ function MobileDemo({ phase, elapsed, assetStep, findingStep, assetsFound, progr
           {phase === 'idle' && <button onClick={onStart} className="flex w-full items-center justify-center gap-3 rounded-xl px-5 py-4 text-lg font-bold text-[#020817] shadow-[0_0_34px_rgba(132,255,0,0.2)]" style={{ background: `linear-gradient(135deg, ${GREEN}, #b6ff3f)` }}>Start Scan <ArrowRight className="h-5 w-5" /></button>}
           {phase === 'discovering' && <CompactEventCard label="Currently checking" title={copy.status} body={`${assetsFound} assets discovered`} />}
           {phase === 'analyzing' && <CompactFindingCard finding={FINDINGS[Math.max(0, findingStep - 1)] ?? FINDINGS[0]} />}
-          {phase === 'complete' && <MobileReportSummary onOpenCritical={onOpenCritical} />}
+          {phase === 'complete' && <MobileResultsDashboard onOpenCritical={onOpenCritical} />}
           {phase === 'detail' && <MobileDetail />}
           <MobileStepper active={copy.step} />
         </div>
@@ -203,7 +203,7 @@ function ScanOverlay({ phase, assetStep, findingStep, progress, assetsFound }: {
   return (
     <div className="absolute inset-x-3 bottom-3 rounded-2xl border border-white/[0.1] bg-[#030814]/85 p-3 shadow-[0_16px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: GREEN }}>{phase === 'complete' ? 'Scan complete' : 'Scan in progress'}</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: GREEN }}>Scan in progress</p>
         <p className="text-xs text-slate-300">{progress}%</p>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.1]">
@@ -217,6 +217,58 @@ function ScanOverlay({ phase, assetStep, findingStep, progress, assetsFound }: {
   )
 }
 
+function MobileResultsDashboard({ onOpenCritical }: { onOpenCritical: () => void }) {
+  return (
+    <div className="rounded-[24px] border border-white/[0.08] bg-[#030814]/80 p-4 shadow-[0_24px_60px_rgba(0,0,0,0.38)] backdrop-blur">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: GREEN }}>Security risk</p>
+          <h3 className="mt-2 text-2xl font-bold">Results dashboard</h3>
+          <p className="mt-1 text-xs text-slate-500">Scan finished for northstarcommerce.com</p>
+        </div>
+        <div className="rounded-2xl border border-red-500/25 bg-red-500/[0.06] px-4 py-3 text-center">
+          <b className="block text-3xl text-red-300">72%</b>
+          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-red-200">Risk</span>
+        </div>
+      </div>
+
+      <div className="mt-5 grid grid-cols-4 gap-2">
+        <RiskTile label="Critical" value="1" color="#ff5454" />
+        <RiskTile label="High" value="1" color="#ff9f43" />
+        <RiskTile label="Medium" value="1" color="#facc15" />
+        <RiskTile label="Low" value="0" color={GREEN} />
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3">
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Findings</p>
+          <span className="rounded-full border border-white/[0.08] px-2 py-1 text-[10px] text-slate-400">3 total</span>
+        </div>
+        <button onClick={onOpenCritical} className="group mb-2 block w-full rounded-xl border border-red-500/35 bg-red-500/[0.055] p-3 text-left shadow-[0_0_22px_rgba(255,84,84,0.08)]">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-red-300">Critical</p>
+              <p className="mt-1 font-bold">Admin Portal Found</p>
+              <p className="mt-1 text-xs text-slate-400">Click here to open the finding details.</p>
+            </div>
+            <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" style={{ color: GREEN }} />
+          </div>
+        </button>
+        <ResultRow severity="High" title="Outdated JavaScript Library" />
+        <ResultRow severity="Medium" title="Missing Security Headers" />
+      </div>
+    </div>
+  )
+}
+
+function RiskTile({ label, value, color }: { label: string; value: string; color: string }) {
+  return <div className="rounded-xl border border-white/[0.06] bg-white/[0.035] p-3 text-center"><span className="mx-auto mb-2 block h-2 w-2 rounded-full" style={{ background: color }} /><b className="block text-xl">{value}</b><span className="text-[9px] text-slate-500">{label}</span></div>
+}
+
+function ResultRow({ severity, title }: { severity: string; title: string }) {
+  return <div className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-black/20 px-3 py-2 text-sm"><span>{title}</span><span className="text-xs text-slate-500">{severity}</span></div>
+}
+
 function CompactEventCard({ label, title, body }: { label: string; title: string; body: string }) {
   return <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">{label}</p><h3 className="mt-2 text-xl font-bold">{title}</h3><p className="mt-1 text-sm text-slate-400">{body}</p></div>
 }
@@ -225,12 +277,8 @@ function CompactFindingCard({ finding }: { finding: (typeof FINDINGS)[number] })
   return <div className="rounded-2xl border bg-black/30 p-4" style={{ borderColor: finding.severity === 'CRITICAL' ? 'rgba(255,84,84,0.28)' : 'rgba(255,255,255,0.08)' }}><p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: finding.tone }}>{finding.severity}</p><h3 className="mt-2 text-xl font-bold">{finding.title}</h3><p className="mt-1 text-sm text-slate-400">{finding.body}</p></div>
 }
 
-function MobileReportSummary({ onOpenCritical }: { onOpenCritical: () => void }) {
-  return <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: GREEN }}>Report ready</p><div className="mt-4 grid grid-cols-3 gap-2 text-center"><div className="rounded-xl bg-white/[0.04] p-3"><b className="block text-2xl">31</b><span className="text-[10px] text-slate-500">Assets</span></div><div className="rounded-xl bg-white/[0.04] p-3"><b className="block text-2xl">3</b><span className="text-[10px] text-slate-500">Findings</span></div><div className="rounded-xl bg-white/[0.04] p-3"><b className="block text-2xl text-red-300">1</b><span className="text-[10px] text-slate-500">Critical</span></div></div><button onClick={onOpenCritical} className="mt-4 flex w-full items-center justify-between rounded-xl border border-red-500/25 bg-red-500/[0.04] p-4 text-left"><span><span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-red-300">Critical</span><span className="mt-1 block font-bold">Admin Portal Found</span></span><ArrowRight className="h-5 w-5" style={{ color: GREEN }} /></button></div>
-}
-
 function MobileStepper({ active }: { active: string }) {
-  const steps = ['Discover', 'Analyze', 'Explain', 'Report']
+  const steps = ['Discover', 'Analyze', 'Report', 'Explain']
   return <div className="grid grid-cols-4 gap-2 rounded-2xl border border-white/[0.06] bg-black/25 p-2">{steps.map(step => <div key={step} className="rounded-xl px-2 py-2 text-center text-[10px] font-bold uppercase tracking-[0.08em]" style={{ color: active === step ? '#020817' : '#94a3b8', background: active === step ? GREEN : 'transparent' }}>{step}</div>)}</div>
 }
 

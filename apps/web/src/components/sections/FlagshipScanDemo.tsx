@@ -219,54 +219,60 @@ function ScanOverlay({ phase, assetStep, findingStep, progress, assetsFound }: {
 
 function MobileResultsDashboard({ onOpenCritical }: { onOpenCritical: () => void }) {
   return (
-    <div className="rounded-[24px] border border-white/[0.08] bg-[#030814]/80 p-4 shadow-[0_24px_60px_rgba(0,0,0,0.38)] backdrop-blur">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: GREEN }}>Security risk</p>
-          <h3 className="mt-2 text-2xl font-bold">Results dashboard</h3>
-          <p className="mt-1 text-xs text-slate-500">Scan finished for northstarcommerce.com</p>
+    <div className="rounded-[26px] border border-white/[0.08] bg-[radial-gradient(circle_at_100%_0%,rgba(255,84,84,0.12),transparent_34%),linear-gradient(180deg,rgba(5,11,24,0.96),rgba(2,8,23,0.96))] p-4 shadow-[0_28px_70px_rgba(0,0,0,0.45)] backdrop-blur">
+      <div className="rounded-[22px] border border-white/[0.07] bg-black/25 p-4">
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: GREEN }}>Security risk</p>
+        <div className="mt-3 flex items-end justify-between gap-4">
+          <div>
+            <h3 className="text-2xl font-bold">Risk detected</h3>
+            <p className="mt-1 text-xs text-slate-500">northstarcommerce.com</p>
+          </div>
+          <div className="text-right">
+            <b className="block text-5xl leading-none text-red-300">72%</b>
+            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-red-200">High risk</span>
+          </div>
         </div>
-        <div className="rounded-2xl border border-red-500/25 bg-red-500/[0.06] px-4 py-3 text-center">
-          <b className="block text-3xl text-red-300">72%</b>
-          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-red-200">Risk</span>
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.08]">
+          <div className="h-full w-[72%] rounded-full bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 shadow-[0_0_20px_rgba(255,84,84,0.3)]" />
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-4 gap-2">
-        <RiskTile label="Critical" value="1" color="#ff5454" />
+      <div className="mt-3 grid grid-cols-4 gap-2">
+        <RiskTile label="Critical" value="1" color="#ff5454" active />
         <RiskTile label="High" value="1" color="#ff9f43" />
         <RiskTile label="Medium" value="1" color="#facc15" />
         <RiskTile label="Low" value="0" color={GREEN} />
       </div>
 
-      <div className="mt-5 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3">
+      <div className="mt-4 rounded-[22px] border border-white/[0.07] bg-black/25 p-3">
         <div className="mb-3 flex items-center justify-between">
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Findings</p>
-          <span className="rounded-full border border-white/[0.08] px-2 py-1 text-[10px] text-slate-400">3 total</span>
+          <span className="rounded-full border border-white/[0.08] px-2 py-1 text-[10px] text-slate-400">Click critical</span>
         </div>
-        <button onClick={onOpenCritical} className="group mb-2 block w-full rounded-xl border border-red-500/35 bg-red-500/[0.055] p-3 text-left shadow-[0_0_22px_rgba(255,84,84,0.08)]">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-red-300">Critical</p>
-              <p className="mt-1 font-bold">Admin Portal Found</p>
-              <p className="mt-1 text-xs text-slate-400">Click here to open the finding details.</p>
-            </div>
-            <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" style={{ color: GREEN }} />
+        <button onClick={onOpenCritical} className="group mb-2 block w-full rounded-2xl border border-red-400/35 bg-[linear-gradient(135deg,rgba(255,84,84,0.12),rgba(255,84,84,0.035))] p-4 text-left shadow-[0_0_26px_rgba(255,84,84,0.12)]">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500/15 text-red-300"><ShieldAlert className="h-5 w-5" /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-red-300">Critical</span>
+              <span className="mt-1 block text-lg font-bold">Admin Portal Found</span>
+              <span className="mt-1 block text-xs text-slate-400">Open this finding to see the risk and fix.</span>
+            </span>
+            <ArrowRight className="h-5 w-5 shrink-0 transition-transform group-hover:translate-x-1" style={{ color: GREEN }} />
           </div>
         </button>
-        <ResultRow severity="High" title="Outdated JavaScript Library" />
-        <ResultRow severity="Medium" title="Missing Security Headers" />
+        <ResultRow severity="High" title="Outdated JavaScript Library" tone="#ff9f43" />
+        <ResultRow severity="Medium" title="Missing Security Headers" tone="#facc15" />
       </div>
     </div>
   )
 }
 
-function RiskTile({ label, value, color }: { label: string; value: string; color: string }) {
-  return <div className="rounded-xl border border-white/[0.06] bg-white/[0.035] p-3 text-center"><span className="mx-auto mb-2 block h-2 w-2 rounded-full" style={{ background: color }} /><b className="block text-xl">{value}</b><span className="text-[9px] text-slate-500">{label}</span></div>
+function RiskTile({ label, value, color, active = false }: { label: string; value: string; color: string; active?: boolean }) {
+  return <div className={`rounded-2xl border p-3 text-center ${active ? 'border-red-400/25 bg-red-500/[0.055]' : 'border-white/[0.06] bg-white/[0.035]'}`}><span className="mx-auto mb-2 block h-2 w-2 rounded-full" style={{ background: color }} /><b className="block text-2xl">{value}</b><span className="text-[9px] text-slate-500">{label}</span></div>
 }
 
-function ResultRow({ severity, title }: { severity: string; title: string }) {
-  return <div className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-black/20 px-3 py-2 text-sm"><span>{title}</span><span className="text-xs text-slate-500">{severity}</span></div>
+function ResultRow({ severity, title, tone }: { severity: string; title: string; tone: string }) {
+  return <div className="mt-2 flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-3 text-sm"><span className="truncate pr-3 text-slate-200">{title}</span><span className="text-xs font-semibold" style={{ color: tone }}>{severity}</span></div>
 }
 
 function CompactEventCard({ label, title, body }: { label: string; title: string; body: string }) {
@@ -274,7 +280,8 @@ function CompactEventCard({ label, title, body }: { label: string; title: string
 }
 
 function CompactFindingCard({ finding }: { finding: (typeof FINDINGS)[number] }) {
-  return <div className="rounded-2xl border bg-black/30 p-4" style={{ borderColor: finding.severity === 'CRITICAL' ? 'rgba(255,84,84,0.28)' : 'rgba(255,255,255,0.08)' }}><p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: finding.tone }}>{finding.severity}</p><h3 className="mt-2 text-xl font-bold">{finding.title}</h3><p className="mt-1 text-sm text-slate-400">{finding.body}</p></div>
+  const isCritical = finding.severity === 'CRITICAL'
+  return <div className="rounded-2xl border bg-[linear-gradient(135deg,rgba(255,255,255,0.045),rgba(255,255,255,0.015))] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.25)]" style={{ borderColor: isCritical ? 'rgba(255,84,84,0.28)' : 'rgba(255,255,255,0.08)' }}><div className="flex items-center gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: isCritical ? 'rgba(255,84,84,0.1)' : 'rgba(255,255,255,0.04)', color: finding.tone }}><ShieldAlert className="h-5 w-5" /></span><div><p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: finding.tone }}>{finding.severity}</p><h3 className="mt-1 text-lg font-bold">{finding.title}</h3><p className="mt-1 text-sm text-slate-400">{finding.body}</p></div></div></div>
 }
 
 function MobileStepper({ active }: { active: string }) {

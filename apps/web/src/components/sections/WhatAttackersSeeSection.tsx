@@ -376,8 +376,11 @@ function GreenWaveField({ reduce }: { reduce: boolean }) {
     let w = 0
     let h = 0
     let dpr = 1
-    const COLS = 76
-    const ROWS = 18
+    let visible = true
+    // A dense, fine grid of tiny dots reads as a "data field" rather than a
+    // few fat dots. Kept cheap with batched fills per alpha bucket.
+    const COLS = 132
+    const ROWS = 30
 
     const resize = () => {
       dpr = Math.min(window.devicePixelRatio || 1, 2)
@@ -389,40 +392,63 @@ function GreenWaveField({ reduce }: { reduce: boolean }) {
     }
 
     const render = (ms: number) => {
-      const t = ms * 0.00035
+      const t = ms * 0.00016 // slow flow
       ctx.clearRect(0, 0, w, h)
+      const driftY = Math.sin(t * 0.5) * 3
       for (let r = 0; r < ROWS; r++) {
-        const rz = r / (ROWS - 1) // 0 = far/top, 1 = near/bottom
-        const rowY = h * (0.12 + Math.pow(rz, 1.5) * 0.86)
-        const spread = 0.62 + rz * 0.5
-        const dotR = 0.35 + rz * 1.5
+        // rz: 0 = far horizon (top, small/dim), 1 = near (bottom, larger/brighter)
+        const rz = r / (ROWS - 1)
+        const persp = Math.pow(rz, 1.5)
+        const rowY = h * (0.05 + persp * 0.92) + driftY
+        const spread = 0.3 + rz * 0.68 // perspective: far rows narrower
+        const dotR = 0.4 + rz * 0.95 // tiny dots throughout
+        const amp = 2.5 + rz * 14
+        const rowBright = 0.045 + rz * 0.32 // low opacity, gently brighter up front
         for (let c = 0; c < COLS; c++) {
-          const cx = c / (COLS - 1) // 0..1
-          const x = w / 2 + (cx - 0.5) * w * spread
+          const cx = c / (COLS - 1) - 0.5 // -0.5..0.5
+          const phase = cx * 7
+          // multi-octave terrain that flows horizontally over time
           const wave =
-            Math.sin(cx * 7 + t + r * 0.35) * 0.6 +
-            Math.sin(cx * 13 - t * 0.7 + r * 0.2) * 0.4
-          const y = rowY + wave * (4 + rz * 18)
-          const edgeFade = Math.max(0, 1 - Math.pow(Math.abs(cx - 0.5) * 2, 2.2))
-          const alpha = edgeFade * (0.06 + rz * 0.5)
-          if (alpha <= 0.01) continue
+            Math.sin(phase + t + rz * 2.4) * 0.55 +
+            Math.sin(cx * 15.5 - t * 0.7 + rz * 4) * 0.27 +
+            Math.sin(cx * 3.3 + t * 0.4) * 0.33
+          const x = w / 2 + cx * w * spread
+          const y = rowY + wave * amp
+          const crest = 0.65 + 0.35 * Math.sin(phase + t + rz * 2.4) // crests a touch brighter
+          const edgeFade = Math.max(0, 1 - Math.pow(Math.abs(cx) * 2, 2.4))
+          let a = rowBright * edgeFade * crest
+          if (a < 0.012) continue
+          if (a > 0.42) a = 0.42 // cap — never a bright blob
           ctx.beginPath()
-          ctx.fillStyle = `rgba(124,255,0,${alpha})`
+          ctx.fillStyle = `rgba(124,255,0,${a})`
           ctx.arc(x, y, dotR, 0, Math.PI * 2)
           ctx.fill()
         }
       }
-      if (!reduce) raf = window.requestAnimationFrame(render)
+      if (!reduce && visible) raf = window.requestAnimationFrame(render)
     }
 
     resize()
     window.addEventListener('resize', resize)
+
+    // Pause the loop when the band scrolls out of view.
+    const io = new IntersectionObserver(
+      entries => {
+        const wasVisible = visible
+        visible = entries[0]?.isIntersecting ?? true
+        if (visible && !wasVisible && !reduce) raf = window.requestAnimationFrame(render)
+      },
+      { rootMargin: '120px' },
+    )
+    io.observe(canvas)
+
     if (reduce) render(0)
     else raf = window.requestAnimationFrame(render)
 
     return () => {
       window.cancelAnimationFrame(raf)
       window.removeEventListener('resize', resize)
+      io.disconnect()
     }
   }, [reduce])
 
@@ -431,7 +457,12 @@ function GreenWaveField({ reduce }: { reduce: boolean }) {
       ref={ref}
       aria-hidden
       className="absolute inset-0 h-full w-full"
-      style={{ maskImage: 'linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)', WebkitMaskImage: 'linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)' }}
+      style={{
+        maskImage:
+          'radial-gradient(115% 130% at 50% 78%, #000 30%, rgba(0,0,0,0.45) 62%, transparent 86%)',
+        WebkitMaskImage:
+          'radial-gradient(115% 130% at 50% 78%, #000 30%, rgba(0,0,0,0.45) 62%, transparent 86%)',
+      }}
     />
   )
 }

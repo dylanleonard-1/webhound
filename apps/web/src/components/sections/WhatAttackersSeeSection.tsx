@@ -223,35 +223,36 @@ function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount
 
 function MobileScanWheel({ reduce }: { reduce: boolean }) {
   return (
-    <div
-      className="relative z-20 mx-auto mt-7 h-[430px] max-w-[560px] overflow-y-auto overflow-x-hidden rounded-[24px] px-3 py-6 [perspective:900px]"
-      style={{
-        background: 'rgba(2,6,14,0.92)',
-        border: '1px solid rgba(124,255,0,0.16)',
-        WebkitOverflowScrolling: 'touch',
-        scrollbarWidth: 'thin',
-      }}
-    >
-      <div className="sticky top-0 z-20 -mx-3 -mt-6 mb-4 px-6 py-4" style={{ background: 'linear-gradient(180deg, rgba(2,6,14,0.98), rgba(2,6,14,0.76), transparent)' }}>
+    <div className="relative z-20 mx-auto mt-7 max-w-[560px] rounded-[24px] p-3" style={{ background: 'rgba(2,6,14,0.92)', border: '1px solid rgba(124,255,0,0.16)' }}>
+      <div className="px-3 pb-3 pt-2">
         <p className="text-[10px] font-bold uppercase tracking-[0.24em]" style={{ color: 'rgba(124,255,0,0.78)' }}>Scan wheel</p>
         <p className="mt-1 text-[11px]" style={{ color: 'rgba(255,255,255,0.45)' }}>Swipe the findings or keep scrolling past.</p>
       </div>
 
-      <div className="relative flex flex-col gap-3 pb-6">
-        <div aria-hidden className="pointer-events-none absolute bottom-10 left-[34px] top-2 w-px bg-gradient-to-b from-transparent via-[rgba(124,255,0,0.34)] to-transparent" />
-        {CALLOUTS.map((c, i) => (
-          <motion.div
-            key={c.id}
-            className="relative z-10"
-            initial={{ opacity: 0, y: reduce ? 0 : 16, rotateX: reduce ? 0 : -10 }}
-            whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
-            viewport={{ once: true, amount: 0.45 }}
-            transition={{ duration: 0.36, delay: reduce ? 0 : i * 0.035 }}
-            style={{ transformOrigin: 'center center' }}
-          >
-            <CalloutItem callout={c} stacked index={i + 1} />
-          </motion.div>
-        ))}
+      <div
+        className="relative h-[350px] overflow-y-auto overflow-x-hidden rounded-[18px] px-2 py-4 [perspective:900px]"
+        style={{
+          background: 'rgba(2,6,14,0.72)',
+          WebkitOverflowScrolling: 'touch',
+          scrollbarWidth: 'thin',
+        }}
+      >
+        <div className="relative flex flex-col gap-3 pb-4 pt-1">
+          <div aria-hidden className="pointer-events-none absolute bottom-8 left-[34px] top-5 w-px bg-gradient-to-b from-transparent via-[rgba(124,255,0,0.34)] to-transparent" />
+          {CALLOUTS.map((c, i) => (
+            <motion.div
+              key={c.id}
+              className="relative z-10"
+              initial={{ opacity: 0, y: reduce ? 0 : 16, rotateX: reduce ? 0 : -10 }}
+              whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
+              viewport={{ once: true, amount: 0.45 }}
+              transition={{ duration: 0.36, delay: reduce ? 0 : i * 0.035 }}
+              style={{ transformOrigin: 'center center' }}
+            >
+              <CalloutItem callout={c} stacked index={i + 1} />
+            </motion.div>
+          ))}
+        </div>
       </div>
     </div>
   )

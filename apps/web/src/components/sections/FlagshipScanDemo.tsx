@@ -3,6 +3,7 @@
 // WebHound — components/sections/FlagshipScanDemo.tsx
 // Cinematic flagship scan demo preview. Fixed design canvas scales on mobile.
 
+import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
@@ -95,27 +96,29 @@ export function FlagshipScanDemo() {
   const assetsFound = phase === 'idle' ? 0 : Math.round((assetStep / ASSETS.length) * 31)
 
   return (
-    <section className="relative min-h-screen overflow-x-hidden bg-[#020817] py-10 text-white">
-      <div className={expanded ? 'fixed inset-0 z-[100] grid place-items-center overflow-auto bg-[#020817] p-3' : 'mx-auto w-full max-w-[1500px] overflow-x-auto px-3 sm:px-6'}>
-        <div className="mx-auto w-[1320px] origin-top scale-[0.47] sm:scale-[0.64] md:scale-[0.78] lg:scale-100">
-          <div className="grid grid-cols-[270px_1fr] gap-5 rounded-[30px] border border-white/[0.06] bg-[radial-gradient(circle_at_55%_0%,rgba(132,255,0,0.07),transparent_34%),linear-gradient(180deg,rgba(4,10,22,0.98),rgba(2,8,23,0.98))] p-5 shadow-[0_35px_120px_rgba(0,0,0,0.55)]">
-            {!expanded && <NarratorRail phase={phase} assetStep={assetStep} findingStep={findingStep} />}
-            <main className={expanded ? 'col-span-2' : ''}>
-              <div className="overflow-hidden rounded-[18px] border border-[rgba(132,255,0,0.18)] bg-[#06101a]/90 shadow-[0_0_38px_rgba(132,255,0,0.06)]">
-                <DemoTopBar phase={phase} elapsed={elapsed} expanded={expanded} onRestart={restart} onExpand={() => setExpanded(v => !v)} />
-                <div className="relative h-[610px] overflow-hidden p-6">
-                  <TelemetryField />
-                  {phase === 'idle' && <IdleStage onStart={startScan} />}
-                  {phase !== 'idle' && phase !== 'detail' && <ScanStage phase={phase} assetStep={assetStep} findingStep={findingStep} assetsFound={assetsFound} onOpenCritical={() => setPhase('detail')} />}
-                  {phase === 'detail' && <DetailStage onBack={() => setPhase('complete')} />}
+    <section className="relative min-h-screen overflow-hidden bg-[#020817] py-6 text-white sm:py-10">
+      <div className={expanded ? 'fixed inset-0 z-[100] grid place-items-center overflow-auto bg-[#020817] p-3' : 'mx-auto grid w-full place-items-center overflow-hidden px-2'}>
+        <div className="relative h-[392px] w-[704px] sm:h-[520px] sm:w-[936px] md:h-[640px] md:w-[1152px] lg:h-auto lg:w-[1320px]">
+          <div className="absolute left-0 top-0 w-[1320px] origin-top-left scale-[0.533] sm:scale-[0.709] md:scale-[0.873] lg:relative lg:scale-100">
+            <div className="grid grid-cols-[270px_1fr] gap-5 rounded-[30px] border border-white/[0.06] bg-[radial-gradient(circle_at_55%_0%,rgba(132,255,0,0.07),transparent_34%),linear-gradient(180deg,rgba(4,10,22,0.98),rgba(2,8,23,0.98))] p-5 shadow-[0_35px_120px_rgba(0,0,0,0.55)]">
+              {!expanded && <NarratorRail phase={phase} assetStep={assetStep} findingStep={findingStep} />}
+              <main className={expanded ? 'col-span-2' : ''}>
+                <div className="overflow-hidden rounded-[18px] border border-[rgba(132,255,0,0.18)] bg-[#06101a]/90 shadow-[0_0_38px_rgba(132,255,0,0.06)]">
+                  <DemoTopBar phase={phase} elapsed={elapsed} expanded={expanded} onRestart={restart} onExpand={() => setExpanded(v => !v)} />
+                  <div className="relative h-[610px] overflow-hidden p-6">
+                    <TelemetryField />
+                    {phase === 'idle' && <IdleStage onStart={startScan} />}
+                    {phase !== 'idle' && phase !== 'detail' && <ScanStage phase={phase} assetStep={assetStep} findingStep={findingStep} assetsFound={assetsFound} onOpenCritical={() => setPhase('detail')} />}
+                    {phase === 'detail' && <DetailStage onBack={() => setPhase('complete')} />}
+                  </div>
+                  <div className="flex items-center justify-center gap-5 border-t border-white/[0.06] px-5 py-3 text-xs text-slate-500">
+                    <span className="inline-flex items-center gap-1"><Lock className="h-3.5 w-3.5" /> Read-only scan</span>
+                    <span>No changes made</span>
+                    <span>Takes about 2 minutes</span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-center gap-5 border-t border-white/[0.06] px-5 py-3 text-xs text-slate-500">
-                  <span className="inline-flex items-center gap-1"><Lock className="h-3.5 w-3.5" /> Read-only scan</span>
-                  <span>No changes made</span>
-                  <span>Takes about 2 minutes</span>
-                </div>
-              </div>
-            </main>
+              </main>
+            </div>
           </div>
         </div>
         {expanded && <button onClick={() => setExpanded(false)} className="fixed right-4 top-4 z-[110] rounded-full border border-white/10 bg-white/10 p-3 backdrop-blur-xl"><X className="h-5 w-5" /></button>}
@@ -150,7 +153,7 @@ function IdleStage({ onStart }: { onStart: () => void }) {
 }
 
 function WebsiteCard({ scanning = false, large = false }: { scanning?: boolean; large?: boolean }) {
-  return <div className={`relative mx-auto overflow-hidden rounded-[16px] border border-white/[0.09] bg-[#050b15] shadow-[0_25px_80px_rgba(0,0,0,0.45)] ${large ? 'w-[780px]' : 'w-[500px]'}`}>{scanning && <motion.div className="absolute inset-y-0 z-20 w-24 bg-gradient-to-r from-transparent via-[rgba(132,255,0,0.16)] to-transparent" animate={{ x: [-130, 850] }} transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }} />}<div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4 text-xs text-slate-300"><span className="font-bold">★ NORTHSTAR</span><span>Home&nbsp;&nbsp; Shop&nbsp;&nbsp; Collections&nbsp;&nbsp; About&nbsp;&nbsp; Contact</span><span>⌕ 🛒</span></div><div className={`${large ? 'min-h-[360px]' : 'min-h-[260px]'} grid grid-cols-2 gap-6 p-7`}><div className="flex flex-col justify-center"><p className="text-sm" style={{ color: GREEN }}>Premium products.</p><h3 className={`${large ? 'text-[44px]' : 'text-[26px]'} mt-5 font-bold leading-[1.05]`}>Built for performance.<br />Designed for growth.</h3><button className="mt-7 w-fit rounded-lg px-5 py-2.5 text-sm font-bold text-[#020817]" style={{ background: GREEN }}>Shop Now</button></div><div className="rounded-3xl bg-[radial-gradient(circle_at_50%_45%,rgba(255,255,255,0.18),transparent_35%),linear-gradient(135deg,#121b2a,#020817)]" /></div></div>
+  return <div className={`relative mx-auto overflow-hidden rounded-[16px] border border-white/[0.09] bg-[#050b15] shadow-[0_25px_80px_rgba(0,0,0,0.45)] ${large ? 'w-[780px]' : 'w-[520px]'}`}>{scanning && <motion.div className="absolute inset-y-0 z-20 w-24 bg-gradient-to-r from-transparent via-[rgba(132,255,0,0.14)] to-transparent" animate={{ x: [-130, 850] }} transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }} />}<Image src="/images/northstar-commerce-preview.jpeg" alt="NorthStar Commerce website preview" width={1536} height={1024} priority className="block h-auto w-full" /></div>
 }
 
 function ScanStage({ phase, assetStep, findingStep, assetsFound, onOpenCritical }: { phase: Phase; assetStep: number; findingStep: number; assetsFound: number; onOpenCritical: () => void }) {

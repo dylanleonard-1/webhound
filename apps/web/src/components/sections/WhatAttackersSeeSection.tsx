@@ -313,8 +313,8 @@ function CalloutItem({ callout, stacked = false, index }: { callout: Callout; st
 function BrowserPreview() {
   return (
     <div className="relative">
-      <div aria-hidden className="pointer-events-none absolute -inset-5 rounded-[24px]" style={{ background: 'radial-gradient(closest-side, rgba(124,255,0,0.14), transparent 80%)', filter: 'blur(6px)' }} />
-      <div className="relative overflow-hidden rounded-[14px]" style={{ border: '1px solid rgba(124,255,0,0.24)', boxShadow: '0 26px 70px rgba(0,0,0,0.55), 0 0 36px rgba(124,255,0,0.07)' }}>
+      <div aria-hidden className="pointer-events-none absolute -inset-5 rounded-[24px]" style={{ background: 'radial-gradient(closest-side, rgba(124,255,0,0.08), transparent 80%)', filter: 'blur(6px)' }} />
+      <div className="relative overflow-hidden rounded-[14px]" style={{ border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 26px 70px rgba(0,0,0,0.55), 0 0 24px rgba(124,255,0,0.025)' }}>
         <div className="flex items-center gap-3 px-4 py-2.5" style={{ background: 'rgba(8,12,22,0.92)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           <span className="flex-1 truncate rounded-[6px] px-3 py-1 text-[11px]" style={{ background: 'rgba(2,6,23,0.6)', color: 'rgba(255,255,255,0.45)' }}>
             🔒 northstarcommerce.com

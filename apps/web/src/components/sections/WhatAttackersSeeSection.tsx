@@ -104,12 +104,12 @@ export function WhatAttackersSeeSection() {
         </div>
 
         {/* ── GREEN WAVE between the visual and the process panel ── */}
-        <div aria-hidden className="pointer-events-none relative z-0 -mt-24 h-[170px] w-full sm:-mt-16 sm:h-[185px] lg:-mt-4 lg:h-[180px]">
+        <div aria-hidden className="pointer-events-none relative z-0 -mt-14 h-[175px] w-full sm:-mt-12 sm:h-[185px] lg:-mt-4 lg:h-[180px]">
           <GreenWaveField reduce={!!reduce} />
         </div>
 
         {/* ── BOTTOM: headline + process row + CTA ── */}
-        <div className="relative z-10 -mt-16 px-6 pb-10 sm:-mt-12 sm:px-10 lg:mt-0 lg:px-12 lg:pb-12">
+        <div className="relative z-10 -mt-8 px-6 pb-10 sm:-mt-8 sm:px-10 lg:mt-0 lg:px-12 lg:pb-12">
           <BottomPanel reduce={!!reduce} show={show} />
         </div>
       </motion.div>

@@ -38,6 +38,7 @@ interface Callout {
   label: string
   description: string
   icon: Icon
+  status: string
   side: 'left' | 'right'
   top: string // card vertical placement within the stage
   node: { x: number; y: number } // line endpoint at the callout (stage %)
@@ -46,14 +47,14 @@ interface Callout {
 
 // 3 left · 5 right, exactly like the reference.
 const CALLOUTS: Callout[] = [
-  { id: 'headers', label: 'Headers', description: 'Security headers can reveal weaknesses.', icon: ShieldCheck, side: 'left', top: '13%', node: { x: 18, y: 17 }, edge: { x: 21, y: 19 } },
-  { id: 'ssl', label: 'SSL Certificate', description: 'Expired or weak certificates create trust issues.', icon: Lock, side: 'left', top: '40%', node: { x: 18, y: 44 }, edge: { x: 21, y: 44 } },
-  { id: 'dns', label: 'DNS Records', description: 'Misconfigurations can expose infrastructure.', icon: Globe, side: 'left', top: '67%', node: { x: 18, y: 71 }, edge: { x: 21, y: 69 } },
-  { id: 'forms', label: 'Forms', description: 'Forms can be abused to steal data or inject attacks.', icon: FileText, side: 'right', top: '4%', node: { x: 82, y: 9 }, edge: { x: 79, y: 14 } },
-  { id: 'javascript', label: 'JavaScript', description: 'Third-party scripts can introduce vulnerabilities.', icon: Code2, side: 'right', top: '24%', node: { x: 82, y: 29 }, edge: { x: 79, y: 31 } },
-  { id: 'third', label: 'Third Parties', description: 'External services increase your attack surface.', icon: Share2, side: 'right', top: '44%', node: { x: 82, y: 49 }, edge: { x: 79, y: 49 } },
-  { id: 'admin', label: 'Admin Pages', description: 'Exposed admin pages are a top target for attackers.', icon: ShieldAlert, side: 'right', top: '64%', node: { x: 82, y: 69 }, edge: { x: 79, y: 67 } },
-  { id: 'api', label: 'API Endpoints', description: 'Unprotected APIs can leak sensitive information.', icon: Webhook, side: 'right', top: '84%', node: { x: 82, y: 89 }, edge: { x: 79, y: 85 } },
+  { id: 'headers', label: 'Headers', description: 'Security headers can reveal weaknesses.', icon: ShieldCheck, status: 'Checked', side: 'left', top: '13%', node: { x: 18, y: 17 }, edge: { x: 21, y: 19 } },
+  { id: 'ssl', label: 'SSL Certificate', description: 'Expired or weak certificates create trust issues.', icon: Lock, status: 'Trust', side: 'left', top: '40%', node: { x: 18, y: 44 }, edge: { x: 21, y: 44 } },
+  { id: 'dns', label: 'DNS Records', description: 'Misconfigurations can expose infrastructure.', icon: Globe, status: 'Exposed', side: 'left', top: '67%', node: { x: 18, y: 71 }, edge: { x: 21, y: 69 } },
+  { id: 'forms', label: 'Forms', description: 'Forms can be abused to steal data or inject attacks.', icon: FileText, status: 'Input', side: 'right', top: '4%', node: { x: 82, y: 9 }, edge: { x: 79, y: 14 } },
+  { id: 'javascript', label: 'JavaScript', description: 'Third-party scripts can introduce vulnerabilities.', icon: Code2, status: 'Script', side: 'right', top: '24%', node: { x: 82, y: 29 }, edge: { x: 79, y: 31 } },
+  { id: 'third', label: 'Third Parties', description: 'External services increase your attack surface.', icon: Share2, status: 'Supply', side: 'right', top: '44%', node: { x: 82, y: 49 }, edge: { x: 79, y: 49 } },
+  { id: 'admin', label: 'Admin Pages', description: 'Exposed admin pages are a top target for attackers.', icon: ShieldAlert, status: 'Target', side: 'right', top: '64%', node: { x: 82, y: 69 }, edge: { x: 79, y: 67 } },
+  { id: 'api', label: 'API Endpoints', description: 'Unprotected APIs can leak sensitive information.', icon: Webhook, status: 'Data', side: 'right', top: '84%', node: { x: 82, y: 89 }, edge: { x: 79, y: 85 } },
 ]
 
 const PROCESS: { title: string; body: string; icon: Icon }[] = [
@@ -103,12 +104,12 @@ export function WhatAttackersSeeSection() {
         </div>
 
         {/* ── GREEN WAVE between the visual and the process panel ── */}
-        <div aria-hidden className="pointer-events-none relative z-0 -mt-16 h-[135px] w-full sm:-mt-12 sm:h-[165px] lg:-mt-4 lg:h-[180px]">
+        <div aria-hidden className="pointer-events-none relative z-0 -mt-24 h-[170px] w-full sm:-mt-16 sm:h-[185px] lg:-mt-4 lg:h-[180px]">
           <GreenWaveField reduce={!!reduce} />
         </div>
 
         {/* ── BOTTOM: headline + process row + CTA ── */}
-        <div className="relative z-10 -mt-12 px-6 pb-10 sm:-mt-10 sm:px-10 lg:mt-0 lg:px-12 lg:pb-12">
+        <div className="relative z-10 -mt-16 px-6 pb-10 sm:-mt-12 sm:px-10 lg:mt-0 lg:px-12 lg:pb-12">
           <BottomPanel reduce={!!reduce} show={show} />
         </div>
       </motion.div>
@@ -227,9 +228,19 @@ function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount
         <div className="relative mx-auto max-w-[560px]">
           <BrowserPreview />
         </div>
-        <div className="relative z-20 mt-6 grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-          {CALLOUTS.map(c => (
-            <CalloutItem key={c.id} callout={c} stacked />
+        <div className="relative z-20 mt-6 flex flex-col gap-3.5 sm:grid sm:grid-cols-2">
+          <div aria-hidden className="pointer-events-none absolute bottom-10 left-[26px] top-5 hidden w-px bg-gradient-to-b from-transparent via-[rgba(124,255,0,0.34)] to-transparent shadow-[0_0_18px_rgba(124,255,0,0.28)] sm:hidden" />
+          {CALLOUTS.map((c, i) => (
+            <motion.div
+              key={c.id}
+              className={`relative z-10 ${i % 2 === 1 ? 'ml-5' : 'mr-5'} sm:m-0`}
+              initial={{ opacity: 0, y: reduce ? 0 : 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={show}
+              transition={{ duration: 0.36, delay: reduce ? 0 : i * 0.04 }}
+            >
+              <CalloutItem callout={c} stacked />
+            </motion.div>
           ))}
         </div>
       </div>
@@ -243,25 +254,39 @@ function CalloutItem({ callout, stacked = false }: { callout: Callout; stacked?:
   // matching the reference. Left callouts align their text away from the edge.
   return (
     <div
-      className={`flex items-start gap-2.5 ${stacked ? 'rounded-[14px] p-3.5' : ''}`}
+      className={`relative flex items-start gap-2.5 overflow-hidden ${stacked ? 'rounded-[16px] p-3.5 pr-4' : ''}`}
       style={
         stacked
           ? {
-              background: 'rgba(5,10,20,0.62)',
-              border: '1px solid rgba(124,255,0,0.24)',
-              backdropFilter: 'blur(14px)',
-              WebkitBackdropFilter: 'blur(14px)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 16px 40px rgba(0,0,0,0.28)',
+              background: 'linear-gradient(135deg, rgba(5,10,20,0.72), rgba(5,10,20,0.5))',
+              border: '1px solid rgba(124,255,0,0.25)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 16px 40px rgba(0,0,0,0.3), 0 0 26px rgba(124,255,0,0.05)',
             }
           : undefined
       }
     >
-      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" style={{ background: 'rgba(124,255,0,0.06)', border: '1px solid rgba(124,255,0,0.3)' }}>
+      {stacked && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-px"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(124,255,0,0.55), transparent)' }}
+        />
+      )}
+      <span className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full" style={{ background: 'rgba(124,255,0,0.075)', border: '1px solid rgba(124,255,0,0.34)', boxShadow: stacked ? '0 0 18px rgba(124,255,0,0.13)' : undefined }}>
         <Icon className="h-4 w-4" style={{ color: GREEN }} />
       </span>
-      <div>
-        <h3 className="text-[13px] font-bold leading-tight text-white">{callout.label}</h3>
-        <p className="mt-1 text-[11px] leading-[1.45]" style={{ color: 'rgba(255,255,255,0.5)' }}>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="text-[13px] font-bold leading-tight text-white">{callout.label}</h3>
+          {stacked && (
+            <span className="shrink-0 rounded-full px-2 py-0.5 text-[8.5px] font-bold uppercase tracking-[0.12em]" style={{ color: 'rgba(124,255,0,0.9)', background: 'rgba(124,255,0,0.07)', border: '1px solid rgba(124,255,0,0.2)' }}>
+              {callout.status}
+            </span>
+          )}
+        </div>
+        <p className="mt-1 text-[11px] leading-[1.45]" style={{ color: 'rgba(255,255,255,0.52)' }}>
           {callout.description}
         </p>
       </div>

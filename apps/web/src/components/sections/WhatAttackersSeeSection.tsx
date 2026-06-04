@@ -39,22 +39,19 @@ interface Callout {
   description: string
   icon: Icon
   side: 'left' | 'right'
-  top: string // card vertical placement within the stage
-  // termination point on the preview, as a fraction of the preview box —
-  // routed to a *meaningful* spot on the site (nav, URL lock, search, cart…).
-  target: { fx: number; fy: number }
+  top: string // even vertical rhythm within the stage (identical spacing)
 }
 
-// 3 left · 5 right, exactly like the reference.
+// 4 left · 4 right, evenly distributed with identical vertical spacing.
 const CALLOUTS: Callout[] = [
-  { id: 'headers', label: 'Headers', description: 'Security headers can reveal weaknesses.', icon: ShieldCheck, side: 'left', top: '13%', target: { fx: 0.46, fy: 0.15 } },
-  { id: 'ssl', label: 'SSL Certificate', description: 'Expired or weak certificates create trust issues.', icon: Lock, side: 'left', top: '40%', target: { fx: 0.09, fy: 0.045 } },
-  { id: 'dns', label: 'DNS Records', description: 'Misconfigurations can expose infrastructure.', icon: Globe, side: 'left', top: '67%', target: { fx: 0.14, fy: 0.3 } },
-  { id: 'forms', label: 'Forms', description: 'Forms can be abused to steal data or inject attacks.', icon: FileText, side: 'right', top: '4%', target: { fx: 0.8, fy: 0.16 } },
-  { id: 'javascript', label: 'JavaScript', description: 'Third-party scripts can introduce vulnerabilities.', icon: Code2, side: 'right', top: '24%', target: { fx: 0.6, fy: 0.5 } },
-  { id: 'third', label: 'Third Parties', description: 'External services increase your attack surface.', icon: Share2, side: 'right', top: '44%', target: { fx: 0.5, fy: 0.93 } },
-  { id: 'admin', label: 'Admin Pages', description: 'Exposed admin pages are a top target for attackers.', icon: ShieldAlert, side: 'right', top: '64%', target: { fx: 0.9, fy: 0.16 } },
-  { id: 'api', label: 'API Endpoints', description: 'Unprotected APIs can leak sensitive information.', icon: Webhook, side: 'right', top: '84%', target: { fx: 0.95, fy: 0.16 } },
+  { id: 'headers', label: 'Headers', description: 'Security headers can reveal weaknesses.', icon: ShieldCheck, side: 'left', top: '6%' },
+  { id: 'ssl', label: 'SSL Certificate', description: 'Expired or weak certificates create trust issues.', icon: Lock, side: 'left', top: '32%' },
+  { id: 'dns', label: 'DNS Records', description: 'Misconfigurations can expose infrastructure.', icon: Globe, side: 'left', top: '58%' },
+  { id: 'forms', label: 'Forms', description: 'Forms can be abused to steal data or inject attacks.', icon: FileText, side: 'left', top: '84%' },
+  { id: 'javascript', label: 'JavaScript', description: 'Third-party scripts can introduce vulnerabilities.', icon: Code2, side: 'right', top: '6%' },
+  { id: 'third', label: 'Third Parties', description: 'External services increase your attack surface.', icon: Share2, side: 'right', top: '32%' },
+  { id: 'admin', label: 'Admin Pages', description: 'Exposed admin pages are a top target for attackers.', icon: ShieldAlert, side: 'right', top: '58%' },
+  { id: 'api', label: 'API Endpoints', description: 'Unprotected APIs can leak sensitive information.', icon: Webhook, side: 'right', top: '84%' },
 ]
 
 const PROCESS: { title: string; body: string; icon: Icon }[] = [
@@ -97,14 +94,34 @@ export function WhatAttackersSeeSection() {
             WebkitMaskImage: 'radial-gradient(ellipse 90% 70% at 55% 30%, #000 0%, transparent 80%)',
           }}
         />
+        {/* faint scan lines for depth */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.5]"
+          style={{
+            backgroundImage:
+              'repeating-linear-gradient(0deg, rgba(124,255,0,0.035) 0px, rgba(124,255,0,0.035) 1px, transparent 1px, transparent 4px)',
+            maskImage: 'linear-gradient(180deg, transparent, #000 22%, #000 78%, transparent)',
+            WebkitMaskImage: 'linear-gradient(180deg, transparent, #000 22%, #000 78%, transparent)',
+          }}
+        />
+        {/* very subtle ambient green light + corner glows */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(40% 45% at 72% 30%, rgba(124,255,0,0.07), transparent 70%), radial-gradient(45% 40% at 18% 18%, rgba(124,255,0,0.04), transparent 70%)',
+          }}
+        />
 
         <div className="relative px-6 pt-10 sm:px-10 lg:px-12 lg:pt-12">
           {/* ── TOP: copy + visual stage ── */}
           <TopArea reduce={!!reduce} show={show} />
         </div>
 
-        {/* ── GREEN WAVE between the visual and the process panel ── */}
-        <div aria-hidden className="relative -mt-4 h-[150px] w-full sm:h-[180px]">
+        {/* ── GREEN DATA FLOW between the visual and the process panel ── */}
+        <div aria-hidden className="relative -mt-6 h-[230px] w-full sm:h-[300px]">
           <GreenWaveField reduce={!!reduce} />
         </div>
 
@@ -122,20 +139,23 @@ export function WhatAttackersSeeSection() {
 interface Connector {
   id: string
   d: string
-  tx: number
-  ty: number
+  ex: number
+  ey: number
 }
 
 function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount: number } }) {
   const stageRef = useRef<HTMLDivElement | null>(null)
   const previewRef = useRef<HTMLDivElement | null>(null)
-  const nodeRefs = useRef<Record<string, HTMLSpanElement | null>>({})
+  const nodeRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [hovered, setHovered] = useState<string | null>(null)
   const [geo, setGeo] = useState<{ w: number; h: number; lines: Connector[] }>({ w: 0, h: 0, lines: [] })
 
-  // Measure node-centre and preview pixel positions, then build quadratic
-  // bezier paths in true pixel space (uniform viewBox) so curves + travelling
-  // packets are never distorted. Recomputed on resize / layout settle.
+  // Clean technical-diagram routing: each node owns ONE destination on the
+  // preview's near edge, at the node's own height (clamped to the preview).
+  // Route = horizontal run + single bend into the edge. Measured in true pixel
+  // space (uniform viewBox) so paths + packets are never distorted. Because the
+  // edge points are monotonic with the (evenly spaced) nodes, lines never cross
+  // each other, never pass through the website, and never hit another node.
   useEffect(() => {
     const stage = stageRef.current
     if (!stage) return
@@ -144,28 +164,26 @@ function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount
       const pv = previewRef.current
       if (sr.width < 10 || !pv) return // hidden (mobile) — skip
       const pr = pv.getBoundingClientRect()
+      const pTop = pr.y - sr.y
+      const pH = pr.height
+      const pad = pH * 0.12
       const lines: Connector[] = []
       for (const c of CALLOUTS) {
         const el = nodeRefs.current[c.id]
         if (!el) continue
         const nr = el.getBoundingClientRect()
-        const ox = nr.x + nr.width / 2 - sr.x
         const oy = nr.y + nr.height / 2 - sr.y
-        const tx = pr.x - sr.x + c.target.fx * pr.width
-        const ty = pr.y - sr.y + c.target.fy * pr.height
-        // gentle curve: bow the control point perpendicular to the chord
-        const dx = tx - ox
-        const dy = ty - oy
-        const dist = Math.hypot(dx, dy) || 1
-        const bow = dist * 0.14 * (c.side === 'left' ? 1 : -1)
-        const cx = (ox + tx) / 2 + (-dy / dist) * bow
-        const cy = (oy + ty) / 2 + (dx / dist) * bow
-        lines.push({
-          id: c.id,
-          d: `M ${ox.toFixed(1)} ${oy.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${tx.toFixed(1)} ${ty.toFixed(1)}`,
-          tx,
-          ty,
-        })
+        // originate from the callout's inner edge (the side facing the preview)
+        const ox = c.side === 'left' ? nr.x + nr.width - sr.x : nr.x - sr.x
+        const ex = c.side === 'left' ? pr.x - sr.x : pr.x - sr.x + pr.width
+        const ey = Math.min(pTop + pH - pad, Math.max(pTop + pad, oy))
+        // horizontal run to a bend just outside the edge, then in. The bend
+        // offset adapts to the gutter so the run is always FORWARD (no hook).
+        const gutter = Math.abs(ex - ox)
+        const k = Math.min(22, Math.max(6, gutter * 0.45))
+        const bend = c.side === 'left' ? ex - k : ex + k
+        const d = `M ${ox.toFixed(1)} ${oy.toFixed(1)} L ${bend.toFixed(1)} ${oy.toFixed(1)} L ${ex.toFixed(1)} ${ey.toFixed(1)}`
+        lines.push({ id: c.id, d, ex, ey })
       }
       setGeo({ w: Math.round(sr.width), h: Math.round(sr.height), lines })
     }
@@ -183,7 +201,7 @@ function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount
   }, [])
 
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[24%_76%] lg:gap-2">
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[23%_77%] lg:gap-2">
       {/* LEFT copy */}
       <motion.div
         className="flex flex-col"
@@ -206,7 +224,13 @@ function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount
         {/* small info card */}
         <div
           className="mt-7 flex items-start gap-3 rounded-[14px] p-4 lg:mt-auto"
-          style={{ background: 'rgba(8,14,24,0.7)', border: '1px solid rgba(132,255,58,0.16)' }}
+          style={{
+            background: 'linear-gradient(180deg, rgba(12,20,32,0.8), rgba(8,14,24,0.7))',
+            border: '1px solid rgba(132,255,58,0.18)',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            boxShadow: '0 18px 40px rgba(0,0,0,0.35), 0 0 26px rgba(124,255,0,0.05), inset 0 1px 0 rgba(255,255,255,0.05)',
+          }}
         >
           <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[9px]" style={{ background: 'rgba(124,255,0,0.08)', border: '1px solid rgba(124,255,0,0.22)' }}>
             <Shield className="h-4 w-4" style={{ color: GREEN }} />
@@ -220,18 +244,17 @@ function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount
 
       {/* RIGHT visual stage (desktop) */}
       <div className="hidden lg:block">
-        <div ref={stageRef} className="relative mx-auto h-[480px] w-full">
-          {/* central preview — large + dominant. Centering lives on the static
-              outer wrapper (also the connector anchor); the float lives on the
-              inner motion div so Framer's transform never clobbers centering. */}
-          <div ref={previewRef} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: 'clamp(460px, 38vw, 600px)' }}>
+        <div ref={stageRef} className="relative mx-auto h-[540px] w-full">
+          {/* central preview — the focal point (~+16% larger). Centering lives
+              on the static outer wrapper (also the connector anchor); the float
+              lives on the inner motion div so Framer never clobbers centering. */}
+          <div ref={previewRef} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: 'clamp(540px, 44vw, 700px)' }}>
             <motion.div animate={reduce ? undefined : { y: [0, -10, 0] }} transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}>
-              <BrowserPreview />
+              <BrowserPreview reduce={reduce} />
             </motion.div>
           </div>
 
-          {/* connector map — real bezier paths from node → meaningful preview
-              spots, drawn in true pixel space (uniform viewBox). */}
+          {/* connector map — clean orthogonal routing in true pixel space. */}
           <svg aria-hidden className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 ${geo.w || 1} ${geo.h || 1}`} preserveAspectRatio="none">
             {geo.lines.map((l, i) => {
               const active = hovered === l.id
@@ -241,19 +264,20 @@ function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount
                     d={l.d}
                     fill="none"
                     stroke={GREEN}
-                    strokeWidth={active ? 1.9 : 1.2}
+                    strokeWidth={active ? 1.8 : 1.1}
                     strokeLinecap="round"
+                    strokeLinejoin="round"
                     initial={{ pathLength: reduce ? 1 : 0 }}
                     whileInView={{ pathLength: 1 }}
                     viewport={{ once: true }}
-                    transition={{ duration: reduce ? 0 : 1, delay: reduce ? 0 : 0.3 + i * 0.1 }}
+                    transition={{ duration: reduce ? 0 : 0.9, delay: reduce ? 0 : 0.3 + i * 0.09 }}
                   />
-                  {/* termination marker on the preview */}
-                  <circle cx={l.tx} cy={l.ty} r={active ? 3.4 : 2.4} fill={GREEN} style={{ filter: 'drop-shadow(0 0 5px rgba(124,255,0,0.85))' }} />
-                  {/* travelling data packet */}
+                  {/* termination marker on the preview edge */}
+                  <circle cx={l.ex} cy={l.ey} r={active ? 3.4 : 2.3} fill={GREEN} style={{ filter: 'drop-shadow(0 0 5px rgba(124,255,0,0.85))' }} />
+                  {/* travelling data packet (pulse along the path every 3s) */}
                   {!reduce && (
-                    <circle r="2.6" fill="#e9ffc4" style={{ filter: 'drop-shadow(0 0 6px rgba(124,255,0,1))' }}>
-                      <animateMotion dur="3s" begin={`${(i * 0.36).toFixed(2)}s`} repeatCount="indefinite" path={l.d} />
+                    <circle r="2.5" fill="#e9ffc4" style={{ filter: 'drop-shadow(0 0 6px rgba(124,255,0,1))' }}>
+                      <animateMotion dur="3s" begin={`${(i * 0.34).toFixed(2)}s`} repeatCount="indefinite" path={l.d} />
                     </circle>
                   )}
                 </g>
@@ -265,8 +289,9 @@ function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount
           {CALLOUTS.map((c, i) => (
             <motion.div
               key={c.id}
+              ref={el => { nodeRefs.current[c.id] = el }}
               className="absolute"
-              style={c.side === 'left' ? { left: 0, top: c.top, width: '17%' } : { right: 0, top: c.top, width: '17%' }}
+              style={c.side === 'left' ? { left: 0, top: c.top, width: '14%' } : { right: 0, top: c.top, width: '14%' }}
               initial={{ opacity: 0, x: reduce ? 0 : c.side === 'left' ? -12 : 12 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={show}
@@ -274,7 +299,7 @@ function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount
               onMouseEnter={() => setHovered(c.id)}
               onMouseLeave={() => setHovered(h => (h === c.id ? null : h))}
             >
-              <CalloutItem callout={c} iconRef={el => { nodeRefs.current[c.id] = el }} />
+              <CalloutItem callout={c} reduce={reduce} pulseDelay={i * 0.3} />
             </motion.div>
           ))}
         </div>
@@ -283,11 +308,11 @@ function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount
       {/* RIGHT visual (mobile/tablet stacked) */}
       <div className="lg:hidden">
         <div className="relative mx-auto max-w-[560px]">
-          <BrowserPreview />
+          <BrowserPreview reduce={reduce} />
         </div>
         <div className="mt-7 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {CALLOUTS.map(c => (
-            <CalloutItem key={c.id} callout={c} stacked />
+          {CALLOUTS.map((c, i) => (
+            <CalloutItem key={c.id} callout={c} stacked reduce={reduce} pulseDelay={i * 0.3} />
           ))}
         </div>
       </div>
@@ -298,18 +323,31 @@ function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount
 function CalloutItem({
   callout,
   stacked = false,
-  iconRef,
+  reduce = false,
+  pulseDelay = 0,
 }: {
   callout: Callout
   stacked?: boolean
-  iconRef?: (el: HTMLSpanElement | null) => void
+  reduce?: boolean
+  pulseDelay?: number
 }) {
   const Icon = callout.icon
   // On the desktop stage, right-side callouts read icon-left/text-right too,
   // matching the reference. Left callouts align their text away from the edge.
   return (
-    <div className={`flex items-start gap-2.5 ${stacked ? 'rounded-[14px] p-3.5' : ''}`} style={stacked ? { background: 'rgba(8,14,24,0.72)', border: '1px solid rgba(132,255,58,0.16)' } : undefined}>
-      <span ref={iconRef} className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" style={{ background: 'rgba(124,255,0,0.06)', border: '1px solid rgba(124,255,0,0.3)' }}>
+    <div
+      className={`flex items-start gap-2.5 ${stacked ? 'rounded-[14px] p-3.5 transition-colors duration-300 hover:border-[rgba(132,255,58,0.35)]' : ''}`}
+      style={stacked ? { background: 'rgba(8,14,24,0.72)', border: '1px solid rgba(132,255,58,0.16)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)' } : undefined}
+    >
+      <span className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" style={{ background: 'rgba(124,255,0,0.06)', border: '1px solid rgba(124,255,0,0.3)' }}>
+        {!reduce && (
+          <motion.span
+            aria-hidden
+            className="absolute inset-0 rounded-full"
+            animate={{ boxShadow: ['0 0 0 0 rgba(124,255,0,0.35)', '0 0 0 6px rgba(124,255,0,0)'] }}
+            transition={{ duration: 2.8, repeat: Infinity, ease: 'easeOut', delay: pulseDelay }}
+          />
+        )}
         <Icon className="h-4 w-4" style={{ color: GREEN }} />
       </span>
       <div>
@@ -322,12 +360,18 @@ function CalloutItem({
   )
 }
 
-function BrowserPreview() {
+function BrowserPreview({ reduce = false }: { reduce?: boolean }) {
   return (
     <div className="relative">
-      <div aria-hidden className="pointer-events-none absolute -inset-5 rounded-[24px]" style={{ background: 'radial-gradient(closest-side, rgba(124,255,0,0.14), transparent 80%)', filter: 'blur(6px)' }} />
-      <div className="relative overflow-hidden rounded-[14px]" style={{ border: '1px solid rgba(124,255,0,0.24)', boxShadow: '0 26px 70px rgba(0,0,0,0.55), 0 0 36px rgba(124,255,0,0.07)' }}>
-        <div className="flex items-center gap-3 px-4 py-2.5" style={{ background: 'rgba(8,12,22,0.92)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <div aria-hidden className="pointer-events-none absolute -inset-6 rounded-[26px]" style={{ background: 'radial-gradient(closest-side, rgba(124,255,0,0.16), transparent 80%)', filter: 'blur(8px)' }} />
+      <div
+        className="relative overflow-hidden rounded-[14px]"
+        style={{
+          border: '1px solid rgba(124,255,0,0.26)',
+          boxShadow: '0 34px 90px rgba(0,0,0,0.6), 0 0 46px rgba(124,255,0,0.08), inset 0 1px 0 rgba(255,255,255,0.06)',
+        }}
+      >
+        <div className="flex items-center gap-3 px-4 py-2.5" style={{ background: 'rgba(8,12,22,0.94)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           <span className="flex-1 truncate rounded-[6px] px-3 py-1 text-[11px]" style={{ background: 'rgba(2,6,23,0.6)', color: 'rgba(255,255,255,0.45)' }}>
             🔒 northstarcommerce.com
           </span>
@@ -337,15 +381,28 @@ function BrowserPreview() {
             <span className="h-2 w-2 rounded-full" style={{ background: 'rgba(124,255,0,0.5)' }} />
           </span>
         </div>
-        <Image
-          src="/images/northstar-commerce-preview.jpeg"
-          alt="A real e-commerce website, mapped by WebHound to reveal its attack surface."
-          width={1536}
-          height={1024}
-          priority
-          sizes="(max-width: 1024px) 90vw, 600px"
-          className="block h-auto w-full"
-        />
+        <div className="relative">
+          <Image
+            src="/images/northstar-commerce-preview.jpeg"
+            alt="A real e-commerce website, mapped by WebHound to reveal its attack surface."
+            width={1536}
+            height={1024}
+            priority
+            sizes="(max-width: 1024px) 90vw, 700px"
+            className="block h-auto w-full"
+          />
+          {/* occasional scan sweep */}
+          {!reduce && (
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 top-0 h-1/3"
+              style={{ background: 'linear-gradient(180deg, transparent 0%, rgba(124,255,0,0.10) 50%, transparent 100%)' }}
+              initial={{ y: '-120%' }}
+              animate={{ y: ['-120%', '330%'] }}
+              transition={{ duration: 2.6, repeat: Infinity, repeatDelay: 4.5, ease: 'easeInOut' }}
+            />
+          )}
+        </div>
       </div>
     </div>
   )
@@ -397,15 +454,21 @@ function BottomPanel({ reduce, show }: { reduce: boolean; show: { once: true; am
         >
           <Link href="/scanner" className="group block h-full" tabIndex={-1}>
             <div
-              className="flex h-full flex-col justify-center rounded-[16px] p-5 transition-all duration-300 motion-reduce:transition-none"
-              style={{ background: 'rgba(8,14,24,0.7)', border: '1px solid rgba(124,255,0,0.28)' }}
+              className="flex h-full flex-col justify-center rounded-[16px] p-5 transition-all duration-300 group-hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-y-0"
+              style={{
+                background: 'linear-gradient(180deg, rgba(12,20,32,0.8), rgba(8,14,24,0.7))',
+                border: '1px solid rgba(124,255,0,0.3)',
+                backdropFilter: 'blur(10px)',
+                WebkitBackdropFilter: 'blur(10px)',
+                boxShadow: '0 18px 44px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)',
+              }}
               onMouseEnter={e => {
-                e.currentTarget.style.boxShadow = '0 0 44px rgba(124,255,0,0.22)'
-                e.currentTarget.style.borderColor = 'rgba(124,255,0,0.5)'
+                e.currentTarget.style.boxShadow = '0 22px 60px rgba(0,0,0,0.45), 0 0 50px rgba(124,255,0,0.24), inset 0 1px 0 rgba(255,255,255,0.07)'
+                e.currentTarget.style.borderColor = 'rgba(124,255,0,0.55)'
               }}
               onMouseLeave={e => {
-                e.currentTarget.style.boxShadow = 'none'
-                e.currentTarget.style.borderColor = 'rgba(124,255,0,0.28)'
+                e.currentTarget.style.boxShadow = '0 18px 44px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)'
+                e.currentTarget.style.borderColor = 'rgba(124,255,0,0.3)'
               }}
             >
               <h4 className="text-[16px] font-bold leading-snug text-white">Want to see how we do it?</h4>
@@ -429,6 +492,15 @@ function BottomPanel({ reduce, show }: { reduce: boolean; show: { once: true; am
 
 // ── GreenWaveField — animated dot-wave terrain (canvas, no image) ─────────────
 
+// Layered, edge-to-edge perspective particle fields — "streams of data moving
+// under the website". Three bands at different depths/speeds give parallax;
+// additive blending makes the dense centre glow without a hard blob.
+const WAVE_LAYERS = [
+  { cols: 250, rows: 18, yTop: 0.24, yBot: 1.05, spread: 1.26, dot: 1.7, bright: 0.6, speed: 1.0, amp: 18, drift: 0.018 },
+  { cols: 270, rows: 22, yTop: 0.12, yBot: 1.0, spread: 1.14, dot: 1.45, bright: 0.78, speed: 1.45, amp: 14, drift: 0.03 },
+  { cols: 230, rows: 16, yTop: 0.04, yBot: 0.82, spread: 0.94, dot: 1.05, bright: 0.4, speed: 0.7, amp: 10, drift: 0.012 },
+]
+
 function GreenWaveField({ reduce }: { reduce: boolean }) {
   const ref = useRef<HTMLCanvasElement | null>(null)
 
@@ -443,10 +515,6 @@ function GreenWaveField({ reduce }: { reduce: boolean }) {
     let h = 0
     let dpr = 1
     let visible = true
-    // A dense, fine grid of tiny dots reads as a "data field" rather than a
-    // few fat dots. Kept cheap with batched fills per alpha bucket.
-    const COLS = 132
-    const ROWS = 30
 
     const resize = () => {
       dpr = Math.min(window.devicePixelRatio || 1, 2)
@@ -458,39 +526,40 @@ function GreenWaveField({ reduce }: { reduce: boolean }) {
     }
 
     const render = (ms: number) => {
-      const t = ms * 0.00016 // slow flow
+      const t = ms * 0.000216 // ~35% faster than before
       ctx.clearRect(0, 0, w, h)
-      const driftY = Math.sin(t * 0.5) * 3
-      for (let r = 0; r < ROWS; r++) {
-        // rz: 0 = far horizon (top, small/dim), 1 = near (bottom, larger/brighter)
-        const rz = r / (ROWS - 1)
-        const persp = Math.pow(rz, 1.5)
-        const rowY = h * (0.05 + persp * 0.92) + driftY
-        const spread = 0.3 + rz * 0.68 // perspective: far rows narrower
-        const dotR = 0.4 + rz * 0.95 // tiny dots throughout
-        const amp = 2.5 + rz * 14
-        const rowBright = 0.045 + rz * 0.32 // low opacity, gently brighter up front
-        for (let c = 0; c < COLS; c++) {
-          const cx = c / (COLS - 1) - 0.5 // -0.5..0.5
-          const phase = cx * 7
-          // multi-octave terrain that flows horizontally over time
-          const wave =
-            Math.sin(phase + t + rz * 2.4) * 0.55 +
-            Math.sin(cx * 15.5 - t * 0.7 + rz * 4) * 0.27 +
-            Math.sin(cx * 3.3 + t * 0.4) * 0.33
-          const x = w / 2 + cx * w * spread
-          const y = rowY + wave * amp
-          const crest = 0.65 + 0.35 * Math.sin(phase + t + rz * 2.4) // crests a touch brighter
-          const edgeFade = Math.max(0, 1 - Math.pow(Math.abs(cx) * 2, 2.4))
-          let a = rowBright * edgeFade * crest
-          if (a < 0.012) continue
-          if (a > 0.42) a = 0.42 // cap — never a bright blob
-          ctx.beginPath()
-          ctx.fillStyle = `rgba(124,255,0,${a})`
-          ctx.arc(x, y, dotR, 0, Math.PI * 2)
-          ctx.fill()
+      ctx.globalCompositeOperation = 'lighter' // additive: dense streams glow
+      for (const L of WAVE_LAYERS) {
+        const flow = t * L.speed
+        const driftX = Math.sin(t * 0.25 * L.speed) * w * L.drift
+        for (let r = 0; r < L.rows; r++) {
+          const rz = r / (L.rows - 1) // 0 far → 1 near
+          const persp = Math.pow(rz, 1.4)
+          const rowY = h * (L.yTop + persp * (L.yBot - L.yTop))
+          const spread = L.spread * (0.5 + rz * 0.7)
+          const dotR = L.dot * (0.4 + rz * 1.0)
+          const amp = 2 + rz * L.amp
+          const rb = L.bright * (0.18 + rz)
+          for (let c = 0; c < L.cols; c++) {
+            const cx = c / (L.cols - 1) - 0.5 // -0.5..0.5
+            const phase = cx * 7
+            const wave =
+              Math.sin(phase + flow + rz * 2.2) * 0.55 +
+              Math.sin(cx * 15 - flow * 0.7 + rz * 4) * 0.27 +
+              Math.sin(cx * 3.2 + flow * 0.4) * 0.3
+            const x = w / 2 + cx * w * spread + driftX
+            const y = rowY + wave * amp
+            const crest = 0.6 + 0.4 * Math.sin(phase + flow + rz * 2.2)
+            const edgeFade = Math.max(0, 1 - Math.pow(Math.abs(cx) * 2, 1.6))
+            let a = rb * edgeFade * crest
+            if (a < 0.014) continue
+            if (a > 0.85) a = 0.85
+            ctx.fillStyle = `rgba(124,255,0,${a})`
+            ctx.fillRect(x, y, dotR, dotR)
+          }
         }
       }
+      ctx.globalCompositeOperation = 'source-over'
       if (!reduce && visible) raf = window.requestAnimationFrame(render)
     }
 
@@ -504,7 +573,7 @@ function GreenWaveField({ reduce }: { reduce: boolean }) {
         visible = entries[0]?.isIntersecting ?? true
         if (visible && !wasVisible && !reduce) raf = window.requestAnimationFrame(render)
       },
-      { rootMargin: '120px' },
+      { rootMargin: '140px' },
     )
     io.observe(canvas)
 
@@ -525,9 +594,9 @@ function GreenWaveField({ reduce }: { reduce: boolean }) {
       className="absolute inset-0 h-full w-full"
       style={{
         maskImage:
-          'radial-gradient(115% 130% at 50% 78%, #000 30%, rgba(0,0,0,0.45) 62%, transparent 86%)',
+          'radial-gradient(145% 165% at 50% 70%, #000 52%, rgba(0,0,0,0.5) 76%, transparent 96%)',
         WebkitMaskImage:
-          'radial-gradient(115% 130% at 50% 78%, #000 30%, rgba(0,0,0,0.45) 62%, transparent 86%)',
+          'radial-gradient(145% 165% at 50% 70%, #000 52%, rgba(0,0,0,0.5) 76%, transparent 96%)',
       }}
     />
   )

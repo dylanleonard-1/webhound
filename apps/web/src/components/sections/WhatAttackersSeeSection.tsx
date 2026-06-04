@@ -223,22 +223,22 @@ function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount
 
 function MobileScanWheel({ reduce }: { reduce: boolean }) {
   return (
-    <div className="relative z-20 mx-auto mt-7 max-w-[560px] rounded-[24px] p-3" style={{ background: 'rgba(2,6,14,0.92)', border: '1px solid rgba(124,255,0,0.16)' }}>
+    <div className="relative z-20 mx-auto mt-7 max-w-[560px] rounded-[24px] p-3" style={{ background: 'rgba(2,6,14,0.9)', border: '1px solid rgba(255,255,255,0.07)' }}>
       <div className="px-3 pb-3 pt-2">
         <p className="text-[10px] font-bold uppercase tracking-[0.24em]" style={{ color: 'rgba(124,255,0,0.78)' }}>Scan wheel</p>
-        <p className="mt-1 text-[11px]" style={{ color: 'rgba(255,255,255,0.45)' }}>Swipe the findings or keep scrolling past.</p>
+        <p className="mt-1 text-[11px]" style={{ color: 'rgba(255,255,255,0.48)' }}>Move through exposed surfaces.</p>
       </div>
 
       <div
         className="relative h-[350px] overflow-y-auto overflow-x-hidden rounded-[18px] px-2 py-4 [perspective:900px]"
         style={{
-          background: 'rgba(2,6,14,0.72)',
+          background: 'rgba(2,6,14,0.62)',
           WebkitOverflowScrolling: 'touch',
           scrollbarWidth: 'thin',
         }}
       >
         <div className="relative flex flex-col gap-3 pb-4 pt-1">
-          <div aria-hidden className="pointer-events-none absolute bottom-8 left-[34px] top-5 w-px bg-gradient-to-b from-transparent via-[rgba(124,255,0,0.34)] to-transparent" />
+          <div aria-hidden className="pointer-events-none absolute bottom-8 left-[34px] top-5 w-px bg-gradient-to-b from-transparent via-[rgba(124,255,0,0.14)] to-transparent" />
           {CALLOUTS.map((c, i) => (
             <motion.div
               key={c.id}
@@ -268,11 +268,11 @@ function CalloutItem({ callout, stacked = false, index }: { callout: Callout; st
       style={
         stacked
           ? {
-              background: 'linear-gradient(135deg, rgba(5,10,20,0.82), rgba(5,10,20,0.58))',
-              border: '1px solid rgba(124,255,0,0.25)',
+              background: 'linear-gradient(135deg, rgba(5,10,20,0.84), rgba(5,10,20,0.6))',
+              border: '1px solid rgba(124,255,0,0.13)',
               backdropFilter: 'blur(16px)',
               WebkitBackdropFilter: 'blur(16px)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 16px 40px rgba(0,0,0,0.3), 0 0 26px rgba(124,255,0,0.05)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.055), 0 16px 40px rgba(0,0,0,0.3)',
             }
           : undefined
       }
@@ -281,17 +281,17 @@ function CalloutItem({ callout, stacked = false, index }: { callout: Callout; st
         <span
           aria-hidden
           className="pointer-events-none absolute inset-x-0 top-0 h-px"
-          style={{ background: 'linear-gradient(90deg, transparent, rgba(124,255,0,0.55), transparent)' }}
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(124,255,0,0.26), transparent)' }}
         />
       )}
-      <span className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full" style={{ background: 'rgba(124,255,0,0.075)', border: '1px solid rgba(124,255,0,0.34)', boxShadow: stacked ? '0 0 18px rgba(124,255,0,0.13)' : undefined }}>
+      <span className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full" style={{ background: 'rgba(124,255,0,0.055)', border: '1px solid rgba(124,255,0,0.22)', boxShadow: stacked ? '0 0 14px rgba(124,255,0,0.08)' : undefined }}>
         {typeof index === 'number' ? <span className="text-[10px] font-bold" style={{ color: GREEN }}>{String(index).padStart(2, '0')}</span> : <Icon className="h-4 w-4" style={{ color: GREEN }} />}
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-[13px] font-bold leading-tight text-white">{callout.label}</h3>
           {stacked && (
-            <span className="shrink-0 rounded-full px-2 py-0.5 text-[8.5px] font-bold uppercase tracking-[0.12em]" style={{ color: 'rgba(124,255,0,0.9)', background: 'rgba(124,255,0,0.07)', border: '1px solid rgba(124,255,0,0.2)' }}>
+            <span className="shrink-0 rounded-full px-2 py-0.5 text-[8.5px] font-bold uppercase tracking-[0.12em]" style={{ color: 'rgba(124,255,0,0.88)', background: 'rgba(124,255,0,0.055)', border: '1px solid rgba(124,255,0,0.14)' }}>
               {callout.status}
             </span>
           )}
@@ -302,7 +302,7 @@ function CalloutItem({ callout, stacked = false, index }: { callout: Callout; st
         {typeof index === 'number' && (
           <div className="mt-2 flex items-center gap-2">
             <Icon className="h-3.5 w-3.5" style={{ color: GREEN }} />
-            <span className="text-[9px] font-semibold uppercase tracking-[0.16em]" style={{ color: 'rgba(255,255,255,0.34)' }}>Mapped surface</span>
+            <span className="text-[9px] font-semibold uppercase tracking-[0.16em]" style={{ color: 'rgba(255,255,255,0.32)' }}>Mapped surface</span>
           </div>
         )}
       </div>

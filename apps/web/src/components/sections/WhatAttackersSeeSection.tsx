@@ -103,12 +103,12 @@ export function WhatAttackersSeeSection() {
         </div>
 
         {/* ── GREEN WAVE between the visual and the process panel ── */}
-        <div aria-hidden className="relative -mt-4 h-[150px] w-full sm:h-[180px]">
+        <div aria-hidden className="pointer-events-none relative z-0 -mt-16 h-[135px] w-full sm:-mt-12 sm:h-[165px] lg:-mt-4 lg:h-[180px]">
           <GreenWaveField reduce={!!reduce} />
         </div>
 
         {/* ── BOTTOM: headline + process row + CTA ── */}
-        <div className="relative px-6 pb-10 sm:px-10 lg:px-12 lg:pb-12">
+        <div className="relative z-10 -mt-12 px-6 pb-10 sm:-mt-10 sm:px-10 lg:mt-0 lg:px-12 lg:pb-12">
           <BottomPanel reduce={!!reduce} show={show} />
         </div>
       </motion.div>
@@ -227,7 +227,7 @@ function TopArea({ reduce, show }: { reduce: boolean; show: { once: true; amount
         <div className="relative mx-auto max-w-[560px]">
           <BrowserPreview />
         </div>
-        <div className="mt-7 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="relative z-20 mt-6 grid grid-cols-1 gap-3.5 sm:grid-cols-2">
           {CALLOUTS.map(c => (
             <CalloutItem key={c.id} callout={c} stacked />
           ))}
@@ -242,7 +242,20 @@ function CalloutItem({ callout, stacked = false }: { callout: Callout; stacked?:
   // On the desktop stage, right-side callouts read icon-left/text-right too,
   // matching the reference. Left callouts align their text away from the edge.
   return (
-    <div className={`flex items-start gap-2.5 ${stacked ? 'rounded-[14px] p-3.5' : ''}`} style={stacked ? { background: 'rgba(8,14,24,0.72)', border: '1px solid rgba(132,255,58,0.16)' } : undefined}>
+    <div
+      className={`flex items-start gap-2.5 ${stacked ? 'rounded-[14px] p-3.5' : ''}`}
+      style={
+        stacked
+          ? {
+              background: 'rgba(5,10,20,0.62)',
+              border: '1px solid rgba(124,255,0,0.24)',
+              backdropFilter: 'blur(14px)',
+              WebkitBackdropFilter: 'blur(14px)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 16px 40px rgba(0,0,0,0.28)',
+            }
+          : undefined
+      }
+    >
       <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" style={{ background: 'rgba(124,255,0,0.06)', border: '1px solid rgba(124,255,0,0.3)' }}>
         <Icon className="h-4 w-4" style={{ color: GREEN }} />
       </span>
@@ -289,7 +302,16 @@ function BrowserPreview() {
 
 function BottomPanel({ reduce, show }: { reduce: boolean; show: { once: true; amount: number } }) {
   return (
-    <div className="relative rounded-[20px] p-5 sm:p-7" style={{ background: 'rgba(5,9,17,0.72)', border: '1px solid rgba(255,255,255,0.07)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
+    <div
+      className="relative rounded-[20px] p-5 sm:p-7"
+      style={{
+        background: 'rgba(5,9,17,0.66)',
+        border: '1px solid rgba(124,255,0,0.18)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 20px 70px rgba(0,0,0,0.38), 0 0 42px rgba(124,255,0,0.08)',
+      }}
+    >
       <div className="flex flex-col gap-7 lg:flex-row lg:gap-8">
         {/* left: headline + process cards */}
         <div className="flex-1">

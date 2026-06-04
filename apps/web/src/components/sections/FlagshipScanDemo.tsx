@@ -145,9 +145,9 @@ function getMobileCopy(phase: Phase, assetStep: number, findingStep: number) {
     return { eyebrow: 'Discovering', title: 'Mapping the website.', status: current ? `${current.label} discovered` : 'Finding public pages', detail: `${Math.round((assetStep / ASSETS.length) * 31)} assets found so far` }
   }
   if (phase === 'analyzing') {
-    return { eyebrow: 'Analyzing', title: 'Checking for security risks.', status: 'Reviewing discovered surfaces', detail: `${findingStep} of ${FINDINGS.length} findings surfaced` }
+    return { eyebrow: 'Analyzing', title: 'Checking for security risks.', status: 'Reviewing discovered surfaces', detail: findingStep === 0 ? 'Looking for exposed admin pages, outdated scripts, and missing protections.' : `${findingStep} of ${FINDINGS.length} key findings surfaced` }
   }
-  if (phase === 'complete') return { eyebrow: 'Results dashboard', title: 'Security risk report.', status: '3 findings prepared', detail: 'Review the risk score and open the critical finding.' }
+  if (phase === 'complete') return { eyebrow: 'Results dashboard', title: 'Security risk report.', status: '39 findings prepared', detail: 'Review the risk score and open the critical finding.' }
   return { eyebrow: 'WADE explanation', title: 'Admin Portal Exposed.', status: 'Critical risk explained', detail: 'Risk, impact, and recommended fix.' }
 }
 
@@ -183,7 +183,7 @@ function MobileDemo({ phase, elapsed, assetStep, findingStep, assetsFound, progr
 
           {phase === 'idle' && <button onClick={onStart} className="flex w-full items-center justify-center gap-3 rounded-xl px-5 py-4 text-lg font-bold text-[#020817] shadow-[0_0_34px_rgba(132,255,0,0.2)]" style={{ background: `linear-gradient(135deg, ${GREEN}, #b6ff3f)` }}>Start Scan <ArrowRight className="h-5 w-5" /></button>}
           {phase === 'discovering' && <CompactEventCard label="Currently checking" title={copy.status} body={`${assetsFound} assets discovered`} />}
-          {phase === 'analyzing' && <MobileFindingsList count={findingStep} />}
+          {phase === 'analyzing' && findingStep > 0 && <MobileFindingsList count={findingStep} />}
           {phase === 'complete' && <MobileResultsDashboard onOpenCritical={onOpenCritical} />}
           {phase === 'detail' && <MobileDetail />}
         </div>
@@ -208,8 +208,8 @@ function ScanOverlay({ phase, assetStep, findingStep, progress, assetsFound }: {
         <motion.div className="h-full rounded-full" style={{ background: `linear-gradient(90deg, ${GREEN}, #b6ff3f)`, boxShadow: '0 0 14px rgba(132,255,0,0.28)' }} animate={{ width: `${progress}%` }} transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }} />
       </div>
       <div className="mt-2 flex items-center justify-between gap-3 text-xs">
-        <span className="text-slate-300">{copy.status}</span>
-        <span style={{ color: GREEN }}>{phase === 'discovering' ? `${assetsFound} assets` : phase === 'analyzing' ? `${findingStep}/3 findings` : 'Ready'}</span>
+        <span className="text-slate-300">{phase === 'analyzing' && findingStep === 0 ? 'Scanning exposed surfaces...' : copy.status}</span>
+        <span style={{ color: GREEN }}>{phase === 'discovering' ? `${assetsFound} assets` : phase === 'analyzing' ? (findingStep === 0 ? 'Analyzing' : `${findingStep}/3 key`) : 'Ready'}</span>
       </div>
     </div>
   )
@@ -219,8 +219,8 @@ function MobileFindingsList({ count }: { count: number }) {
   return (
     <div className="rounded-[22px] border border-white/[0.08] bg-black/25 p-3">
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Findings surfaced</p>
-        <span className="text-xs text-slate-500">{count}/3</span>
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Key findings surfaced</p>
+        <span className="text-xs text-slate-500">{count} shown</span>
       </div>
       <div className="space-y-2">
         {FINDINGS.slice(0, count).map((finding, index) => <FindingRow key={finding.title} finding={finding} featured={index === 0} />)}
@@ -240,31 +240,33 @@ function MobileResultsDashboard({ onOpenCritical }: { onOpenCritical: () => void
             <p className="mt-1 text-xs text-slate-500">northstarcommerce.com</p>
           </div>
           <div className="text-right">
-            <b className="block text-5xl leading-none text-red-300">72%</b>
+            <b className="block text-5xl leading-none text-red-300">83%</b>
             <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-red-200">High risk</span>
           </div>
         </div>
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.08]">
-          <div className="h-full w-[72%] rounded-full bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 shadow-[0_0_20px_rgba(255,84,84,0.3)]" />
+          <div className="h-full w-[83%] rounded-full bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 shadow-[0_0_20px_rgba(255,84,84,0.3)]" />
         </div>
-        <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-slate-300">
+        <p className="mt-4 text-xs text-slate-400"><b className="text-slate-200">39 findings detected</b> across the public website.</p>
+        <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-300">
           <SummaryPill label="Critical" value="1" color="#ff5454" />
-          <SummaryPill label="High" value="1" color="#ff9f43" />
-          <SummaryPill label="Medium" value="1" color="#facc15" />
-          <SummaryPill label="Low" value="0" color={GREEN} />
+          <SummaryPill label="High" value="6" color="#ff9f43" />
+          <SummaryPill label="Medium" value="20" color="#facc15" />
+          <SummaryPill label="Low" value="12" color={GREEN} />
         </div>
       </div>
 
       <div className="mt-4 rounded-[22px] border border-white/[0.07] bg-black/25 p-3">
         <div className="mb-3 flex items-center justify-between">
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Findings</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Priority findings</p>
           <span className="rounded-full border border-white/[0.08] px-2 py-1 text-[10px] text-slate-400">Open critical</span>
         </div>
         <button onClick={onOpenCritical} className="block w-full text-left">
           <FindingRow finding={FINDINGS[0]} featured cta />
         </button>
-        <FindingRow finding={FINDINGS[1]} />
-        <FindingRow finding={FINDINGS[2]} />
+        <FindingRow finding={FINDINGS[1]} count="6 issues" />
+        <FindingRow finding={FINDINGS[2]} count="20 issues" />
+        <div className="mt-2 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3 py-3 text-sm text-slate-400">12 low-priority hardening notes grouped in the full report.</div>
       </div>
     </div>
   )
@@ -274,8 +276,8 @@ function SummaryPill({ label, value, color }: { label: string; value: string; co
   return <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.07] bg-white/[0.035] px-3 py-2"><span className="h-2 w-2 rounded-full" style={{ background: color }} /><b>{value}</b><span className="text-slate-500">{label}</span></span>
 }
 
-function FindingRow({ finding, featured = false, cta = false }: { finding: (typeof FINDINGS)[number]; featured?: boolean; cta?: boolean }) {
-  return <div className={`mt-2 rounded-2xl border px-3 py-3 ${featured ? 'border-red-400/30 bg-red-500/[0.055] shadow-[0_0_22px_rgba(255,84,84,0.08)]' : 'border-white/[0.06] bg-white/[0.025]'}`}><div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: `${finding.tone}18`, color: finding.tone }}><ShieldAlert className="h-4 w-4" /></span><span className="min-w-0 flex-1"><span className="block text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: finding.tone }}>{finding.severity}</span><span className="block truncate font-bold text-slate-100">{finding.title}</span></span>{cta ? <ArrowRight className="h-5 w-5 shrink-0" style={{ color: GREEN }} /> : <span className="text-xs font-semibold" style={{ color: finding.tone }}>{finding.severity === 'CRITICAL' ? 'Open' : finding.severity[0] + finding.severity.slice(1).toLowerCase()}</span>}</div></div>
+function FindingRow({ finding, featured = false, cta = false, count }: { finding: (typeof FINDINGS)[number]; featured?: boolean; cta?: boolean; count?: string }) {
+  return <div className={`mt-2 rounded-2xl border px-3 py-3 ${featured ? 'border-red-400/30 bg-red-500/[0.055] shadow-[0_0_22px_rgba(255,84,84,0.08)]' : 'border-white/[0.06] bg-white/[0.025]'}`}><div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: `${finding.tone}18`, color: finding.tone }}><ShieldAlert className="h-4 w-4" /></span><span className="min-w-0 flex-1"><span className="block text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: finding.tone }}>{finding.severity}</span><span className="block truncate font-bold text-slate-100">{finding.title}</span></span>{cta ? <ArrowRight className="h-5 w-5 shrink-0" style={{ color: GREEN }} /> : <span className="text-xs font-semibold" style={{ color: finding.tone }}>{count ?? (finding.severity === 'CRITICAL' ? 'Open' : finding.severity[0] + finding.severity.slice(1).toLowerCase())}</span>}</div></div>
 }
 
 function CompactEventCard({ label, title, body }: { label: string; title: string; body: string }) {

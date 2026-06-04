@@ -347,10 +347,10 @@ function BottomPanel({ reduce, show }: { reduce: boolean; show: { once: true; am
       className="relative rounded-[20px] p-5 sm:p-7"
       style={{
         background: 'rgba(5,9,17,0.66)',
-        border: '1px solid rgba(124,255,0,0.18)',
+        border: '1px solid rgba(255,255,255,0.07)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 20px 70px rgba(0,0,0,0.38), 0 0 42px rgba(124,255,0,0.08)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 20px 70px rgba(0,0,0,0.38), 0 0 28px rgba(124,255,0,0.035)',
       }}
     >
       <div className="flex flex-col gap-7 lg:flex-row lg:gap-8">
@@ -371,7 +371,7 @@ function BottomPanel({ reduce, show }: { reduce: boolean; show: { once: true; am
                   viewport={show}
                   transition={{ duration: 0.4, delay: reduce ? 0 : i * 0.08 }}
                 >
-                  <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full" style={{ background: 'rgba(124,255,0,0.06)', border: '1px solid rgba(124,255,0,0.28)' }}>
+                  <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full" style={{ background: 'rgba(124,255,0,0.045)', border: '1px solid rgba(124,255,0,0.16)' }}>
                     <Icon className="h-4 w-4" style={{ color: GREEN }} />
                   </span>
                   <h4 className="text-[12px] font-bold leading-tight text-white">{p.title}</h4>
@@ -395,14 +395,14 @@ function BottomPanel({ reduce, show }: { reduce: boolean; show: { once: true; am
           <Link href="/scanner" className="group block h-full" tabIndex={-1}>
             <div
               className="flex h-full flex-col justify-center rounded-[16px] p-5 transition-all duration-300 motion-reduce:transition-none"
-              style={{ background: 'rgba(8,14,24,0.7)', border: '1px solid rgba(124,255,0,0.28)' }}
+              style={{ background: 'rgba(8,14,24,0.66)', border: '1px solid rgba(255,255,255,0.07)' }}
               onMouseEnter={e => {
-                e.currentTarget.style.boxShadow = '0 0 44px rgba(124,255,0,0.22)'
-                e.currentTarget.style.borderColor = 'rgba(124,255,0,0.5)'
+                e.currentTarget.style.boxShadow = '0 0 32px rgba(124,255,0,0.12)'
+                e.currentTarget.style.borderColor = 'rgba(124,255,0,0.18)'
               }}
               onMouseLeave={e => {
                 e.currentTarget.style.boxShadow = 'none'
-                e.currentTarget.style.borderColor = 'rgba(124,255,0,0.28)'
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'
               }}
             >
               <h4 className="text-[16px] font-bold leading-snug text-white">Want to see how we do it?</h4>
@@ -411,7 +411,7 @@ function BottomPanel({ reduce, show }: { reduce: boolean; show: { once: true; am
               </p>
               <span
                 className="mt-4 inline-flex items-center gap-2 self-start rounded-[10px] px-4 py-2 text-[12.5px] font-semibold text-[#020617] transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transform-none"
-                style={{ background: GREEN, boxShadow: '0 0 20px rgba(124,255,0,0.3)' }}
+                style={{ background: GREEN, boxShadow: '0 0 18px rgba(124,255,0,0.22)' }}
               >
                 Click here to learn more
                 <ArrowRight className="h-4 w-4" />

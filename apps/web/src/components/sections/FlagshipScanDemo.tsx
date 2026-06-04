@@ -1,7 +1,7 @@
 'use client'
 
 // WebHound — components/sections/FlagshipScanDemo.tsx
-// Cinematic flagship scan demo preview. Mobile gets a guided native layout.
+// Cinematic flagship scan demo preview. Mobile uses a focused demo player.
 
 import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
@@ -38,7 +38,7 @@ const ASSETS = [
 ]
 
 const FINDINGS = [
-  { severity: 'CRITICAL', title: 'Admin Portal Found', body: 'This admin portal is publicly accessible and not protected by authentication.', tone: '#ff5454' },
+  { severity: 'CRITICAL', title: 'Admin Portal Found', body: 'Public admin endpoint discovered.', tone: '#ff5454' },
   { severity: 'HIGH', title: 'Outdated JavaScript Library', body: 'Known vulnerable library detected.', tone: '#ff9f43' },
   { severity: 'MEDIUM', title: 'Missing Security Headers', body: 'Missing browser protection headers.', tone: '#facc15' },
 ]
@@ -62,20 +62,20 @@ export function FlagshipScanDemo() {
   useEffect(() => {
     if (phase !== 'discovering' || reduce) return
     if (assetStep >= ASSETS.length) {
-      const next = window.setTimeout(() => setPhase('analyzing'), 1400)
+      const next = window.setTimeout(() => setPhase('analyzing'), 1200)
       return () => window.clearTimeout(next)
     }
-    const id = window.setTimeout(() => setAssetStep(v => v + 1), 950)
+    const id = window.setTimeout(() => setAssetStep(v => v + 1), 850)
     return () => window.clearTimeout(id)
   }, [phase, assetStep, reduce])
 
   useEffect(() => {
     if (phase !== 'analyzing' || reduce) return
     if (findingStep >= FINDINGS.length) {
-      const next = window.setTimeout(() => setPhase('complete'), 1600)
+      const next = window.setTimeout(() => setPhase('complete'), 1400)
       return () => window.clearTimeout(next)
     }
-    const id = window.setTimeout(() => setFindingStep(v => v + 1), 1400)
+    const id = window.setTimeout(() => setFindingStep(v => v + 1), 1300)
     return () => window.clearTimeout(id)
   }, [phase, findingStep, reduce])
 
@@ -132,83 +132,63 @@ export function FlagshipScanDemo() {
 
 function getScanProgress(phase: Phase, assetStep: number, findingStep: number) {
   if (phase === 'idle') return 0
-  if (phase === 'discovering') return Math.min(62, 8 + Math.round((assetStep / ASSETS.length) * 54))
+  if (phase === 'discovering') return Math.min(58, 10 + Math.round((assetStep / ASSETS.length) * 48))
   if (phase === 'analyzing') return Math.min(92, 64 + Math.round((findingStep / FINDINGS.length) * 28))
   if (phase === 'complete' || phase === 'detail') return 100
   return 0
 }
 
-function getStory(phase: Phase, assetStep: number, findingStep: number) {
-  if (phase === 'idle') return { step: 'Ready', title: 'Ready to scan', body: 'Click Start Scan to see how WebHound checks the website safely.', next: 'Next: discover public pages and assets.' }
+function getMobileCopy(phase: Phase, assetStep: number, findingStep: number) {
+  if (phase === 'idle') return { eyebrow: 'Live scan demo', title: 'See your website checked in real time.', status: 'Ready to scan', detail: 'Safe read-only scan. No changes made.', step: 'Ready' }
   if (phase === 'discovering') {
     const current = ASSETS[Math.max(0, Math.min(assetStep - 1, ASSETS.length - 1))]
-    const next = ASSETS[Math.min(assetStep, ASSETS.length - 1)]
-    return { step: 'Step 1 of 4', title: 'Discovering your website', body: current ? `Found ${current.label}: ${current.path}` : 'WebHound is finding public pages, scripts, APIs, and login areas.', next: assetStep >= ASSETS.length ? 'Next: analyze the discovered attack surface.' : `Next: ${next.label}` }
+    return { eyebrow: 'Discovering', title: 'Mapping the website.', status: current ? `${current.label} discovered` : 'Finding public pages', detail: `${Math.round((assetStep / ASSETS.length) * 31)} assets found so far`, step: 'Discover' }
   }
   if (phase === 'analyzing') {
     const current = FINDINGS[Math.max(0, Math.min(findingStep - 1, FINDINGS.length - 1))]
-    const next = FINDINGS[Math.min(findingStep, FINDINGS.length - 1)]
-    return { step: 'Step 2 of 4', title: 'Analyzing security risks', body: current ? `Finding ${Math.max(1, findingStep)} of ${FINDINGS.length}: ${current.title}` : 'WebHound is reviewing the discovered surfaces for risk.', next: findingStep >= FINDINGS.length ? 'Next: prepare the report.' : `Next: ${next.title}` }
+    return { eyebrow: 'Analyzing', title: 'Checking for security risks.', status: current ? current.title : 'Reviewing discovered surfaces', detail: `${findingStep} of ${FINDINGS.length} findings surfaced`, step: 'Analyze' }
   }
-  if (phase === 'complete') return { step: 'Step 3 of 4', title: 'Report ready', body: 'WebHound found the most important risks and prepared a clear report.', next: 'Tap the critical finding to see the explanation.' }
-  return { step: 'Step 4 of 4', title: 'Finding explained', body: 'WADE translates the risk, impact, and recommended fix into plain English.', next: 'Restart the demo or return to findings.' }
-}
-
-function scanStatusText(phase: Phase, assetStep: number, findingStep: number) {
-  return getStory(phase, assetStep, findingStep).body
-}
-
-function StoryCard({ phase, assetStep, findingStep }: { phase: Phase; assetStep: number; findingStep: number }) {
-  const story = getStory(phase, assetStep, findingStep)
-  return (
-    <div className="rounded-2xl border border-white/[0.08] bg-black/35 p-4 backdrop-blur">
-      <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: GREEN }}>{story.step}</p>
-      <h3 className="mt-2 text-xl font-bold text-white">{story.title}</h3>
-      <p className="mt-2 text-sm leading-6 text-slate-400">{story.body}</p>
-      <p className="mt-3 text-xs font-semibold text-slate-500">{story.next}</p>
-    </div>
-  )
-}
-
-function ScanProgressBar({ phase, assetStep, findingStep, progress }: { phase: Phase; assetStep: number; findingStep: number; progress: number }) {
-  return (
-    <div className="rounded-2xl border border-white/[0.08] bg-black/35 p-4 backdrop-blur">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: GREEN }}>{phase === 'complete' ? 'Scan complete' : phase === 'idle' ? 'Scan ready' : 'Scan in progress'}</p>
-        <p className="text-xs text-slate-400">{progress}%</p>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-white/[0.08]">
-        <motion.div className="h-full rounded-full" style={{ background: `linear-gradient(90deg, ${GREEN}, #b6ff3f)`, boxShadow: '0 0 18px rgba(132,255,0,0.28)' }} animate={{ width: `${progress}%` }} transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }} />
-      </div>
-      <p className="mt-3 text-sm text-slate-400">{phase === 'complete' ? 'The scan is complete. Open a finding to see the explanation.' : scanStatusText(phase, assetStep, findingStep)}</p>
-    </div>
-  )
+  if (phase === 'complete') return { eyebrow: 'Report ready', title: 'Scan complete.', status: '3 findings prepared', detail: 'Tap the critical finding to see the explanation.', step: 'Report' }
+  return { eyebrow: 'WADE explanation', title: 'Admin Portal Exposed.', status: 'Critical risk explained', detail: 'Risk, impact, and recommended fix.', step: 'Explain' }
 }
 
 function MobileDemo({ phase, elapsed, assetStep, findingStep, assetsFound, progress, onStart, onRestart, onOpenCritical }: { phase: Phase; elapsed: number; assetStep: number; findingStep: number; assetsFound: number; progress: number; onStart: () => void; onRestart: () => void; onOpenCritical: () => void }) {
+  const copy = getMobileCopy(phase, assetStep, findingStep)
   return (
     <div className="overflow-hidden rounded-[28px] border border-white/[0.07] bg-[radial-gradient(circle_at_50%_0%,rgba(132,255,0,0.08),transparent_36%),linear-gradient(180deg,rgba(5,11,24,0.98),rgba(2,8,23,0.98))] shadow-[0_28px_80px_rgba(0,0,0,0.5)]">
-      <div className="p-5">
-        <div className="mb-8 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em]"><Shield className="h-5 w-5" style={{ color: GREEN }} /> WebHound</div>
-        <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: GREEN }}>Live scan demo</p>
-        <h1 className="text-[32px] font-bold leading-[1.05]">See your website being checked <span style={{ color: GREEN }}>in real time.</span></h1>
-        <p className="mt-4 text-sm leading-6 text-slate-400">WebHound maps your website, checks for risks, and explains what to fix first.</p>
+      <div className="p-5 pb-4">
+        <div className="mb-5 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em]"><Shield className="h-5 w-5" style={{ color: GREEN }} /> WebHound</div>
+        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: GREEN }}>{copy.eyebrow}</p>
+        <h1 className="text-[30px] font-bold leading-[1.05]">{copy.title}</h1>
+        <p className="mt-3 text-sm leading-6 text-slate-400">{copy.detail}</p>
       </div>
 
       <div className="border-y border-white/[0.06] bg-black/15 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
           <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-black/25 px-3 py-1.5"><Globe className="h-3.5 w-3.5" /> northstarcommerce.com</span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-black/25 px-3 py-1.5"><span className="h-1.5 w-1.5 rounded-full" style={{ background: GREEN }} /> {phase === 'idle' ? 'Live demo' : phase === 'complete' ? 'Scan complete' : phase === 'detail' ? 'Finding opened' : 'Scan running'}</span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-black/25 px-3 py-1.5"><span className="h-1.5 w-1.5 rounded-full" style={{ background: GREEN }} /> {phase === 'idle' ? 'Live demo' : phase === 'complete' ? 'Complete' : phase === 'detail' ? 'Finding opened' : 'Scanning'}</span>
           <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-black/25 px-3 py-1.5"><Clock className="h-3.5 w-3.5" /> 00:00:{String(elapsed).padStart(2, '0')}</span>
           <button onClick={onRestart} className="rounded-full border border-white/[0.08] bg-black/25 px-3 py-1.5"><RefreshCcw className="mr-1 inline h-3.5 w-3.5" />Restart</button>
         </div>
       </div>
 
-      <div className="relative min-h-[440px] overflow-hidden p-4">
+      <div className="relative overflow-hidden p-4">
         <TelemetryField />
-        {phase === 'idle' && <div className="relative z-10 space-y-4"><StoryCard phase={phase} assetStep={assetStep} findingStep={findingStep} /><WebsiteCard large /><button onClick={onStart} className="mx-auto flex w-full items-center justify-center gap-3 rounded-xl px-5 py-4 text-lg font-bold text-[#020817] shadow-[0_0_34px_rgba(132,255,0,0.2)]" style={{ background: `linear-gradient(135deg, ${GREEN}, #b6ff3f)` }}>Start Scan <ArrowRight className="h-5 w-5" /></button></div>}
-        {phase !== 'idle' && phase !== 'detail' && <MobileScanStage phase={phase} assetStep={assetStep} findingStep={findingStep} assetsFound={assetsFound} progress={progress} onOpenCritical={onOpenCritical} />}
-        {phase === 'detail' && <div className="space-y-4"><StoryCard phase={phase} assetStep={assetStep} findingStep={findingStep} /><MobileDetail /></div>}
+        <div className="relative z-10 space-y-4">
+          {phase !== 'detail' && (
+            <div className="relative">
+              <WebsiteCard scanning={phase !== 'idle' && phase !== 'complete'} large />
+              {phase !== 'idle' && <ScanOverlay phase={phase} assetStep={assetStep} findingStep={findingStep} progress={progress} assetsFound={assetsFound} />}
+            </div>
+          )}
+
+          {phase === 'idle' && <button onClick={onStart} className="flex w-full items-center justify-center gap-3 rounded-xl px-5 py-4 text-lg font-bold text-[#020817] shadow-[0_0_34px_rgba(132,255,0,0.2)]" style={{ background: `linear-gradient(135deg, ${GREEN}, #b6ff3f)` }}>Start Scan <ArrowRight className="h-5 w-5" /></button>}
+          {phase === 'discovering' && <CompactEventCard label="Currently checking" title={copy.status} body={`${assetsFound} assets discovered`} />}
+          {phase === 'analyzing' && <CompactFindingCard finding={FINDINGS[Math.max(0, findingStep - 1)] ?? FINDINGS[0]} />}
+          {phase === 'complete' && <MobileReportSummary onOpenCritical={onOpenCritical} />}
+          {phase === 'detail' && <MobileDetail />}
+          <MobileStepper active={copy.step} />
+        </div>
       </div>
 
       <div className="flex items-center justify-center gap-3 border-t border-white/[0.06] px-4 py-3 text-[11px] text-slate-500">
@@ -218,27 +198,40 @@ function MobileDemo({ phase, elapsed, assetStep, findingStep, assetsFound, progr
   )
 }
 
-function MobileScanStage({ phase, assetStep, findingStep, assetsFound, progress, onOpenCritical }: { phase: Phase; assetStep: number; findingStep: number; assetsFound: number; progress: number; onOpenCritical: () => void }) {
-  const recentAssets = ASSETS.slice(Math.max(0, assetStep - 2), Math.min(assetStep, ASSETS.length))
+function ScanOverlay({ phase, assetStep, findingStep, progress, assetsFound }: { phase: Phase; assetStep: number; findingStep: number; progress: number; assetsFound: number }) {
+  const copy = getMobileCopy(phase, assetStep, findingStep)
   return (
-    <div className="relative z-10 space-y-4">
-      <WebsiteCard scanning />
-      <StoryCard phase={phase} assetStep={assetStep} findingStep={findingStep} />
-      <ScanProgressBar phase={phase} assetStep={assetStep} findingStep={findingStep} progress={progress} />
-      {phase === 'discovering' && <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-4"><div className="flex items-end justify-between"><div><p className="font-bold">Assets discovered</p><p className="mt-1 text-sm text-slate-400">Latest surfaces found by WebHound.</p></div><div><b className="block text-right text-4xl" style={{ color: GREEN }}>{assetsFound}</b><p className="text-xs text-slate-500">total</p></div></div>{recentAssets.length > 0 && <div className="mt-4 space-y-2">{recentAssets.map(asset => <div key={asset.label} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2"><span className="text-sm font-semibold">{asset.label}</span><span className="text-xs" style={{ color: GREEN }}>Discovered</span></div>)}</div>}</div>}
-      {phase === 'analyzing' && <FindingsPanelMobile count={findingStep} complete={false} onOpenCritical={onOpenCritical} />}
-      {phase === 'complete' && <CompleteSummary onOpenCritical={onOpenCritical} />}
+    <div className="absolute inset-x-3 bottom-3 rounded-2xl border border-white/[0.1] bg-[#030814]/85 p-3 shadow-[0_16px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: GREEN }}>{phase === 'complete' ? 'Scan complete' : 'Scan in progress'}</p>
+        <p className="text-xs text-slate-300">{progress}%</p>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.1]">
+        <motion.div className="h-full rounded-full" style={{ background: `linear-gradient(90deg, ${GREEN}, #b6ff3f)`, boxShadow: '0 0 14px rgba(132,255,0,0.28)' }} animate={{ width: `${progress}%` }} transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }} />
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-3 text-xs">
+        <span className="text-slate-300">{copy.status}</span>
+        <span style={{ color: GREEN }}>{phase === 'discovering' ? `${assetsFound} assets` : phase === 'analyzing' ? `${findingStep}/3 findings` : 'Ready'}</span>
+      </div>
     </div>
   )
 }
 
-function CompleteSummary({ onOpenCritical }: { onOpenCritical: () => void }) {
-  return <div className="rounded-2xl border border-white/[0.08] bg-black/35 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: GREEN }}>What WebHound found</p><div className="mt-4 grid grid-cols-3 gap-2 text-center"><div className="rounded-xl bg-white/[0.04] p-3"><b className="block text-2xl">31</b><span className="text-[10px] text-slate-500">Assets</span></div><div className="rounded-xl bg-white/[0.04] p-3"><b className="block text-2xl">3</b><span className="text-[10px] text-slate-500">Findings</span></div><div className="rounded-xl bg-white/[0.04] p-3"><b className="block text-2xl text-red-300">1</b><span className="text-[10px] text-slate-500">Critical</span></div></div><button onClick={onOpenCritical} className="mt-4 block w-full rounded-xl border border-red-500/30 bg-red-500/[0.04] p-4 text-left"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-red-300">Critical</p><p className="mt-1 font-bold">Admin Portal Found</p><p className="mt-1 text-xs text-slate-400">Tap to see the risk and recommended fix.</p><p className="mt-2 text-xs" style={{ color: GREEN }}>Open finding →</p></button></div>
+function CompactEventCard({ label, title, body }: { label: string; title: string; body: string }) {
+  return <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">{label}</p><h3 className="mt-2 text-xl font-bold">{title}</h3><p className="mt-1 text-sm text-slate-400">{body}</p></div>
 }
 
-function FindingsPanelMobile({ count, complete, onOpenCritical }: { count: number; complete: boolean; onOpenCritical: () => void }) {
-  const visible = FINDINGS.slice(Math.max(0, count - 1), count)
-  return <div className="space-y-3">{visible.map(f => <button key={f.title} onClick={complete && f.severity === 'CRITICAL' ? onOpenCritical : undefined} className="block w-full rounded-xl border bg-black/35 p-4 text-left" style={{ borderColor: f.severity === 'CRITICAL' ? 'rgba(255,84,84,0.35)' : 'rgba(255,255,255,0.08)' }}><p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: f.tone }}>{f.severity}</p><p className="mt-1 font-bold">{f.title}</p><p className="mt-1 text-xs leading-5 text-slate-400">{f.body}</p></button>)}</div>
+function CompactFindingCard({ finding }: { finding: (typeof FINDINGS)[number] }) {
+  return <div className="rounded-2xl border bg-black/30 p-4" style={{ borderColor: finding.severity === 'CRITICAL' ? 'rgba(255,84,84,0.28)' : 'rgba(255,255,255,0.08)' }}><p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: finding.tone }}>{finding.severity}</p><h3 className="mt-2 text-xl font-bold">{finding.title}</h3><p className="mt-1 text-sm text-slate-400">{finding.body}</p></div>
+}
+
+function MobileReportSummary({ onOpenCritical }: { onOpenCritical: () => void }) {
+  return <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: GREEN }}>Report ready</p><div className="mt-4 grid grid-cols-3 gap-2 text-center"><div className="rounded-xl bg-white/[0.04] p-3"><b className="block text-2xl">31</b><span className="text-[10px] text-slate-500">Assets</span></div><div className="rounded-xl bg-white/[0.04] p-3"><b className="block text-2xl">3</b><span className="text-[10px] text-slate-500">Findings</span></div><div className="rounded-xl bg-white/[0.04] p-3"><b className="block text-2xl text-red-300">1</b><span className="text-[10px] text-slate-500">Critical</span></div></div><button onClick={onOpenCritical} className="mt-4 flex w-full items-center justify-between rounded-xl border border-red-500/25 bg-red-500/[0.04] p-4 text-left"><span><span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-red-300">Critical</span><span className="mt-1 block font-bold">Admin Portal Found</span></span><ArrowRight className="h-5 w-5" style={{ color: GREEN }} /></button></div>
+}
+
+function MobileStepper({ active }: { active: string }) {
+  const steps = ['Discover', 'Analyze', 'Explain', 'Report']
+  return <div className="grid grid-cols-4 gap-2 rounded-2xl border border-white/[0.06] bg-black/25 p-2">{steps.map(step => <div key={step} className="rounded-xl px-2 py-2 text-center text-[10px] font-bold uppercase tracking-[0.08em]" style={{ color: active === step ? '#020817' : '#94a3b8', background: active === step ? GREEN : 'transparent' }}>{step}</div>)}</div>
 }
 
 function MobileDetail() { return <div className="relative z-10 rounded-2xl border border-red-500/20 bg-red-500/[0.035] p-5"><p className="text-xs font-bold uppercase tracking-[0.2em] text-red-400">Critical</p><h3 className="mt-2 text-2xl font-bold">Admin Portal Exposed</h3><p className="mt-3 text-sm text-slate-400">Administrative interfaces are publicly accessible at /admin.</p><div className="mt-5 space-y-3"><InfoBox title="Why it matters" body="Admin panels are frequent targets for credential attacks and account takeover." /><InfoBox title="Recommendation" body="Restrict access with MFA, VPN, IP allowlists, or admin gateways." /></div></div> }
@@ -260,8 +253,8 @@ function DemoTopBar({ phase, elapsed, expanded, onRestart, onExpand }: { phase: 
 }
 
 function TelemetryField() {
-  const dots = useMemo(() => Array.from({ length: 120 }, (_, i) => ({ i, left: (i * 37) % 100, top: (i * 61) % 100, delay: (i % 18) * 0.18, size: 1 + (i % 3) })), [])
-  return <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-45">{dots.map(d => <motion.span key={d.i} className="absolute rounded-full" style={{ left: `${d.left}%`, top: `${d.top}%`, width: d.size + 1, height: d.size + 1, background: 'rgba(132,255,0,0.26)', boxShadow: '0 0 10px rgba(132,255,0,0.15)' }} animate={{ x: [0, 26, -14, 0], y: [0, -20, 12, 0], opacity: [0.08, 0.42, 0.15] }} transition={{ duration: 6 + (d.i % 5), repeat: Infinity, delay: d.delay, ease: 'easeInOut' }} />)}<div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent,rgba(2,8,23,0.9)_75%)]" /></div>
+  const dots = useMemo(() => Array.from({ length: 90 }, (_, i) => ({ i, left: (i * 37) % 100, top: (i * 61) % 100, delay: (i % 18) * 0.18, size: 1 + (i % 3) })), [])
+  return <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-28">{dots.map(d => <motion.span key={d.i} className="absolute rounded-full" style={{ left: `${d.left}%`, top: `${d.top}%`, width: d.size + 1, height: d.size + 1, background: 'rgba(132,255,0,0.22)', boxShadow: '0 0 10px rgba(132,255,0,0.12)' }} animate={{ x: [0, 26, -14, 0], y: [0, -20, 12, 0], opacity: [0.06, 0.32, 0.12] }} transition={{ duration: 6 + (d.i % 5), repeat: Infinity, delay: d.delay, ease: 'easeInOut' }} />)}<div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent,rgba(2,8,23,0.9)_75%)]" /></div>
 }
 
 function IdleStage({ onStart }: { onStart: () => void }) {
@@ -274,7 +267,7 @@ function WebsiteCard({ scanning = false, large = false }: { scanning?: boolean; 
 
 function ScanStage({ phase, assetStep, findingStep, assetsFound, progress, onOpenCritical }: { phase: Phase; assetStep: number; findingStep: number; assetsFound: number; progress: number; onOpenCritical: () => void }) {
   const showTrails = assetStep >= ASSETS.length
-  return <div className="relative z-10 h-full"><div className="absolute left-1/2 top-[42%] w-[520px] -translate-x-1/2 -translate-y-1/2"><WebsiteCard scanning={phase === 'discovering' || phase === 'analyzing'} /></div>{showTrails && <TrailLayer />}{ASSETS.map((a, i) => <AssetNode key={a.label} item={a} active={i < assetStep} danger={a.label === 'Admin Portal' && phase !== 'discovering'} />)}<div className="absolute bottom-6 left-6 w-[390px]"><ScanProgressBar phase={phase} assetStep={assetStep} findingStep={findingStep} progress={progress} /></div>{phase === 'discovering' && <div className="absolute bottom-6 right-6 w-[300px] rounded-2xl border border-white/[0.08] bg-black/30 p-5"><p className="font-bold">Assets discovered</p><b className="mt-2 block text-5xl" style={{ color: GREEN }}>{assetsFound}</b><p className="text-xs text-slate-500">pages, assets, and endpoints</p></div>}{(phase === 'analyzing' || phase === 'complete') && <FindingsPanel count={findingStep} complete={phase === 'complete'} onOpenCritical={onOpenCritical} />}</div>
+  return <div className="relative z-10 h-full"><div className="absolute left-1/2 top-[42%] w-[520px] -translate-x-1/2 -translate-y-1/2"><WebsiteCard scanning={phase === 'discovering' || phase === 'analyzing'} /></div>{showTrails && <TrailLayer />}{ASSETS.map((a, i) => <AssetNode key={a.label} item={a} active={i < assetStep} danger={a.label === 'Admin Portal' && phase !== 'discovering'} />)}<div className="absolute bottom-6 left-6 w-[390px]"><div className="rounded-2xl border border-white/[0.08] bg-black/35 p-4 backdrop-blur"><p className="mb-2 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: GREEN }}>Scan in progress</p><div className="h-2 overflow-hidden rounded-full bg-white/[0.08]"><motion.div className="h-full rounded-full" style={{ background: `linear-gradient(90deg, ${GREEN}, #b6ff3f)` }} animate={{ width: `${progress}%` }} /></div></div></div>{phase === 'discovering' && <div className="absolute bottom-6 right-6 w-[300px] rounded-2xl border border-white/[0.08] bg-black/30 p-5"><p className="font-bold">Assets discovered</p><b className="mt-2 block text-5xl" style={{ color: GREEN }}>{assetsFound}</b><p className="text-xs text-slate-500">pages, assets, and endpoints</p></div>}{(phase === 'analyzing' || phase === 'complete') && <FindingsPanel count={findingStep} complete={phase === 'complete'} onOpenCritical={onOpenCritical} />}</div>
 }
 
 function TrailLayer() {

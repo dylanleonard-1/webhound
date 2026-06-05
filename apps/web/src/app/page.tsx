@@ -8,7 +8,8 @@ import { PageReveal } from '@/components/effects/page-reveal'
 //
 // Slice 6 narrative order (Cynet-density rebuild, all-dark):
 //   Hero               — hook + primary CTA
-//   LiveScan           — see it work (live SBO terminal)
+//   WhatAttackersSee   — what attackers can discover
+//   FlagshipScanDemo   — interactive scan walkthrough
 //   ExampleFindings    — what a finding looks like
 //   WebHoundAdvantage  — four pillars: what makes us different
 //   PlatformStack      — five-feature platform breakdown
@@ -29,6 +30,9 @@ const WhatAttackersSeeSection = dynamic(() =>
   import('@/components/sections/WhatAttackersSeeSection').then(m => ({
     default: m.WhatAttackersSeeSection,
   }))
+)
+const FlagshipScanDemo = dynamic(() =>
+  import('@/components/sections/FlagshipScanDemo').then(m => ({ default: m.FlagshipScanDemo }))
 )
 const ExampleFindings = dynamic(() =>
   import('@/components/sections/example-findings').then(m => ({ default: m.ExampleFindings }))
@@ -64,6 +68,7 @@ export default function HomePage() {
       <PageReveal />
       <Hero />
       <WhatAttackersSeeSection />
+      <FlagshipScanDemo />
       <ExampleFindings />
       <WebHoundAdvantage />
       <PlatformStack />

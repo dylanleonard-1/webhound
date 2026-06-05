@@ -113,31 +113,40 @@ export function FlagshipScanDemo() {
             <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-400">See pages discovered, risks surfaced, and WADE explain what to fix first.</p>
           </div>
         )}
-        <div className="w-full">
-          <div className="grid grid-cols-[340px_minmax(0,1fr)] gap-6 rounded-[34px] border border-white/[0.07] bg-[radial-gradient(circle_at_55%_0%,rgba(132,255,0,0.07),transparent_34%),linear-gradient(180deg,rgba(4,10,22,0.98),rgba(2,8,23,0.98))] p-6 shadow-[0_35px_120px_rgba(0,0,0,0.55)]">
-            {!expanded && <NarratorRail phase={phase} assetStep={assetStep} findingStep={findingStep} />}
-            <main className={expanded ? 'col-span-2' : ''}>
-              <div className="overflow-hidden rounded-[22px] border border-[rgba(132,255,0,0.18)] bg-[#06101a]/90 shadow-[0_0_38px_rgba(132,255,0,0.06)]">
-                <DemoTopBar phase={phase} elapsed={elapsed} expanded={expanded} onRestart={restart} onExpand={() => setExpanded(v => !v)} />
-                <div className="relative h-[720px] overflow-hidden p-8">
-                  <TelemetryField />
-                  {phase === 'idle' && <IdleStage onStart={startScan} />}
-                  {phase !== 'idle' && phase !== 'detail' && <ScanStage phase={phase} assetStep={assetStep} findingStep={findingStep} assetsFound={assetsFound} progress={progress} onOpenCritical={() => setPhase('detail')} />}
-                  {phase === 'detail' && <DetailStage onBack={() => setPhase('complete')} />}
-                </div>
-                <div className="flex items-center justify-center gap-6 border-t border-white/[0.06] px-5 py-4 text-sm text-slate-500">
-                  <span className="inline-flex items-center gap-1"><Lock className="h-4 w-4" /> Read-only scan</span>
-                  <span>No changes made</span>
-                  <span>Takes about 2 minutes</span>
-                </div>
-              </div>
-            </main>
+
+        {!expanded && (
+          <div className="mx-auto mb-8 grid max-w-5xl grid-cols-3 gap-4">
+            <InlineBenefit title="Map your entire site" body="Discover pages, assets, and endpoints." />
+            <InlineBenefit title="Find security issues" body="Surface risks attackers could use." />
+            <InlineBenefit title="Explain fixes" body="Turn findings into clear next steps." />
+          </div>
+        )}
+
+        <div className="mx-auto w-full max-w-[1220px]">
+          <div className="overflow-hidden rounded-[26px] border border-[rgba(132,255,0,0.18)] bg-[#06101a]/90 shadow-[0_34px_110px_rgba(0,0,0,0.58),0_0_48px_rgba(132,255,0,0.055)]">
+            <DemoTopBar phase={phase} elapsed={elapsed} expanded={expanded} onRestart={restart} onExpand={() => setExpanded(v => !v)} />
+            <div className="relative h-[720px] overflow-hidden p-8">
+              <TelemetryField />
+              {phase === 'idle' && <IdleStage onStart={startScan} />}
+              {phase !== 'idle' && phase !== 'detail' && <ScanStage phase={phase} assetStep={assetStep} findingStep={findingStep} assetsFound={assetsFound} progress={progress} onOpenCritical={() => setPhase('detail')} />}
+              {phase === 'detail' && <DetailStage onBack={() => setPhase('complete')} />}
+            </div>
+            <div className="flex items-center justify-center gap-6 border-t border-white/[0.06] px-5 py-4 text-sm text-slate-500">
+              <span className="inline-flex items-center gap-1"><Lock className="h-4 w-4" /> Read-only scan</span>
+              <span>No changes made</span>
+              <span>Takes about 2 minutes</span>
+            </div>
           </div>
         </div>
+
         {expanded && <button onClick={() => setExpanded(false)} className="fixed right-4 top-4 z-[110] rounded-full border border-white/10 bg-white/10 p-3 backdrop-blur-xl"><X className="h-5 w-5" /></button>}
       </div>
     </section>
   )
+}
+
+function InlineBenefit({ title, body }: { title: string; body: string }) {
+  return <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] px-5 py-4 text-left"><p className="font-bold text-slate-100">{title}</p><p className="mt-1 text-sm text-slate-500">{body}</p></div>
 }
 
 function getScanProgress(phase: Phase, assetStep: number, findingStep: number) {
@@ -360,17 +369,6 @@ function FindingRow({ finding, featured = false, cta = false, count }: { finding
 
 function CompactEventCard({ label, title, body }: { label: string; title: string; body: string }) {
   return <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">{label}</p><h3 className="mt-2 text-xl font-bold leading-snug">{title}</h3><p className="mt-1 text-sm text-slate-400">{body}</p></div>
-}
-
-function NarratorRail({ phase, assetStep, findingStep }: { phase: Phase; assetStep: number; findingStep: number }) {
-  const title = phase === 'discovering' ? 'Mapping your website in real time.' : phase === 'analyzing' || phase === 'complete' ? 'See your website being checked in real time.' : phase === 'detail' ? 'Understand what needs fixing first.' : 'See your website being checked in real time.'
-  const body = phase === 'discovering' ? 'WebHound is discovering your pages, assets, and endpoints to build a complete picture of your attack surface.' : phase === 'analyzing' ? 'WebHound finds risks attackers could use and shows what to fix first.' : phase === 'detail' ? 'WADE explains the risk, impact, and recommended fixes.' : 'WebHound maps your website, checks for risks, and explains what to fix first.'
-  const steps = [
-    ['Map your entire site', assetStep >= 3 || phase !== 'idle'],
-    ['Find security issues', phase === 'analyzing' || phase === 'complete' || phase === 'detail'],
-    ['Get clear explanations', phase === 'complete' || phase === 'detail'],
-  ] as const
-  return <aside className="relative flex min-h-[760px] flex-col rounded-[24px] p-8"><div className="mb-14 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.14em]"><Shield className="h-5 w-5" style={{ color: GREEN }} /> WebHound</div><p className="mb-4 text-xs font-bold uppercase tracking-[0.22em]" style={{ color: GREEN }}>Live scan demo</p><h1 className="text-[42px] font-bold leading-[1.02]">{title.includes('real time') ? <>See your website being checked <span style={{ color: GREEN }}>in real time.</span></> : title}</h1><p className="mt-6 text-[15px] leading-7 text-slate-400">{body}</p><div className="mt-10 space-y-5">{steps.map(([label, done], i) => <div key={label} className="flex gap-3"><span className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-black/25"><Check className="h-4 w-4" style={{ color: done ? GREEN : '#475569' }} /></span><div><p className="text-base font-bold text-slate-200">{label}</p><p className="mt-1 text-xs leading-5 text-slate-500">{i === 0 ? 'We discover pages, assets, and endpoints.' : i === 1 ? 'We analyze for vulnerabilities attackers could use.' : 'We show what it means and how to fix it.'}</p></div></div>)}</div>{phase === 'analyzing' && <div className="mt-8 rounded-2xl border border-red-500/20 bg-red-500/[0.04] p-5"><p className="text-xs font-bold uppercase tracking-[0.16em] text-red-300">Threat analysis</p><p className="mt-2 text-sm text-slate-300">{findingStep} issues require attention</p></div>}<div className="mt-auto space-y-3 text-sm text-slate-500"><p className="inline-flex items-center gap-2"><Lock className="h-4 w-4" /> Read-only scan · No changes made</p><p>Takes about 2 minutes</p></div></aside>
 }
 
 function DemoTopBar({ phase, elapsed, expanded, onRestart, onExpand }: { phase: Phase; elapsed: number; expanded: boolean; onRestart: () => void; onExpand: () => void }) {

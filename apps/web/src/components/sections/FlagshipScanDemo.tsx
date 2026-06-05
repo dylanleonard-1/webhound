@@ -43,6 +43,9 @@ const FINDINGS = [
   { severity: 'MEDIUM', title: 'Missing Security Headers', body: 'Missing browser protection headers.', tone: '#facc15' },
 ]
 
+const DETAIL_ACTIONS = ['Require MFA for all admin users', 'Restrict access by IP allowlist', 'Place admin area behind VPN or gateway', 'Monitor failed login attempts']
+const DETAIL_IMPACTS = ['Credential attacks', 'Admin account takeover', 'Unauthorized website changes', 'Customer data exposure']
+
 export function FlagshipScanDemo() {
   const reduce = useReducedMotion()
   const [phase, setPhase] = useState<Phase>('idle')
@@ -99,7 +102,7 @@ export function FlagshipScanDemo() {
   return (
     <section className="relative min-h-screen overflow-hidden bg-[#020817] px-3 py-6 text-white sm:py-10">
       <div className="mx-auto block w-full max-w-[460px] lg:hidden">
-        <MobileDemo phase={phase} elapsed={elapsed} assetStep={assetStep} findingStep={findingStep} assetsFound={assetsFound} progress={progress} onStart={startScan} onRestart={restart} onOpenCritical={() => setPhase('detail')} />
+        <MobileDemo phase={phase} elapsed={elapsed} assetStep={assetStep} findingStep={findingStep} assetsFound={assetsFound} progress={progress} onStart={startScan} onRestart={restart} onOpenCritical={() => setPhase('detail')} onBackToResults={() => setPhase('complete')} />
       </div>
 
       <div className={expanded ? 'fixed inset-0 z-[100] hidden place-items-center overflow-auto bg-[#020817] p-3 lg:grid' : 'mx-auto hidden w-full max-w-[1500px] place-items-center overflow-hidden lg:grid'}>
@@ -139,19 +142,17 @@ function getScanProgress(phase: Phase, assetStep: number, findingStep: number) {
 }
 
 function getMobileCopy(phase: Phase, assetStep: number, findingStep: number) {
-  if (phase === 'idle') return { eyebrow: 'Live scan demo', title: 'See your website checked in real time.', status: 'Ready to scan', detail: 'Safe read-only scan. No changes made.' }
+  if (phase === 'idle') return { eyebrow: 'Live scan demo', title: 'See your website checked in real time.', detail: 'Safe read-only scan. No changes made.' }
   if (phase === 'discovering') {
     const current = ASSETS[Math.max(0, Math.min(assetStep - 1, ASSETS.length - 1))]
-    return { eyebrow: 'Discovering', title: 'Mapping the website.', status: current ? `${current.label} discovered` : 'Finding public pages', detail: `${Math.round((assetStep / ASSETS.length) * 31)} assets found so far` }
+    return { eyebrow: 'Discovering', title: 'Mapping the website.', detail: current ? `${current.label} discovered. ${Math.round((assetStep / ASSETS.length) * 31)} assets found so far.` : 'Finding public pages, assets, and endpoints.' }
   }
-  if (phase === 'analyzing') {
-    return { eyebrow: 'Analyzing', title: 'Checking for security risks.', status: 'Reviewing discovered surfaces', detail: findingStep === 0 ? 'Looking for exposed admin pages, outdated scripts, and missing protections.' : `${findingStep} of ${FINDINGS.length} key findings surfaced` }
-  }
-  if (phase === 'complete') return { eyebrow: 'Results dashboard', title: 'Security risk report.', status: '39 findings prepared', detail: 'Review the risk score and open the critical finding.' }
-  return { eyebrow: 'WADE explanation', title: 'Admin Portal Exposed.', status: 'Critical risk explained', detail: 'Risk, impact, and recommended fix.' }
+  if (phase === 'analyzing') return { eyebrow: 'Analyzing', title: 'Checking for security risks.', detail: findingStep === 0 ? 'Looking for exposed admin pages, outdated scripts, and missing protections.' : `${findingStep} of ${FINDINGS.length} key findings surfaced.` }
+  if (phase === 'complete') return { eyebrow: 'Results dashboard', title: 'Security risk report.', detail: 'Review the risk score and open the critical finding.' }
+  return { eyebrow: 'WADE explanation', title: 'Admin Portal Exposed.', detail: 'Evidence, impact, and recommended fix.' }
 }
 
-function MobileDemo({ phase, elapsed, assetStep, findingStep, assetsFound, progress, onStart, onRestart, onOpenCritical }: { phase: Phase; elapsed: number; assetStep: number; findingStep: number; assetsFound: number; progress: number; onStart: () => void; onRestart: () => void; onOpenCritical: () => void }) {
+function MobileDemo({ phase, elapsed, assetStep, findingStep, assetsFound, progress, onStart, onRestart, onOpenCritical, onBackToResults }: { phase: Phase; elapsed: number; assetStep: number; findingStep: number; assetsFound: number; progress: number; onStart: () => void; onRestart: () => void; onOpenCritical: () => void; onBackToResults: () => void }) {
   const copy = getMobileCopy(phase, assetStep, findingStep)
   return (
     <div className="overflow-hidden rounded-[28px] border border-white/[0.07] bg-[radial-gradient(circle_at_50%_0%,rgba(132,255,0,0.08),transparent_36%),linear-gradient(180deg,rgba(5,11,24,0.98),rgba(2,8,23,0.98))] shadow-[0_28px_80px_rgba(0,0,0,0.5)]">
@@ -182,10 +183,10 @@ function MobileDemo({ phase, elapsed, assetStep, findingStep, assetsFound, progr
           )}
 
           {phase === 'idle' && <button onClick={onStart} className="flex w-full items-center justify-center gap-3 rounded-xl px-5 py-4 text-lg font-bold text-[#020817] shadow-[0_0_34px_rgba(132,255,0,0.2)]" style={{ background: `linear-gradient(135deg, ${GREEN}, #b6ff3f)` }}>Start Scan <ArrowRight className="h-5 w-5" /></button>}
-          {phase === 'discovering' && <CompactEventCard label="Currently checking" title={copy.status} body={`${assetsFound} assets discovered`} />}
+          {phase === 'discovering' && <CompactEventCard label="Currently checking" title={copy.detail} body={`${assetsFound} assets discovered`} />}
           {phase === 'analyzing' && findingStep > 0 && <MobileFindingsList count={findingStep} />}
           {phase === 'complete' && <MobileResultsDashboard onOpenCritical={onOpenCritical} />}
-          {phase === 'detail' && <MobileDetail />}
+          {phase === 'detail' && <MobileDetail onBack={onBackToResults} />}
         </div>
       </div>
 
@@ -208,7 +209,7 @@ function ScanOverlay({ phase, assetStep, findingStep, progress, assetsFound }: {
         <motion.div className="h-full rounded-full" style={{ background: `linear-gradient(90deg, ${GREEN}, #b6ff3f)`, boxShadow: '0 0 14px rgba(132,255,0,0.28)' }} animate={{ width: `${progress}%` }} transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }} />
       </div>
       <div className="mt-2 flex items-center justify-between gap-3 text-xs">
-        <span className="text-slate-300">{phase === 'analyzing' && findingStep === 0 ? 'Scanning exposed surfaces...' : copy.status}</span>
+        <span className="text-slate-300">{phase === 'analyzing' && findingStep === 0 ? 'Scanning exposed surfaces...' : copy.detail}</span>
         <span style={{ color: GREEN }}>{phase === 'discovering' ? `${assetsFound} assets` : phase === 'analyzing' ? (findingStep === 0 ? 'Analyzing' : `${findingStep}/3 key`) : 'Ready'}</span>
       </div>
     </div>
@@ -272,6 +273,76 @@ function MobileResultsDashboard({ onOpenCritical }: { onOpenCritical: () => void
   )
 }
 
+function MobileDetail({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="space-y-3">
+      <div className="rounded-[26px] border border-red-500/25 bg-[radial-gradient(circle_at_100%_0%,rgba(255,84,84,0.14),transparent_34%),linear-gradient(180deg,rgba(12,8,18,0.96),rgba(3,7,18,0.96))] p-4 shadow-[0_28px_70px_rgba(0,0,0,0.45)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-300">Critical finding</p>
+            <h3 className="mt-2 text-2xl font-bold leading-tight">Admin Portal Exposed</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-400">WebHound found a publicly reachable administrative interface.</p>
+          </div>
+          <div className="rounded-2xl border border-red-400/25 bg-red-500/[0.07] px-3 py-2 text-center">
+            <b className="block text-2xl text-red-200">92</b>
+            <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-red-200">Risk</span>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+          <DetailMetric label="Priority" value="Fix First" tone={GREEN} />
+          <DetailMetric label="Impact" value="High" tone="#ff9f43" />
+          <DetailMetric label="URL" value="/admin" />
+          <DetailMetric label="Exposure" value="Public" tone="#ff5454" />
+        </div>
+      </div>
+
+      <div className="rounded-[22px] border border-white/[0.08] bg-black/25 p-4">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Evidence</p>
+        <div className="mt-3 space-y-2 text-sm">
+          <EvidenceRow label="Endpoint" value="northstarcommerce.com/admin" />
+          <EvidenceRow label="Response" value="200 OK" />
+          <EvidenceRow label="Auth required" value="No" danger />
+        </div>
+      </div>
+
+      <div className="rounded-[22px] border border-white/[0.08] bg-black/25 p-4">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Potential impact</p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {DETAIL_IMPACTS.map(item => <MiniTag key={item} text={item} tone="#ff5454" />)}
+        </div>
+      </div>
+
+      <div className="rounded-[22px] border border-white/[0.08] bg-black/25 p-4">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Recommended actions</p>
+        <div className="mt-3 space-y-2">
+          {DETAIL_ACTIONS.map(item => <ActionItem key={item} text={item} />)}
+        </div>
+      </div>
+
+      <button onClick={onBack} className="flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold text-[#020817]" style={{ background: `linear-gradient(135deg, ${GREEN}, #b6ff3f)` }}>
+        Back to results dashboard <ArrowRight className="h-4 w-4" />
+      </button>
+    </div>
+  )
+}
+
+function DetailMetric({ label, value, tone = '#e2e8f0' }: { label: string; value: string; tone?: string }) {
+  return <div className="rounded-xl border border-white/[0.07] bg-white/[0.035] p-3"><p className="text-[9px] uppercase tracking-[0.14em] text-slate-500">{label}</p><p className="mt-1 font-bold" style={{ color: tone }}>{value}</p></div>
+}
+
+function EvidenceRow({ label, value, danger = false }: { label: string; value: string; danger?: boolean }) {
+  return <div className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2"><span className="text-slate-500">{label}</span><span className="font-semibold" style={{ color: danger ? '#ff8a8a' : '#e2e8f0' }}>{value}</span></div>
+}
+
+function MiniTag({ text, tone }: { text: string; tone: string }) {
+  return <span className="rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2 text-xs text-slate-300"><span className="mr-2 inline-block h-1.5 w-1.5 rounded-full" style={{ background: tone }} />{text}</span>
+}
+
+function ActionItem({ text }: { text: string }) {
+  return <div className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2 text-sm text-slate-300"><Check className="h-4 w-4 shrink-0" style={{ color: GREEN }} />{text}</div>
+}
+
 function SummaryPill({ label, value, color }: { label: string; value: string; color: string }) {
   return <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.07] bg-white/[0.035] px-3 py-2"><span className="h-2 w-2 rounded-full" style={{ background: color }} /><b>{value}</b><span className="text-slate-500">{label}</span></span>
 }
@@ -281,10 +352,8 @@ function FindingRow({ finding, featured = false, cta = false, count }: { finding
 }
 
 function CompactEventCard({ label, title, body }: { label: string; title: string; body: string }) {
-  return <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">{label}</p><h3 className="mt-2 text-xl font-bold">{title}</h3><p className="mt-1 text-sm text-slate-400">{body}</p></div>
+  return <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-4"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">{label}</p><h3 className="mt-2 text-xl font-bold leading-snug">{title}</h3><p className="mt-1 text-sm text-slate-400">{body}</p></div>
 }
-
-function MobileDetail() { return <div className="relative z-10 rounded-2xl border border-red-500/20 bg-red-500/[0.035] p-5"><p className="text-xs font-bold uppercase tracking-[0.2em] text-red-400">Critical</p><h3 className="mt-2 text-2xl font-bold">Admin Portal Exposed</h3><p className="mt-3 text-sm text-slate-400">Administrative interfaces are publicly accessible at /admin.</p><div className="mt-5 space-y-3"><InfoBox title="Why it matters" body="Admin panels are frequent targets for credential attacks and account takeover." /><InfoBox title="Recommendation" body="Restrict access with MFA, VPN, IP allowlists, or admin gateways." /></div></div> }
 
 function NarratorRail({ phase, assetStep, findingStep }: { phase: Phase; assetStep: number; findingStep: number }) {
   const title = phase === 'discovering' ? 'Mapping your website in real time.' : phase === 'analyzing' || phase === 'complete' ? 'See your website being checked in real time.' : phase === 'detail' ? 'Understand what needs fixing first.' : 'See your website being checked in real time.'

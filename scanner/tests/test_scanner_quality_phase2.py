@@ -255,7 +255,9 @@ async def test_vt_client_skipped_state_when_network_disabled():
 
 
 def test_quality_multiplier_tiers():
-    from webhound.core.orchestrator import _quality_multiplier
+    # Phase-7: legacy quality multiplier moved into the centralized
+    # risk_scoring module (orchestrator now only delegates).
+    from webhound.core.risk_scoring import _quality_multiplier
     assert _quality_multiplier(0.95) == 1.0
     assert _quality_multiplier(0.80) == 0.85
     assert _quality_multiplier(0.60) == 0.55

@@ -31,11 +31,13 @@ from webhound.models.target import ScanOptions
 
 
 class TestProfileRegistry:
-    def test_four_profiles_registered(self) -> None:
-        assert len(PROFILES) == 4
+    def test_five_profiles_registered(self) -> None:
+        assert len(PROFILES) == 5
 
     def test_expected_names_present(self) -> None:
-        assert set(PROFILES) == {"quick", "standard", "deep", "monitor"}
+        assert set(PROFILES) == {
+            "quick", "standard", "deep", "monitor", "enterprise",
+        }
 
     def test_profile_names_tuple_sorted(self) -> None:
         assert PROFILE_NAMES == tuple(sorted(PROFILES))

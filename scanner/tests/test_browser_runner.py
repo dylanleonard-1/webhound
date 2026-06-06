@@ -181,13 +181,19 @@ async def test_run_browser_pass_handles_missing_playwright_gracefully() -> None:
 
 
 class _FakePage:
-    """Stand-in for a Playwright Page: only the two read-only calls
-    the DOM capture path uses."""
+    """Stand-in for a Playwright Page. ``evaluate`` dispatches on a
+    distinctive substring of each capture script:
 
-    def __init__(self, html="<html></html>", eval_result=None,
+      "innerText"             → main DOM walk (links + text summary)
+      "querySelectorAll('form')"   → form walk
+      "querySelectorAll('script')" → script walk
+      "getRegistrations"      → service-worker probe
+    """
+
+    def __init__(self, html="<html></html>", eval_results=None,
                  content_raises=False, eval_raises=False):
         self._html = html
-        self._eval_result = eval_result
+        self._eval_results = eval_results or {}
         self._content_raises = content_raises
         self._eval_raises = eval_raises
 
@@ -196,10 +202,13 @@ class _FakePage:
             raise RuntimeError("page closed")
         return self._html
 
-    async def evaluate(self, _script):
+    async def evaluate(self, script):
         if self._eval_raises:
             raise RuntimeError("execution context destroyed")
-        return self._eval_result
+        for key, result in self._eval_results.items():
+            if key in script:
+                return result
+        return None
 
 
 @pytest.mark.asyncio
@@ -207,13 +216,16 @@ async def test_capture_rendered_dom_populates_telemetry() -> None:
     tel = BrowserTelemetry(page_url="https://target.test/app")
     page = _FakePage(
         html="<html><body><a href='/hidden'>x</a></body></html>",
-        eval_result={
-            "links": [
-                "https://target.test/hidden",
-                "https://target.test/hidden",  # dupe must collapse
-                "https://cdn.example.com/promo",
-            ],
-            "forms": [{
+        eval_results={
+            "innerText": {
+                "links": [
+                    "https://target.test/hidden",
+                    "https://target.test/hidden",  # dupe must collapse
+                    "https://cdn.example.com/promo",
+                ],
+                "text": "Welcome to the hidden app",
+            },
+            "querySelectorAll('form')": [{
                 "action": "https://target.test/api/login",
                 "method": "post",
                 "fields": [
@@ -226,6 +238,7 @@ async def test_capture_rendered_dom_populates_telemetry() -> None:
     )
     await _capture_rendered_dom(page, tel)
     assert tel.rendered_html is not None and "hidden" in tel.rendered_html
+    assert tel.rendered_text_summary == "Welcome to the hidden app"
     assert tel.rendered_links == [
         "https://target.test/hidden",
         "https://cdn.example.com/promo",
@@ -249,7 +262,9 @@ async def test_capture_rendered_dom_content_failure_is_isolated() -> None:
     tel = BrowserTelemetry(page_url="https://target.test/")
     page = _FakePage(
         content_raises=True,
-        eval_result={"links": ["https://target.test/a"], "forms": []},
+        eval_results={"innerText": {
+            "links": ["https://target.test/a"], "text": "",
+        }},
     )
     await _capture_rendered_dom(page, tel)
     assert tel.rendered_html is None
@@ -259,22 +274,29 @@ async def test_capture_rendered_dom_content_failure_is_isolated() -> None:
 
 @pytest.mark.asyncio
 async def test_capture_rendered_dom_eval_failure_is_isolated() -> None:
+    """Every sub-capture fails — telemetry keeps the HTML snapshot and
+    records one error note per failed walk."""
     tel = BrowserTelemetry(page_url="https://target.test/")
     page = _FakePage(html="<html>ok</html>", eval_raises=True)
     await _capture_rendered_dom(page, tel)
     assert tel.rendered_html == "<html>ok</html>"
     assert tel.rendered_links == []
     assert any("rendered-dom walk failed" in e for e in tel.errors)
+    assert any("form walk failed" in e for e in tel.errors)
+    assert any("script walk failed" in e for e in tel.errors)
 
 
 @pytest.mark.asyncio
 async def test_capture_rendered_dom_malformed_payload_ignored() -> None:
     """Defensive parsing: junk types from the page never raise."""
     tel = BrowserTelemetry(page_url="https://target.test/")
-    page = _FakePage(eval_result={
-        "links": [None, 42, "", "https://target.test/ok"],
-        "forms": ["not-a-dict", {"action": 99, "method": None,
-                                 "fields": [None, {"name": 3, "type": None}]}],
+    page = _FakePage(eval_results={
+        "innerText": {"links": [None, 42, "", "https://target.test/ok"]},
+        "querySelectorAll('form')": [
+            "not-a-dict",
+            {"action": 99, "method": None,
+             "fields": [None, {"name": 3, "type": None}]},
+        ],
     })
     await _capture_rendered_dom(page, tel)
     assert tel.rendered_links == ["https://target.test/ok"]

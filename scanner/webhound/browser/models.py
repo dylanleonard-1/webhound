@@ -75,6 +75,47 @@ class RenderedForm:
     fields: tuple[RenderedFormField, ...] = ()
     has_password_field: bool = False
     page_url: str | None = None
+    has_file_input: bool = False
+    hidden_field_names: tuple[str, ...] = ()
+    # The form's action points at a different registrable domain than
+    # the page it renders on — exfil-shaped, worth surfacing later.
+    action_is_external: bool = False
+
+
+@dataclass(frozen=True)
+class RenderedScript:
+    """A script the rendered page references or embeds.
+
+    ``kind`` is the discovery mechanism: ``script_tag`` (classic src),
+    ``module`` (type=module), ``inline`` (embedded body — only a
+    bounded ``snippet`` plus its hash are kept), ``preload`` /
+    ``prefetch`` / ``modulepreload`` (link hints for dynamic chunks),
+    ``service_worker`` (registration visible to the page)."""
+
+    kind: str
+    src: str | None = None
+    is_inline: bool = False
+    snippet: str | None = None       # First _SNIPPET_CAP chars only
+    snippet_hash: str | None = None  # sha256 of the captured snippet
+    snippet_truncated: bool = False
+
+
+@dataclass(frozen=True)
+class BrowserCookie:
+    """A cookie visible to the browser context after navigation.
+
+    TRUST POSTURE: the cookie *value* is never stored — only its
+    length. Attribute flags are what the cookie engines reason about;
+    holding customer session material in scan output is a liability,
+    not evidence."""
+
+    name: str
+    domain: str
+    path: str
+    secure: bool = False
+    http_only: bool = False
+    same_site: str | None = None
+    value_length: int = 0
 
 
 @dataclass
@@ -102,6 +143,21 @@ class BrowserTelemetry:
     rendered_html: str | None = None
     rendered_links: list[str] = field(default_factory=list)
     rendered_forms: list[RenderedForm] = field(default_factory=list)
+    # Phase-6B discovery extensions — all default-empty so existing
+    # consumers and serialized telemetry are unaffected.
+    rendered_text_summary: str | None = None
+    rendered_scripts: list[RenderedScript] = field(default_factory=list)
+    browser_cookies: list[BrowserCookie] = field(default_factory=list)
+    console_messages: list[str] = field(default_factory=list)
+    page_errors: list[str] = field(default_factory=list)
+    # Client-side routes discovered without navigation (anchors,
+    # __NEXT_DATA__/__NUXT__, route-like script strings, data-href).
+    # ``(route, source)`` pairs; populated by route_extractor.
+    client_routes: list[tuple[str, str]] = field(default_factory=list)
+    # Safe interactions performed (labels) + how many candidate
+    # clicks the deny-list blocked. Forms are never submitted.
+    interactions: list[str] = field(default_factory=list)
+    blocked_interactions: int = 0
     # Subset views — populated by ``add()`` for cheap lookups.
     fetch_urls: list[str] = field(default_factory=list)
     xhr_urls: list[str] = field(default_factory=list)

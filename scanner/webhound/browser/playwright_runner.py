@@ -39,8 +39,6 @@ from urllib.parse import urlparse
 from webhound.browser.models import (
     BrowserTelemetry,
     NetworkArtifact,
-    RenderedForm,
-    RenderedFormField,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,12 +52,15 @@ _DEFAULT_HYDRATION_WAIT_MS = 2_000
 # page (infinite-scroll feeds, generated DOM) from ballooning telemetry.
 _MAX_RENDERED_HTML_CHARS = 1_500_000
 _MAX_RENDERED_LINKS = 2_000
-_MAX_RENDERED_FORMS = 200
+_MAX_TEXT_SUMMARY_CHARS = 2_000
+_MAX_CONSOLE_MESSAGES = 50
+_MAX_PAGE_ERRORS = 20
+_MAX_COOKIES = 100
 
-# Read-only DOM walk evaluated in the page after hydration. Reads
-# attributes via getAttribute (immune to DOM clobbering — a form with
-# <input name="action"> shadows form.action) and resolves URLs against
-# document.baseURI. NEVER focuses, fills, clicks, or submits anything.
+# Read-only DOM walk evaluated in the page after hydration. Link
+# collection only — form extraction lives in browser/form_extractor,
+# script collection in browser/script_collector. NEVER focuses,
+# fills, clicks, or submits anything.
 _DOM_CAPTURE_JS = """
 () => {
   const links = [];
@@ -67,35 +68,11 @@ _DOM_CAPTURE_JS = """
     if (links.length >= %(max_links)d) break;
     try { if (a.href) links.push(a.href); } catch (e) {}
   }
-  const forms = [];
-  for (const f of document.querySelectorAll('form')) {
-    if (forms.length >= %(max_forms)d) break;
-    try {
-      const fields = [];
-      let hasPassword = false;
-      for (const el of f.querySelectorAll('input, select, textarea')) {
-        const type = (el.getAttribute('type')
-                      || el.tagName || '').toLowerCase();
-        if (type === 'password') hasPassword = true;
-        fields.push({ name: el.getAttribute('name'), type: type });
-      }
-      const rawAction = f.getAttribute('action');
-      let action = null;
-      try {
-        action = rawAction
-          ? new URL(rawAction, document.baseURI).href : null;
-      } catch (e) {}
-      forms.push({
-        action: action,
-        method: (f.getAttribute('method') || 'GET').toUpperCase(),
-        fields: fields,
-        hasPassword: hasPassword,
-      });
-    } catch (e) {}
-  }
-  return { links: links, forms: forms };
+  const text = (document.body && document.body.innerText) || '';
+  return { links: links, text: text.slice(0, %(max_text)d) };
 }
-""" % {"max_links": _MAX_RENDERED_LINKS, "max_forms": _MAX_RENDERED_FORMS}
+""" % {"max_links": _MAX_RENDERED_LINKS,
+       "max_text": _MAX_TEXT_SUMMARY_CHARS}
 
 
 @dataclass
@@ -266,6 +243,7 @@ async def _playwright_pass(
                         tel.final_url = page.url
                         if capture_dom:
                             await _capture_rendered_dom(page, tel)
+                            await _capture_cookies(context, tel, page.url)
                     except asyncio.TimeoutError:
                         tel.errors.append(
                             f"navigation timeout after {per_page_timeout_ms}ms"
@@ -292,7 +270,14 @@ async def _capture_rendered_dom(page, tel: BrowserTelemetry) -> None:
     """Snapshot the post-hydration DOM into ``tel``. Read-only and
     defensive: any failure appends an error note and leaves the
     telemetry otherwise intact — the network artifacts already
-    captured for this page are never discarded."""
+    captured for this page are never discarded.
+
+    Delegates form extraction to browser/form_extractor and script
+    collection to browser/script_collector; each sub-capture is
+    isolated so one failing walk never blanks the others."""
+    from webhound.browser.form_extractor import capture_forms
+    from webhound.browser.script_collector import capture_scripts
+
     try:
         html = await page.content()
         if html:
@@ -303,32 +288,44 @@ async def _capture_rendered_dom(page, tel: BrowserTelemetry) -> None:
         data = await page.evaluate(_DOM_CAPTURE_JS)
     except Exception as exc:  # noqa: BLE001
         tel.errors.append(f"rendered-dom walk failed: {type(exc).__name__}")
+        data = None
+    if isinstance(data, dict):
+        seen: set[str] = set()
+        for link in data.get("links") or []:
+            if isinstance(link, str) and link and link not in seen:
+                seen.add(link)
+                tel.rendered_links.append(link)
+        text = data.get("text")
+        if isinstance(text, str) and text.strip():
+            tel.rendered_text_summary = text
+    await capture_forms(page, tel)
+    await capture_scripts(page, tel)
+
+
+async def _capture_cookies(context, tel: BrowserTelemetry, url: str) -> None:
+    """Record cookies visible to the browser context for *url*.
+    Values are never stored — name/attribute flags + value length
+    only (see BrowserCookie trust posture)."""
+    from webhound.browser.models import BrowserCookie
+
+    try:
+        cookies = await context.cookies(url)
+    except Exception as exc:  # noqa: BLE001
+        tel.errors.append(f"cookie capture failed: {type(exc).__name__}")
         return
-    if not isinstance(data, dict):
-        return
-    seen: set[str] = set()
-    for link in data.get("links") or []:
-        if isinstance(link, str) and link and link not in seen:
-            seen.add(link)
-            tel.rendered_links.append(link)
-    for raw in data.get("forms") or []:
-        if not isinstance(raw, dict):
+    for c in (cookies or [])[:_MAX_COOKIES]:
+        try:
+            tel.browser_cookies.append(BrowserCookie(
+                name=str(c.get("name") or ""),
+                domain=str(c.get("domain") or ""),
+                path=str(c.get("path") or "/"),
+                secure=bool(c.get("secure")),
+                http_only=bool(c.get("httpOnly")),
+                same_site=c.get("sameSite"),
+                value_length=len(c.get("value") or ""),
+            ))
+        except Exception:  # noqa: BLE001
             continue
-        fields = tuple(
-            RenderedFormField(
-                name=f.get("name") if isinstance(f.get("name"), str) else None,
-                input_type=str(f.get("type") or "text"),
-            )
-            for f in (raw.get("fields") or [])
-            if isinstance(f, dict)
-        )
-        tel.rendered_forms.append(RenderedForm(
-            action=raw.get("action") if isinstance(raw.get("action"), str) else None,
-            method=str(raw.get("method") or "GET").upper(),
-            fields=fields,
-            has_password_field=bool(raw.get("hasPassword")),
-            page_url=tel.page_url,
-        ))
 
 
 def _wire_capture(page, tel: BrowserTelemetry) -> None:
@@ -387,10 +384,33 @@ def _wire_capture(page, tel: BrowserTelemetry) -> None:
         except Exception:  # noqa: BLE001
             pass
 
+    def _on_console(msg) -> None:
+        try:
+            kind = (msg.type or "").lower()
+            if kind not in ("warning", "error"):
+                return
+            if len(tel.console_messages) >= _MAX_CONSOLE_MESSAGES:
+                return
+            tel.console_messages.append(
+                f"{kind}: {(msg.text or '')[:300]}"
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _on_page_error(exc) -> None:
+        try:
+            if len(tel.page_errors) >= _MAX_PAGE_ERRORS:
+                return
+            tel.page_errors.append(str(exc)[:300])
+        except Exception:  # noqa: BLE001
+            pass
+
     page.on("request", _on_request)
     page.on("response", _on_response)
     page.on("websocket", _on_websocket)
     page.on("frameattached", _on_frame_attached)
+    page.on("console", _on_console)
+    page.on("pageerror", _on_page_error)
 
 
 # ---------------------------------------------------------------------------

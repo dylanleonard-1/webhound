@@ -131,6 +131,7 @@ async def run_browser_pass(
     idle_wait_ms: int = _DEFAULT_IDLE_WAIT_MS,
     user_agent: str | None = None,
     capture_dom: bool = True,
+    interact: bool = True,
     runner: Callable[..., Awaitable["BrowserPassResult"]] | None = None,
 ) -> BrowserPassResult:
     """Visit every URL in ``page_urls`` in a headless Chromium
@@ -159,6 +160,7 @@ async def run_browser_pass(
             idle_wait_ms=idle_wait_ms,
             user_agent=user_agent,
             capture_dom=capture_dom,
+            interact=interact,
         )
     if not allow_network:
         return BrowserPassResult(
@@ -172,6 +174,7 @@ async def run_browser_pass(
         idle_wait_ms=idle_wait_ms,
         user_agent=user_agent,
         capture_dom=capture_dom,
+        interact=interact,
     )
 
 
@@ -188,6 +191,7 @@ async def _playwright_pass(
     idle_wait_ms: int,
     user_agent: str | None,
     capture_dom: bool = True,
+    interact: bool = True,
 ) -> BrowserPassResult:
     try:
         from playwright.async_api import async_playwright  # type: ignore
@@ -233,6 +237,16 @@ async def _playwright_pass(
                         # Hydration window — give SPA frameworks time
                         # to fire their first round of API calls.
                         await asyncio.sleep(hydration_wait_ms / 1000.0)
+                        # Safe interactions (scroll + open menus /
+                        # accordions). Deny-list blocks anything
+                        # transactional; forms are never submitted.
+                        # Runs BEFORE the idle wait so lazy content
+                        # loads while network listeners are attached.
+                        if interact:
+                            from webhound.browser.safe_interactions import (
+                                perform_safe_interactions,
+                            )
+                            await perform_safe_interactions(page, tel)
                         try:
                             await page.wait_for_load_state(
                                 "networkidle",

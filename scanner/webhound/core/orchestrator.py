@@ -893,6 +893,22 @@ class Scanner:
             if "browser" not in ctx.scan_result.engines_run:
                 ctx.scan_result.engines_run.append("browser")
 
+        # Phase-6A: run the rendered-DOM engine pass over whatever
+        # pages produced a post-hydration HTML snapshot. Best-effort —
+        # a failure here never disturbs the static findings.
+        rendered_stats: dict[str, Any] = {}
+        if not result.deferred:
+            try:
+                rendered_stats = await self._run_rendered_dom_engines(
+                    ctx, result.telemetries, crawl_results,
+                    host_contributions,
+                )
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "rendered-DOM engine pass failed; static findings "
+                    "intact", exc_info=True,
+                )
+
         # Roll up browser-specific host inventory for the JSON export.
         try:
             primary = (self._target.hostname or "").lower()
@@ -909,11 +925,152 @@ class Scanner:
                 "host_count": len(browser_inv),
                 "duration_ms": round(duration_ms, 2),
                 "hosts": sorted(browser_inv.keys()),
+                **rendered_stats,
             }
         except Exception:  # noqa: BLE001
             logger.debug(
                 "browser-pass metadata write failed", exc_info=True,
             )
+
+    # ------------------------------------------------------------------
+    # Rendered-DOM engine pass (Phase-6A)
+    # ------------------------------------------------------------------
+
+    # Engines that may run over rendered-DOM artifacts. Deliberately
+    # conservative:
+    #   * form engines     — lazy-loaded / JS-injected forms are the #1
+    #     thing the static crawler misses on SPAs.
+    #   * hidden_iframes   — runtime-injected iframes are a compromise
+    #     indicator the static pass can't see.
+    #   * secret_scanner   — runtime config blobs rendered into the DOM
+    #     (window.__ENV__ et al.) can expose real keys.
+    # Header/CSP/cookie engines are EXCLUDED (the browser pass carries
+    # no response headers — running them would fabricate "missing
+    # header" findings). injected_js / obfuscation are EXCLUDED because
+    # on an SPA *all* content is runtime-injected; running them on the
+    # rendered DOM would manufacture false positives.
+
+    async def _run_rendered_dom_engines(
+        self,
+        ctx: ScanContext,
+        telemetries: list,
+        crawl_results: list,
+        host_contributions: list,
+    ) -> dict[str, Any]:
+        """Parse each page's post-hydration HTML through the existing
+        Extractor and run the rendered-safe engine subset over it.
+
+        Findings are tagged ``rendered_dom`` (tag + metadata
+        evidence_source) so reporting can attribute them to the browser
+        pass. Duplicates of static findings are collapsed later by
+        ``_dedup_findings`` (same engine + title + evidence location).
+
+        Returns coverage stats for the ``browser_pass`` metadata block:
+        how many pages rendered, how many forms only the browser saw,
+        and how many same-origin links the static crawler missed."""
+        from uuid import uuid4
+        from webhound.core.extractor import Extractor
+        from webhound.core.http_client import HttpResponse
+        from webhound.core.url_discovery import PageHostContribution
+
+        extractor = Extractor()
+        rendered_pages = 0
+        rendered_form_count = 0
+        rendered_findings: list[Finding] = []
+
+        # Everything the static crawl already knows about, fragment-
+        # stripped, so rendered-only links can be counted honestly.
+        static_known: set[str] = set()
+        for r in crawl_results:
+            resp = getattr(r, "response", None)
+            if resp is not None and not getattr(resp, "failed", True):
+                static_known.add(resp.url.split("#", 1)[0])
+            arts = getattr(r, "artifacts", None)
+            if arts is not None:
+                for link in getattr(arts, "all_links", None) or []:
+                    static_known.add(link.split("#", 1)[0])
+
+        primary = (self._target.hostname or "").lower()
+        rendered_only_links: set[str] = set()
+
+        for tel in telemetries:
+            page_url = tel.final_url or tel.page_url
+
+            # Rendered links: same-origin ones the static crawl never
+            # saw are the SPA-route discovery win; all of them feed the
+            # scan-wide host inventory.
+            if tel.rendered_links:
+                host_contributions.append(PageHostContribution(
+                    page_url=page_url,
+                    page_host=_safe_hostname(page_url),
+                    urls=[(u, "rendered_link") for u in tel.rendered_links],
+                ))
+                for link in tel.rendered_links:
+                    bare = link.split("#", 1)[0]
+                    if (bare not in static_known
+                            and (_safe_hostname(bare) or "") == primary):
+                        rendered_only_links.add(bare)
+
+            if not tel.rendered_html:
+                continue
+
+            synthetic = HttpResponse(
+                request_id=uuid4(),
+                original_url=page_url,
+                url=page_url,
+                status_code=200,
+                headers={},
+                body=tel.rendered_html,
+                content_type="text/html",
+                elapsed_ms=0.0,
+                redirect_count=0,
+                redirect_chain=[],
+                captured_at=datetime.now(timezone.utc),
+            )
+            artifacts = extractor.extract(synthetic)
+            if artifacts is None:
+                continue
+            rendered_pages += 1
+            rendered_form_count += len(artifacts.forms)
+
+            page_findings: list[Finding] = []
+            page_findings += await _safe(
+                ctx, self._form_risk.NAME,
+                self._form_risk.analyze, artifacts,
+            )
+            page_findings += await _safe(
+                ctx, self._input_analysis.NAME,
+                self._input_analysis.analyze, artifacts,
+            )
+            page_findings += await _safe(
+                ctx, self._hidden_iframes.NAME,
+                self._hidden_iframes.analyze, artifacts,
+                html_body=tel.rendered_html,
+            )
+            page_findings += await _safe(
+                ctx, self._secret_scanner.NAME,
+                self._secret_scanner.analyze, artifacts,
+                html_body=tel.rendered_html,
+            )
+            rendered_findings.extend(page_findings)
+
+        # Attribute every rendered-pass finding to its evidence source
+        # so reporting and the dashboard can show "seen in the rendered
+        # DOM" vs "seen in static HTML".
+        for f in rendered_findings:
+            if "rendered_dom" not in (f.tags or []):
+                f.tags = (f.tags or []) + ["rendered_dom"]
+            f.metadata = {**(f.metadata or {}),
+                          "evidence_source": "rendered_dom"}
+            ctx.add_finding(f)
+
+        return {
+            "rendered_pages": rendered_pages,
+            "rendered_form_count": rendered_form_count,
+            "rendered_finding_count": len(rendered_findings),
+            "rendered_only_link_count": len(rendered_only_links),
+            "rendered_only_links": sorted(rendered_only_links)[:25],
+        }
 
     async def _run_asm(
         self,

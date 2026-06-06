@@ -683,6 +683,48 @@ class Scanner:
         result.retry_count = _http_stats.get("retried", 0)
         result.skip_count = _http_stats.get("skipped", 0)
 
+        # Phase-6C (Task 9): consolidated coverage summary — static +
+        # browser views in one place for reporting / trust indicators.
+        # Additive metadata; failures never disturb the result.
+        try:
+            static_forms = 0
+            static_scripts = 0
+            for r in crawl_results:
+                arts = getattr(r, "artifacts", None)
+                if arts is None:
+                    continue
+                static_forms += len(getattr(arts, "forms", None) or [])
+                static_scripts += len(getattr(arts, "scripts", None) or [])
+            bstats = ctx.browser.coverage_stats()
+            result.metadata["coverage_summary"] = {
+                "pages_crawled": result.urls_crawled,
+                "browser_pages_rendered": bstats["browser_pages_rendered"],
+                "browser_render_failures": bstats["browser_render_failures"],
+                "static_scripts_collected": static_scripts,
+                "browser_scripts_collected": bstats["browser_scripts_found"],
+                "static_forms_discovered": static_forms,
+                "rendered_forms_discovered": bstats["rendered_forms_found"],
+                "api_endpoints_observed": len(
+                    ctx.browser.get_all_api_endpoints()
+                ),
+                "third_party_domains_observed": len(set(
+                    list(external_domains)
+                    + ctx.browser.get_all_third_party_domains(
+                        primary_host=self._target.hostname,
+                    )
+                )),
+                "browser_client_routes_found": bstats[
+                    "browser_client_routes_found"
+                ],
+                "skipped_out_of_scope_browser_urls": bstats[
+                    "skipped_out_of_scope_browser_urls"
+                ],
+                "browser_pass_available": ctx.browser.available,
+                "browser_pass_error": ctx.browser.error,
+            }
+        except Exception:  # noqa: BLE001
+            logger.debug("coverage summary build failed", exc_info=True)
+
         return result
 
     @property

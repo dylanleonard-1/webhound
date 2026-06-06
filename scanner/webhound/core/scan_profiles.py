@@ -100,6 +100,10 @@ QUICK = ScanProfile(
 )
 
 #: Balanced scan — good coverage for most sites.
+#: browser_enabled marks the profile as *wanting* browser discovery;
+#: the worker still requires the WEBHOUND_BROWSER_ENABLED operator
+#: env var before a real Chromium launches, so environments without
+#: Playwright see zero behaviour change (the pass defers cleanly).
 STANDARD = ScanProfile(
     name="standard",
     description="Balanced scan with good coverage for most sites.",
@@ -110,6 +114,7 @@ STANDARD = ScanProfile(
     include_subdomains=False,
     respect_robots_txt=True,
     verify_tls=True,
+    browser_enabled=True,
 )
 
 #: Thorough passive crawl — maximum page coverage at a slower rate.
@@ -123,6 +128,7 @@ DEEP = ScanProfile(
     include_subdomains=False,
     respect_robots_txt=True,
     verify_tls=True,
+    browser_enabled=True,
 )
 
 #: Lightweight periodic check optimised for WADE baseline comparison.

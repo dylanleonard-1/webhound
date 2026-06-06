@@ -95,6 +95,32 @@ class SummaryBuilder:
         lines.append(f"  LOW       {bd.low}")
         lines.append(f"  INFO      {bd.info}")
 
+        # Phase-7 trust view: risk vs hardening vs inventory. Only
+        # rendered when the trust pipeline annotated this result —
+        # old persisted results keep the classic summary unchanged.
+        sections = result.metadata.get("report_sections") or {}
+        counts = sections.get("counts") or {}
+        if counts:
+            lines.append("")
+            lines.append("By type:")
+            lines.append(
+                f"  Security risks            "
+                f"{counts.get('security_risks', 0)}"
+            )
+            lines.append(
+                f"  Hardening recommendations "
+                f"{counts.get('hardening_recommendations', 0)}"
+            )
+            lines.append(
+                f"  Inventory / discovered    "
+                f"{counts.get('inventory', 0)}"
+            )
+            if counts.get("wade_changes"):
+                lines.append(
+                    f"  WADE changes              "
+                    f"{counts.get('wade_changes', 0)}"
+                )
+
     def _top_findings(self, result: ScanResult, lines: list[str]) -> None:
         if result.grouped_findings:
             ordered = sorted(

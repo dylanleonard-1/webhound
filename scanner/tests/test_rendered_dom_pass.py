@@ -18,6 +18,8 @@ RENDERED_HTML = """
 <html><body>
   <a href="/spa-route">deep link only visible after hydration</a>
   <a href="https://vendor.example.com/widget">vendor</a>
+  <script src="https://tags.vendor-cdn.example/loader.js"></script>
+  <script>fetch('/api/v1/orders');</script>
   <form method="get" action="/login">
     <input type="text" name="user">
     <input type="password" name="pass">
@@ -105,6 +107,74 @@ async def test_statically_known_links_not_counted_as_rendered_only() -> None:
     )
 
     assert stats["rendered_only_link_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_rendered_pass_feeds_js_and_api_engines() -> None:
+    """Phase-6C: third-party scripts and API references that only
+    exist in the rendered DOM must reach the JS / third-party /
+    endpoint engines."""
+    scanner, ctx = _scanner_and_ctx()
+
+    await scanner._run_rendered_dom_engines(ctx, [_telemetry()], [], [])
+
+    ran = set(ctx.scan_result.engines_run)
+    assert scanner._js_analyzer.NAME in ran
+    assert scanner._third_party.NAME in ran
+    assert scanner._endpoint_discovery.NAME in ran
+    # The hydration-only fetch('/api/v1/orders') must surface in the
+    # endpoint engine's API-surface inventory finding.
+    api_findings = [
+        f for f in ctx.scan_result.findings
+        if f.scanner_engine == scanner._endpoint_discovery.NAME
+    ]
+    assert api_findings, "endpoint discovery saw no rendered API refs"
+    assert any(
+        "/api/v1/orders" in str(f.metadata.get("endpoints", []))
+        for f in api_findings
+    )
+
+
+@pytest.mark.asyncio
+async def test_rendered_findings_carry_discovery_note_on_evidence() -> None:
+    """Task-6/8 wording: browser-derived findings say where they came
+    from, on the finding metadata AND each evidence item."""
+    scanner, ctx = _scanner_and_ctx()
+
+    await scanner._run_rendered_dom_engines(ctx, [_telemetry()], [], [])
+
+    assert ctx.scan_result.findings
+    for f in ctx.scan_result.findings:
+        assert f.metadata.get("discovery_note") == "Discovered in rendered DOM"
+        for ev in f.evidence or []:
+            assert ev.extra.get("evidence_source") == "rendered_dom"
+            assert "rendered DOM" in ev.extra.get("discovered_in", "")
+
+
+@pytest.mark.asyncio
+async def test_rendered_duplicates_of_static_findings_collapse() -> None:
+    """Task-10 #5: a finding produced identically by the static pass
+    and the rendered pass must dedupe to one (static wins, keeping its
+    original evidence source)."""
+    from webhound.core.orchestrator import _dedup_findings
+
+    scanner, ctx = _scanner_and_ctx()
+    await scanner._run_rendered_dom_engines(ctx, [_telemetry()], [], [])
+    rendered = list(ctx.scan_result.findings)
+    assert rendered
+
+    # Simulate the static pass having produced the same finding first.
+    static_clone = rendered[0].model_copy(deep=True)
+    static_clone.tags = [t for t in (static_clone.tags or [])
+                         if t != "rendered_dom"]
+    merged = _dedup_findings([static_clone] + rendered)
+    survivors = [
+        f for f in merged
+        if f.scanner_engine == static_clone.scanner_engine
+        and f.title == static_clone.title
+    ]
+    assert len(survivors) == 1
+    assert "rendered_dom" not in (survivors[0].tags or [])
 
 
 @pytest.mark.asyncio

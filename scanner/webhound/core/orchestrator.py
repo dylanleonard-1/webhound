@@ -989,12 +989,17 @@ class Scanner:
 
     # Engines that may run over rendered-DOM artifacts. Deliberately
     # conservative:
-    #   * form engines     — lazy-loaded / JS-injected forms are the #1
-    #     thing the static crawler misses on SPAs.
-    #   * hidden_iframes   — runtime-injected iframes are a compromise
-    #     indicator the static pass can't see.
-    #   * secret_scanner   — runtime config blobs rendered into the DOM
-    #     (window.__ENV__ et al.) can expose real keys.
+    #   * form engines       — lazy-loaded / JS-injected forms are the
+    #     #1 thing the static crawler misses on SPAs.
+    #   * hidden_iframes     — runtime-injected iframes are a
+    #     compromise indicator the static pass can't see.
+    #   * secret_scanner     — runtime config blobs rendered into the
+    #     DOM (window.__ENV__ et al.) can expose real keys.
+    #   * js_analyzer        — pattern engine over rendered inline
+    #     scripts (hydration payloads the static HTML never carried).
+    #   * third_party        — vendor domains that only attach after
+    #     hydration (tag managers injecting tags).
+    #   * endpoint_discovery — API references in rendered client code.
     # Header/CSP/cookie engines are EXCLUDED (the browser pass carries
     # no response headers — running them would fabricate "missing
     # header" findings). injected_js / obfuscation are EXCLUDED because
@@ -1103,16 +1108,35 @@ class Scanner:
                 self._secret_scanner.analyze, artifacts,
                 html_body=tel.rendered_html,
             )
+            page_findings += await _safe(
+                ctx, self._js_analyzer.NAME,
+                self._js_analyzer.analyze, artifacts,
+            )
+            page_findings += await _safe(
+                ctx, self._third_party.NAME,
+                self._third_party.analyze, artifacts,
+            )
+            page_findings += await _safe(
+                ctx, self._endpoint_discovery.NAME,
+                self._endpoint_discovery.analyze, artifacts,
+            )
             rendered_findings.extend(page_findings)
 
         # Attribute every rendered-pass finding to its evidence source
         # so reporting and the dashboard can show "seen in the rendered
-        # DOM" vs "seen in static HTML".
+        # DOM" vs "seen in static HTML". The evidence itself carries a
+        # human-readable discovery note (Task-6 wording) without
+        # touching the original engine-produced evidence content.
         for f in rendered_findings:
             if "rendered_dom" not in (f.tags or []):
                 f.tags = (f.tags or []) + ["rendered_dom"]
             f.metadata = {**(f.metadata or {}),
-                          "evidence_source": "rendered_dom"}
+                          "evidence_source": "rendered_dom",
+                          "discovery_note": "Discovered in rendered DOM"}
+            for ev in f.evidence or []:
+                ev.extra = {**(ev.extra or {}),
+                            "evidence_source": "rendered_dom",
+                            "discovered_in": "rendered DOM (browser pass)"}
             ctx.add_finding(f)
 
         return {

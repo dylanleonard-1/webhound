@@ -276,6 +276,7 @@ async def _capture_rendered_dom(page, tel: BrowserTelemetry) -> None:
     collection to browser/script_collector; each sub-capture is
     isolated so one failing walk never blanks the others."""
     from webhound.browser.form_extractor import capture_forms
+    from webhound.browser.route_extractor import capture_routes
     from webhound.browser.script_collector import capture_scripts
 
     try:
@@ -300,6 +301,9 @@ async def _capture_rendered_dom(page, tel: BrowserTelemetry) -> None:
             tel.rendered_text_summary = text
     await capture_forms(page, tel)
     await capture_scripts(page, tel)
+    # Routes last — script-string extraction reads the inline
+    # snippets the script walk just collected.
+    await capture_routes(page, tel)
 
 
 async def _capture_cookies(context, tel: BrowserTelemetry, url: str) -> None:

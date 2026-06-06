@@ -204,136 +204,14 @@ def _breakdown_from_grouped(grouped: list[GroupedFinding]) -> SeverityBreakdown:
     return bd
 
 
-def _quality_multiplier(confidence: float) -> float:
-    """Map confidence (0–1) to a contribution multiplier for risk scoring.
-    Mirrors the Finding.quality_label tiers so confirmed findings drive
-    score, heuristics barely budge it. Tuned so 30 noisy heuristic LOWs
-    can't out-weight one real HIGH/CRITICAL.
-
-      confirmed (≥0.9)    1.00
-      likely    (≥0.7)    0.85
-      moderate  (≥0.55)   0.55
-      heuristic (<0.55)   0.20
-      very weak (<0.40)   0.10
-    """
-    if confidence >= 0.9:
-        return 1.0
-    if confidence >= 0.7:
-        return 0.85
-    if confidence >= 0.55:
-        return 0.55
-    if confidence >= 0.4:
-        return 0.20
-    return 0.10
-
-
-def _quality_weighted_breakdown(grouped) -> tuple[SeverityBreakdown, dict[str, float]]:
-    """Return both the raw severity counts AND a quality-weighted sum per
-    tier. The risk score uses the weighted sum so heuristic findings don't
-    inflate the verdict; the dashboard uses raw counts for display."""
-    counts = SeverityBreakdown()
-    weighted: dict[str, float] = {"critical": 0.0, "high": 0.0,
-                                  "medium": 0.0, "low": 0.0}
-    for gf in grouped:
-        conf = float(getattr(gf, "confidence", 1.0) or 0.0)
-        # INFO never contributes to risk score.
-        if gf.severity == Severity.INFO:
-            counts.info += 1
-            continue
-        mult = _quality_multiplier(conf)
-        match gf.severity:
-            case Severity.CRITICAL:
-                counts.critical += 1
-                weighted["critical"] += mult
-            case Severity.HIGH:
-                counts.high += 1
-                weighted["high"] += mult
-            case Severity.MEDIUM:
-                counts.medium += 1
-                weighted["medium"] += mult
-            case Severity.LOW:
-                counts.low += 1
-                weighted["low"] += mult
-    return counts, weighted
-
-
 def _compute_risk_score(result: ScanResult) -> tuple[int, str]:
-    """Compute a 0–100 risk score where 0 = safe and 100 = critical.
-
-    Phase-2 audit: each finding's contribution is *weighted by its confidence*
-    so a sea of low-confidence heuristics can't crowd out one real HIGH /
-    CRITICAL. The raw counts still drive the upward/downward guards (a CRITICAL
-    that's heuristic is still a CRITICAL — it just contributes less score until
-    something corroborates it).
-
-    Tier contributions with per-tier caps (no single tier dominates):
-      CRITICAL  +30/each, cap +85  |  HIGH    +15/each, cap +40
-      MEDIUM    +7/each,  cap +30  |  LOW     +2/each,  cap +10
-
-    Quality multiplier (applied to each finding's per-tier contribution):
-      confirmed (conf ≥0.9)   ×1.00
-      likely    (conf ≥0.7)   ×0.85
-      moderate  (conf ≥0.55)  ×0.55
-      heuristic (conf <0.55)  ×0.20
-      very weak (conf <0.40)  ×0.10
-      INFO findings           ×0     (informational/advisory only)
-
-    Label thresholds: 0–19 safe • 20–39 low • 40–59 medium • 60–79 high • 80+ critical.
-
-    Guards (unchanged from Phase-1):
-      Down — "critical" needs ≥1 raw CRITICAL; "high" needs ≥1 raw HIGH+.
-      Up   — any CRITICAL forces ≥ "high"; any HIGH forces ≥ "low".
-    """
-    # Prefer security-engine grouped findings; exclude WADE (behavioural engine).
-    security_grouped = [
-        gf for gf in result.grouped_findings if gf.scanner_engine != "wade"
-    ] if result.grouped_findings else None
-
-    if security_grouped:
-        bd, weighted = _quality_weighted_breakdown(security_grouped)
-    elif result.grouped_findings:
-        bd, weighted = _quality_weighted_breakdown(result.grouped_findings)
-    else:
-        # Fallback path — no grouped findings means no confidence either.
-        # Use the existing raw breakdown and treat every finding as confirmed.
-        bd = result.severity_breakdown
-        weighted = {
-            "critical": float(bd.critical),
-            "high":     float(bd.high),
-            "medium":   float(bd.medium),
-            "low":      float(bd.low),
-        }
-
-    risk = 0
-    risk += min(weighted["critical"] * 30, 85)
-    risk += min(weighted["high"]     * 15, 40)
-    risk += min(weighted["medium"]   *  7, 30)
-    risk += min(weighted["low"]      *  2, 10)
-    risk = min(100, int(round(risk)))
-
-    if risk <= 19:
-        level = "safe"
-    elif risk <= 39:
-        level = "low"
-    elif risk <= 59:
-        level = "medium"
-    elif risk <= 79:
-        level = "high"
-    else:
-        level = "critical"
-
-    # Downward guards (raw counts — quality is already in the score)
-    if level == "critical" and bd.critical == 0:
-        level = "high"
-    if level == "high" and bd.critical == 0 and bd.high == 0:
-        level = "medium"
-
-    # Upward guards (raw counts)
-    if bd.critical > 0 and level in ("safe", "low", "medium"):
-        level = "high"
-    if bd.high > 0 and level == "safe":
-        level = "low"
-
+    """Compute the 0–100 risk score. Phase-7: delegates to the
+    centralized :mod:`webhound.core.risk_scoring` module — the
+    trust-weighted model for annotated results, the legacy
+    quality-weighted model for everything else. Kept as a thin alias
+    because tests and callers import it from here."""
+    from webhound.core.risk_scoring import compute_risk_score
+    risk, level, _breakdown = compute_risk_score(result)
     return risk, level
 
 
@@ -622,10 +500,40 @@ class Scanner:
             logger.warning("correlation pass failed; using per-engine findings only",
                            exc_info=True)
 
+        # 7c. Phase-7 trust policy + severity calibration. Annotates
+        # every finding with finding_type / confidence_label, then
+        # applies the demotion-only severity clamps (heuristics can't
+        # be CRITICAL, headers are hardening, etc). Runs BEFORE
+        # grouping so groups inherit calibrated severities. Failures
+        # leave findings unannotated — the risk scorer then falls back
+        # to the legacy algorithm, never crashes.
+        try:
+            from webhound.core.severity_calibrator import calibrate_findings
+            from webhound.core.trust_policy import apply_trust_policy
+            apply_trust_policy(ctx.scan_result.findings)
+            demotions = calibrate_findings(ctx.scan_result.findings)
+            ctx.scan_result.metadata["severity_calibration_demotions"] = (
+                demotions
+            )
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "trust policy / calibration pass failed; scoring will "
+                "use legacy algorithm", exc_info=True,
+            )
+
         result = ctx.finish()
 
         # 8. Group findings for clean reporting and fair risk scoring
         result.grouped_findings = FindingGrouper().group(result.active_findings)
+
+        # 8a. Annotate the grouped view too — grouping copies severity
+        # from calibrated raw findings, but finding_type/confidence
+        # labels live in metadata, which the grouper rebuilds.
+        try:
+            from webhound.core.trust_policy import apply_trust_policy
+            apply_trust_policy(result.grouped_findings)
+        except Exception:  # noqa: BLE001
+            logger.debug("grouped trust annotation failed", exc_info=True)
 
         # 8b. Phase-5D evidence-quality audit. Advisory — does not
         # mutate findings. Report lands in
@@ -668,10 +576,14 @@ class Scanner:
                 "production readiness scoring failed", exc_info=True,
             )
 
-        # 9. Risk scoring — uses grouped findings to avoid penalising repeated issues
-        risk_score, risk_level = _compute_risk_score(result)
+        # 9. Risk scoring — centralized (Phase-7). The transparent
+        # breakdown lands in metadata so the dashboard can show WHY.
+        from webhound.core.risk_scoring import compute_risk_score
+        risk_score, risk_level, risk_breakdown = compute_risk_score(result)
         result.metadata["risk_score"] = risk_score
         result.metadata["risk_level"] = risk_level
+        if risk_breakdown is not None:
+            result.metadata["risk_breakdown"] = risk_breakdown.to_dict()
         result.metadata["external_domains"] = sorted(external_domains)
         result.metadata["external_domain_count"] = len(external_domains)
         result.metadata["external_script_domains"] = sorted(external_script_domains)

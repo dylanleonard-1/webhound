@@ -371,7 +371,16 @@ class TestScannerIntegration:
         assert "risk_score" in result.metadata
         assert "risk_level" in result.metadata
         assert isinstance(result.metadata["risk_score"], int)
-        assert result.metadata["risk_level"] in ("low", "medium", "high", "critical")
+        # Phase-7: a minimal page whose only findings are hardening
+        # recommendations can legitimately score "safe" — hardening is
+        # capped and must not fabricate risk.
+        assert result.metadata["risk_level"] in (
+            "safe", "low", "medium", "high", "critical",
+        )
+        # The trust-weighted breakdown ships alongside the score.
+        assert result.metadata.get("risk_breakdown", {}).get(
+            "algorithm",
+        ) == "trust_weighted"
 
     @pytest.mark.anyio
     async def test_external_domains_in_metadata(self, monkeypatch):

@@ -10,9 +10,12 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from webhound.core.engine_tracker import EngineTracker
+
+if TYPE_CHECKING:
+    from webhound.browser.models import BrowserDiscovery
 from webhound.core.scope import ScopeChecker, UrlNormalizer
 from webhound.models.finding import Finding
 from webhound.models.scan_result import ScanError, ScanResult, ScanStatus
@@ -57,6 +60,33 @@ class ScanContext:
         self._queue: deque[QueueItem] = deque()
         self._depth_map: dict[str, int] = {}    # normalized_url → crawl depth
         self._pages_crawled: int = 0
+
+        # Phase-6C: browser discovery output. Set by the orchestrator
+        # after the browser pass; None when the pass never ran (profile
+        # gated it off / quick scans). Engines and reporting should go
+        # through the ``browser`` property, which always returns a
+        # usable (possibly empty) BrowserDiscovery.
+        self.browser_discovery: "BrowserDiscovery | None" = None
+        # Static crawl results (CrawlResult list) — attached after the
+        # crawl so post-crawl passes can correlate static + rendered
+        # views without re-plumbing every call site.
+        self.crawl_results: list[Any] = []
+
+    # ------------------------------------------------------------------
+    # Browser discovery access (Phase-6C)
+    # ------------------------------------------------------------------
+
+    @property
+    def browser(self) -> "BrowserDiscovery":
+        """Browser discovery data, never None — an empty deferred
+        container is returned when the browser pass didn't run, so
+        callers can use the accessors unconditionally."""
+        if self.browser_discovery is None:
+            from webhound.browser.models import BrowserDiscovery
+            self.browser_discovery = BrowserDiscovery(
+                deferred=True, error="browser pass not run",
+            )
+        return self.browser_discovery
 
     # ------------------------------------------------------------------
     # Progress / budget properties

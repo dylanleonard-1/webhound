@@ -449,6 +449,9 @@ class Scanner:
                 _crawl_t0 = time.perf_counter()
                 crawl_results = await crawler.crawl()
                 _crawl_duration_seconds = time.perf_counter() - _crawl_t0
+                # Phase-6C: post-crawl passes correlate static and
+                # rendered views through the context.
+                ctx.crawl_results = crawl_results
 
                 # 3. Per-page engines
                 for result in crawl_results:
@@ -860,6 +863,16 @@ class Scanner:
             url_filter=ctx.scope.is_in_scope,
         )
         duration_ms = (time.perf_counter() - t0) * 1000.0
+
+        # Attach the discovery container so engines + reporting access
+        # browser data through ctx.browser instead of raw telemetries.
+        from webhound.browser.models import BrowserDiscovery
+        ctx.browser_discovery = BrowserDiscovery(
+            telemetries=list(result.telemetries),
+            deferred=result.deferred,
+            error=result.error,
+            skipped_urls=list(result.skipped_urls or []),
+        )
 
         # Record diagnostics regardless of deferred/error state so
         # operators can see whether the pass ran.

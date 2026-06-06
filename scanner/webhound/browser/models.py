@@ -191,6 +191,142 @@ class BrowserTelemetry:
 
 
 @dataclass
+class BrowserDiscovery:
+    """Scan-wide browser discovery output, attached to ScanContext by
+    the orchestrator after the browser pass (Phase-6C).
+
+    The single access point engines + reporting use for browser data —
+    instead of each consumer re-walking raw telemetries. All accessors
+    return empty collections when the pass was deferred or failed, so
+    callers never need to branch on availability."""
+
+    telemetries: list[BrowserTelemetry] = field(default_factory=list)
+    deferred: bool = True
+    error: str | None = None
+    skipped_urls: list[tuple[str, str]] = field(default_factory=list)
+
+    @property
+    def available(self) -> bool:
+        return not self.deferred and bool(self.telemetries)
+
+    @property
+    def rendered_pages(self) -> list[BrowserTelemetry]:
+        return [t for t in self.telemetries if t.rendered_html]
+
+    def get_all_pages(self) -> list[str]:
+        """Final URLs of every page the browser successfully visited."""
+        out, seen = [], set()
+        for t in self.telemetries:
+            url = t.final_url or t.page_url
+            if url and url not in seen:
+                seen.add(url)
+                out.append(url)
+        return out
+
+    def get_all_rendered_links(self) -> list[str]:
+        out, seen = [], set()
+        for t in self.telemetries:
+            for link in t.rendered_links:
+                if link not in seen:
+                    seen.add(link)
+                    out.append(link)
+        return out
+
+    def get_all_forms(self) -> list[RenderedForm]:
+        return [f for t in self.telemetries for f in t.rendered_forms]
+
+    def get_all_script_urls(self) -> list[str]:
+        """Every script URL the browser saw: rendered <script src>,
+        module/preload chunk hints, service workers, plus scripts the
+        network capture observed loading (dynamic imports the DOM walk
+        can't attribute). Deduped, order-stable."""
+        out, seen = [], set()
+        for t in self.telemetries:
+            for s in t.rendered_scripts:
+                if s.src and s.src not in seen:
+                    seen.add(s.src)
+                    out.append(s.src)
+            for art in t.artifacts:
+                if (art.initiator_kind or "") == "script" \
+                        and art.url and art.url not in seen:
+                    seen.add(art.url)
+                    out.append(art.url)
+        return out
+
+    def get_all_inline_scripts(self) -> list[RenderedScript]:
+        return [
+            s for t in self.telemetries
+            for s in t.rendered_scripts if s.is_inline
+        ]
+
+    def get_all_network_requests(self) -> list[NetworkArtifact]:
+        return [a for t in self.telemetries for a in t.artifacts]
+
+    def get_all_api_endpoints(self) -> list[NetworkArtifact]:
+        """Network artifacts classified as API traffic (fetch/XHR/
+        JSON/api-shaped paths). Late import — network_capture imports
+        these models at module level."""
+        from webhound.browser.network_capture import looks_like_api
+        out = []
+        for t in self.telemetries:
+            for art in t.artifacts:
+                is_api, _ = looks_like_api(
+                    art.url,
+                    initiator_kind=art.initiator_kind,
+                    content_type=art.content_type,
+                )
+                if is_api:
+                    out.append(art)
+        return out
+
+    def get_all_third_party_domains(
+        self, primary_host: str | None = None,
+    ) -> list[str]:
+        """Hostnames observed by the browser that differ from the scan
+        target's registrable domain — sorted for stable output."""
+        from webhound.browser.network_capture import _registrable
+        primary_reg = _registrable((primary_host or "").lower())
+        domains: set[str] = set()
+        for t in self.telemetries:
+            for art in t.artifacts:
+                host = art.hostname
+                if not host:
+                    continue
+                if primary_reg and _registrable(host) == primary_reg:
+                    continue
+                domains.add(host)
+        return sorted(domains)
+
+    def coverage_stats(self) -> dict:
+        tels = self.telemetries
+        return {
+            "browser_pages_visited": len(tels),
+            "browser_pages_rendered": sum(
+                1 for t in tels if t.rendered_html
+            ),
+            "browser_render_failures": sum(
+                1 for t in tels if t.errors or not t.rendered_html
+            ),
+            "rendered_links_found": sum(
+                len(t.rendered_links) for t in tels
+            ),
+            "rendered_forms_found": sum(
+                len(t.rendered_forms) for t in tels
+            ),
+            "browser_scripts_found": sum(
+                len(t.rendered_scripts) for t in tels
+            ),
+            "browser_network_requests": sum(
+                len(t.artifacts) for t in tels
+            ),
+            "browser_client_routes_found": sum(
+                len(t.client_routes) for t in tels
+            ),
+            "skipped_out_of_scope_browser_urls": len(self.skipped_urls),
+        }
+
+
+@dataclass
 class BrowserHostInventory:
     """Per-host rollup of every artifact pointing at the host.
 

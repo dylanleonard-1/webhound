@@ -922,6 +922,22 @@ class Scanner:
                     "rendered-DOM engine pass failed; static findings "
                     "intact", exc_info=True,
                 )
+            # Phase-6C (Task 5): inventory the API traffic the browser
+            # actually fired. INFO/LOW only — observed traffic is
+            # application behaviour, not a vulnerability.
+            try:
+                observed = await _safe(
+                    ctx, self._endpoint_discovery.NAME,
+                    self._endpoint_discovery.analyze_observed_requests,
+                    ctx.browser.get_all_network_requests(),
+                    primary_host=(self._target.hostname or "").lower(),
+                )
+                for f in observed:
+                    ctx.add_finding(f)
+            except Exception:  # noqa: BLE001
+                logger.debug(
+                    "observed-API inventory failed", exc_info=True,
+                )
 
         # Roll up browser-specific host inventory + Phase-6B coverage
         # counters for the JSON export. Discovery statistics only —

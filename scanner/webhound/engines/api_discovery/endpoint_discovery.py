@@ -609,3 +609,153 @@ class EndpointDiscoveryEngine:
             ))
 
         return findings
+
+    # ------------------------------------------------------------------
+    # Browser-observed traffic (Phase-6C, Task 5)
+    # ------------------------------------------------------------------
+
+    def analyze_observed_requests(
+        self,
+        requests: list,  # list[NetworkArtifact]; duck-typed to avoid the import
+        *,
+        primary_host: str | None = None,
+    ) -> list[Finding]:
+        """Inventory the API traffic the browser *actually fired* —
+        the ground-truth view of the API surface, as opposed to the
+        static references ``analyze`` extracts from code.
+
+        Trust posture: observed traffic is INVENTORY. One scan-wide
+        INFO finding summarises the surface; the only escalation is a
+        LOW advisory when the page calls admin-style endpoints —
+        observed != exploitable, so nothing here goes higher."""
+        from webhound.browser.network_capture import looks_like_api
+
+        seen: set[str] = set()
+        observed: list[tuple[str, str]] = []  # (bare_url, reason)
+        for art in requests or []:
+            url = getattr(art, "url", None)
+            if not url:
+                continue
+            is_api, reason = looks_like_api(
+                url,
+                initiator_kind=getattr(art, "initiator_kind", None),
+                content_type=getattr(art, "content_type", None),
+            )
+            if not is_api:
+                continue
+            # Dedupe on scheme://host/path — query strings vary per
+            # call and would explode the inventory.
+            parsed = urlparse(url)
+            bare = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+            if bare in seen:
+                continue
+            seen.add(bare)
+            observed.append((bare, reason or "observed"))
+
+        if not observed:
+            return []
+
+        primary = (primary_host or "").lower()
+        same_origin = [u for u, _ in observed
+                       if (urlparse(u).hostname or "").lower() == primary]
+        cross_origin = [u for u, _ in observed
+                        if (urlparse(u).hostname or "").lower() != primary]
+
+        findings: list[Finding] = [Finding(
+            title=(
+                f"Browser-observed API traffic: {len(observed)} unique "
+                "endpoint(s)"
+            ),
+            description=(
+                "While rendering the site in a real browser, WebHound "
+                f"observed {len(observed)} unique API endpoint(s) being "
+                f"called — {len(same_origin)} on the site's own origin, "
+                f"{len(cross_origin)} to other hosts. This is the API "
+                "surface a visitor's browser genuinely exercises, "
+                "including calls that never appear in the page source. "
+                "Inventory only — observed traffic is normal application "
+                "behaviour, not a vulnerability."
+            ),
+            severity=Severity.INFO,
+            category=FindingCategory.API,
+            evidence=[Evidence(
+                evidence_type=EvidenceType.HTTP_REQUEST,
+                content="Observed API endpoints:\n" + "\n".join(
+                    f"{u}  [{r}]" for u, r in observed[:25]
+                ),
+                location=same_origin[0] if same_origin
+                         else observed[0][0],
+                source_engine=_ENGINE,
+                confidence=0.95,
+                extra={
+                    "evidence_source": "browser_network",
+                    "observed_count": len(observed),
+                    "same_origin_count": len(same_origin),
+                    "cross_origin_count": len(cross_origin),
+                },
+            )],
+            confidence=0.95,
+            remediation=(
+                "Keep an inventory of every API your frontend calls. "
+                "For each endpoint confirm authentication requirements, "
+                "rate limiting, and that error responses don't leak "
+                "internals. For cross-origin calls, document what data "
+                "is shared with each vendor."
+            ),
+            framework=_FA["inventory"],
+            scanner_engine=_ENGINE,
+            tags=["inventory", "browser_network"],
+            metadata={
+                "evidence_source": "browser_network",
+                "observed_endpoints": [u for u, _ in observed[:50]],
+            },
+        )]
+
+        admin_like = sorted({
+            u for u, _ in observed if "internal_admin" in _classify(u)
+        })
+        if admin_like:
+            findings.append(Finding(
+                title=(
+                    "Admin-style API endpoint(s) called during normal "
+                    f"page render ({len(admin_like)})"
+                ),
+                description=(
+                    "The public page triggered requests to endpoints "
+                    f"whose paths look administrative: {admin_like[0]}. "
+                    "This is usually legitimate (CMS front-ends call "
+                    "admin-ajax.php constantly) — but it confirms the "
+                    "endpoint is reachable from an unauthenticated "
+                    "browser context, so its own access control is the "
+                    "only thing protecting it. Advisory: verify those "
+                    "endpoints enforce authentication server-side."
+                ),
+                severity=Severity.LOW,
+                category=FindingCategory.API,
+                evidence=[Evidence(
+                    evidence_type=EvidenceType.HTTP_REQUEST,
+                    content="Admin-style endpoints observed:\n"
+                            + "\n".join(admin_like[:10]),
+                    location=admin_like[0],
+                    source_engine=_ENGINE,
+                    confidence=0.8,
+                    extra={"evidence_source": "browser_network"},
+                )],
+                confidence=0.7,
+                remediation=(
+                    "Confirm each endpoint validates session/authz "
+                    "server-side and returns 401/403 for anonymous "
+                    "callers on privileged operations. Rate-limit "
+                    "admin-ajax style endpoints — they're a common "
+                    "brute-force target."
+                ),
+                framework=_FA["inventory"],
+                scanner_engine=_ENGINE,
+                tags=["advisory", "browser_network"],
+                metadata={
+                    "evidence_source": "browser_network",
+                    "admin_endpoints": admin_like[:25],
+                },
+            ))
+
+        return findings

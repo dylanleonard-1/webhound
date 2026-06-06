@@ -411,18 +411,22 @@ def _is_substantive_200(
     if not body:
         return False
     body_len = len(body)
-    if body_len < SensitivePathsEngine._MIN_SUBSTANTIVE_BODY:
-        return False
     if baseline.catch_all_length is not None:
         # Body looks too much like the catch-all — suppress.
         margin = max(80, baseline.catch_all_length * 0.10)
         if abs(body_len - baseline.catch_all_length) <= margin:
             return False
-    # Look for the file-label keyword in the body — weak corroboration that
-    # this *is* the file we asked for, not a routing fallback.
+    # Look for the file-label keyword in the body — corroboration that
+    # this *is* the thing we asked for, not a routing fallback. Strong
+    # enough to waive the length floor: catch-all shells don't title
+    # themselves after the probed path (e.g. "Admin Panel" on /admin).
     label_words = [w for w in spec.label.lower().split() if len(w) >= 4]
     if label_words and any(w in body.lower() for w in label_words):
         return True
+    # Without label corroboration, tiny bodies are indistinguishable
+    # from minimal SPA shells / placeholder pages — suppress.
+    if body_len < SensitivePathsEngine._MIN_SUBSTANTIVE_BODY:
+        return False
     # Otherwise: require the path component itself (e.g. "wp-admin") to show
     # up in the body. Catch-all SPA shells don't mention specific paths.
     path_token = spec.path.strip("/").split("/")[-1]

@@ -53,6 +53,30 @@ class NetworkArtifact:
         return _hostname(self.url)
 
 
+@dataclass(frozen=True)
+class RenderedFormField:
+    """One input/select/textarea inside a rendered form. Metadata only —
+    the field is read from the DOM, never filled, never submitted."""
+
+    name: str | None
+    input_type: str
+
+
+@dataclass(frozen=True)
+class RenderedForm:
+    """A <form> observed in the *rendered* DOM (post-hydration).
+
+    Captured read-only so lazy-loaded / JS-injected forms reach the form
+    engines. Safe-mode contract: the runner never focuses, fills, or
+    submits these forms — it only reads their attributes."""
+
+    action: str | None        # Resolved form.action (absolute URL) or None
+    method: str               # Uppercased; defaults to "GET"
+    fields: tuple[RenderedFormField, ...] = ()
+    has_password_field: bool = False
+    page_url: str | None = None
+
+
 @dataclass
 class BrowserTelemetry:
     """All artifacts captured for one page navigation.
@@ -68,6 +92,16 @@ class BrowserTelemetry:
     finished_at: datetime | None = None
     final_url: str | None = None
     artifacts: list[NetworkArtifact] = field(default_factory=list)
+    # Rendered-DOM capture (Phase-6A). ``rendered_html`` is the
+    # post-hydration ``page.content()`` snapshot — what the user's
+    # browser actually shows, as opposed to the static HTML the crawler
+    # fetched. ``rendered_links`` are resolved <a href> URLs read from
+    # the live DOM; ``rendered_forms`` are read-only form descriptors.
+    # All three stay None/empty when DOM capture is disabled or failed,
+    # so existing consumers see no behavioural change.
+    rendered_html: str | None = None
+    rendered_links: list[str] = field(default_factory=list)
+    rendered_forms: list[RenderedForm] = field(default_factory=list)
     # Subset views — populated by ``add()`` for cheap lookups.
     fetch_urls: list[str] = field(default_factory=list)
     xhr_urls: list[str] = field(default_factory=list)

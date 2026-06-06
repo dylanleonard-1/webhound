@@ -12,10 +12,13 @@ from webhound.browser.models import (
     BrowserHostInventory,
     BrowserTelemetry,
     NetworkArtifact,
+    RenderedForm,
+    RenderedFormField,
     aggregate_browser_hosts,
 )
 from webhound.browser.playwright_runner import (
     BrowserPassResult,
+    _capture_rendered_dom,
     browser_pass_enabled,
     run_browser_pass,
 )
@@ -170,6 +173,138 @@ async def test_run_browser_pass_handles_missing_playwright_gracefully() -> None:
     # installed on a developer box. We just guarantee the runner
     # returns a clean result object instead of raising.
     assert isinstance(result, BrowserPassResult)
+
+
+# ---------------------------------------------------------------------------
+# Rendered-DOM capture (Phase-6A) — mocked page object, no Playwright
+# ---------------------------------------------------------------------------
+
+
+class _FakePage:
+    """Stand-in for a Playwright Page: only the two read-only calls
+    the DOM capture path uses."""
+
+    def __init__(self, html="<html></html>", eval_result=None,
+                 content_raises=False, eval_raises=False):
+        self._html = html
+        self._eval_result = eval_result
+        self._content_raises = content_raises
+        self._eval_raises = eval_raises
+
+    async def content(self):
+        if self._content_raises:
+            raise RuntimeError("page closed")
+        return self._html
+
+    async def evaluate(self, _script):
+        if self._eval_raises:
+            raise RuntimeError("execution context destroyed")
+        return self._eval_result
+
+
+@pytest.mark.asyncio
+async def test_capture_rendered_dom_populates_telemetry() -> None:
+    tel = BrowserTelemetry(page_url="https://target.test/app")
+    page = _FakePage(
+        html="<html><body><a href='/hidden'>x</a></body></html>",
+        eval_result={
+            "links": [
+                "https://target.test/hidden",
+                "https://target.test/hidden",  # dupe must collapse
+                "https://cdn.example.com/promo",
+            ],
+            "forms": [{
+                "action": "https://target.test/api/login",
+                "method": "post",
+                "fields": [
+                    {"name": "user", "type": "text"},
+                    {"name": "pass", "type": "password"},
+                ],
+                "hasPassword": True,
+            }],
+        },
+    )
+    await _capture_rendered_dom(page, tel)
+    assert tel.rendered_html is not None and "hidden" in tel.rendered_html
+    assert tel.rendered_links == [
+        "https://target.test/hidden",
+        "https://cdn.example.com/promo",
+    ]
+    assert len(tel.rendered_forms) == 1
+    form = tel.rendered_forms[0]
+    assert form.action == "https://target.test/api/login"
+    assert form.method == "POST"
+    assert form.has_password_field is True
+    assert form.fields == (
+        RenderedFormField(name="user", input_type="text"),
+        RenderedFormField(name="pass", input_type="password"),
+    )
+    assert form.page_url == "https://target.test/app"
+    assert tel.errors == []
+
+
+@pytest.mark.asyncio
+async def test_capture_rendered_dom_content_failure_is_isolated() -> None:
+    """A dead page must not raise — and the DOM walk still runs."""
+    tel = BrowserTelemetry(page_url="https://target.test/")
+    page = _FakePage(
+        content_raises=True,
+        eval_result={"links": ["https://target.test/a"], "forms": []},
+    )
+    await _capture_rendered_dom(page, tel)
+    assert tel.rendered_html is None
+    assert tel.rendered_links == ["https://target.test/a"]
+    assert any("rendered-html capture failed" in e for e in tel.errors)
+
+
+@pytest.mark.asyncio
+async def test_capture_rendered_dom_eval_failure_is_isolated() -> None:
+    tel = BrowserTelemetry(page_url="https://target.test/")
+    page = _FakePage(html="<html>ok</html>", eval_raises=True)
+    await _capture_rendered_dom(page, tel)
+    assert tel.rendered_html == "<html>ok</html>"
+    assert tel.rendered_links == []
+    assert any("rendered-dom walk failed" in e for e in tel.errors)
+
+
+@pytest.mark.asyncio
+async def test_capture_rendered_dom_malformed_payload_ignored() -> None:
+    """Defensive parsing: junk types from the page never raise."""
+    tel = BrowserTelemetry(page_url="https://target.test/")
+    page = _FakePage(eval_result={
+        "links": [None, 42, "", "https://target.test/ok"],
+        "forms": ["not-a-dict", {"action": 99, "method": None,
+                                 "fields": [None, {"name": 3, "type": None}]}],
+    })
+    await _capture_rendered_dom(page, tel)
+    assert tel.rendered_links == ["https://target.test/ok"]
+    assert len(tel.rendered_forms) == 1
+    assert tel.rendered_forms[0].action is None
+    assert tel.rendered_forms[0].method == "GET"
+    assert tel.rendered_forms[0].fields == (
+        RenderedFormField(name=None, input_type="text"),
+    )
+
+
+@pytest.mark.asyncio
+async def test_injected_runner_receives_capture_dom_flag() -> None:
+    seen_kwargs: dict = {}
+
+    async def _fake_runner(urls, **kwargs):
+        seen_kwargs.update(kwargs)
+        return BrowserPassResult()
+
+    await run_browser_pass(
+        ["https://target.test/"], allow_network=True,
+        capture_dom=False, runner=_fake_runner,
+    )
+    assert seen_kwargs.get("capture_dom") is False
+
+
+def test_rendered_form_defaults_are_safe() -> None:
+    form = RenderedForm(action=None, method="GET")
+    assert form.fields == ()
+    assert form.has_password_field is False
 
 
 # ---------------------------------------------------------------------------

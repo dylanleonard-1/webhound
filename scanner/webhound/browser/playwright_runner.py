@@ -39,6 +39,8 @@ from urllib.parse import urlparse
 from webhound.browser.models import (
     BrowserTelemetry,
     NetworkArtifact,
+    RenderedForm,
+    RenderedFormField,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,6 +49,53 @@ logger = logging.getLogger(__name__)
 _DEFAULT_NAV_TIMEOUT_MS = 30_000
 _DEFAULT_IDLE_WAIT_MS = 1_500
 _DEFAULT_HYDRATION_WAIT_MS = 2_000
+
+# Rendered-DOM capture bounds (Phase-6A). Caps keep one pathological
+# page (infinite-scroll feeds, generated DOM) from ballooning telemetry.
+_MAX_RENDERED_HTML_CHARS = 1_500_000
+_MAX_RENDERED_LINKS = 2_000
+_MAX_RENDERED_FORMS = 200
+
+# Read-only DOM walk evaluated in the page after hydration. Reads
+# attributes via getAttribute (immune to DOM clobbering — a form with
+# <input name="action"> shadows form.action) and resolves URLs against
+# document.baseURI. NEVER focuses, fills, clicks, or submits anything.
+_DOM_CAPTURE_JS = """
+() => {
+  const links = [];
+  for (const a of document.querySelectorAll('a[href]')) {
+    if (links.length >= %(max_links)d) break;
+    try { if (a.href) links.push(a.href); } catch (e) {}
+  }
+  const forms = [];
+  for (const f of document.querySelectorAll('form')) {
+    if (forms.length >= %(max_forms)d) break;
+    try {
+      const fields = [];
+      let hasPassword = false;
+      for (const el of f.querySelectorAll('input, select, textarea')) {
+        const type = (el.getAttribute('type')
+                      || el.tagName || '').toLowerCase();
+        if (type === 'password') hasPassword = true;
+        fields.push({ name: el.getAttribute('name'), type: type });
+      }
+      const rawAction = f.getAttribute('action');
+      let action = null;
+      try {
+        action = rawAction
+          ? new URL(rawAction, document.baseURI).href : null;
+      } catch (e) {}
+      forms.push({
+        action: action,
+        method: (f.getAttribute('method') || 'GET').toUpperCase(),
+        fields: fields,
+        hasPassword: hasPassword,
+      });
+    } catch (e) {}
+  }
+  return { links: links, forms: forms };
+}
+""" % {"max_links": _MAX_RENDERED_LINKS, "max_forms": _MAX_RENDERED_FORMS}
 
 
 @dataclass
@@ -104,6 +153,7 @@ async def run_browser_pass(
     hydration_wait_ms: int = _DEFAULT_HYDRATION_WAIT_MS,
     idle_wait_ms: int = _DEFAULT_IDLE_WAIT_MS,
     user_agent: str | None = None,
+    capture_dom: bool = True,
     runner: Callable[..., Awaitable["BrowserPassResult"]] | None = None,
 ) -> BrowserPassResult:
     """Visit every URL in ``page_urls`` in a headless Chromium
@@ -112,6 +162,11 @@ async def run_browser_pass(
     ``allow_network`` MUST be True for the runner to actually launch a
     browser — matching the scanner's safe-mode posture. Without it,
     returns ``deferred=True`` immediately.
+
+    ``capture_dom`` additionally snapshots the post-hydration DOM
+    (``page.content()``) plus rendered links + read-only form
+    descriptors per page. Pure observation — no element is ever
+    focused, filled, clicked, or submitted.
 
     ``runner`` is an injection seam for tests: when supplied it
     replaces the Playwright execution path, so unit tests can return
@@ -126,6 +181,7 @@ async def run_browser_pass(
             hydration_wait_ms=hydration_wait_ms,
             idle_wait_ms=idle_wait_ms,
             user_agent=user_agent,
+            capture_dom=capture_dom,
         )
     if not allow_network:
         return BrowserPassResult(
@@ -138,6 +194,7 @@ async def run_browser_pass(
         hydration_wait_ms=hydration_wait_ms,
         idle_wait_ms=idle_wait_ms,
         user_agent=user_agent,
+        capture_dom=capture_dom,
     )
 
 
@@ -153,6 +210,7 @@ async def _playwright_pass(
     hydration_wait_ms: int,
     idle_wait_ms: int,
     user_agent: str | None,
+    capture_dom: bool = True,
 ) -> BrowserPassResult:
     try:
         from playwright.async_api import async_playwright  # type: ignore
@@ -206,6 +264,8 @@ async def _playwright_pass(
                         except Exception:  # noqa: BLE001
                             pass
                         tel.final_url = page.url
+                        if capture_dom:
+                            await _capture_rendered_dom(page, tel)
                     except asyncio.TimeoutError:
                         tel.errors.append(
                             f"navigation timeout after {per_page_timeout_ms}ms"
@@ -226,6 +286,49 @@ async def _playwright_pass(
             error=f"playwright pass failed: {exc}",
         )
     return BrowserPassResult(telemetries=telemetries)
+
+
+async def _capture_rendered_dom(page, tel: BrowserTelemetry) -> None:
+    """Snapshot the post-hydration DOM into ``tel``. Read-only and
+    defensive: any failure appends an error note and leaves the
+    telemetry otherwise intact — the network artifacts already
+    captured for this page are never discarded."""
+    try:
+        html = await page.content()
+        if html:
+            tel.rendered_html = html[:_MAX_RENDERED_HTML_CHARS]
+    except Exception as exc:  # noqa: BLE001
+        tel.errors.append(f"rendered-html capture failed: {type(exc).__name__}")
+    try:
+        data = await page.evaluate(_DOM_CAPTURE_JS)
+    except Exception as exc:  # noqa: BLE001
+        tel.errors.append(f"rendered-dom walk failed: {type(exc).__name__}")
+        return
+    if not isinstance(data, dict):
+        return
+    seen: set[str] = set()
+    for link in data.get("links") or []:
+        if isinstance(link, str) and link and link not in seen:
+            seen.add(link)
+            tel.rendered_links.append(link)
+    for raw in data.get("forms") or []:
+        if not isinstance(raw, dict):
+            continue
+        fields = tuple(
+            RenderedFormField(
+                name=f.get("name") if isinstance(f.get("name"), str) else None,
+                input_type=str(f.get("type") or "text"),
+            )
+            for f in (raw.get("fields") or [])
+            if isinstance(f, dict)
+        )
+        tel.rendered_forms.append(RenderedForm(
+            action=raw.get("action") if isinstance(raw.get("action"), str) else None,
+            method=str(raw.get("method") or "GET").upper(),
+            fields=fields,
+            has_password_field=bool(raw.get("hasPassword")),
+            page_url=tel.page_url,
+        ))
 
 
 def _wire_capture(page, tel: BrowserTelemetry) -> None:

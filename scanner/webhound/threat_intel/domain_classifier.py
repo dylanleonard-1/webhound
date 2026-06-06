@@ -56,6 +56,12 @@ class DomainClassification:
     tld: str | None                         # Effective TLD (e.g. "co.uk")
     is_punycode: bool                       # Any label starts with "xn--"
     is_url_shortener: bool                  # Registered domain is a known shortener
+    # Functional category — WHAT the vendor does (analytics/ads/cdn/
+    # payment/chat/identity/marketing/hosting/commerce/social/media/
+    # unknown). Orthogonal to the risk tier above: a payment vendor is
+    # "payment" whether or not the domain itself looks risky. Used by
+    # reporting to present known services as inventory, not threats.
+    vendor_category: str = "unknown"
 
 
 # ---------------------------------------------------------------------------
@@ -122,7 +128,132 @@ _COMMON_BENIGN_DOMAINS: frozenset[str] = frozenset({
     "disqus.com", "disquscdn.com",
     "addthis.com",
     "adobe.com", "adobedtm.com",
+    # Phase-6C additions — vendors the browser pass routinely observes
+    # at runtime. Listing them here keeps heuristics (keyword / TLD /
+    # hyphen rules) from turning household services into findings.
+    "shopify.com", "myshopify.com", "shopifycdn.com", "shopifysvc.com",
+    "wix.com", "wixstatic.com", "wixsite.com", "parastorage.com",
+    "webflow.com", "webflow.io", "website-files.com",
+    "squarespace.com", "squarespace-cdn.com",
+    "bigcommerce.com",
+    "tiktok.com", "tiktokcdn.com", "byteoversea.com",
+    "klaviyo.com",
+    "hubspot.com", "hs-scripts.com", "hsforms.com", "hubapi.com",
+    "zendesk.com", "zdassets.com",
+    "mailchimp.com", "list-manage.com", "chimpstatic.com",
+    "segment.com", "segment.io",
+    "mixpanel.com",
+    "amplitude.com",
+    "clarity.ms",
+    "drift.com", "driftt.com",
+    "crisp.chat",
+    "tawk.to",
+    "auth0.com",
+    "okta.com", "oktacdn.com",
+    "clerk.com", "clerk.dev",
+    "microsoftonline.com",
+    "klarna.com", "afterpay.com", "squareup.com", "adyen.com",
+    "criteo.com", "taboola.com", "outbrain.com",
+    "googlesyndication.com", "googleadservices.com",
 })
+
+# ---------------------------------------------------------------------------
+# Functional vendor categories (Phase-6C).
+# WHAT a vendor does, keyed by registrable domain. Orthogonal to risk:
+# reporting uses this to file known services under inventory instead of
+# presenting "site uses Stripe" as a security finding.
+# ---------------------------------------------------------------------------
+
+_VENDOR_CATEGORIES: dict[str, str] = {
+    # analytics / telemetry
+    "google-analytics.com": "analytics", "googletagmanager.com": "analytics",
+    "hotjar.com": "analytics", "mixpanel.com": "analytics",
+    "segment.com": "analytics", "segment.io": "analytics",
+    "amplitude.com": "analytics", "clarity.ms": "analytics",
+    "plausible.io": "analytics", "sentry.io": "analytics",
+    "sentry-cdn.com": "analytics", "vercel-insights.com": "analytics",
+    "newrelic.com": "analytics", "nr-data.net": "analytics",
+    "datadoghq.com": "analytics",
+    # ads
+    "doubleclick.net": "ads", "googlesyndication.com": "ads",
+    "googleadservices.com": "ads", "adnxs.com": "ads",
+    "criteo.com": "ads", "taboola.com": "ads", "outbrain.com": "ads",
+    "facebook.net": "ads", "tiktokcdn.com": "ads",
+    # cdn / infra
+    "cloudflare.com": "cdn", "cloudflare.net": "cdn",
+    "jsdelivr.net": "cdn", "unpkg.com": "cdn",
+    "bootstrapcdn.com": "cdn", "cloudfront.net": "cdn",
+    "fastly.net": "cdn", "fastly.com": "cdn",
+    "akamaized.net": "cdn", "akamai.com": "cdn", "akamaihd.net": "cdn",
+    "gstatic.com": "cdn", "googleapis.com": "cdn",
+    "typekit.net": "cdn", "fbcdn.net": "cdn", "licdn.com": "cdn",
+    "twimg.com": "cdn", "ytimg.com": "cdn", "vimeocdn.com": "cdn",
+    "jquery.com": "cdn", "jquery.org": "cdn",
+    "shopifycdn.com": "cdn", "squarespace-cdn.com": "cdn",
+    "website-files.com": "cdn", "wixstatic.com": "cdn",
+    "parastorage.com": "cdn", "chimpstatic.com": "cdn",
+    "intercomcdn.com": "cdn", "zdassets.com": "cdn",
+    "oktacdn.com": "cdn", "disquscdn.com": "cdn",
+    "paypalobjects.com": "cdn",
+    # payment
+    "stripe.com": "payment", "stripe.network": "payment",
+    "paypal.com": "payment", "braintreegateway.com": "payment",
+    "klarna.com": "payment", "afterpay.com": "payment",
+    "squareup.com": "payment", "adyen.com": "payment",
+    # chat / support
+    "intercom.io": "chat", "zendesk.com": "chat",
+    "drift.com": "chat", "driftt.com": "chat",
+    "crisp.chat": "chat", "tawk.to": "chat",
+    "livechatinc.com": "chat",
+    # identity / auth
+    "auth0.com": "identity", "okta.com": "identity",
+    "clerk.com": "identity", "clerk.dev": "identity",
+    "microsoftonline.com": "identity",
+    # marketing / CRM / email
+    "klaviyo.com": "marketing", "hubspot.com": "marketing",
+    "hs-scripts.com": "marketing", "hsforms.com": "marketing",
+    "hubapi.com": "marketing",
+    "mailchimp.com": "marketing", "list-manage.com": "marketing",
+    "marketo.com": "marketing", "braze.com": "marketing",
+    "addthis.com": "marketing", "adobedtm.com": "marketing",
+    # hosting / platform
+    "vercel.app": "hosting", "vercel.com": "hosting",
+    "netlify.app": "hosting", "netlify.com": "hosting",
+    "railway.app": "hosting", "fly.dev": "hosting", "fly.io": "hosting",
+    "render.com": "hosting", "herokuapp.com": "hosting",
+    "pages.dev": "hosting", "workers.dev": "hosting",
+    "github.io": "hosting", "amazonaws.com": "hosting",
+    "azurewebsites.net": "hosting", "azurestaticapps.net": "hosting",
+    "appspot.com": "hosting", "run.app": "hosting",
+    "supabase.co": "hosting", "supabase.in": "hosting",
+    "firebaseapp.com": "hosting", "web.app": "hosting",
+    "amplifyapp.com": "hosting",
+    # commerce platforms
+    "shopify.com": "commerce", "myshopify.com": "commerce",
+    "shopifysvc.com": "commerce",
+    "wix.com": "commerce", "wixsite.com": "commerce",
+    "webflow.com": "commerce", "webflow.io": "commerce",
+    "squarespace.com": "commerce", "bigcommerce.com": "commerce",
+    "woocommerce.com": "commerce",
+    # social / embeds
+    "facebook.com": "social", "instagram.com": "social",
+    "twitter.com": "social", "linkedin.com": "social",
+    "tiktok.com": "social", "byteoversea.com": "social",
+    "disqus.com": "social",
+    # media embeds
+    "youtube.com": "media", "vimeo.com": "media",
+}
+
+
+def vendor_category(domain: str) -> str:
+    """Functional category for *domain* ("unknown" when unrecognised).
+    Matches on the registrable domain so cdn.shopify.com → shopify.com."""
+    d = (domain or "").strip().lower().rstrip(".")
+    if not d:
+        return "unknown"
+    registered = _registerable_domain(d)
+    return _VENDOR_CATEGORIES.get(registered or d,
+                                  _VENDOR_CATEGORIES.get(d, "unknown"))
 
 # TLDs with historically high abuse / spam rates.
 _RISKY_TLDS: frozenset[str] = frozenset({
@@ -309,6 +440,7 @@ class DomainClassifier:
                 tld=tld,
                 is_punycode=is_punycode,
                 is_url_shortener=False,
+                vendor_category=vendor_category(domain),
             )
 
         if registered and registered in _COMMON_BENIGN_DOMAINS:
@@ -322,6 +454,7 @@ class DomainClassifier:
                 tld=tld,
                 is_punycode=is_punycode,
                 is_url_shortener=False,
+                vendor_category=vendor_category(domain),
             )
 
         # ------------------------------------------------------------------
@@ -380,6 +513,7 @@ class DomainClassifier:
             tld=tld,
             is_punycode=is_punycode,
             is_url_shortener=is_shortener,
+            vendor_category=vendor_category(domain),
         )
 
     @staticmethod

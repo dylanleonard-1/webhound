@@ -857,6 +857,7 @@ class Scanner:
         result = await run_browser_pass(
             page_urls, allow_network=allow_net,
             user_agent=self._target.scan_options.user_agent,
+            url_filter=ctx.scope.is_in_scope,
         )
         duration_ms = (time.perf_counter() - t0) * 1000.0
 
@@ -909,22 +910,59 @@ class Scanner:
                     "intact", exc_info=True,
                 )
 
-        # Roll up browser-specific host inventory for the JSON export.
+        # Roll up browser-specific host inventory + Phase-6B coverage
+        # counters for the JSON export. Discovery statistics only —
+        # nothing here feeds risk scoring or findings.
         try:
+            from webhound.browser.network_capture import summarize_network
             primary = (self._target.hostname or "").lower()
             browser_inv = aggregate_browser_hosts(
                 browser_telemetries, primary_host=primary,
             )
+            tels = result.telemetries
+            net = summarize_network(tels, primary_host=primary)
+            skipped = list(result.skipped_urls or [])
             ctx.scan_result.metadata["browser_pass"] = {
                 "deferred": result.deferred,
                 "error": result.error,
-                "page_count": len(result.telemetries),
-                "artifact_count": sum(
-                    len(t.artifacts) for t in result.telemetries
-                ),
+                "page_count": len(tels),
+                "artifact_count": sum(len(t.artifacts) for t in tels),
                 "host_count": len(browser_inv),
                 "duration_ms": round(duration_ms, 2),
                 "hosts": sorted(browser_inv.keys()),
+                # Coverage counters (Phase-6B)
+                "browser_pages_rendered": sum(
+                    1 for t in tels if t.rendered_html
+                ),
+                "browser_render_failures": sum(
+                    1 for t in tels if t.errors or not t.rendered_html
+                ),
+                "rendered_links_found": sum(
+                    len(t.rendered_links) for t in tels
+                ),
+                "rendered_forms_found": sum(
+                    len(t.rendered_forms) for t in tels
+                ),
+                "browser_scripts_found": sum(
+                    len(t.rendered_scripts) for t in tels
+                ),
+                "browser_client_routes_found": sum(
+                    len(t.client_routes) for t in tels
+                ),
+                "browser_console_errors": sum(
+                    len(t.console_messages) for t in tels
+                ),
+                "browser_interactions": sum(
+                    len(t.interactions) for t in tels
+                ),
+                "browser_blocked_interactions": sum(
+                    t.blocked_interactions for t in tels
+                ),
+                "skipped_out_of_scope_browser_urls": len(skipped),
+                "skipped_browser_urls": [
+                    {"url": u, "reason": r} for u, r in skipped[:25]
+                ],
+                **net.to_dict(),
                 **rendered_stats,
             }
         except Exception:  # noqa: BLE001

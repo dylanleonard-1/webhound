@@ -330,6 +330,75 @@ def test_rendered_form_defaults_are_safe() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Scope + SSRF navigation screen (Phase-6B)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_out_of_scope_urls_are_skipped_not_navigated() -> None:
+    seen_urls: list[str] = []
+
+    async def _fake_runner(urls, **kwargs):
+        seen_urls.extend(urls)
+        return BrowserPassResult(
+            telemetries=[BrowserTelemetry(page_url=u) for u in urls],
+        )
+
+    result = await run_browser_pass(
+        [
+            "https://target.test/in-scope",
+            "https://elsewhere.example.com/out",
+        ],
+        allow_network=True,
+        runner=_fake_runner,
+        url_filter=lambda u: "target.test" in u,
+    )
+    assert seen_urls == ["https://target.test/in-scope"]
+    assert ("https://elsewhere.example.com/out", "out_of_scope") in (
+        result.skipped_urls
+    )
+
+
+@pytest.mark.asyncio
+async def test_private_and_internal_hosts_are_ssrf_blocked() -> None:
+    async def _fake_runner(urls, **kwargs):
+        raise AssertionError(f"should never navigate: {urls}")
+
+    result = await run_browser_pass(
+        [
+            "http://169.254.169.254/latest/meta-data/",
+            "http://10.0.0.5/admin",
+            "http://localhost:8080/",
+            "http://db.internal/",
+        ],
+        allow_network=True,
+        runner=_fake_runner,
+    )
+    assert result.telemetries == []
+    reasons = {r for _, r in result.skipped_urls}
+    assert reasons == {"ssrf_blocked"}
+    assert len(result.skipped_urls) == 4
+
+
+@pytest.mark.asyncio
+async def test_broken_url_filter_fails_closed() -> None:
+    """A scope predicate that raises must mean 'out of scope', never
+    'navigate anyway'."""
+    async def _fake_runner(urls, **kwargs):
+        raise AssertionError("should never navigate")
+
+    def _exploding_filter(_u: str) -> bool:
+        raise RuntimeError("scope store unavailable")
+
+    result = await run_browser_pass(
+        ["https://target.test/"], allow_network=True,
+        runner=_fake_runner, url_filter=_exploding_filter,
+    )
+    assert result.telemetries == []
+    assert result.skipped_urls == [("https://target.test/", "out_of_scope")]
+
+
+# ---------------------------------------------------------------------------
 # env-driven helper
 # ---------------------------------------------------------------------------
 

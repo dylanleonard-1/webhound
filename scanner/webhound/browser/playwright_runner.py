@@ -84,11 +84,43 @@ class BrowserPassResult:
     populated with a human-readable explanation. ``deferred=False`` +
     ``error=None`` means the pass ran; ``telemetries`` will be
     populated even if individual pages errored (per-page errors land
-    inside each ``BrowserTelemetry.errors``)."""
+    inside each ``BrowserTelemetry.errors``).
+
+    ``skipped_urls`` records every navigation the runner REFUSED:
+    ``(url, reason)`` with reason in {"out_of_scope", "ssrf_blocked",
+    "left_scope_after_redirect"}."""
 
     telemetries: list[BrowserTelemetry] = field(default_factory=list)
     deferred: bool = False
     error: str | None = None
+    skipped_urls: list[tuple[str, str]] = field(default_factory=list)
+
+
+def _nav_url_blocked(url: str) -> bool:
+    """Cheap pre-navigation SSRF screen, reusing ssrf_guard's hostname
+    and IP-literal rules. Page URLs come from the static crawl (which
+    already enforces the connection-layer guard with DNS pinning), so
+    this screen only needs to catch literal IPs, *.internal/.local
+    suffixes, and malformed hosts — without an extra DNS round-trip."""
+    from webhound.core.ssrf_guard import (
+        _hostname_blocked,
+        _ip_blocked,
+        _normalize_host,
+    )
+    import ipaddress
+
+    try:
+        host = _normalize_host(urlparse(url).hostname or "")
+    except Exception:  # noqa: BLE001
+        return True
+    if not host:
+        return True
+    if _hostname_blocked(host):
+        return True
+    try:
+        return _ip_blocked(ipaddress.ip_address(host))
+    except ValueError:
+        return False  # not an IP literal — DNS-level guard already ran
 
 
 # ---------------------------------------------------------------------------
@@ -132,6 +164,7 @@ async def run_browser_pass(
     user_agent: str | None = None,
     capture_dom: bool = True,
     interact: bool = True,
+    url_filter: Callable[[str], bool] | None = None,
     runner: Callable[..., Awaitable["BrowserPassResult"]] | None = None,
 ) -> BrowserPassResult:
     """Visit every URL in ``page_urls`` in a headless Chromium
@@ -146,14 +179,34 @@ async def run_browser_pass(
     descriptors per page. Pure observation — no element is ever
     focused, filled, clicked, or submitted.
 
+    ``url_filter`` is the scope predicate (typically
+    ``ScopeChecker.is_in_scope``). URLs failing it — and URLs failing
+    the SSRF screen — are never navigated to; they land in
+    ``result.skipped_urls`` with a reason.
+
     ``runner`` is an injection seam for tests: when supplied it
     replaces the Playwright execution path, so unit tests can return
     deterministic telemetry without installing browsers."""
     if not page_urls:
         return BrowserPassResult()
+
+    # Pre-navigation screen: SSRF rules first (they always apply),
+    # then the caller's scope predicate.
+    allowed: list[str] = []
+    skipped: list[tuple[str, str]] = []
+    for u in page_urls:
+        if _nav_url_blocked(u):
+            skipped.append((u, "ssrf_blocked"))
+        elif url_filter is not None and not _safe_filter(url_filter, u):
+            skipped.append((u, "out_of_scope"))
+        else:
+            allowed.append(u)
+    if not allowed:
+        return BrowserPassResult(skipped_urls=skipped)
+
     if runner is not None:
-        return await runner(
-            page_urls,
+        result = await runner(
+            allowed,
             allow_network=allow_network,
             per_page_timeout_ms=per_page_timeout_ms,
             hydration_wait_ms=hydration_wait_ms,
@@ -161,21 +214,36 @@ async def run_browser_pass(
             user_agent=user_agent,
             capture_dom=capture_dom,
             interact=interact,
+            url_filter=url_filter,
         )
-    if not allow_network:
+    elif not allow_network:
         return BrowserPassResult(
             deferred=True,
             error="browser pass disabled: allow_network=False",
+            skipped_urls=skipped,
         )
-    return await _playwright_pass(
-        page_urls,
-        per_page_timeout_ms=per_page_timeout_ms,
-        hydration_wait_ms=hydration_wait_ms,
-        idle_wait_ms=idle_wait_ms,
-        user_agent=user_agent,
-        capture_dom=capture_dom,
-        interact=interact,
-    )
+    else:
+        result = await _playwright_pass(
+            allowed,
+            per_page_timeout_ms=per_page_timeout_ms,
+            hydration_wait_ms=hydration_wait_ms,
+            idle_wait_ms=idle_wait_ms,
+            user_agent=user_agent,
+            capture_dom=capture_dom,
+            interact=interact,
+            url_filter=url_filter,
+        )
+    result.skipped_urls = skipped + list(result.skipped_urls)
+    return result
+
+
+def _safe_filter(url_filter: Callable[[str], bool], url: str) -> bool:
+    """A broken scope predicate must fail CLOSED — treat as out of
+    scope rather than navigating anyway."""
+    try:
+        return bool(url_filter(url))
+    except Exception:  # noqa: BLE001
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -192,6 +260,7 @@ async def _playwright_pass(
     user_agent: str | None,
     capture_dom: bool = True,
     interact: bool = True,
+    url_filter: Callable[[str], bool] | None = None,
 ) -> BrowserPassResult:
     try:
         from playwright.async_api import async_playwright  # type: ignore
@@ -202,6 +271,7 @@ async def _playwright_pass(
         )
 
     telemetries: list[BrowserTelemetry] = []
+    skipped_nav: list[tuple[str, str]] = []
     try:
         async with async_playwright() as pw:
             try:
@@ -234,6 +304,22 @@ async def _playwright_pass(
                             page.goto(url, wait_until="domcontentloaded"),
                             timeout=per_page_timeout_ms / 1000.0,
                         )
+                        # Redirects can carry the browser out of scope
+                        # (cross-domain SSO hops, parked-domain
+                        # bounces). When that happens: record the
+                        # skip, keep the network artifacts already
+                        # observed, and DON'T harvest the off-scope
+                        # site's DOM, cookies, or run interactions.
+                        if (url_filter is not None and page.url
+                                and not _safe_filter(url_filter, page.url)):
+                            tel.final_url = page.url
+                            tel.errors.append(
+                                f"navigation left scope: {page.url}"
+                            )
+                            skipped_nav.append(
+                                (url, "left_scope_after_redirect")
+                            )
+                            continue
                         # Hydration window — give SPA frameworks time
                         # to fire their first round of API calls.
                         await asyncio.sleep(hydration_wait_ms / 1000.0)
@@ -276,8 +362,11 @@ async def _playwright_pass(
         return BrowserPassResult(
             telemetries=telemetries,
             error=f"playwright pass failed: {exc}",
+            skipped_urls=skipped_nav,
         )
-    return BrowserPassResult(telemetries=telemetries)
+    return BrowserPassResult(
+        telemetries=telemetries, skipped_urls=skipped_nav,
+    )
 
 
 async def _capture_rendered_dom(page, tel: BrowserTelemetry) -> None:

@@ -732,6 +732,17 @@ class Scanner:
         result.metadata["risk_level"] = risk_level
         if risk_breakdown is not None:
             result.metadata["risk_breakdown"] = risk_breakdown.to_dict()
+
+        # 9b. Phase-15 WADE Security Advisor. Runs after risk scoring +
+        # security stories so the Q&A can reference them. Per-finding
+        # explanations, priority/business-impact, action plan,
+        # remediation roadmap, trend, Q&A — advisory metadata only.
+        try:
+            from webhound.advisor import build_advisory
+            result.metadata["advisor"] = build_advisory(result).to_dict()
+        except Exception:  # noqa: BLE001
+            logger.debug("advisory build failed", exc_info=True)
+
         result.metadata["external_domains"] = sorted(external_domains)
         result.metadata["external_domain_count"] = len(external_domains)
         result.metadata["external_script_domains"] = sorted(external_script_domains)

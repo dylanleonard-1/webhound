@@ -123,8 +123,9 @@ otherwise it defers cleanly and the scan completes statically.
 ## Validation lab (Phase 10)
 `scanner/validation/` (top-level package, sibling of `webhound/`) — runs
 the REAL scanner against safe ground-truth mock targets and measures
-accuracy. `ground_truth` (clean per-platform sites + vulnerable +
-compromised), `benchmark_runner` (mock transport + full pipeline),
+accuracy. `ground_truth` (8 clean per-platform sites + 7 vulnerable + 4
+compromised; `KNOWN_COVERAGE_GAPS` records deferred targets),
+`benchmark_runner` (mock transport with route support + full pipeline),
 `finding_validator` (TP/FN/FP), `precision_report`/`recall_report`/
 `coverage_report` (quality score + marketing metrics), framework +
 engine scorecards, `regression_runner` (gate changes on quality floor +

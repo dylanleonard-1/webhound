@@ -117,8 +117,25 @@ otherwise it defers cleanly and the scan completes statically.
 | 8 | Authenticated scanning: `webhound/auth/` (session cookies, Playwright storageState, login recordings), read-only AuthGuard, auth page-context classification, authenticated discovery/WADE, `auth_mode` option | ✅ code complete; verify full suite then push |
 | 9 | Monitoring & alerting: `webhound/monitoring/` — cross-scan change history, alert tiers, suppression, risk-delta, notification policies, monitor engine | ✅ code complete; verify full suite then push |
 | 10 | Validation lab: `scanner/validation/` — ground-truth mock targets, real-scanner benchmark runner, precision/recall/coverage, framework + engine scorecards, quality score, regression gate | ✅ code complete; verify full suite then push |
-| 11 (next) | Recommended: wire monitoring into the worker (persist ChangeHistory in BaselineStore, run_monitoring after each scan, actual notification delivery: email/SMS/webhook) + dashboard timeline UI | ⬜ |
+| 11 | Advanced threat intel & supply chain: `webhound/threat_intel/` feed normalizer/manager, reputation cache, domain + script reputation, brand impersonation, supply-chain diff, threat correlation, WADE vendor events | ✅ code complete; verify full suite then push |
+| 12 (next) | Recommended: wire monitoring into the worker (persist ChangeHistory in BaselineStore, run_monitoring after each scan, actual notification delivery: email/SMS/webhook) + dashboard timeline UI | ⬜ |
 | Later | Crawl in-scope client routes, wire dormant js_fetcher / vulnerable_libs / source_map_probe (live script fetching — own reviewed change), login-recording live replay, expand validation ground truth | ⬜ |
+
+## Advanced threat intel (Phase 11)
+`webhound/threat_intel/` (on top of `domain_classifier` + `enrichment_service`):
+`feed_normalizer` (canonical ThreatIndicator from VT/URLHaus/OpenPhish/
+PhishTank/AbuseIPDB/script feeds), `feed_manager` (indexed multi-feed
+lookup, parent-domain matching), `reputation_cache` (TTL, stable
+verdicts), `domain_reputation` (classifier + feeds + impersonation →
+trusted/known_vendor/normal/unknown/suspicious/malicious; trusted
+vendors never alert without threat context), `brand_impersonation`
+(typosquat/homoglyph/combosquat, payment/auth/bank brands),
+`script_reputation` (host rep + skimmer host patterns + malware body
+markers + script-hash feed), `supply_chain` (vendor/script/CDN diff;
+known→unknown/malicious replacement), `threat_correlation` (skimmer/
+phishing/supply-chain/compromise stories + WADE vendor events). Live
+feeds stay operator-gated via `enrichment_service`; everything else is
+offline.
 
 ## Validation lab (Phase 10)
 `scanner/validation/` (top-level package, sibling of `webhound/`) — runs

@@ -122,7 +122,23 @@ otherwise it defers cleanly and the scan completes statically.
 | 15 | Agency & Multi-Site Command Center: `webhound/portfolio/` — site registry, portfolio scores, risk rollup, cross-site alerts, client groups, portfolio WADE, executive report, white-label | ✅ code complete; verify full suite then push |
 | 16 | Agency/MSP API + frontend: portfolio routes (`apps/api/routers/portfolio.py`), service, `WebsiteGroup` model + migration 0032, portfolio dashboard page (`apps/web`), sidebar link | ✅ code complete; scanner suite verifying then push |
 | 18 | Security Graph Engine: `webhound/graph/` — node/edge model, builder, query, scoring context, export, validator; `metadata.security_graph_summary` | ✅ code complete; full suite verifying then push |
+| 17 | Production hardening: `apps/api/platform/` (env validator, structured logging+redaction, retry policy, onboarding state, production readiness) + scanner engine_health/performance_metrics + frontend state banners/onboarding checklist | ✅ code complete; full suite verifying then push |
 | 19 (next) | Recommended: wire monitoring into the worker (persist ChangeHistory + populate SiteRegistry from scheduled scans, run_monitoring/build_advisory after each scan), notification delivery (email/webhook), feed-refresh task; apply migration 0032 in prod | ⬜ |
+
+## Production hardening (Phase 17)
+`apps/api/platform/` — pure ops modules: `security/env_validator`
+(feature-gated required env, prod fail-fast, secret-safe), `observability/
+structured_logging` (standard scan/job record + recursive secret
+redaction), `jobs/retry_policy` (transient→backoff retry, permanent→dead-
+letter, browser→degraded; per-profile timeouts), `onboarding/
+onboarding_state` (guided checklist + next step), `health/
+production_readiness` (env + DB/Redis/worker/scanner-import → `GET
+/health/production`, 503 on critical fail). Scanner: `core/engine_health`
+(cross-scan per-engine health, flags broken/silent engines),
+`core/performance_metrics`. Frontend: `scan-state-banner` (partial/
+browser-degraded/verification/payment/plan-limit), `onboarding-checklist`.
+Verified: 24 platform + 9 scanner tests + tsc clean. Existing CORS lock,
+Stripe webhook-sig verification, admin-route protection confirmed.
 
 ## Security Graph (Phase 18)
 `webhound/graph/` — relationship graph of a site's assets (enrichment,

@@ -72,6 +72,12 @@ class ScanContext:
         # views without re-plumbing every call site.
         self.crawl_results: list[Any] = []
 
+        # Phase-9 framework detection result (ScanFrameworkResult), set
+        # by the orchestrator's framework pass before WADE runs so WADE
+        # can consult the platform's normal-change patterns. None until
+        # that pass runs.
+        self.framework_result: Any = None
+
     # ------------------------------------------------------------------
     # Browser discovery access (Phase-6C)
     # ------------------------------------------------------------------

@@ -472,6 +472,19 @@ class Scanner:
                         "unaffected", exc_info=True,
                     )
 
+            # 4d. Framework-aware discovery (Phase-9). Detect the
+            # platform(s) from passive artifacts + rendered global vars,
+            # store coverage in metadata.frameworks, and stash the
+            # scan-wide detection result on the context so WADE can use
+            # the platform's normal-change patterns. Best-effort.
+            try:
+                self._run_framework_detection(ctx, crawl_results)
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "framework detection failed; scan output unaffected",
+                    exc_info=True,
+                )
+
             # 5. WADE — build baseline; optionally compare against previous
             self._run_wade(ctx, crawl_results)
 
@@ -1248,6 +1261,98 @@ class Scanner:
     # WADE — Website Anomaly Detection Engine
     # ------------------------------------------------------------------
 
+    def _run_framework_detection(
+        self, ctx: ScanContext, crawl_results: list,
+    ) -> None:
+        """Detect the site's platform(s) and write metadata.frameworks.
+
+        Builds one DetectionContext per crawled page (static artifacts),
+        enriched with rendered global vars (__NEXT_DATA__, Shopify, …)
+        and rendered HTML from the browser pass when available. The
+        scan-wide result is stashed on the context for WADE."""
+        from webhound.frameworks import (
+            build_coverage,
+            context_from_artifacts,
+            detect_scan,
+        )
+
+        fw_start = datetime.now(timezone.utc)
+        t0 = time.perf_counter()
+
+        # Map page url → rendered global vars + html from the browser pass.
+        rendered_by_url: dict[str, tuple[list[str], str]] = {}
+        try:
+            for tel in ctx.browser.telemetries:
+                url = tel.final_url or tel.page_url
+                gvars: list[str] = []
+                # client_routes carries (route, source); the script
+                # collector recorded inline snippets — scrape global
+                # var names cheaply from the rendered HTML + scripts.
+                html = tel.rendered_html or ""
+                for token in ("__NEXT_DATA__", "__BUILD_MANIFEST",
+                              "__NUXT__", "__VUE__", "Shopify",
+                              "__REACT_DEVTOOLS_GLOBAL_HOOK__"):
+                    if token in html or any(
+                        token in (s.snippet or "")
+                        for s in tel.rendered_scripts if s.is_inline
+                    ):
+                        gvars.append(token)
+                if url:
+                    rendered_by_url[url] = (gvars, html)
+        except Exception:  # noqa: BLE001
+            pass
+
+        contexts = []
+        observed_routes: set[str] = set()
+        observed_apis: set[str] = set()
+        observed_assets: set[str] = set()
+        observed_forms = 0
+        for r in crawl_results:
+            arts = getattr(r, "artifacts", None)
+            if arts is None:
+                continue
+            url = getattr(arts, "url", "") or ""
+            gvars, html = rendered_by_url.get(url, ([], ""))
+            if not html:
+                resp = getattr(r, "response", None)
+                if resp is not None and _is_html(
+                    getattr(resp, "content_type", None)
+                ):
+                    html = getattr(resp, "body", "") or ""
+            contexts.append(context_from_artifacts(
+                arts, html=html, global_vars=gvars,
+            ))
+            # Observed-surface counts for coverage.
+            if url:
+                observed_routes.add(urlparse(url).path or "/")
+            observed_forms += len(getattr(arts, "forms", None) or [])
+            for link in getattr(arts, "all_links", None) or []:
+                p = urlparse(link).path
+                if "/api" in p or "/wp-json" in p or p.endswith(".json"):
+                    observed_apis.add(p)
+            for s in getattr(arts, "external_script_urls", None) or []:
+                observed_assets.add(s)
+
+        result = detect_scan(contexts)
+        ctx.framework_result = result  # consumed by WADE
+
+        coverage = build_coverage(
+            result,
+            observed_routes=observed_routes,
+            observed_apis=observed_apis,
+            observed_assets=observed_assets,
+            observed_forms=observed_forms,
+        )
+        ctx.scan_result.metadata["frameworks"] = coverage
+
+        duration_ms = (time.perf_counter() - t0) * 1000
+        ctx.tracker.record_run(
+            "frameworks", [], duration_ms, fw_start,
+            datetime.now(timezone.utc),
+        )
+        if "frameworks" not in ctx.scan_result.engines_run:
+            ctx.scan_result.engines_run.append("frameworks")
+
     def _run_wade(self, ctx: ScanContext, crawl_results: list) -> None:
         """Build a WADE baseline and, if a previous baseline is available, compare."""
         wade_start = datetime.now(timezone.utc)
@@ -1278,6 +1383,34 @@ class Scanner:
             findings = Classifier().classify(anomalies)
             adjust_findings_confidence(findings, anomalies)
 
+            # Phase-9 framework context: changes that match the detected
+            # platform's normal-deployment pattern (new hashed Next.js
+            # chunk, Shopify theme-asset bump, WordPress plugin update)
+            # are routine — tag them so they're suppressed from alerts
+            # but stay in the timeline (consistent with Phase-5 model).
+            fw_normal = 0
+            try:
+                from webhound.frameworks import (
+                    is_normal_framework_change,
+                    normal_change_matchers,
+                )
+                matchers = (normal_change_matchers(ctx.framework_result)
+                            if ctx.framework_result else [])
+                if matchers:
+                    for f in findings:
+                        if any(
+                            is_normal_framework_change(ev.location or "", matchers)
+                            or is_normal_framework_change(ev.content or "", matchers)
+                            for ev in (f.evidence or [])
+                        ):
+                            if "wade_suppressed" not in (f.tags or []):
+                                f.tags = (f.tags or []) + [
+                                    "wade_suppressed", "framework_normal",
+                                ]
+                                fw_normal += 1
+            except Exception:  # noqa: BLE001
+                logger.debug("framework WADE suppression failed", exc_info=True)
+
             # Alert-fatigue control (Task 8): suppressed changes are recorded
             # in the timeline + metadata but never surfaced as findings.
             active = [f for f in findings
@@ -1285,6 +1418,10 @@ class Scanner:
             suppressed = len(findings) - len(active)
             for f in active:
                 ctx.add_finding(f)
+            if fw_normal:
+                ctx.scan_result.metadata["wade_framework_normal_suppressed"] = (
+                    fw_normal
+                )
 
             # Change timeline (Task 9) — first/last-seen + frequency, ready for
             # a future dashboard. Built from every assessed change, suppressed

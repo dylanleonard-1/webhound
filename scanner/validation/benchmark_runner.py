@@ -21,11 +21,18 @@ from validation.ground_truth import ALL_TARGETS, GroundTruthTarget
 def _mock_transport(target: GroundTruthTarget) -> httpx.MockTransport:
     headers = dict(target.headers or {})
     headers.setdefault("content-type", "text/html; charset=utf-8")
+    # path → (status, body, content_type)
+    routes = {r[0]: (r[1], r[2], r[3]) for r in (target.routes or ())}
 
     async def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path in ("/", ""):
+        path = request.url.path
+        if path in ("/", ""):
             return httpx.Response(target.status, text=target.html,
                                   headers=headers)
+        if path in routes:
+            status, body, ct = routes[path]
+            return httpx.Response(status, text=body,
+                                  headers={"content-type": ct})
         return httpx.Response(404, text="Not Found")
 
     return httpx.MockTransport(handler)

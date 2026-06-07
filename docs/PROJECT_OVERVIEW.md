@@ -118,8 +118,22 @@ otherwise it defers cleanly and the scan completes statically.
 | 9 | Monitoring & alerting: `webhound/monitoring/` — cross-scan change history, alert tiers, suppression, risk-delta, notification policies, monitor engine | ✅ code complete; verify full suite then push |
 | 10 | Validation lab: `scanner/validation/` — ground-truth mock targets, real-scanner benchmark runner, precision/recall/coverage, framework + engine scorecards, quality score, regression gate | ✅ code complete; verify full suite then push |
 | 11 | Advanced threat intel & supply chain: `webhound/threat_intel/` feed normalizer/manager, reputation cache, domain + script reputation, brand impersonation, supply-chain diff, threat correlation, WADE vendor events | ✅ code complete; verify full suite then push |
-| 12 (next) | Recommended: wire monitoring into the worker (persist ChangeHistory in BaselineStore, run_monitoring after each scan, actual notification delivery: email/SMS/webhook) + dashboard timeline UI | ⬜ |
+| 13 | WADE Security Advisor: `webhound/advisor/` — per-finding 4-part explanations, business impact, priority %, action plan, remediation roadmap, trend, Q&A; written to `metadata.advisor` | ✅ code complete; verify full suite then push |
+| 14 (next) | Recommended: wire monitoring into the worker (persist ChangeHistory in BaselineStore, run_monitoring after each scan, actual notification delivery: email/SMS/webhook) + dashboard timeline/advisor UI | ⬜ |
 | Later | Crawl in-scope client routes, wire dormant js_fetcher / vulnerable_libs / source_map_probe (live script fetching — own reviewed change), login-recording live replay, expand validation ground truth | ⬜ |
+
+## WADE Security Advisor (Phase 13)
+`webhound/advisor/` — translates scan intelligence into customer
+guidance, written to `metadata.advisor`. `risk_explainer` (per-finding
+what happened / why it matters / what could happen / what to do),
+`business_impact` (customer trust / operations / revenue / auth /
+payment / data dimensions), `priority_explainer` (% of risk score +
+affected surface, using the scorer's own weights), `action_plan` (Fix
+Now / Soon / Monitor / Info + effort + risk reduction), `change_explainer`
+(plain-language WADE changes + risk trend), `recommendation_engine`
+(consolidated numbered remediation roadmap), `advisor_engine`
+(top-level + Q&A: what to fix first / did I get hacked / is this serious
+/ why did my score change). Pure, advisory-only — no scoring change.
 
 ## Advanced threat intel (Phase 11)
 `webhound/threat_intel/` (on top of `domain_classifier` + `enrichment_service`):

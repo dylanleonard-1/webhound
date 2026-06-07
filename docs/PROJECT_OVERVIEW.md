@@ -114,8 +114,20 @@ otherwise it defers cleanly and the scan completes statically.
 | 5 | WADE 2.0 intelligence: expanded baselines (dom_hash, third-party, API, iframe, redirect, tech), change taxonomy + classifier, vendor awareness, suppression (alert fatigue), timeline | ✅ pushed |
 | 6 | Correlation engine: customer-facing security stories (admin/auth/payment/supply-chain/compromise/website-mod/api/header/cookie), 11 standardized CorrelationTypes, confidence by converging evidence, no-double-count scoring | ✅ code complete; verify full suite then push |
 | 7 | Framework-aware discovery: `webhound/frameworks/` profile system (WordPress/Shopify/Wix/Webflow/Next.js/React/Vue/Angular), detection + known-surface inventory + coverage metrics + WADE platform normal-change suppression | ✅ code complete; verify full suite then push |
-| 8 (next) | Recommended: persist WADE timeline + correlation IDs across scans (frequency/recurrence accumulate), then notifications for non-suppressed security-relevant changes + stories | ⬜ |
-| Later | Authenticated scanning (storage state, session cookies, read-only crawl), crawl in-scope client routes, wire dormant js_fetcher / vulnerable_libs / source_map_probe (live script fetching — own reviewed change) | ⬜ |
+| 8 | Authenticated scanning: `webhound/auth/` (session cookies, Playwright storageState, login recordings), read-only AuthGuard, auth page-context classification, authenticated discovery/WADE, `auth_mode` option | ✅ code complete; verify full suite then push |
+| 9 (next) | Recommended: persist WADE timeline + correlation IDs across scans (frequency/recurrence accumulate), then notifications for non-suppressed security-relevant changes + stories | ⬜ |
+| Later | Crawl in-scope client routes, wire dormant js_fetcher / vulnerable_libs / source_map_probe (live script fetching — own reviewed change) | ⬜ |
+
+## Authenticated scanning (Phase 8)
+`webhound/auth/` — read-only authenticated scanning. Three methods:
+session cookies, Playwright storageState (preferred), login recordings
+(secrets as `{{placeholder}}`, never plaintext). `AuthGuard` is
+deny-by-default for any state-changing action (purchase/delete/save/
+logout/...); `assert_read_only` raises on non-GET/HEAD. Cookie/token
+VALUES are never stored — `AuthContext.to_dict()` is secret-free.
+`Scanner(auth_session_cookies=..., auth_storage_state=...)` + `ScanOptions.auth_mode`
+(public_only/authenticated_only/combined/deep_authenticated). Browser
+real-path stays operator-gated (`WEBHOUND_BROWSER_ENABLED`).
 
 ## Frameworks (Phase 7)
 `webhound/frameworks/` — data-driven `FrameworkProfile`s with detection

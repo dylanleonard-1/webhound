@@ -47,6 +47,7 @@ class SummaryBuilder:
 
         self._header(result, lines)
         self._findings_breakdown(result, lines)
+        self._security_stories(result, lines)
         self._top_findings(result, lines)
         self._recommended_actions(result, lines)
         self._engine_diagnostics(result, lines)
@@ -119,6 +120,25 @@ class SummaryBuilder:
                 lines.append(
                     f"  WADE changes              "
                     f"{counts.get('wade_changes', 0)}"
+                )
+
+    def _security_stories(self, result: ScanResult, lines: list[str]) -> None:
+        """Phase-8: the 2-3 correlated stories a human analyst would lead
+        with. Only rendered when the correlation pass produced stories."""
+        stories = result.metadata.get("security_stories") or []
+        if not stories:
+            return
+        lines.append("")
+        lines.append("Security Stories:")
+        for s in stories[:5]:
+            conf = str(s.get("confidence", "")).title()
+            tag = " [inventory]" if s.get("is_inventory") else ""
+            lines.append(f"  • {s.get('title', '')}  "
+                         f"(confidence: {conf}){tag}")
+            areas = s.get("affected_areas") or []
+            if areas:
+                lines.append(
+                    f"      Affected: {', '.join(str(a) for a in areas[:3])}"
                 )
 
     def _top_findings(self, result: ScanResult, lines: list[str]) -> None:

@@ -550,6 +550,25 @@ class Scanner:
         except Exception:  # noqa: BLE001
             logger.debug("report section build failed", exc_info=True)
 
+        # 8a-iii. Phase-8 correlation: build customer-facing security
+        # stories from the grouped findings + this scan's WADE changes.
+        # Stories annotate their members in-place with correlation_id/
+        # type/confidence and land in metadata.security_stories. They
+        # create NO scored findings, so they never inflate the risk
+        # score (Task 10 — no double counting). Best-effort.
+        try:
+            from webhound.core.security_stories import build_security_stories
+            stories = build_security_stories(
+                result.grouped_findings,
+                wade_timeline=result.metadata.get("wade_timeline"),
+            )
+            result.metadata["security_stories"] = [
+                s.to_dict() for s in stories
+            ]
+            result.metadata["security_story_count"] = len(stories)
+        except Exception:  # noqa: BLE001
+            logger.debug("security story build failed", exc_info=True)
+
         # 8b. Phase-5D evidence-quality audit. Advisory — does not
         # mutate findings. Report lands in
         # metadata.evidence_quality so the dashboard can render an

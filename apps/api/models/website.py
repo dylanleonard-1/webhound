@@ -51,6 +51,13 @@ class Website(Base, UpdatedAtMixin):
         nullable=False,
         default=VerificationStatus.UNVERIFIED,
     )
+    # Phase-16: optional portfolio client/location group (additive,
+    # nullable — single-site users leave this NULL and are unaffected).
+    group_id: Mapped[uuid.UUID | None] = mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("website_groups.id", ondelete="SET NULL"),
+        nullable=True, index=True,
+    )
 
     user: Mapped["User | None"] = relationship("User", back_populates="websites")
     domain_verifications: Mapped[list["DomainVerification"]] = relationship(

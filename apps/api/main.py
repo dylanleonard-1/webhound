@@ -31,6 +31,7 @@ from apps.api.routers import (
     oauth,
     orgs,
     phone,
+    portfolio,
     public_scan,
     suppressions,
     scan_jobs,
@@ -118,6 +119,7 @@ app.include_router(orgs.router)
 app.include_router(suppressions.router)
 app.include_router(public_scan.router)
 app.include_router(websites.router)
+app.include_router(portfolio.router)
 app.include_router(scan_jobs.router)
 app.include_router(scan_results.router)
 app.include_router(baselines.router)

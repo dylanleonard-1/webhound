@@ -113,8 +113,18 @@ otherwise it defers cleanly and the scan completes statically.
 | 4 | Trustworthy scoring: trust policy, severity calibrator, centralized risk scoring, presenter + report sections | ✅ code complete; full suite was running at handoff — verify green, then push if not already pushed |
 | 5 | WADE 2.0 intelligence: expanded baselines (dom_hash, third-party, API, iframe, redirect, tech), change taxonomy + classifier, vendor awareness, suppression (alert fatigue), timeline | ✅ pushed |
 | 6 | Correlation engine: customer-facing security stories (admin/auth/payment/supply-chain/compromise/website-mod/api/header/cookie), 11 standardized CorrelationTypes, confidence by converging evidence, no-double-count scoring | ✅ code complete; verify full suite then push |
-| 7 (next) | Recommended: persist WADE timeline + correlation IDs across scans (frequency/recurrence actually accumulate), then notifications for non-suppressed security-relevant changes + stories | ⬜ |
-| Later | Authenticated scanning (storage state, session cookies, read-only crawl), crawl in-scope client routes, wire dormant js_fetcher / vulnerable_libs / source_map_probe (live script fetching — own reviewed change), framework-specific depth | ⬜ |
+| 7 | Framework-aware discovery: `webhound/frameworks/` profile system (WordPress/Shopify/Wix/Webflow/Next.js/React/Vue/Angular), detection + known-surface inventory + coverage metrics + WADE platform normal-change suppression | ✅ code complete; verify full suite then push |
+| 8 (next) | Recommended: persist WADE timeline + correlation IDs across scans (frequency/recurrence accumulate), then notifications for non-suppressed security-relevant changes + stories | ⬜ |
+| Later | Authenticated scanning (storage state, session cookies, read-only crawl), crawl in-scope client routes, wire dormant js_fetcher / vulnerable_libs / source_map_probe (live script fetching — own reviewed change) | ⬜ |
+
+## Frameworks (Phase 7)
+`webhound/frameworks/` — data-driven `FrameworkProfile`s with detection
+signals + known surface (routes/assets/APIs/admin/forms/vendors) +
+WADE normal-change patterns. `registry.detect_scan()` runs over page
+artifacts + rendered global vars; coverage lands in
+`metadata.frameworks`. Passive: known surface is inventory candidates,
+never auto-fetched. `is_normal_framework_change()` lets WADE suppress
+routine platform deploys.
 
 ## Correlation / stories (Phase 6)
 `core/security_stories.py` builds customer-facing stories over grouped

@@ -12,8 +12,10 @@ from webhound.portfolio.portfolio_alerts import (
     CrossSiteAlertType,
     CrossSiteSeverity,
     PortfolioDiff,
+    PortfolioWadeSummary,
     compare_sites,
     detect_cross_site_alerts,
+    summarize_portfolio_wade,
 )
 from webhound.portfolio.portfolio_report import (
     BrandingConfig,
@@ -40,7 +42,8 @@ from webhound.portfolio.site_registry import (
 __all__ = [
     "ClientGroup", "ClientGroupManager", "GroupRollup", "GroupType",
     "CrossSiteAlert", "CrossSiteAlertType", "CrossSiteSeverity",
-    "PortfolioDiff", "compare_sites", "detect_cross_site_alerts",
+    "PortfolioDiff", "PortfolioWadeSummary", "compare_sites",
+    "detect_cross_site_alerts", "summarize_portfolio_wade",
     "BrandingConfig", "ExecutivePortfolioReport", "build_dashboard_data",
     "build_executive_report", "PortfolioScores",
     "compute_portfolio_scores", "RiskRollup", "build_risk_rollup",

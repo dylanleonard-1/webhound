@@ -51,6 +51,7 @@ export default function PortfolioPage() {
   const [groups, setGroups] = useState<PortfolioGroup[]>([])
   const [groupFilter, setGroupFilter] = useState<string>('all')
   const [riskFilter, setRiskFilter] = useState<string>('all')
+  const [monFilter, setMonFilter] = useState<string>('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -75,8 +76,10 @@ export default function PortfolioPage() {
     const rows = sites?.sites ?? []
     return rows.filter(r =>
       (groupFilter === 'all' || r.group_id === groupFilter) &&
-      (riskFilter === 'all' || r.risk_level === riskFilter))
-  }, [sites, groupFilter, riskFilter])
+      (riskFilter === 'all' || r.risk_level === riskFilter) &&
+      (monFilter === 'all' ||
+        (monFilter === 'monitored' ? r.monitoring : !r.monitoring)))
+  }, [sites, groupFilter, riskFilter, monFilter])
 
   if (loading) return <LoadingState message="Loading portfolio…" />
   if (error) return <ErrorState message={error} onRetry={() => void load()} />
@@ -164,6 +167,13 @@ export default function PortfolioPage() {
           <option value="all">All risk levels</option>
           {['critical', 'high', 'medium', 'low', 'safe'].map(l => <option key={l} value={l}>{l}</option>)}
         </select>
+        <select value={monFilter} onChange={e => setMonFilter(e.target.value)}
+          className="rounded-lg border bg-transparent px-3 py-2 text-sm text-gray-300"
+          style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+          <option value="all">All monitoring</option>
+          <option value="monitored">Monitored</option>
+          <option value="unmonitored">Not scanned</option>
+        </select>
       </div>
 
       {/* Site table */}
@@ -173,8 +183,10 @@ export default function PortfolioPage() {
             <tr>
               <th className="px-4 py-3">Domain</th>
               <th className="px-4 py-3">Risk</th>
+              <th className="px-4 py-3">Health</th>
               <th className="px-4 py-3">Monitoring</th>
               <th className="px-4 py-3">Changes</th>
+              <th className="px-4 py-3">Top Issue</th>
               <th className="px-4 py-3">Last Scan</th>
             </tr>
           </thead>
@@ -190,15 +202,21 @@ export default function PortfolioPage() {
                   <span style={{ color: RISK_COLOR[r.risk_level] }}>{r.risk_level}</span>
                   <span className="text-gray-600"> · {r.risk_score}</span>
                 </td>
+                <td className="px-4 py-3 text-gray-400">
+                  {100 - r.health_score}<span className="text-gray-600">/100</span>
+                </td>
                 <td className="px-4 py-3 text-gray-400">{r.monitoring ? 'Active' : 'Not scanned'}</td>
                 <td className="px-4 py-3 text-gray-400">{r.wade_changed ? 'Changed' : '—'}</td>
+                <td className="px-4 py-3 text-gray-400 max-w-[16rem] truncate">
+                  {r.top_issue ?? '—'}
+                </td>
                 <td className="px-4 py-3 text-gray-500">
                   {r.last_scan_at ? new Date(r.last_scan_at).toLocaleDateString() : '—'}
                 </td>
               </tr>
             ))}
             {filteredSites.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">No sites match these filters.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">No sites match these filters.</td></tr>
             )}
           </tbody>
         </table>

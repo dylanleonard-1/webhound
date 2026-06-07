@@ -789,6 +789,7 @@ export const api = {
     summary: () => request<PortfolioSummary>('GET', '/portfolio/summary'),
     sites: () => request<PortfolioSitesResponse>('GET', '/portfolio/sites'),
     alerts: () => request<PortfolioAlertsResponse>('GET', '/portfolio/alerts'),
+    wade: () => request<PortfolioWadeSummary>('GET', '/portfolio/wade'),
     report: () => request<{ report: Record<string, unknown> }>('GET', '/portfolio/report'),
     listGroups: () => request<{ groups: PortfolioGroup[] }>('GET', '/portfolio/client-groups'),
     createGroup: (data: { name: string; group_type?: string; parent_group_id?: string | null }) =>
@@ -832,9 +833,11 @@ export interface PortfolioSiteRow {
   group_id: string | null
   risk_score: number
   risk_level: string
+  health_score: number
   monitoring: boolean
   last_scan_at: string | null
   wade_changed: boolean
+  top_issue: string | null
 }
 
 export interface PortfolioSitesResponse {
@@ -863,6 +866,16 @@ export interface PortfolioGroup {
   group_type: string
   parent_group_id: string | null
   site_count: number
+}
+
+export interface PortfolioWadeSummary {
+  sites_changed: string[]
+  sites_with_suspicious_changes: string[]
+  sites_with_new_third_parties: string[]
+  sites_riskier: string[]
+  sites_improved: string[]
+  shared_changes: Array<{ indicator: string; site_ids: string[]; site_count: number }>
+  changed_count: number
 }
 
 function _qs(params: object): string {

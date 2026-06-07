@@ -37,6 +37,8 @@ class SiteScanSummary:
     wade_changed: bool = False
     new_script_hosts: list[str] = field(default_factory=list)
     failing_engines: list[str] = field(default_factory=list)
+    # Cross-scan risk direction when the caller has monitoring context.
+    risk_direction: str | None = None      # increased | decreased | None
 
     @property
     def confirmed_risk_count(self) -> int:

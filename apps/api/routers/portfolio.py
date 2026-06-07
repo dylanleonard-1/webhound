@@ -57,10 +57,19 @@ async def portfolio_sites(
     return {"sites": [
         {"site_id": r.site_id, "domain": r.domain, "url": r.url,
          "group_id": r.group_id, "risk_score": r.risk_score,
-         "risk_level": r.risk_level, "monitoring": r.monitoring,
-         "last_scan_at": r.last_scan_at,
-         "wade_changed": r.to_summary().wade_changed}
+         "risk_level": r.risk_level, "health_score": r.health_score,
+         "monitoring": r.monitoring, "last_scan_at": r.last_scan_at,
+         "wade_changed": r.to_summary().wade_changed,
+         "top_issue": r.top_issue}
         for r in rows], "count": len(rows)}
+
+
+@router.get("/wade")
+async def portfolio_wade(
+    db: _DB, current_user: _CurrentUser, active_org: _ActiveOrg = None,
+):
+    org_id = _require_org(active_org)
+    return await svc.get_portfolio_wade(db, org_id)
 
 
 @router.get("/risk-rollup")

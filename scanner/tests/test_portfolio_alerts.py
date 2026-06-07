@@ -13,6 +13,7 @@ from webhound.portfolio.portfolio_alerts import (
     CrossSiteSeverity,
     compare_sites,
     detect_cross_site_alerts,
+    summarize_portfolio_wade,
 )
 from webhound.portfolio.site_registry import (
     SiteRecord,
@@ -23,7 +24,7 @@ from webhound.portfolio.site_registry import (
 
 def _site(sid, *, vendors=(), corr=(), compromise=False, level="low",
           groups=(), tls=False, admin=False, failed=False, wade=False,
-          new_scripts=(), failing_engines=()) -> SiteRecord:
+          new_scripts=(), failing_engines=(), direction=None) -> SiteRecord:
     return SiteRecord(
         site_id=sid, url=f"https://{sid}.test", groups=list(groups),
         summary=SiteScanSummary(
@@ -33,7 +34,7 @@ def _site(sid, *, vendors=(), corr=(), compromise=False, level="low",
             last_scan_at="2026-06-07T00:00:00Z",
             has_tls_issue=tls, has_admin_exposure=admin, scan_failed=failed,
             wade_changed=wade, new_script_hosts=list(new_scripts),
-            failing_engines=list(failing_engines)))
+            failing_engines=list(failing_engines), risk_direction=direction))
 
 
 def _types(alerts):
@@ -186,6 +187,54 @@ def test_shared_engine_failure() -> None:
     eng_alerts = [x for x in alerts
                   if x.shared_indicator == "tls_checker"]
     assert eng_alerts
+
+
+def test_no_duplicate_alerts() -> None:
+    """Task 5/10: the same (type, indicator, affected set) never appears
+    twice. Build a portfolio that would otherwise emit overlapping
+    alerts and assert each is unique."""
+    sites = [
+        _site("a", vendors=["weird-x.com"], new_scripts=["weird-x.com"],
+              tls=True, admin=True, wade=True, corr=["supply_chain_risk"],
+              compromise=True),
+        _site("b", vendors=["weird-x.com"], new_scripts=["weird-x.com"],
+              tls=True, admin=True, wade=True, corr=["supply_chain_risk"],
+              compromise=True),
+    ]
+    alerts = detect_cross_site_alerts(sites)
+    keys = [(a.alert_type.value, a.shared_indicator or "",
+             tuple(sorted(a.affected_site_ids))) for a in alerts]
+    assert len(keys) == len(set(keys)), "duplicate cross-site alerts emitted"
+
+
+# ---------------------------------------------------------------------------
+# Portfolio WADE summary (Task 5) — grouped, not duplicated
+# ---------------------------------------------------------------------------
+
+
+def test_portfolio_wade_summary_answers_questions() -> None:
+    sites = [
+        _site("a", wade=True, corr=["possible_compromise"],
+              new_scripts=["new-vendor.com"], direction="increased"),
+        _site("b", wade=True, new_scripts=["new-vendor.com"],
+              direction="decreased"),
+        _site("c"),  # unchanged
+    ]
+    w = summarize_portfolio_wade(sites).to_dict()
+    assert set(w["sites_changed"]) == {"a", "b"}
+    assert w["sites_with_suspicious_changes"] == ["a"]
+    assert set(w["sites_with_new_third_parties"]) == {"a", "b"}
+    assert w["sites_riskier"] == ["a"]
+    assert w["sites_improved"] == ["b"]
+    # The shared new script is grouped into ONE entry, not per-site.
+    assert len(w["shared_changes"]) == 1
+    assert w["shared_changes"][0]["site_count"] == 2
+
+
+def test_portfolio_wade_empty() -> None:
+    w = summarize_portfolio_wade([_site("a"), _site("b")]).to_dict()
+    assert w["sites_changed"] == []
+    assert w["shared_changes"] == []
 
 
 # ---------------------------------------------------------------------------

@@ -25,16 +25,15 @@ from apps.api.models.website import Website
 
 from webhound.portfolio import (
     BrandingConfig,
-    ClientGroup,
-    ClientGroupManager,
     SiteRecord,
     SiteRegistry,
     SiteScanSummary,
+    assess_site_health,
     build_dashboard_data,
     build_executive_report,
-    compute_portfolio_scores,
-    detect_cross_site_alerts,
     build_risk_rollup,
+    detect_cross_site_alerts,
+    summarize_portfolio_wade,
 )
 
 
@@ -60,6 +59,8 @@ class SiteRow:
     scanner_metadata: dict[str, Any] | None = None
     scan_failed: bool = False
     has_tls_issue: bool = False
+    health_score: int = 0
+    top_issue: str | None = None
 
     def to_summary(self) -> SiteScanSummary:
         if self.scanner_metadata:
@@ -122,18 +123,27 @@ def build_portfolio_view(
 # ---------------------------------------------------------------------------
 
 
-def _derive_signals(meta: dict[str, Any] | None) -> tuple[bool, bool]:
-    """(scan_failed, has_tls_issue) from scan metadata."""
+def _derive_signals(meta: dict[str, Any] | None) -> tuple[bool, bool, str | None]:
+    """(scan_failed, has_tls_issue, top_issue) from scan metadata."""
     m = meta or {}
     failed = bool(m.get("failure_reason"))
-    # A TLS finding shows up in report sections / engines.
     tls = False
-    for sec in (m.get("report_sections") or {}).get("security_risks", []):
+    top_issue: str | None = None
+    sections = m.get("report_sections") or {}
+    risks = sections.get("security_risks") or []
+    if risks:
+        top_issue = risks[0].get("title")
+    for sec in risks:
         t = (sec.get("title", "") or "").lower()
         if "tls" in t or "certificate" in t or "https" in t:
             tls = True
             break
-    return failed, tls
+    # Compromise story trumps the headline issue.
+    for s in m.get("security_stories") or []:
+        if s.get("correlation_type") == "possible_compromise":
+            top_issue = "Possible website compromise"
+            break
+    return failed, tls, top_issue
 
 
 async def get_portfolio_rows(
@@ -151,9 +161,9 @@ async def get_portfolio_rows(
             .order_by(ScanResultRecord.created_at.desc())
             .limit(1))).scalars().first()
         meta = getattr(latest, "scanner_metadata", None) if latest else None
-        failed, tls = _derive_signals(meta)
+        failed, tls, top_issue = _derive_signals(meta)
         group_id = getattr(site, "group_id", None)
-        rows.append(SiteRow(
+        row = SiteRow(
             site_id=str(site.id), domain=site.hostname, url=site.url,
             verified=str(getattr(site, "verification_status", "")) ==
             "verified",
@@ -166,7 +176,13 @@ async def get_portfolio_rows(
             if latest else 0,
             risk_level=str(getattr(latest, "risk_level", "safe"))
             if latest else "safe",
-            scanner_metadata=meta, scan_failed=failed, has_tls_issue=tls))
+            scanner_metadata=meta, scan_failed=failed, has_tls_issue=tls,
+            top_issue=top_issue)
+        # Per-site health score (0 best → 100 worst) from the scanner.
+        rec = SiteRecord(site_id=row.site_id, url=row.url,
+                         summary=row.to_summary())
+        row.health_score = assess_site_health(rec).health_score
+        rows.append(row)
     return rows
 
 
@@ -252,3 +268,14 @@ async def get_portfolio_report(
 ) -> dict[str, Any]:
     rows = await get_portfolio_rows(db, org_id)
     return build_portfolio_view(rows, branding=branding)["report"]
+
+
+async def get_portfolio_wade(
+    db: AsyncSession, org_id: uuid.UUID,
+) -> dict[str, Any]:
+    """Portfolio-WADE (Task 5): which sites changed, which had suspicious
+    changes, which added third parties, and which changes are shared —
+    grouped, not duplicated per site."""
+    rows = await get_portfolio_rows(db, org_id)
+    reg = _registry_from_rows(rows)
+    return summarize_portfolio_wade(reg.all()).to_dict()

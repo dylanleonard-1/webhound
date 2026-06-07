@@ -136,3 +136,46 @@ async def test_single_site_org_works(session) -> None:
     view = await svc.get_portfolio_summary(session, org.id)
     assert view["summary"]["sites_monitored"] == 1
     assert "portfolio_risk_score" in view["summary"]
+
+
+@pytest.mark.anyio
+async def test_site_rows_carry_health_and_top_issue(session) -> None:
+    """Task 1/8: /sites exposes health_score + top_issue (the table cols)."""
+    org = await _org(session)
+    await _site(session, org.id, "x.com", risk=70, level="high", meta={
+        "report_sections": {"security_risks": [
+            {"title": "Exposed Admin panel detected"}]},
+        "security_stories": [{"correlation_type": "possible_compromise"}]})
+    rows = await svc.get_portfolio_rows(session, org.id)
+    r = rows[0]
+    assert isinstance(r.health_score, int)
+    assert r.top_issue == "Possible website compromise"  # compromise wins
+
+
+@pytest.mark.anyio
+async def test_portfolio_wade_groups_not_duplicates(session) -> None:
+    """Task 5: portfolio-WADE answers the cross-site change questions,
+    grouping the shared change instead of one alert per site."""
+    org = await _org(session)
+    meta = {"wade_anomaly_count": 2,
+            "security_stories": [{"correlation_type": "possible_compromise"}]}
+    await _site(session, org.id, "a.com", meta=meta)
+    await _site(session, org.id, "b.com", meta=meta)
+    w = await svc.get_portfolio_wade(session, org.id)
+    assert w["changed_count"] == 2
+    assert len(w["sites_with_suspicious_changes"]) == 2
+
+
+@pytest.mark.anyio
+async def test_portfolio_alerts_no_duplicates(session) -> None:
+    """Task 10: cross-site alerts contain no duplicate (type, indicator,
+    affected-set) entries."""
+    org = await _org(session)
+    meta = {"external_script_domains": ["weird-shared-xyz.com"],
+            "wade_anomaly_count": 1}
+    for h in ("a.com", "b.com", "c.com"):
+        await _site(session, org.id, h, meta=meta)
+    alerts = await svc.get_portfolio_alerts(session, org.id)
+    keys = [(a["alert_type"], a.get("shared_indicator") or "",
+             tuple(sorted(a["affected_site_ids"]))) for a in alerts]
+    assert len(keys) == len(set(keys))

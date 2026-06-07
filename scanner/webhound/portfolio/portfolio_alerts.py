@@ -243,11 +243,93 @@ def detect_cross_site_alerts(
                     "worth confirming was intentional."),
             affected_site_ids=sorted(sids), shared_indicator=vendor))
 
+    # Deduplicate (Task 5: do not duplicate). Two alerts collapse when
+    # they share (type, indicator, affected-site set) — the higher
+    # severity wins. This guarantees a customer never sees the same
+    # cross-site story twice.
+    deduped: dict[tuple, CrossSiteAlert] = {}
+    for a in alerts:
+        key = (a.alert_type.value, a.shared_indicator or "",
+               tuple(sorted(a.affected_site_ids)))
+        prev = deduped.get(key)
+        if prev is None or _sev_rank(a) > _sev_rank(prev):
+            deduped[key] = a
+    alerts = list(deduped.values())
+
     # Most-affected / most-severe first.
-    sev_rank = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}
-    alerts.sort(key=lambda a: (sev_rank[a.severity.value], a.affected_count),
-                reverse=True)
+    alerts.sort(key=lambda a: (_sev_rank(a), a.affected_count), reverse=True)
     return alerts
+
+
+_SEV_RANK = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}
+
+
+def _sev_rank(a: "CrossSiteAlert") -> int:
+    return _SEV_RANK[a.severity.value]
+
+
+@dataclass
+class PortfolioWadeSummary:
+    """Portfolio-WADE rollup (Task 5): the cross-site change picture
+    without duplicating each site's individual alerts."""
+
+    sites_changed: list[str] = field(default_factory=list)
+    sites_with_suspicious_changes: list[str] = field(default_factory=list)
+    sites_with_new_third_parties: list[str] = field(default_factory=list)
+    sites_riskier: list[str] = field(default_factory=list)
+    sites_improved: list[str] = field(default_factory=list)
+    shared_changes: list[dict[str, Any]] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "sites_changed": list(self.sites_changed),
+            "sites_with_suspicious_changes":
+                list(self.sites_with_suspicious_changes),
+            "sites_with_new_third_parties":
+                list(self.sites_with_new_third_parties),
+            "sites_riskier": list(self.sites_riskier),
+            "sites_improved": list(self.sites_improved),
+            "shared_changes": list(self.shared_changes),
+            "changed_count": len(self.sites_changed),
+        }
+
+
+def summarize_portfolio_wade(sites: list[SiteRecord]) -> PortfolioWadeSummary:
+    """Answer the Task-5 portfolio-WADE questions across the portfolio,
+    grouping related changes instead of repeating per-site alerts.
+
+    ``sites_riskier`` / ``sites_improved`` use each site's risk
+    *direction* when the caller has supplied it via summary.metadata
+    (``risk_direction`` in {increased, decreased}); otherwise they stay
+    empty (a single scan has no direction)."""
+    out = PortfolioWadeSummary()
+    SUSPICIOUS = {"suspicious_script_change", "suspicious_iframe",
+                  "suspicious_redirect", "possible_compromise",
+                  "possible_skimmer", "possible_website_compromise"}
+    for rec in sites:
+        s = rec.summary
+        if s.wade_changed or s.change_frequency:
+            out.sites_changed.append(rec.site_id)
+        if s.has_compromise_story or any(
+                t in SUSPICIOUS for t in s.threat_correlation_types):
+            out.sites_with_suspicious_changes.append(rec.site_id)
+        if s.new_script_hosts:
+            out.sites_with_new_third_parties.append(rec.site_id)
+        direction = s.risk_direction
+        if direction == "increased":
+            out.sites_riskier.append(rec.site_id)
+        elif direction == "decreased":
+            out.sites_improved.append(rec.site_id)
+
+    # Shared changes: the same NEW script host appearing on >= 2 sites.
+    shared: dict[str, set[str]] = defaultdict(set)
+    for rec in sites:
+        for host in rec.summary.new_script_hosts:
+            shared[_registrable(host)].add(rec.site_id)
+    out.shared_changes = [
+        {"indicator": v, "site_ids": sorted(sids), "site_count": len(sids)}
+        for v, sids in shared.items() if len(sids) >= 2]
+    return out
 
 
 # ---------------------------------------------------------------------------

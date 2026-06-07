@@ -116,8 +116,19 @@ otherwise it defers cleanly and the scan completes statically.
 | 7 | Framework-aware discovery: `webhound/frameworks/` profile system (WordPress/Shopify/Wix/Webflow/Next.js/React/Vue/Angular), detection + known-surface inventory + coverage metrics + WADE platform normal-change suppression | ✅ code complete; verify full suite then push |
 | 8 | Authenticated scanning: `webhound/auth/` (session cookies, Playwright storageState, login recordings), read-only AuthGuard, auth page-context classification, authenticated discovery/WADE, `auth_mode` option | ✅ code complete; verify full suite then push |
 | 9 | Monitoring & alerting: `webhound/monitoring/` — cross-scan change history, alert tiers, suppression, risk-delta, notification policies, monitor engine | ✅ code complete; verify full suite then push |
-| 10 (next) | Recommended: wire monitoring into the worker (persist ChangeHistory in BaselineStore, run_monitoring after each scan, actual notification delivery: email/SMS/webhook) + dashboard timeline UI | ⬜ |
-| Later | Crawl in-scope client routes, wire dormant js_fetcher / vulnerable_libs / source_map_probe (live script fetching — own reviewed change), login-recording live replay | ⬜ |
+| 10 | Validation lab: `scanner/validation/` — ground-truth mock targets, real-scanner benchmark runner, precision/recall/coverage, framework + engine scorecards, quality score, regression gate | ✅ code complete; verify full suite then push |
+| 11 (next) | Recommended: wire monitoring into the worker (persist ChangeHistory in BaselineStore, run_monitoring after each scan, actual notification delivery: email/SMS/webhook) + dashboard timeline UI | ⬜ |
+| Later | Crawl in-scope client routes, wire dormant js_fetcher / vulnerable_libs / source_map_probe (live script fetching — own reviewed change), login-recording live replay, expand validation ground truth | ⬜ |
+
+## Validation lab (Phase 10)
+`scanner/validation/` (top-level package, sibling of `webhound/`) — runs
+the REAL scanner against safe ground-truth mock targets and measures
+accuracy. `ground_truth` (clean per-platform sites + vulnerable +
+compromised), `benchmark_runner` (mock transport + full pipeline),
+`finding_validator` (TP/FN/FP), `precision_report`/`recall_report`/
+`coverage_report` (quality score + marketing metrics), framework +
+engine scorecards, `regression_runner` (gate changes on quality floor +
+FP-clean + delta vs baseline). Run: `python -c "from validation.benchmark_runner import run_targets_sync; from validation import build_coverage_report, validate_run; print(build_coverage_report(validate_run(run_targets_sync())).to_dict())"`.
 
 ## Monitoring & alerting (Phase 9)
 `webhound/monitoring/` — pure layer consuming scan metadata.

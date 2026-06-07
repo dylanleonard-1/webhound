@@ -165,6 +165,7 @@ async def run_browser_pass(
     capture_dom: bool = True,
     interact: bool = True,
     url_filter: Callable[[str], bool] | None = None,
+    auth_state: dict | None = None,
     runner: Callable[..., Awaitable["BrowserPassResult"]] | None = None,
 ) -> BrowserPassResult:
     """Visit every URL in ``page_urls`` in a headless Chromium
@@ -215,6 +216,7 @@ async def run_browser_pass(
             capture_dom=capture_dom,
             interact=interact,
             url_filter=url_filter,
+            auth_state=auth_state,
         )
     elif not allow_network:
         return BrowserPassResult(
@@ -232,6 +234,7 @@ async def run_browser_pass(
             capture_dom=capture_dom,
             interact=interact,
             url_filter=url_filter,
+            auth_state=auth_state,
         )
     result.skipped_urls = skipped + list(result.skipped_urls)
     return result
@@ -261,6 +264,7 @@ async def _playwright_pass(
     capture_dom: bool = True,
     interact: bool = True,
     url_filter: Callable[[str], bool] | None = None,
+    auth_state: dict | None = None,
 ) -> BrowserPassResult:
     try:
         from playwright.async_api import async_playwright  # type: ignore
@@ -286,12 +290,27 @@ async def _playwright_pass(
                     error=f"chromium launch failed: {exc}",
                 )
             try:
-                context = await browser.new_context(
+                _ctx_kwargs = dict(
                     user_agent=user_agent,
                     bypass_csp=False,
                     java_script_enabled=True,
                     ignore_https_errors=False,
                 )
+                # Phase-10: inject an authenticated session. storage_state
+                # (preferred) is passed at context creation; bare cookies
+                # are added after. Values come from the loaders and are
+                # never logged here.
+                _auth_cookies = None
+                if auth_state:
+                    if auth_state.get("storage_state"):
+                        _ctx_kwargs["storage_state"] = auth_state["storage_state"]
+                    _auth_cookies = auth_state.get("cookies")
+                context = await browser.new_context(**_ctx_kwargs)
+                if _auth_cookies:
+                    try:
+                        await context.add_cookies(_auth_cookies)
+                    except Exception:  # noqa: BLE001
+                        pass
                 # Per-page work — sequential because hammering a single
                 # target with parallel pages would violate the
                 # scanner's rate-limit posture.

@@ -87,6 +87,13 @@ class ScanOptions(BaseModel):
     # ``playwright`` package + ``playwright install chromium`` on
     # the worker box; missing dependencies degrade gracefully.
     browser_enabled: bool = Field(default=False)
+    # Phase-10 authenticated scanning. ``auth_mode`` is one of
+    # public_only / authenticated_only / combined / deep_authenticated
+    # (see webhound.auth.AuthMode). Default public_only keeps every
+    # existing scan unchanged. Authenticated modes require a loaded
+    # session (cookies / storageState / recording) supplied via the
+    # SessionContext / orchestrator — and a browser pass to use it.
+    auth_mode: str = Field(default="public_only")
 
 
 class Target(BaseModel):

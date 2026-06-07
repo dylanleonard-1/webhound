@@ -8,6 +8,7 @@ from webhound.auth.auth_context import (
     AuthSource,
     SessionCookieMeta,
 )
+from webhound.auth.builder import build_auth
 from webhound.auth.auth_guard import (
     AuthSafetyViolation,
     GuardDecision,
@@ -24,6 +25,10 @@ from webhound.auth.login_recording import (
     resolve_secret_steps,
     validate_recording,
 )
+from webhound.auth.page_context import (
+    classify_auth_page,
+    is_sensitive_auth_context,
+)
 from webhound.auth.session_loader import LoadedSession, load_session_cookies
 from webhound.auth.storage_state import (
     LoadedStorageState,
@@ -37,5 +42,6 @@ __all__ = [
     "is_safe_method", "LoginRecording", "LoginStep", "StepAction",
     "recording_from_dict", "resolve_secret_steps", "validate_recording",
     "LoadedSession", "load_session_cookies", "LoadedStorageState",
-    "load_storage_state",
+    "load_storage_state", "classify_auth_page",
+    "is_sensitive_auth_context", "build_auth",
 ]

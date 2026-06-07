@@ -102,3 +102,43 @@ async def health_ready(
         healthy = False
     response.status_code = 200 if healthy else 503
     return {"status": "ready" if healthy else "degraded", "checks": checks}
+
+
+@router.get("/health/production")
+async def health_production(
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
+    """Phase-19 Task 14 production-readiness report: env validation +
+    live DB/Redis/worker probes + scanner-import check. Returns 503 if any
+    CRITICAL check fails. Never exposes secret values (only names)."""
+    from apps.api.platform.health.production_readiness import (
+        build_readiness_report,
+    )
+
+    db_ok = redis_ok = worker_ok = False
+    try:
+        await db.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        r = aioredis.from_url(get_settings().redis_url, socket_connect_timeout=2)
+        await r.ping()
+        await r.aclose()
+        redis_ok = worker_ok = True
+    except Exception:  # noqa: BLE001
+        pass
+
+    migrations_current: bool | None = None
+    try:
+        await db.execute(text("SELECT version_num FROM alembic_version"))
+        migrations_current = True
+    except Exception:  # noqa: BLE001
+        migrations_current = None
+
+    report = build_readiness_report(
+        db_ok=db_ok, redis_ok=redis_ok, worker_ok=worker_ok,
+        migrations_current=migrations_current)
+    response.status_code = 200 if report.ready else 503
+    return report.to_dict()

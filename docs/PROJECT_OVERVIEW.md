@@ -135,7 +135,13 @@ markers + script-hash feed), `supply_chain` (vendor/script/CDN diff;
 known→unknown/malicious replacement), `threat_correlation` (skimmer/
 phishing/supply-chain/compromise stories + WADE vendor events). Live
 feeds stay operator-gated via `enrichment_service`; everything else is
-offline.
+offline. **Wired into the live pipeline**: the `external_domains` engine
+runs brand impersonation (always) + optional feed lookups as an overlay
+escalating per-host findings; `_build_feed_manager` ingests operator
+indicator files (`WEBHOUND_THREAT_FEED_DIR`, off by default); a
+post-WADE `_run_supply_chain` pass writes `metadata.supply_chain_changes`
+/ `wade_vendor_events` / `threat_correlations` when a previous baseline
+exists.
 
 ## Validation lab (Phase 10)
 `scanner/validation/` (top-level package, sibling of `webhound/`) — runs

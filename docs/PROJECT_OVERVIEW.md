@@ -115,8 +115,21 @@ otherwise it defers cleanly and the scan completes statically.
 | 6 | Correlation engine: customer-facing security stories (admin/auth/payment/supply-chain/compromise/website-mod/api/header/cookie), 11 standardized CorrelationTypes, confidence by converging evidence, no-double-count scoring | ✅ code complete; verify full suite then push |
 | 7 | Framework-aware discovery: `webhound/frameworks/` profile system (WordPress/Shopify/Wix/Webflow/Next.js/React/Vue/Angular), detection + known-surface inventory + coverage metrics + WADE platform normal-change suppression | ✅ code complete; verify full suite then push |
 | 8 | Authenticated scanning: `webhound/auth/` (session cookies, Playwright storageState, login recordings), read-only AuthGuard, auth page-context classification, authenticated discovery/WADE, `auth_mode` option | ✅ code complete; verify full suite then push |
-| 9 (next) | Recommended: persist WADE timeline + correlation IDs across scans (frequency/recurrence accumulate), then notifications for non-suppressed security-relevant changes + stories | ⬜ |
-| Later | Crawl in-scope client routes, wire dormant js_fetcher / vulnerable_libs / source_map_probe (live script fetching — own reviewed change) | ⬜ |
+| 9 | Monitoring & alerting: `webhound/monitoring/` — cross-scan change history, alert tiers, suppression, risk-delta, notification policies, monitor engine | ✅ code complete; verify full suite then push |
+| 10 (next) | Recommended: wire monitoring into the worker (persist ChangeHistory in BaselineStore, run_monitoring after each scan, actual notification delivery: email/SMS/webhook) + dashboard timeline UI | ⬜ |
+| Later | Crawl in-scope client routes, wire dormant js_fetcher / vulnerable_libs / source_map_probe (live script fetching — own reviewed change), login-recording live replay | ⬜ |
+
+## Monitoring & alerting (Phase 9)
+`webhound/monitoring/` — pure layer consuming scan metadata.
+`change_history` (ChangeEvent/ChangeHistory, AlertTier informational→
+critical, ChangeCategory, TrackedAsset); `change_tracker` accumulates
+WADE timeline across scans; `risk_delta` explains score moves;
+`alert_manager` builds tiered+suppressed alerts with human stories;
+`notification_policy` (immediate/daily/weekly/critical-only/custom +
+monitoring cadences); `monitor_engine.run_monitoring()` orchestrates →
+MonitorResult (updated history, risk delta, alerts, delivery plan,
+timeline). No UI, no actual delivery yet — that's the worker
+integration in Phase 10.
 
 ## Authenticated scanning (Phase 8)
 `webhound/auth/` — read-only authenticated scanning. Three methods:

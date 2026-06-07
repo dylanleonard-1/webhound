@@ -120,7 +120,20 @@ otherwise it defers cleanly and the scan completes statically.
 | 11 | Advanced threat intel & supply chain: `webhound/threat_intel/` feed normalizer/manager, reputation cache, domain + script reputation, brand impersonation, supply-chain diff, threat correlation, WADE vendor events | ✅ code complete; verify full suite then push |
 | 13 | WADE Security Advisor: `webhound/advisor/` — per-finding 4-part explanations, business impact, priority %, action plan, remediation roadmap, trend, Q&A; written to `metadata.advisor` | ✅ code complete; verify full suite then push |
 | 15 | Agency & Multi-Site Command Center: `webhound/portfolio/` — site registry, portfolio scores, risk rollup, cross-site alerts, client groups, portfolio WADE, executive report, white-label | ✅ code complete; verify full suite then push |
-| 16 (next) | Recommended: wire monitoring + portfolio into the worker (persist ChangeHistory/SiteRegistry, run_monitoring after each scan, actual notification delivery: email/SMS/webhook) + dashboard timeline/advisor/portfolio UI | ⬜ |
+| 16 | Agency/MSP API + frontend: portfolio routes (`apps/api/routers/portfolio.py`), service, `WebsiteGroup` model + migration 0032, portfolio dashboard page (`apps/web`), sidebar link | ✅ code complete; scanner suite verifying then push |
+| 17 (next) | Recommended: wire monitoring into the worker (persist ChangeHistory + populate SiteRegistry from scheduled scans, run_monitoring/build_advisory after each scan), notification delivery (email/webhook), feed-refresh task; apply migration 0032 in prod | ⬜ |
+
+## Portfolio API + frontend (Phase 16)
+`apps/api`: `routers/portfolio.py` (GET summary/sites/risk-rollup/alerts/
+report + client-group CRUD + PATCH sites/:id/group, org-scoped),
+`services/portfolio.py` (pure `build_portfolio_view` reusing
+`webhound.portfolio` + DB wrappers joining each org site to its latest
+scan), `models/website_group.py` + `websites.group_id` + migration 0032
+(additive, idempotent). `apps/web`: `/dashboard/portfolio` page +
+`api.portfolio.*` client + sidebar link. Additive — single-site users
+unaffected. **Verified here:** 14 API tests (SQLite, no Redis) + tsc
+clean. **Needs live env:** apply migration 0032, run Redis-backed HTTP
+API tests, `npm run build` on Vercel.
 
 ## Portfolio command center (Phase 15)
 `webhound/portfolio/` — pure aggregation over per-site

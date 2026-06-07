@@ -783,6 +783,86 @@ export const api = {
     engineDiagnostics: (name: string, hours = 168, limit = 100) =>
       request<EngineDiagnosticsResponse>('GET', `/internal/engines/${encodeURIComponent(name)}/diagnostics?hours=${hours}&limit=${limit}`),
   },
+
+  // Phase-16 Agency/MSP portfolio command center.
+  portfolio: {
+    summary: () => request<PortfolioSummary>('GET', '/portfolio/summary'),
+    sites: () => request<PortfolioSitesResponse>('GET', '/portfolio/sites'),
+    alerts: () => request<PortfolioAlertsResponse>('GET', '/portfolio/alerts'),
+    report: () => request<{ report: Record<string, unknown> }>('GET', '/portfolio/report'),
+    listGroups: () => request<{ groups: PortfolioGroup[] }>('GET', '/portfolio/client-groups'),
+    createGroup: (data: { name: string; group_type?: string; parent_group_id?: string | null }) =>
+      request<PortfolioGroup>('POST', '/portfolio/client-groups', data),
+    assignGroup: (siteId: string, group_id: string | null) =>
+      request<void>('PATCH', `/portfolio/sites/${siteId}/group`, { group_id }),
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Phase-16 portfolio types
+// ---------------------------------------------------------------------------
+
+export interface PortfolioSummary {
+  summary: {
+    sites_monitored: number
+    portfolio_risk_score: number
+    portfolio_health_score: number
+    portfolio_monitoring_score: number
+    portfolio_stability_score: number
+    cross_site_alert_count: number
+    sites_with_compromise: number
+    [k: string]: unknown
+  }
+  dashboard: {
+    risk_distribution: Record<string, number>
+    health_distribution: Record<string, number>
+    alert_distribution: Record<string, number>
+    most_vulnerable_sites: Array<{ site_id: string; url: string; risk_level: string; health_score: number }>
+    most_changed_sites: Array<{ site_id: string; url: string; change_frequency: number }>
+    most_stable_sites: Array<{ site_id: string; url: string; health_score: number }>
+    [k: string]: unknown
+  }
+  report: Record<string, unknown>
+}
+
+export interface PortfolioSiteRow {
+  site_id: string
+  domain: string
+  url: string
+  group_id: string | null
+  risk_score: number
+  risk_level: string
+  monitoring: boolean
+  last_scan_at: string | null
+  wade_changed: boolean
+}
+
+export interface PortfolioSitesResponse {
+  sites: PortfolioSiteRow[]
+  count: number
+}
+
+export interface PortfolioAlert {
+  alert_type: string
+  severity: string
+  title: string
+  detail: string
+  affected_count: number
+  affected_site_ids: string[]
+  shared_indicator: string | null
+}
+
+export interface PortfolioAlertsResponse {
+  alerts: PortfolioAlert[]
+  count: number
+}
+
+export interface PortfolioGroup {
+  group_id: string
+  name: string
+  group_type: string
+  parent_group_id: string | null
+  site_count: number
 }
 
 function _qs(params: object): string {

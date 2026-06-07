@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import {
-  LayoutDashboard, Globe, ScanLine, Activity, Bell,
+  LayoutDashboard, Globe, ScanLine, Activity, Bell, Layers,
   Settings, LogOut, X, Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -18,6 +18,7 @@ const NAV = [
     items: [
       { href: '/dashboard',          label: 'Overview',      icon: LayoutDashboard, exact: true  },
       { href: '/dashboard/websites', label: 'Websites',      icon: Globe,           exact: false },
+      { href: '/dashboard/portfolio',label: 'Portfolio',     icon: Layers,          exact: false },
       { href: '/dashboard/scans',    label: 'Scans',         icon: ScanLine,        exact: false },
     ],
   },

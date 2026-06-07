@@ -176,9 +176,54 @@ class ThreatIntelEngine:
         self,
         classifier: DomainClassifier | None = None,
         enrichment_service: EnrichmentService | None = None,
+        feed_manager=None,        # webhound.threat_intel.FeedManager | None
     ) -> None:
         self._classifier = classifier or DomainClassifier()
         self._enrichment = enrichment_service
+        self._feeds = feed_manager
+
+    def _threat_overlay(self, host: str, base_tier):
+        """Phase-13: escalate a host tier using brand impersonation
+        (always) + optional threat-feed hits. Returns
+        (effective_tier, extra_signals, extra_metadata). Default — no
+        impersonation, no feeds — returns the base tier unchanged."""
+        from webhound.threat_intel.brand_impersonation import (
+            assess_domain as _assess_impersonation,
+        )
+        _RANK = {
+            DomainClass.TRUSTED: 0, DomainClass.COMMON_BENIGN: 0,
+            DomainClass.UNKNOWN: 1, DomainClass.SUSPICIOUS: 2,
+            DomainClass.RISKY: 3, DomainClass.MALICIOUS_INDICATOR: 4,
+        }
+        effective = base_tier
+        signals: list[str] = []
+        meta: dict = {}
+
+        try:
+            imp = _assess_impersonation(host)
+        except Exception:  # noqa: BLE001
+            imp = None
+        if imp is not None and imp.is_impersonation:
+            signals.append(imp.detail)
+            meta["impersonation"] = imp.to_dict()
+            if imp.confidence >= 0.85:
+                effective = DomainClass.MALICIOUS_INDICATOR
+            elif _RANK.get(effective, 0) < _RANK[DomainClass.RISKY]:
+                effective = DomainClass.RISKY
+
+        if self._feeds is not None:
+            try:
+                fm = self._feeds.lookup_domain(host)
+            except Exception:  # noqa: BLE001
+                fm = None
+            if fm is not None and fm.matched:
+                signals.append(
+                    f"threat-feed hit ({fm.category.value}) from "
+                    f"{', '.join(fm.sources)}")
+                meta["feed_hit"] = fm.to_dict()
+                effective = DomainClass.MALICIOUS_INDICATOR
+
+        return effective, signals, meta
 
     async def analyze(self, artifacts: PageArtifacts) -> list[Finding]:
         hosts = _gather_external_hosts(artifacts)
@@ -215,13 +260,21 @@ class ThreatIntelEngine:
         # ---- Per-host high-risk findings ----
         for host, cls, kinds, enr in classifications:
             # Use the merged classification if external providers ran.
-            tier = enr.final_classification if enr else cls.classification
+            base_tier = enr.final_classification if enr else cls.classification
+            # Phase-13 overlay: brand impersonation (always, offline) +
+            # optional threat-feed hits escalate the host tier with an
+            # explainable signal. Trusted/known vendors are exempt unless
+            # a feed actually flags them (Task 8).
+            tier, overlay_signals, overlay_meta = self._threat_overlay(
+                host, base_tier)
             if tier == DomainClass.MALICIOUS_INDICATOR:
                 findings.append(self._host_finding(
                     host, cls, kinds, page_url,
                     severity=Severity.CRITICAL,
                     framework_key="malicious_indicator",
                     enrichment=enr,
+                    overlay_signals=overlay_signals,
+                    overlay_meta=overlay_meta,
                 ))
             elif tier == DomainClass.RISKY:
                 findings.append(self._host_finding(
@@ -229,6 +282,8 @@ class ThreatIntelEngine:
                     severity=Severity.HIGH,
                     framework_key="risky",
                     enrichment=enr,
+                    overlay_signals=overlay_signals,
+                    overlay_meta=overlay_meta,
                 ))
             elif tier == DomainClass.SUSPICIOUS:
                 findings.append(self._host_finding(
@@ -236,6 +291,8 @@ class ThreatIntelEngine:
                     severity=Severity.MEDIUM,
                     framework_key="suspicious",
                     enrichment=enr,
+                    overlay_signals=overlay_signals,
+                    overlay_meta=overlay_meta,
                 ))
             else:
                 continue
@@ -564,9 +621,12 @@ class ThreatIntelEngine:
     def _host_finding(self, host: str, cls: DomainClassification,
                       kinds: set[str], page_url: str,
                       severity: Severity, framework_key: str,
-                      enrichment: EnrichmentResult | None = None) -> Finding:
+                      enrichment: EnrichmentResult | None = None,
+                      overlay_signals: list[str] | None = None,
+                      overlay_meta: dict | None = None) -> Finding:
         kinds_str = ", ".join(sorted(kinds))
-        signal_lines = "\n".join(f"  • {s}" for s in cls.signals)
+        all_signals = list(cls.signals) + list(overlay_signals or [])
+        signal_lines = "\n".join(f"  • {s}" for s in all_signals)
         title_prefix = {
             "malicious_indicator": "Likely malicious",
             "risky": "High-risk",
@@ -604,9 +664,10 @@ class ThreatIntelEngine:
                     "host": host,
                     "classification": cls.classification.value,
                     "score": cls.score,
-                    "signals": cls.signals,
+                    "signals": all_signals,
                     "kinds": sorted(kinds),
                     **_enrichment_extras(enrichment),
+                    **(overlay_meta or {}),
                 },
             )],
             confidence=cls.confidence,

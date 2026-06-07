@@ -131,6 +131,56 @@ def _build_enrichment_service() -> EnrichmentService | None:
     return EnrichmentService(providers=providers)
 
 
+def _build_feed_manager():
+    """Load a FeedManager from operator-provided indicator files (Phase-13).
+
+    Off by default. ``WEBHOUND_THREAT_FEED_DIR`` points at a directory of
+    pre-fetched, normalized-or-raw feed JSON files the operator supplies:
+      urlhaus.json      — list of URLHaus rows
+      openphish.json    — list of phishing URLs
+      phishtank.json    — list of PhishTank entries
+      abuseipdb.json    — list of AbuseIPDB rows
+      script_feed.json  — list of {sha256,label}
+    Missing/empty dir → None (engine stays local-only). Never fetches —
+    ingestion only, matching the scanner's offline-first posture.
+    """
+    feed_dir = os.getenv("WEBHOUND_THREAT_FEED_DIR")
+    if not feed_dir:
+        return None
+    try:
+        import json
+        from pathlib import Path
+        from webhound.threat_intel import FeedManager
+        from webhound.threat_intel.feed_normalizer import (
+            normalize_abuseipdb, normalize_openphish, normalize_phishtank,
+            normalize_script_feed, normalize_urlhaus,
+        )
+        loaders = {
+            "urlhaus.json": normalize_urlhaus,
+            "openphish.json": normalize_openphish,
+            "phishtank.json": normalize_phishtank,
+            "abuseipdb.json": normalize_abuseipdb,
+            "script_feed.json": normalize_script_feed,
+        }
+        fm = FeedManager()
+        loaded_any = False
+        for fname, normalize in loaders.items():
+            p = Path(feed_dir) / fname
+            if not p.is_file():
+                continue
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+                fm.ingest(normalize(data))
+                loaded_any = True
+            except Exception:  # noqa: BLE001
+                logger.warning("failed to load threat feed %s", fname,
+                               exc_info=True)
+        return fm if loaded_any and fm.indicator_count else None
+    except Exception:  # noqa: BLE001
+        logger.warning("threat feed manager build failed", exc_info=True)
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Module-level helpers
 # ---------------------------------------------------------------------------
@@ -300,8 +350,10 @@ class Scanner:
         self._shopify = ShopifyEngine()
         self._wix = WixEngine()
         self._endpoint_discovery = EndpointDiscoveryEngine()
+        self._feed_manager = _build_feed_manager()
         self._threat_intel = ThreatIntelEngine(
             enrichment_service=_build_enrichment_service(),
+            feed_manager=self._feed_manager,
         )
 
     # ------------------------------------------------------------------
@@ -524,6 +576,18 @@ class Scanner:
 
             # 5. WADE — build baseline; optionally compare against previous
             self._run_wade(ctx, crawl_results)
+
+            # 5b. Phase-13 supply-chain + threat correlation. When a
+            # previous baseline exists, diff the third-party host
+            # inventory and correlate with threat-feed hits to produce
+            # supply-chain stories (Stripe replaced by unknown, etc.) +
+            # WADE vendor events. Best-effort; metadata-only.
+            try:
+                self._run_supply_chain(ctx)
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "supply-chain pass failed; scan output unaffected",
+                    exc_info=True)
 
         except Exception as exc:
             ctx.scan_result.mark_failed(str(exc))
@@ -1429,6 +1493,71 @@ class Scanner:
         )
         if "frameworks" not in ctx.scan_result.engines_run:
             ctx.scan_result.engines_run.append("frameworks")
+
+    def _run_supply_chain(self, ctx: ScanContext) -> None:
+        """Phase-13: diff third-party inventory previous→current, correlate
+        with threat feeds + WADE change activity, write
+        metadata.supply_chain_changes + metadata.threat_correlations +
+        metadata.wade_vendor_events. Needs a previous baseline to diff
+        against; no-op otherwise."""
+        prev = self._previous_baseline
+        cur = self._current_baseline
+        if cur is None:
+            return
+
+        from webhound.threat_intel import (
+            DomainReputationEngine,
+            SupplyChainEngine,
+            ThreatSignals,
+            classify_wade_vendor_event,
+            correlate_threats,
+        )
+
+        rep_engine = DomainReputationEngine(feed_manager=self._feed_manager)
+        prev_hosts = list(getattr(prev, "all_third_party_domains", []) or []) \
+            if prev is not None else []
+        cur_hosts = list(getattr(cur, "all_third_party_domains", []) or [])
+
+        sc_changes = []
+        if prev is not None:
+            sc_changes = SupplyChainEngine(domain_engine=rep_engine).diff(
+                previous_hosts=prev_hosts, current_hosts=cur_hosts)
+            ctx.scan_result.metadata["supply_chain_changes"] = [
+                c.to_dict() for c in sc_changes]
+            ctx.scan_result.metadata["wade_vendor_events"] = [
+                {"event": classify_wade_vendor_event(c).value,
+                 "host": c.host, "detail": c.detail}
+                for c in sc_changes]
+
+        # Gather the threat signals for correlation: feed-flagged hosts +
+        # impersonation hosts among the current third parties, plus whether
+        # WADE saw a change this scan.
+        feed_hits, feed_cats, imp_hosts, unknown_scripts = [], [], [], []
+        for host in cur_hosts:
+            rep = rep_engine.assess(host)
+            if rep.feed_hit:
+                feed_hits.append({"host": host})
+                fm = (self._feed_manager.lookup_domain(host)
+                      if self._feed_manager else None)
+                if fm is not None and fm.matched:
+                    feed_cats.append(fm.category)
+            if rep.impersonation and rep.impersonation.is_impersonation:
+                imp_hosts.append(host)
+            if rep.reputation.value in ("unknown", "suspicious", "malicious"):
+                unknown_scripts.append(host)
+
+        wade_changed = bool(
+            ctx.scan_result.metadata.get("wade_anomaly_count", 0))
+        correlations = correlate_threats(ThreatSignals(
+            feed_hits=feed_hits, feed_categories=feed_cats,
+            supply_chain_changes=sc_changes,
+            unknown_scripts=unknown_scripts,
+            unknown_domains=unknown_scripts,
+            impersonation_hosts=imp_hosts,
+            wade_changed=wade_changed))
+        if correlations:
+            ctx.scan_result.metadata["threat_correlations"] = [
+                c.to_dict() for c in correlations]
 
     def _run_wade(self, ctx: ScanContext, crawl_results: list) -> None:
         """Build a WADE baseline and, if a previous baseline is available, compare."""

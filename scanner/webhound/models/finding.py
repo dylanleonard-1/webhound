@@ -158,6 +158,16 @@ class Finding(BaseModel):
     # Classification tags for filtering / reporting
     tags: list[str] = Field(default_factory=list)
 
+    # Phase-8 correlation: a finding may belong to one or more security
+    # stories. ``correlation_id`` is the primary story this finding is
+    # part of (stable hash). A finding in multiple stories carries the
+    # full set in ``metadata.correlation_ids``; these fields surface the
+    # primary one for quick filtering. All default None so a finding
+    # that's part of no correlation is unchanged.
+    correlation_id: str | None = Field(default=None)
+    correlation_type: str | None = Field(default=None)
+    correlation_confidence: str | None = Field(default=None)
+
     # Provenance
     scanner_engine: str = Field(
         description="Name of the engine that produced this finding."

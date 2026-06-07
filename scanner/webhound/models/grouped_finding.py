@@ -51,6 +51,12 @@ class GroupedFinding(BaseModel):
     tags: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+    # Phase-8 correlation: primary security story this grouped finding
+    # belongs to (None when uncorrelated). Mirrors Finding.
+    correlation_id: str | None = Field(default=None)
+    correlation_type: str | None = Field(default=None)
+    correlation_confidence: str | None = Field(default=None)
+
     model_config = {"frozen": False, "populate_by_name": True}
 
     @property

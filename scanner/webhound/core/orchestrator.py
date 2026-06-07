@@ -257,6 +257,8 @@ class Scanner:
         _transport: httpx.AsyncBaseTransport | None = None,
         previous_baseline: SiteBaseline | None = None,
         session_context: SessionContext | None = None,
+        auth_session_cookies: list | None = None,
+        auth_storage_state: str | dict | None = None,
     ) -> None:
         if isinstance(target, str):
             target = Target.from_url(target, scan_options=options or ScanOptions())
@@ -267,6 +269,11 @@ class Scanner:
         self._previous_baseline: SiteBaseline | None = previous_baseline
         self._session_context: SessionContext | None = session_context
         self._current_baseline: SiteBaseline | None = None
+        # Phase-10 authenticated scanning inputs (browser-level session).
+        # Secret-carrying; consumed once to build the AuthContext + the
+        # Playwright auth_state, then the raw inputs are dropped.
+        self._auth_session_cookies = auth_session_cookies
+        self._auth_storage_state = auth_storage_state
 
         # Engines instantiated once; all are stateless.
         self._security_headers = SecurityHeadersEngine()
@@ -304,6 +311,27 @@ class Scanner:
     async def scan(self) -> ScanResult:
         """Execute the full scan pipeline and return a completed ScanResult."""
         ctx = ScanContext(self._target)
+        # Phase-10: build the authenticated-scan context (secret-free)
+        # + the Playwright auth_state (secret-carrying, browser-only).
+        # Defaults to public_only — no behaviour change when no session.
+        self._browser_auth_state: dict | None = None
+        try:
+            from webhound.auth import build_auth
+            allowed = {self._target.hostname} if self._target.hostname else set()
+            if self._target.scan_options.include_subdomains and self._target.hostname:
+                allowed.add(self._target.hostname)
+            auth_ctx, auth_state = build_auth(
+                mode=getattr(self._target.scan_options, "auth_mode",
+                             "public_only"),
+                allowed_domains=allowed,
+                session_cookies=self._auth_session_cookies,
+                storage_state=self._auth_storage_state,
+            )
+            ctx.auth = auth_ctx
+            self._browser_auth_state = auth_state
+        except Exception:  # noqa: BLE001
+            logger.debug("auth context build failed", exc_info=True)
+
         external_domains: set[str] = set()
         external_script_domains: set[str] = set()
         crawl_results: list = []
@@ -364,6 +392,15 @@ class Scanner:
                         "browser pass failed; static crawl results "
                         "intact", exc_info=True,
                     )
+
+            # 3b-ii. Phase-10 authenticated discovery. When a session was
+            # loaded, classify the pages the (authenticated) browser saw
+            # and record the surface behind login. Always writes
+            # metadata.auth (stable report shape); read-only. Best-effort.
+            try:
+                self._record_authenticated_surface(ctx)
+            except Exception:  # noqa: BLE001
+                logger.debug("authenticated discovery failed", exc_info=True)
 
             # 3c. Phase-5B canonical inventory extension. Walk every
             # crawled page's response and append a synthetic
@@ -815,6 +852,45 @@ class Scanner:
     # Playwright browser pass (Phase-5A)
     # ------------------------------------------------------------------
 
+    def _record_authenticated_surface(self, ctx: ScanContext) -> None:
+        """Phase-10: fold the authenticated browser pass into the
+        AuthContext + metadata.auth. Read-only — reads what the browser
+        already captured; classifies pages, APIs, forms, third parties.
+
+        Always writes metadata.auth (even for public_only) so reports
+        have a stable shape; the heavy lifting only runs when a session
+        was actually used."""
+        auth = getattr(ctx, "auth", None)
+        if auth is None:
+            return
+
+        if auth.available and not auth.is_expired:
+            from webhound.auth import classify_auth_page
+            from webhound.browser.network_capture import looks_like_api
+
+            primary = (self._target.hostname or "").lower()
+            for tel in ctx.browser.telemetries:
+                url = tel.final_url or tel.page_url
+                if url:
+                    auth.record_page(url, classify_auth_page(url))
+                    for route, _src in (tel.client_routes or []):
+                        if route and route not in auth.authenticated_routes:
+                            auth.authenticated_routes.append(route)
+                auth.authenticated_forms += len(tel.rendered_forms or [])
+                for art in tel.artifacts:
+                    is_api, _ = looks_like_api(
+                        art.url, initiator_kind=art.initiator_kind,
+                        content_type=art.content_type)
+                    if is_api and art.url not in auth.authenticated_apis:
+                        auth.authenticated_apis.append(art.url)
+                    host = art.hostname
+                    if host and host != primary:
+                        auth.authenticated_third_parties.add(host)
+        elif auth.is_expired and auth.source.value != "none":
+            auth.errors.append("session expired before/during scan")
+
+        ctx.scan_result.metadata["auth"] = auth.to_dict()
+
     async def _run_browser_pass(
         self,
         ctx: ScanContext,
@@ -862,6 +938,7 @@ class Scanner:
             page_urls, allow_network=allow_net,
             user_agent=self._target.scan_options.user_agent,
             url_filter=ctx.scope.is_in_scope,
+            auth_state=getattr(self, "_browser_auth_state", None),
         )
         duration_ms = (time.perf_counter() - t0) * 1000.0
 

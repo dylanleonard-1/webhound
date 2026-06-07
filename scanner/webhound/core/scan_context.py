@@ -78,6 +78,11 @@ class ScanContext:
         # that pass runs.
         self.framework_result: Any = None
 
+        # Phase-10 authenticated-scan context (AuthContext). Always set
+        # by the orchestrator; defaults to a public_only context with no
+        # session. Secret-free — safe for metadata/reports.
+        self.auth: Any = None
+
     # ------------------------------------------------------------------
     # Browser discovery access (Phase-6C)
     # ------------------------------------------------------------------

@@ -291,6 +291,22 @@ _VULN: tuple[GroundTruthTarget, ...] = (
         ),
         notes="Password form submits to a plain-HTTP action.",
     ),
+    GroundTruthTarget(
+        name="vuln_correlation_chain",
+        category="vulnerable", framework=None,
+        # No CSP + external (unknown) script + inline eval — the three
+        # signals the correlation engine compounds into one cluster.
+        html=('<!DOCTYPE html><html><head></head><body>'
+              '<script src="https://unknown-cdn-zzz.test/x.js"></script>'
+              '<script>eval(atob("YWxlcnQoMSk="))</script>'
+              '</body></html>'),
+        headers=_HTML_CT,                  # deliberately no CSP
+        expected_findings=(
+            ExpectedFinding("correlation", "correlated threat chain"),
+        ),
+        notes="Exercises the correlation engine: CSP-missing + external "
+              "script + inline eval compounding risk.",
+    ),
 )
 
 
@@ -352,6 +368,24 @@ _COMPROMISED: tuple[GroundTruthTarget, ...] = (
         forbidden_findings=(),
         notes="Safe simulated supply-chain: external script + obfuscated "
               "inline (correlation chain expected).",
+    ),
+    GroundTruthTarget(
+        name="compromised_brand_impersonation",
+        category="compromised", framework=None,
+        # Loads a script from a homoglyph/typosquat of a payment brand —
+        # exercises the Phase-11 threat-intel impersonation overlay live.
+        html=('<!DOCTYPE html><html><body>'
+              '<script src="https://paypa1.com/pay.js"></script>'
+              '</body></html>'),
+        headers=_HTML_CT,
+        expected_findings=(
+            ExpectedFinding("threat_intel", "likely malicious",
+                            min_severity="medium"),
+        ),
+        notes="Safe simulated brand impersonation: script from a payment-"
+              "brand lookalike host. Validates the live threat-intel "
+              "impersonation overlay. (Severity is calibrated to MEDIUM "
+              "without an external threat-feed confirmation.)",
     ),
 )
 

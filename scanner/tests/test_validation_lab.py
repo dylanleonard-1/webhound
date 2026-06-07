@@ -46,6 +46,19 @@ def test_categories_present() -> None:
     assert cats == {"clean", "vulnerable", "compromised"}
 
 
+def test_ground_truth_covers_task5_engines() -> None:
+    """Task 5: the engine scorecard list — headers, cookies, forms, JS,
+    threat-intel, correlation, API discovery, third-party domains —
+    should all be exercised by at least one target (WADE needs a
+    two-scan harness; tracked in KNOWN_COVERAGE_GAPS)."""
+    engines = {ef.engine
+               for t in ALL_TARGETS
+               for ef in t.expected_findings}
+    assert {"security_headers", "cookie_scanner", "form_risk",
+            "injected_js", "threat_intel", "correlation",
+            "endpoint_discovery", "third_party_domains"} <= engines
+
+
 # ---------------------------------------------------------------------------
 # Real-scanner pipeline (representative subset)
 # ---------------------------------------------------------------------------

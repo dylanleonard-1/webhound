@@ -119,7 +119,19 @@ otherwise it defers cleanly and the scan completes statically.
 | 10 | Validation lab: `scanner/validation/` — ground-truth mock targets, real-scanner benchmark runner, precision/recall/coverage, framework + engine scorecards, quality score, regression gate | ✅ code complete; verify full suite then push |
 | 11 | Advanced threat intel & supply chain: `webhound/threat_intel/` feed normalizer/manager, reputation cache, domain + script reputation, brand impersonation, supply-chain diff, threat correlation, WADE vendor events | ✅ code complete; verify full suite then push |
 | 13 | WADE Security Advisor: `webhound/advisor/` — per-finding 4-part explanations, business impact, priority %, action plan, remediation roadmap, trend, Q&A; written to `metadata.advisor` | ✅ code complete; verify full suite then push |
-| 14 (next) | Recommended: wire monitoring into the worker (persist ChangeHistory in BaselineStore, run_monitoring after each scan, actual notification delivery: email/SMS/webhook) + dashboard timeline/advisor UI | ⬜ |
+| 15 | Agency & Multi-Site Command Center: `webhound/portfolio/` — site registry, portfolio scores, risk rollup, cross-site alerts, client groups, portfolio WADE, executive report, white-label | ✅ code complete; verify full suite then push |
+| 16 (next) | Recommended: wire monitoring + portfolio into the worker (persist ChangeHistory/SiteRegistry, run_monitoring after each scan, actual notification delivery: email/SMS/webhook) + dashboard timeline/advisor/portfolio UI | ⬜ |
+
+## Portfolio command center (Phase 15)
+`webhound/portfolio/` — pure aggregation over per-site
+`SiteScanSummary.from_scan_metadata`. `site_registry` (SiteRecord
+owner/org/tags/groups/industry/plan, scales 1→100+), `site_health`
+(per-site verdict), `risk_rollup` (distribution + most vulnerable/
+changed/stable), `portfolio_score` (Risk/Health/Monitoring/Stability),
+`client_groups` (agency/franchise/office/store/business-unit),
+`portfolio_alerts` (cross-site shared vendor/script/threat/compromise +
+portfolio-WADE outlier detection), `portfolio_report` (dashboard data +
+executive report + `BrandingConfig` white-label). No scanner changes.
 | Later | Crawl in-scope client routes, wire dormant js_fetcher / vulnerable_libs / source_map_probe (live script fetching — own reviewed change), login-recording live replay, expand validation ground truth | ⬜ |
 
 ## WADE Security Advisor (Phase 13)

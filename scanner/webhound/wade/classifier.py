@@ -17,10 +17,23 @@ from webhound.threat_intel.domain_classifier import (
     DomainClassifier,
 )
 from webhound.wade.anomaly_scorer import ScoredAnomaly
+from webhound.wade.change_classifier import ChangeClassifier
+from webhound.wade.change_types import VENDOR_CHANGE_TYPES, ChangeBand, WadeChangeType
 from webhound.wade.confidence import compute_confidence
 from webhound.wade.diff_engine import DiffType
+from webhound.wade.suppression import decide as suppression_decide
+from webhound.wade.vendor_intel import VendorIntel
 
 NAME = "wade"
+
+# ChangeBand → scanner-wide Severity at Finding-build time.
+_BAND_SEVERITY: dict[ChangeBand, Severity] = {
+    ChangeBand.VERY_LOW: Severity.INFO,
+    ChangeBand.LOW:      Severity.LOW,
+    ChangeBand.MEDIUM:   Severity.MEDIUM,
+    ChangeBand.HIGH:     Severity.HIGH,
+    ChangeBand.CRITICAL: Severity.CRITICAL,
+}
 
 # WADE findings are behavioural signals (a diff against a baseline), not
 # confirmed vulnerabilities. We cap severity at HIGH by default; only the
@@ -42,7 +55,32 @@ _TYPE_MAP: dict[DiffType, tuple[FindingCategory, Severity]] = {
     DiffType.NEW_FORM:              (FindingCategory.FORM,             Severity.MEDIUM),
     DiffType.FORM_FIELD_CHANGE:     (FindingCategory.FORM,             Severity.MEDIUM),
     DiffType.STATUS_CODE_CHANGE:    (FindingCategory.INFORMATIONAL,    Severity.INFO),
+    # WADE 2.0 — severity for these comes from the change band; the entry
+    # here only fixes the finding *category*.
+    DiffType.REMOVED_SCRIPT_SOURCE:      (FindingCategory.JAVASCRIPT,      Severity.INFO),
+    DiffType.REMOVED_EXTERNAL_DOMAIN:    (FindingCategory.JAVASCRIPT,      Severity.INFO),
+    DiffType.NEW_THIRD_PARTY_DOMAIN:     (FindingCategory.JAVASCRIPT,      Severity.MEDIUM),
+    DiffType.REMOVED_THIRD_PARTY_DOMAIN: (FindingCategory.JAVASCRIPT,      Severity.INFO),
+    DiffType.NEW_API_ENDPOINT:           (FindingCategory.API,             Severity.LOW),
+    DiffType.REMOVED_API_ENDPOINT:       (FindingCategory.API,             Severity.INFO),
+    DiffType.HEADER_ADDED:               (FindingCategory.SECURITY_HEADER, Severity.INFO),
+    DiffType.COOKIE_BEHAVIOR_CHANGE:     (FindingCategory.COOKIE,          Severity.LOW),
+    DiffType.NEW_IFRAME:                 (FindingCategory.JAVASCRIPT,      Severity.HIGH),
+    DiffType.REDIRECT_CHANGE:            (FindingCategory.INFORMATIONAL,   Severity.MEDIUM),
+    DiffType.TECHNOLOGY_CHANGE:          (FindingCategory.TECHNOLOGY,      Severity.INFO),
+    DiffType.DOM_STRUCTURE_CHANGE:       (FindingCategory.INFORMATIONAL,   Severity.INFO),
 }
+
+# WADE 2.0 diff types whose severity comes from the change-intelligence band.
+# The original eight keep their calibrated v1 path (preserving v1 behaviour).
+_V2_DIFF_TYPES: frozenset[DiffType] = frozenset({
+    DiffType.REMOVED_SCRIPT_SOURCE, DiffType.REMOVED_EXTERNAL_DOMAIN,
+    DiffType.NEW_THIRD_PARTY_DOMAIN, DiffType.REMOVED_THIRD_PARTY_DOMAIN,
+    DiffType.NEW_API_ENDPOINT, DiffType.REMOVED_API_ENDPOINT,
+    DiffType.HEADER_ADDED, DiffType.COOKIE_BEHAVIOR_CHANGE,
+    DiffType.NEW_IFRAME, DiffType.REDIRECT_CHANGE,
+    DiffType.TECHNOLOGY_CHANGE, DiffType.DOM_STRUCTURE_CHANGE,
+})
 
 _TITLES: dict[DiffType, str] = {
     DiffType.NEW_SCRIPT_SOURCE:     "New external script appeared since last scan",
@@ -53,6 +91,18 @@ _TITLES: dict[DiffType, str] = {
     DiffType.NEW_FORM:              "New form appeared since last scan",
     DiffType.FORM_FIELD_CHANGE:     "Form fields changed since last scan",
     DiffType.STATUS_CODE_CHANGE:    "Page status code changed since last scan",
+    DiffType.REMOVED_SCRIPT_SOURCE:      "External script removed since last scan",
+    DiffType.REMOVED_EXTERNAL_DOMAIN:    "External domain no longer referenced",
+    DiffType.NEW_THIRD_PARTY_DOMAIN:     "Page loads from a new third-party host",
+    DiffType.REMOVED_THIRD_PARTY_DOMAIN: "Third-party resource host removed",
+    DiffType.NEW_API_ENDPOINT:           "New API endpoint surfaced since last scan",
+    DiffType.REMOVED_API_ENDPOINT:       "API endpoint no longer referenced",
+    DiffType.HEADER_ADDED:               "Security header added since last scan",
+    DiffType.COOKIE_BEHAVIOR_CHANGE:     "New cookie set since last scan",
+    DiffType.NEW_IFRAME:                 "New iframe embedded since last scan",
+    DiffType.REDIRECT_CHANGE:            "Redirect behaviour changed since last scan",
+    DiffType.TECHNOLOGY_CHANGE:          "Detected technology stack changed",
+    DiffType.DOM_STRUCTURE_CHANGE:       "Page structure changed since last scan",
 }
 
 _DESCRIPTIONS: dict[DiffType, str] = {
@@ -230,6 +280,7 @@ class Classifier:
 
     def __init__(self, domain_classifier: DomainClassifier | None = None) -> None:
         self._domain_clf = domain_classifier or DomainClassifier()
+        self._change_clf = ChangeClassifier(VendorIntel(self._domain_clf))
 
     def classify(self, anomalies: list[ScoredAnomaly]) -> list[Finding]:
         return [self._to_finding(a) for a in anomalies]
@@ -275,6 +326,20 @@ class Classifier:
             severity = _adjust_severity(base_sev, a.anomaly_score, confidence,
                                          item.diff_type)
 
+        # WADE 2.0 intelligence: classify the change and reconcile severity.
+        # The original eight diff types keep their calibrated path above; the
+        # band overrides only for new v2 types, confirmed-malicious escalation,
+        # and to *calm* a known-benign vendor addition.
+        assess = self._change_clf.assess(a)
+        if item.diff_type in _V2_DIFF_TYPES:
+            severity = _BAND_SEVERITY[assess.band]
+        elif assess.change_type == WadeChangeType.CONFIRMED_MALICIOUS_INDICATOR:
+            severity = Severity.CRITICAL
+        elif assess.change_type in VENDOR_CHANGE_TYPES:
+            severity = _BAND_SEVERITY[assess.band]   # known vendor → calm it down
+
+        sup = suppression_decide(assess, item.diff_type)
+
         description = _description(item, a, escalated_sev is not None)
         framework = _FA.get(item.diff_type, FrameworkAlignment())
 
@@ -291,9 +356,24 @@ class Classifier:
                 "context_type":    a.context_type,
                 "context_weight":  a.context_weight,
                 "raw_score":       a.raw_score,
+                # WADE 2.0 intelligence
+                "wade_change_type":       assess.change_type.value,
+                "wade_change_band":       assess.band.value,
+                "wade_confidence_level":  assess.confidence.value,
+                "wade_vendor_category":   assess.vendor_category,
+                "wade_threat_intel_hit":  assess.threat_intel_hit,
+                "wade_rationale":         assess.rationale,
+                "wade_suppressed":        sup.suppressed,
+                "wade_suppression_reason": sup.reason,
                 **threat_intel_extra,
             },
         )
+        tags = ["wade", "anomaly", item.diff_type.value, a.context_type,
+                assess.change_type.value, f"confidence:{assess.confidence.value}"]
+        if assess.threat_intel_hit:
+            tags.append("threat_intel")
+        if sup.suppressed:
+            tags.append("wade_suppressed")
         return Finding(
             title=_TITLES.get(item.diff_type, "Anomaly detected"),
             description=description,
@@ -304,8 +384,14 @@ class Classifier:
             confidence=confidence,
             anomaly_score=a.anomaly_score,
             framework=framework,
-            tags=["wade", "anomaly", item.diff_type.value, a.context_type],
+            tags=tags,
             remediation=_remediation(item.diff_type),
+            metadata={
+                "wade_change_type": assess.change_type.value,
+                "wade_change_band": assess.band.value,
+                "wade_confidence_level": assess.confidence.value,
+                "wade_suppressed": sup.suppressed,
+            },
         )
 
 

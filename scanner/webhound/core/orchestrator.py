@@ -75,9 +75,11 @@ from webhound.models.target import ScanOptions, Target
 from webhound.core.finding_grouper import FindingGrouper
 from webhound.wade.anomaly_scorer import AnomalyScorer
 from webhound.wade.baseline_builder import BaselineBuilder, SiteBaseline
+from webhound.wade.change_classifier import ChangeClassifier
 from webhound.wade.classifier import Classifier
 from webhound.wade.confidence import adjust_findings_confidence
 from webhound.wade.diff_engine import DiffEngine
+from webhound.wade.timeline import ChangeTimeline, update_timeline
 from webhound.threat_intel.enrichment_service import EnrichmentService
 from webhound.threat_intel.urlhaus_client import UrlhausClient
 from webhound.threat_intel.virustotal_client import VirusTotalClient
@@ -534,6 +536,19 @@ class Scanner:
             apply_trust_policy(result.grouped_findings)
         except Exception:  # noqa: BLE001
             logger.debug("grouped trust annotation failed", exc_info=True)
+
+        # 8a-ii. Customer-facing report sections (Phase-7 Task 8):
+        # Security Risks / Hardening / Inventory / WADE Changes.
+        # Additive metadata — existing report consumers unaffected.
+        try:
+            from webhound.core.finding_presenter import (
+                build_report_sections,
+            )
+            result.metadata["report_sections"] = build_report_sections(
+                result.grouped_findings,
+            )
+        except Exception:  # noqa: BLE001
+            logger.debug("report section build failed", exc_info=True)
 
         # 8b. Phase-5D evidence-quality audit. Advisory — does not
         # mutate findings. Report lands in
@@ -1244,15 +1259,36 @@ class Scanner:
             findings = Classifier().classify(anomalies)
             adjust_findings_confidence(findings, anomalies)
 
-            for f in findings:
+            # Alert-fatigue control (Task 8): suppressed changes are recorded
+            # in the timeline + metadata but never surfaced as findings.
+            active = [f for f in findings
+                      if "wade_suppressed" not in (f.tags or [])]
+            suppressed = len(findings) - len(active)
+            for f in active:
                 ctx.add_finding(f)
+
+            # Change timeline (Task 9) — first/last-seen + frequency, ready for
+            # a future dashboard. Built from every assessed change, suppressed
+            # or not, so the history stays complete.
+            try:
+                assessments = ChangeClassifier().assess_all(anomalies)
+                timeline = update_timeline(
+                    ChangeTimeline(),
+                    list(zip(diff_items, assessments)),
+                    scan_timestamp=baseline.created_at,
+                )
+                ctx.scan_result.metadata["wade_timeline"] = timeline.to_dict()
+            except Exception:  # noqa: BLE001
+                logger.debug("WADE timeline build failed", exc_info=True)
 
             duration_ms = (time.perf_counter() - t0) * 1000
             ctx.tracker.record_run(
-                "wade", findings, duration_ms, wade_start, datetime.now(timezone.utc)
+                "wade", active, duration_ms, wade_start, datetime.now(timezone.utc)
             )
             ctx.scan_result.metadata["wade_compared_to_previous"] = True
-            ctx.scan_result.metadata["wade_anomaly_count"] = len(findings)
+            ctx.scan_result.metadata["wade_anomaly_count"] = len(active)
+            ctx.scan_result.metadata["wade_suppressed_count"] = suppressed
+            ctx.scan_result.metadata["wade_total_changes"] = len(findings)
         except Exception as exc:
             duration_ms = (time.perf_counter() - t0) * 1000
             err = f"{type(exc).__name__}: {exc}"

@@ -20,6 +20,20 @@ BASE_SCORES: dict[DiffType, float] = {
     DiffType.NEW_FORM:              0.40,
     DiffType.FORM_FIELD_CHANGE:     0.40,
     DiffType.STATUS_CODE_CHANGE:    0.20,
+    # WADE 2.0 — additions/removals scored by intrinsic risk; the change
+    # classifier + scorer refine these with vendor + context intelligence.
+    DiffType.REMOVED_SCRIPT_SOURCE:      0.15,
+    DiffType.REMOVED_EXTERNAL_DOMAIN:    0.10,
+    DiffType.NEW_THIRD_PARTY_DOMAIN:     0.50,
+    DiffType.REMOVED_THIRD_PARTY_DOMAIN: 0.10,
+    DiffType.NEW_API_ENDPOINT:           0.45,
+    DiffType.REMOVED_API_ENDPOINT:       0.15,
+    DiffType.HEADER_ADDED:               0.05,
+    DiffType.COOKIE_BEHAVIOR_CHANGE:     0.30,
+    DiffType.NEW_IFRAME:                 0.70,
+    DiffType.REDIRECT_CHANGE:            0.55,
+    DiffType.TECHNOLOGY_CHANGE:          0.25,
+    DiffType.DOM_STRUCTURE_CHANGE:       0.10,
 }
 
 

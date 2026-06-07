@@ -157,6 +157,12 @@ def _snapshot(
     cookie_signatures: dict[str, str] | None = None,
     headers: dict[str, str] | None = None,
     status: int = 200,
+    dom_hash: str = "",
+    third_party_domains: list[str] | None = None,
+    api_endpoints: list[str] | None = None,
+    iframe_signatures: list[str] | None = None,
+    redirect_chain: list[str] | None = None,
+    technologies: list[str] | None = None,
 ) -> PageSnapshot:
     return PageSnapshot(
         url=url,
@@ -168,6 +174,12 @@ def _snapshot(
         external_domains=external_domains or [],
         form_signatures=form_signatures or [],
         cookie_signatures=cookie_signatures or {},
+        dom_hash=dom_hash,
+        third_party_domains=third_party_domains or [],
+        api_endpoints=api_endpoints or [],
+        iframe_signatures=iframe_signatures or [],
+        redirect_chain=redirect_chain or [],
+        technologies=technologies or [],
     )
 
 
@@ -543,7 +555,20 @@ class TestContextEngine:
 
     def test_weight_for_helper(self) -> None:
         assert self.engine.weight_for("https://example.com/admin") == 2.0
-        assert self.engine.weight_for("https://example.com/") == 1.0
+        # WADE 2.0: the site root is now classified as 'homepage' (a new
+        # script there is far more likely marketing than attack), so it
+        # weighs *below* a generic content page.
+        assert self.engine.weight_for("https://example.com/") == CONTEXT_WEIGHTS["homepage"]
+        assert self.engine.weight_for("https://example.com/about-us") == 1.0
+
+    def test_homepage_context(self) -> None:
+        ctx = self.engine.classify("https://example.com/")
+        assert ctx.context_type == "homepage"
+        assert ctx.weight < CONTEXT_WEIGHTS["default"]
+
+    def test_contact_context(self) -> None:
+        ctx = self.engine.classify("https://example.com/contact")
+        assert ctx.context_type == "contact"
 
     def test_known_contexts_includes_all_types(self) -> None:
         known = self.engine.known_contexts()
@@ -780,7 +805,9 @@ class TestWADEPipeline:
 
     def test_no_regression_pipeline_produces_no_findings(self) -> None:
         bl, _ = self._build_baseline()
-        # Current scan identical to baseline
+        # Current scan identical to baseline — must mirror the *full* expanded
+        # inventory the builder captured (incl. the third-party script host).
+        base_snap = bl.pages["https://example.com/"]
         current_pages = {
             "https://example.com/": _snapshot(
                 script_sources=["https://cdn.example.com/app.js"],
@@ -790,6 +817,8 @@ class TestWADEPipeline:
                 cookie_signatures={"session": "HttpOnly;Secure"},
                 headers={"x-frame-options": "DENY"},
                 status=200,
+                dom_hash=base_snap.dom_hash,
+                third_party_domains=["cdn.example.com"],
             )
         }
         diff_items = DiffEngine().diff_site(current_pages, bl)

@@ -111,8 +111,18 @@ otherwise it defers cleanly and the scan completes statically.
 | 2 | Browser discovery collection: network/API classification, scripts, routes, cookies, console, safe interactions, scope/SSRF nav screen | ✅ pushed |
 | 3 | Feed discovery into engines: BrowserDiscovery on ScanContext, JS/third-party/API engines on rendered data, vendor categories, coverage summary | ✅ pushed |
 | 4 | Trustworthy scoring: trust policy, severity calibrator, centralized risk scoring, presenter + report sections | ✅ code complete; full suite was running at handoff — verify green, then push if not already pushed |
-| 5 (next) | Recommended: WADE browser baselining (new script/domain/API/form detection), crawling in-scope client routes, wiring dormant js_fetcher / vulnerable_libs / source_map_probe engines (adds live script fetching — own reviewed change) | ⬜ |
-| Later | Authenticated scanning (storage state, session cookies, read-only crawl), framework-specific support depth | ⬜ |
+| 5 | WADE 2.0 intelligence: expanded baselines (dom_hash, third-party, API, iframe, redirect, tech), change taxonomy + classifier, vendor awareness, suppression (alert fatigue), timeline | ✅ pushed |
+| 6 | Correlation engine: customer-facing security stories (admin/auth/payment/supply-chain/compromise/website-mod/api/header/cookie), 11 standardized CorrelationTypes, confidence by converging evidence, no-double-count scoring | ✅ code complete; verify full suite then push |
+| 7 (next) | Recommended: persist WADE timeline + correlation IDs across scans (frequency/recurrence actually accumulate), then notifications for non-suppressed security-relevant changes + stories | ⬜ |
+| Later | Authenticated scanning (storage state, session cookies, read-only crawl), crawl in-scope client routes, wire dormant js_fetcher / vulnerable_libs / source_map_probe (live script fetching — own reviewed change), framework-specific depth | ⬜ |
+
+## Correlation / stories (Phase 6)
+`core/security_stories.py` builds customer-facing stories over grouped
+findings + the WADE timeline. `core/correlation.py` is the lower-level
+threat-chain engine (confidence bumps + cluster findings, runs
+pre-grouping). Stories annotate members with `correlation_id`/`type`/
+`confidence` and land in `metadata.security_stories` — they create no
+scored findings, so they never inflate risk.
 
 ## Build / test / deploy
 

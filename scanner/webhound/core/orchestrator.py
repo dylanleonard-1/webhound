@@ -743,6 +743,19 @@ class Scanner:
         except Exception:  # noqa: BLE001
             logger.debug("advisory build failed", exc_info=True)
 
+        # 9c. Phase-20 Security Graph. Build the relationship graph from
+        # the scan + store only the COMPACT summary (Task 11 — the raw
+        # graph is never shipped to customers by default). Enrichment
+        # only; no finding/scoring change. Best-effort.
+        try:
+            from webhound.graph import build_graph, export_summary
+            graph = build_graph(
+                result, crawl_results=crawl_results, browser=ctx.browser,
+                primary_host=self._target.hostname)
+            result.metadata["security_graph_summary"] = export_summary(graph)
+        except Exception:  # noqa: BLE001
+            logger.debug("security graph build failed", exc_info=True)
+
         result.metadata["external_domains"] = sorted(external_domains)
         result.metadata["external_domain_count"] = len(external_domains)
         result.metadata["external_script_domains"] = sorted(external_script_domains)

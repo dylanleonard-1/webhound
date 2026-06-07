@@ -24,6 +24,14 @@ class CrossSiteAlertType(str, Enum):
     SHARED_THREAT_INDICATOR = "shared_threat_indicator"
     SHARED_COMPROMISE = "shared_compromise_pattern"
     WIDESPREAD_ISSUE = "widespread_issue"
+    # Phase-16 portfolio alert types.
+    SHARED_VENDOR_CHANGE = "shared_vendor_change"
+    SHARED_SCRIPT_CHANGE = "shared_script_change"
+    MULTI_SITE_THREAT_INDICATOR = "multi_site_threat_indicator"
+    MULTI_SITE_TLS_ISSUE = "multi_site_tls_issue"
+    MULTI_SITE_ADMIN_EXPOSURE = "multi_site_admin_exposure"
+    MULTI_SITE_SCAN_FAILURE = "multi_site_scan_failure"
+    MULTI_SITE_WADE_CHANGE = "multi_site_wade_change"
 
 
 class CrossSiteSeverity(str, Enum):
@@ -155,6 +163,85 @@ def detect_cross_site_alerts(
             detail=("A large share of your portfolio is at elevated risk — "
                     "consider a portfolio-wide remediation push."),
             affected_site_ids=sorted(high_risk)))
+
+    # --- Phase-16: shared per-site operational signals ------------------
+    def _sites_where(pred) -> list[str]:
+        return [r.site_id for r in sites if pred(r.summary)]
+
+    tls_sites = _sites_where(lambda s: s.has_tls_issue)
+    if len(tls_sites) >= min_sites:
+        alerts.append(CrossSiteAlert(
+            alert_type=CrossSiteAlertType.MULTI_SITE_TLS_ISSUE,
+            severity=CrossSiteSeverity.HIGH,
+            title=f"TLS issue on {len(tls_sites)} sites",
+            detail=("Several sites share a TLS/certificate problem — often a "
+                    "shared wildcard cert or a single expiring certificate "
+                    "across locations."),
+            affected_site_ids=sorted(tls_sites)))
+
+    admin_sites = _sites_where(lambda s: s.has_admin_exposure)
+    if len(admin_sites) >= min_sites:
+        alerts.append(CrossSiteAlert(
+            alert_type=CrossSiteAlertType.MULTI_SITE_ADMIN_EXPOSURE,
+            severity=CrossSiteSeverity.HIGH,
+            title=f"Admin surface exposed on {len(admin_sites)} sites",
+            detail=("Multiple sites expose an administrative surface — likely "
+                    "a shared platform/template. Restrict them together."),
+            affected_site_ids=sorted(admin_sites)))
+
+    failed_sites = _sites_where(lambda s: s.scan_failed)
+    if len(failed_sites) >= min_sites:
+        alerts.append(CrossSiteAlert(
+            alert_type=CrossSiteAlertType.MULTI_SITE_SCAN_FAILURE,
+            severity=CrossSiteSeverity.MEDIUM,
+            title=f"Scans failing on {len(failed_sites)} sites",
+            detail=("Several sites failed to scan — could be shared "
+                    "infrastructure, a WAF blocking the scanner, or an "
+                    "outage. Coverage is degraded until resolved."),
+            affected_site_ids=sorted(failed_sites)))
+
+    wade_sites = _sites_where(lambda s: s.wade_changed)
+    if len(wade_sites) >= min_sites:
+        alerts.append(CrossSiteAlert(
+            alert_type=CrossSiteAlertType.MULTI_SITE_WADE_CHANGE,
+            severity=CrossSiteSeverity.MEDIUM,
+            title=f"Changes detected on {len(wade_sites)} sites this period",
+            detail=("Multiple sites changed since their last scan. Review the "
+                    "grouped changes to confirm they were expected "
+                    "deployments rather than coordinated tampering."),
+            affected_site_ids=sorted(wade_sites)))
+
+    # Shared engine failures (MULTI_SITE_SCAN_FAILURE companion).
+    engine_sites: dict[str, set[str]] = defaultdict(set)
+    for rec in sites:
+        for eng in rec.summary.failing_engines:
+            engine_sites[eng].add(rec.site_id)
+    for eng, sids in engine_sites.items():
+        if len(sids) >= max(min_sites, 3):
+            alerts.append(CrossSiteAlert(
+                alert_type=CrossSiteAlertType.MULTI_SITE_SCAN_FAILURE,
+                severity=CrossSiteSeverity.LOW,
+                title=f"Engine '{eng}' failing across {len(sids)} sites",
+                detail=(f"The {eng} engine errored on {len(sids)} sites — "
+                        "likely a systemic issue, not site-specific."),
+                affected_site_ids=sorted(sids), shared_indicator=eng))
+
+    # --- Shared NEW scripts/vendors (change-oriented) -------------------
+    new_script_sites: dict[str, set[str]] = defaultdict(set)
+    for rec in sites:
+        for host in rec.summary.new_script_hosts:
+            new_script_sites[_registrable(host)].add(rec.site_id)
+    for vendor, sids in new_script_sites.items():
+        if len(sids) < min_sites or _is_trusted(vendor):
+            continue
+        alerts.append(CrossSiteAlert(
+            alert_type=CrossSiteAlertType.SHARED_SCRIPT_CHANGE,
+            severity=CrossSiteSeverity.HIGH,
+            title=f"New script '{vendor}' appeared on {len(sids)} sites",
+            detail=(f"The same new third-party script ('{vendor}') was added "
+                    f"to {len(sids)} sites at once — a coordinated change "
+                    "worth confirming was intentional."),
+            affected_site_ids=sorted(sids), shared_indicator=vendor))
 
     # Most-affected / most-severe first.
     sev_rank = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}

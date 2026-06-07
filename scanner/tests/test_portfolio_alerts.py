@@ -22,14 +22,18 @@ from webhound.portfolio.site_registry import (
 
 
 def _site(sid, *, vendors=(), corr=(), compromise=False, level="low",
-          groups=()) -> SiteRecord:
+          groups=(), tls=False, admin=False, failed=False, wade=False,
+          new_scripts=(), failing_engines=()) -> SiteRecord:
     return SiteRecord(
         site_id=sid, url=f"https://{sid}.test", groups=list(groups),
         summary=SiteScanSummary(
             risk_level=level, third_party_domains=list(vendors),
             threat_correlation_types=list(corr),
             has_compromise_story=compromise, scan_count=1,
-            last_scan_at="2026-06-07T00:00:00Z"))
+            last_scan_at="2026-06-07T00:00:00Z",
+            has_tls_issue=tls, has_admin_exposure=admin, scan_failed=failed,
+            wade_changed=wade, new_script_hosts=list(new_scripts),
+            failing_engines=list(failing_engines)))
 
 
 def _types(alerts):
@@ -123,6 +127,65 @@ def test_widespread_high_risk_alert() -> None:
 
 def test_single_site_no_cross_alerts() -> None:
     assert detect_cross_site_alerts([_site("a", vendors=["x.com"])]) == []
+
+
+# ---------------------------------------------------------------------------
+# Phase-16 portfolio alert types
+# ---------------------------------------------------------------------------
+
+
+def test_multi_site_tls_issue() -> None:
+    alerts = detect_cross_site_alerts(
+        [_site("a", tls=True), _site("b", tls=True), _site("c")])
+    a = next(x for x in alerts
+             if x.alert_type == CrossSiteAlertType.MULTI_SITE_TLS_ISSUE)
+    assert a.affected_count == 2
+
+
+def test_multi_site_admin_exposure() -> None:
+    alerts = detect_cross_site_alerts(
+        [_site("a", admin=True), _site("b", admin=True)])
+    assert CrossSiteAlertType.MULTI_SITE_ADMIN_EXPOSURE in _types(alerts)
+
+
+def test_multi_site_scan_failure() -> None:
+    alerts = detect_cross_site_alerts(
+        [_site("a", failed=True), _site("b", failed=True)])
+    assert CrossSiteAlertType.MULTI_SITE_SCAN_FAILURE in _types(alerts)
+
+
+def test_multi_site_wade_change() -> None:
+    alerts = detect_cross_site_alerts(
+        [_site("a", wade=True), _site("b", wade=True), _site("c", wade=True)])
+    a = next(x for x in alerts
+             if x.alert_type == CrossSiteAlertType.MULTI_SITE_WADE_CHANGE)
+    assert a.affected_count == 3
+
+
+def test_shared_new_script_change() -> None:
+    alerts = detect_cross_site_alerts([
+        _site("a", new_scripts=["new-tracker-xyz.com"]),
+        _site("b", new_scripts=["new-tracker-xyz.com"]),
+    ])
+    a = next(x for x in alerts
+             if x.alert_type == CrossSiteAlertType.SHARED_SCRIPT_CHANGE)
+    assert "new-tracker-xyz.com" in a.shared_indicator
+
+
+def test_shared_new_trusted_script_not_alerted() -> None:
+    alerts = detect_cross_site_alerts([
+        _site("a", new_scripts=["www.google-analytics.com"]),
+        _site("b", new_scripts=["www.google-analytics.com"]),
+    ])
+    assert CrossSiteAlertType.SHARED_SCRIPT_CHANGE not in _types(alerts)
+
+
+def test_shared_engine_failure() -> None:
+    alerts = detect_cross_site_alerts([
+        _site(f"s{i}", failing_engines=["tls_checker"]) for i in range(3)])
+    eng_alerts = [x for x in alerts
+                  if x.shared_indicator == "tls_checker"]
+    assert eng_alerts
 
 
 # ---------------------------------------------------------------------------

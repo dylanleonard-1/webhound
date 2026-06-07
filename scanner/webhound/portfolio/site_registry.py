@@ -30,6 +30,13 @@ class SiteScanSummary:
     scan_count: int = 0
     change_frequency: int = 0          # recurring/total changes this period
     open_alert_count: int = 0
+    # Phase-16 per-site signals the API supplies for cross-site alerts.
+    has_tls_issue: bool = False
+    has_admin_exposure: bool = False
+    scan_failed: bool = False
+    wade_changed: bool = False
+    new_script_hosts: list[str] = field(default_factory=list)
+    failing_engines: list[str] = field(default_factory=list)
 
     @property
     def confirmed_risk_count(self) -> int:
@@ -52,6 +59,12 @@ class SiteScanSummary:
             "scan_count": self.scan_count,
             "change_frequency": self.change_frequency,
             "open_alert_count": self.open_alert_count,
+            "has_tls_issue": self.has_tls_issue,
+            "has_admin_exposure": self.has_admin_exposure,
+            "scan_failed": self.scan_failed,
+            "wade_changed": self.wade_changed,
+            "new_script_hosts": list(self.new_script_hosts),
+            "failing_engines": list(self.failing_engines),
         }
 
     @classmethod
@@ -71,6 +84,13 @@ class SiteScanSummary:
         if bp.get("browser_third_party_domains"):
             third_party = sorted(set(list(third_party)
                                      + bp["browser_third_party_domains"]))
+        # Phase-16 signals derived from the report sections / WADE.
+        report_sections = m.get("report_sections") or {}
+        sec_risks = report_sections.get("security_risks") or []
+        admin_exposure = any(
+            "admin" in (e.get("title", "").lower())
+            for e in sec_risks)
+        wade_changed = bool(m.get("wade_anomaly_count", 0))
         return cls(
             risk_score=int(m.get("risk_score", 0) or 0),
             risk_level=str(m.get("risk_level", "safe")),
@@ -86,6 +106,8 @@ class SiteScanSummary:
             last_scan_at=m.get("scan_completed_at"),
             scan_count=int(m.get("scan_count", 1) or 1),
             change_frequency=int(timeline.get("recurring_count", 0) or 0),
+            has_admin_exposure=admin_exposure,
+            wade_changed=wade_changed,
         )
 
 

@@ -121,7 +121,22 @@ otherwise it defers cleanly and the scan completes statically.
 | 13 | WADE Security Advisor: `webhound/advisor/` — per-finding 4-part explanations, business impact, priority %, action plan, remediation roadmap, trend, Q&A; written to `metadata.advisor` | ✅ code complete; verify full suite then push |
 | 15 | Agency & Multi-Site Command Center: `webhound/portfolio/` — site registry, portfolio scores, risk rollup, cross-site alerts, client groups, portfolio WADE, executive report, white-label | ✅ code complete; verify full suite then push |
 | 16 | Agency/MSP API + frontend: portfolio routes (`apps/api/routers/portfolio.py`), service, `WebsiteGroup` model + migration 0032, portfolio dashboard page (`apps/web`), sidebar link | ✅ code complete; scanner suite verifying then push |
-| 17 (next) | Recommended: wire monitoring into the worker (persist ChangeHistory + populate SiteRegistry from scheduled scans, run_monitoring/build_advisory after each scan), notification delivery (email/webhook), feed-refresh task; apply migration 0032 in prod | ⬜ |
+| 18 | Security Graph Engine: `webhound/graph/` — node/edge model, builder, query, scoring context, export, validator; `metadata.security_graph_summary` | ✅ code complete; full suite verifying then push |
+| 19 (next) | Recommended: wire monitoring into the worker (persist ChangeHistory + populate SiteRegistry from scheduled scans, run_monitoring/build_advisory after each scan), notification delivery (email/webhook), feed-refresh task; apply migration 0032 in prod | ⬜ |
+
+## Security Graph (Phase 18)
+`webhound/graph/` — relationship graph of a site's assets (enrichment,
+not customer-facing by default). `models` (NodeType/EdgeType, SecurityGraph
+with dedup + adjacency indices, deterministic content-derived ids),
+`graph_builder` (from crawl artifacts + browser + findings + WADE +
+threat correlations, graceful on missing data), `relationship_extractor`
+(pure normalization/vendor/target-resolution), `graph_query` (page
+scripts/forms/apis, unknown vendors, findings/WADE per page, page→domain
+paths), `graph_scoring` (sensitive-page/login/checkout/form connection
+context for the scorer + correlation — no scoring change), `graph_export`
+(full JSON + compact summary + evidence graph), `graph_validator`
+(orphans/broken edges/missing metadata). Orchestrator stores only the
+COMPACT `metadata.security_graph_summary`.
 
 ## Portfolio API + frontend (Phase 16)
 `apps/api`: `routers/portfolio.py` (GET summary/sites/risk-rollup/alerts/

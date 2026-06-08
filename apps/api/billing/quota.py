@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -25,16 +24,19 @@ logger = logging.getLogger(__name__)
 
 
 def admin_quota_bypass(user: User) -> bool:
-    """Return True only when the user is admin AND the explicit
-    ADMIN_QUOTA_BYPASS=1 env flag is set.
+    """Return True only when the user is a verified admin AND the explicit
+    ADMIN_QUOTA_BYPASS flag is honoured (off by default, refused in production
+    without ADMIN_BYPASS_ALLOW_IN_PROD).
 
-    Routes should call this instead of checking user.is_admin directly
-    when deciding whether to skip quota enforcement. By default admins
-    are subject to the same plan limits as regular users — so the
-    product team can QA the real flow against their own accounts
-    without manufacturing test users.
+    This is the pure gate. Routes should prefer
+    ``admin_bypass.consume_quota_bypass`` which ALSO writes an audit row.
+    Kept as a thin delegate for backward compatibility and non-route callers.
     """
-    return user.is_admin and os.getenv("ADMIN_QUOTA_BYPASS") == "1"
+    # Imported lazily to avoid a heavy import at module load and any import
+    # ordering concerns with the audit/telemetry stack.
+    from apps.api.internal.admin_bypass import quota_bypass_allowed
+
+    return quota_bypass_allowed(user)
 
 
 @dataclass(frozen=True)

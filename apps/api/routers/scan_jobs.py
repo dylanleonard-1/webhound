@@ -8,12 +8,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.billing.quota import (
-    admin_quota_bypass,
     check_concurrent_scan_quota,
     check_scan_profile_allowed,
     check_scan_quota,
     violation_to_dict,
 )
+from apps.api.internal.admin_bypass import consume_quota_bypass
 from apps.api.database import get_db
 from apps.api.pagination import page_meta
 from apps.api.models.enums import ScanProfile, ScanStatus
@@ -52,7 +52,7 @@ def _uid(user: User) -> uuid.UUID | None:
 async def create_scan_job(
     data: ScanJobCreate, db: _DB, current_user: _CurrentUser
 ) -> ScanJobResponse:
-    if not admin_quota_bypass(current_user):
+    if not await consume_quota_bypass(db, current_user):
         # Profile-level gate first — surface a "this tier doesn't include
         # X" message before we even count usage.
         profile_v = check_scan_profile_allowed(current_user, data.profile.value)

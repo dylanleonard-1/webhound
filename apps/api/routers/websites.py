@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import uuid
 from typing import Annotated
 
@@ -9,9 +8,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.billing.quota import (
-    admin_quota_bypass,
     check_website_quota,
     violation_to_dict,
+)
+from apps.api.internal.admin_bypass import (
+    consume_quota_bypass,
+    consume_verify_bypass,
 )
 from apps.api.database import get_db
 from apps.api.pagination import page_meta
@@ -48,7 +50,7 @@ async def create_website(
     current_user: _CurrentUser,
     active_org: _ActiveOrg = None,
 ) -> WebsiteResponse:
-    if not admin_quota_bypass(current_user):
+    if not await consume_quota_bypass(db, current_user):
         violation = await check_website_quota(db, current_user)
         if violation is not None:
             raise HTTPException(status_code=402, detail=violation_to_dict(violation))
@@ -157,14 +159,11 @@ async def initiate_verification(
             "verify-initiate: website=%s already verified", website.hostname,
         )
         return {"already_verified": True}
-    # Admin bypass is now opt-in via ADMIN_VERIFY_BYPASS=1 env var.
-    # Previously admins were silently auto-verified, which prevented the
-    # real DNS flow from being tested by the team that owns the product.
-    if current_user.is_admin and os.getenv("ADMIN_VERIFY_BYPASS") == "1":
-        logger.warning(
-            "verify-initiate: ADMIN_VERIFY_BYPASS for %s by %s",
-            website.hostname, current_user.email,
-        )
+    # Admin bypass is opt-in via ADMIN_VERIFY_BYPASS (off by default, refused in
+    # production without ADMIN_BYPASS_ALLOW_IN_PROD, and audit-logged on use).
+    # Previously admins were silently auto-verified, which prevented the real
+    # DNS flow from being tested by the team that owns the product.
+    if await consume_verify_bypass(db, current_user, website):
         website.verification_status = VerificationStatus.VERIFIED
         await db.commit()
         return {"already_verified": True}

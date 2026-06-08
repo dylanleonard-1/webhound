@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from functools import lru_cache
 from typing import Annotated
 
@@ -12,12 +13,17 @@ _INSECURE_KEYS = {
     "change-me-in-production",
 }
 
+# The shipped default DATABASE_URL. If production is still pointed at this
+# localhost value, the database was never configured — fail fast rather than
+# silently trying to reach a non-existent local Postgres.
+_DEFAULT_DATABASE_URL = "postgresql+asyncpg://webhound:webhound@localhost:5432/webhound"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # Database
-    database_url: str = "postgresql+asyncpg://webhound:webhound@localhost:5432/webhound"
+    database_url: str = _DEFAULT_DATABASE_URL
 
     @field_validator("database_url", mode="before")
     @classmethod
@@ -125,6 +131,31 @@ class Settings(BaseSettings):
     dev_allow_unverified_scans: bool = False
     dev_skip_domain_verification: bool = False
 
+    # --- AI summaries (opt-in) -------------------------------------------
+    # WEBHOUND_AI_ENABLED=1 switches the summariser from deterministic
+    # templates to the live Claude path, which REQUIRES ANTHROPIC_API_KEY.
+    # ai_summary.py still reads these via os.getenv at call time; the fields
+    # exist so startup validation can fail fast on a half-configured prod.
+    webhound_ai_enabled: bool = False
+    anthropic_api_key: str = ""
+
+    # --- Admin bypass flags (DANGEROUS) ----------------------------------
+    # See apps/api/internal/admin_bypass.py + docs/env.md. Default off, only
+    # honoured for verified admins, refused in production unless
+    # admin_bypass_allow_in_prod is also set, and every use is audit-logged.
+    admin_verify_bypass: bool = False
+    admin_quota_bypass: bool = False
+    admin_bypass_allow_in_prod: bool = False
+
+    # --- Notifications (outbound alert delivery) -------------------------
+    # Master switch. When false, alerts are still recorded in-app but no
+    # email/webhook is sent (and the UI must not claim otherwise).
+    notifications_enabled: bool = False
+
+    # SMTP failover — used when Resend fails AND this is enabled (see FIX 11).
+    smtp_fallback_enabled: bool = False
+    smtp_use_tls: bool = True
+
     # Emails auto-promoted to is_admin on signup, OAuth, and startup backfill.
     # Override with ADMIN_EMAILS env var as JSON array or comma-separated list.
     admin_emails: Annotated[list[str], NoDecode] = ["dmleonard5125@gmail.com"]
@@ -152,14 +183,60 @@ class Settings(BaseSettings):
             raise ValueError(f"app_env must be one of {allowed}")
         return v
 
+    @field_validator("cors_origin_regex")
+    @classmethod
+    def validate_cors_origin_regex(cls, v: str) -> str:
+        """A malformed CORS_ORIGIN_REGEX would crash request handling at
+        runtime (or silently match nothing). Catch it at startup instead."""
+        if v:
+            try:
+                re.compile(v)
+            except re.error as exc:
+                raise ValueError(f"CORS_ORIGIN_REGEX is not a valid regex: {exc}")
+        return v
+
     @model_validator(mode="after")
     def _validate_production_security(self) -> "Settings":
+        # Checks that apply in EVERY environment.
+        if self.webhound_ai_enabled and not self.anthropic_api_key:
+            raise ValueError(
+                "WEBHOUND_AI_ENABLED=1 requires ANTHROPIC_API_KEY to be set — "
+                "otherwise the AI summariser silently falls back to templates."
+            )
+        if self.notifications_enabled and not self._has_email_provider():
+            raise ValueError(
+                "NOTIFICATIONS_ENABLED=1 requires an email provider: set "
+                "RESEND_API_KEY, or SMTP_FALLBACK_ENABLED=1 with SMTP_HOST."
+            )
+        if self.smtp_fallback_enabled and not self.smtp_host:
+            raise ValueError(
+                "SMTP_FALLBACK_ENABLED=1 requires SMTP_HOST to be set."
+            )
+
         if self.app_env == "production":
             if self.secret_key in _INSECURE_KEYS:
                 raise ValueError(
                     "SECRET_KEY must be changed from the default in production. "
                     "Generate one with: python3 -c \"import secrets; print(secrets.token_hex(32))\""
                 )
+            if self.database_url == _DEFAULT_DATABASE_URL:
+                raise ValueError(
+                    "DATABASE_URL is still the localhost default in production — "
+                    "it was never configured."
+                )
+            if not self.database_url.startswith("postgresql"):
+                raise ValueError(
+                    "DATABASE_URL must be a postgresql:// URL in production "
+                    f"(got scheme of {self.database_url.split('://', 1)[0]!r})."
+                )
+            if not self.redis_url.startswith(("redis://", "rediss://")):
+                raise ValueError(
+                    "REDIS_URL must be a redis:// or rediss:// URL in production."
+                )
+            for name, value in (("API_BASE_URL", self.api_base_url),
+                                ("FRONTEND_URL", self.frontend_url)):
+                if not value.startswith(("http://", "https://")):
+                    raise ValueError(f"{name} must be an absolute http(s) URL in production.")
             if self.dev_allow_unverified_scans:
                 raise ValueError(
                     "DEV_ALLOW_UNVERIFIED_SCANS must not be set in production."
@@ -168,6 +245,15 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "DEV_SKIP_DOMAIN_VERIFICATION must not be set in production — "
                     "it lets any domain be marked verified, enabling SSRF."
+                )
+            # Admin bypass flags are security controls. Refuse to boot with one
+            # enabled in production unless the operator has explicitly opted in
+            # via ADMIN_BYPASS_ALLOW_IN_PROD — a deliberate two-key gesture.
+            if (self.admin_verify_bypass or self.admin_quota_bypass) and not self.admin_bypass_allow_in_prod:
+                raise ValueError(
+                    "ADMIN_VERIFY_BYPASS / ADMIN_QUOTA_BYPASS are enabled in "
+                    "production without ADMIN_BYPASS_ALLOW_IN_PROD=1. These skip "
+                    "domain verification / quota enforcement; refusing to start."
                 )
             # Billing must be fully configured in production. A startup failure
             # here is safe: the new deploy fails its healthcheck and Railway
@@ -187,7 +273,24 @@ class Settings(BaseSettings):
                     "Production is missing required Stripe env vars: "
                     + ", ".join(missing)
                 )
+        else:
+            # Non-production: never block startup, but surface misconfigurations
+            # that would silently disable a feature the operator clearly wanted.
+            import logging as _logging
+            _log = _logging.getLogger("apps.api.config")
+            if self.admin_verify_bypass or self.admin_quota_bypass:
+                _log.warning(
+                    "ADMIN bypass flag enabled (verify=%s quota=%s) — admins can "
+                    "skip security controls. Never do this in production.",
+                    self.admin_verify_bypass, self.admin_quota_bypass,
+                )
+            if self.secret_key in _INSECURE_KEYS:
+                _log.warning("SECRET_KEY is the insecure default — fine for dev, "
+                             "must be changed before production.")
         return self
+
+    def _has_email_provider(self) -> bool:
+        return bool(self.resend_api_key) or (self.smtp_fallback_enabled and bool(self.smtp_host))
 
 
 @lru_cache

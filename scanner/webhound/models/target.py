@@ -87,6 +87,11 @@ class ScanOptions(BaseModel):
     # ``playwright`` package + ``playwright install chromium`` on
     # the worker box; missing dependencies degrade gracefully.
     browser_enabled: bool = Field(default=False)
+    # Known-vulnerable JS library detection (CVE-by-CDN-URL). Cheap and
+    # fully passive (URL parsing only, no fetch), but gated to the
+    # thorough profiles so QUICK/STANDARD reports stay focused. Enabled
+    # by the DEEP and ENTERPRISE profiles.
+    vuln_libs_enabled: bool = Field(default=False)
     # Phase-10 authenticated scanning. ``auth_mode`` is one of
     # public_only / authenticated_only / combined / deep_authenticated
     # (see webhound.auth.AuthMode). Default public_only keeps every

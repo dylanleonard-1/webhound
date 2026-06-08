@@ -50,6 +50,10 @@ class ScanProfile:
     # (fetch/XHR/WebSocket) is captured. Off elsewhere so no profile
     # accidentally pulls in the browser dependency.
     browser_enabled: bool = False
+    # Known-vulnerable JS library detection. On for the thorough
+    # profiles (DEEP, ENTERPRISE); off for QUICK/STANDARD/MONITOR so
+    # their reports stay surface-level.
+    vuln_libs_enabled: bool = False
 
     def to_scan_options(self) -> ScanOptions:
         """Return a :class:`ScanOptions` instance configured from this profile."""
@@ -63,6 +67,7 @@ class ScanProfile:
             verify_tls=self.verify_tls,
             asm_enabled=self.asm_enabled,
             browser_enabled=self.browser_enabled,
+            vuln_libs_enabled=self.vuln_libs_enabled,
         )
 
     def summary(self) -> dict[str, Any]:
@@ -79,6 +84,7 @@ class ScanProfile:
             "verify_tls": self.verify_tls,
             "asm_enabled": self.asm_enabled,
             "browser_enabled": self.browser_enabled,
+            "vuln_libs_enabled": self.vuln_libs_enabled,
         }
 
 
@@ -129,6 +135,7 @@ DEEP = ScanProfile(
     respect_robots_txt=True,
     verify_tls=True,
     browser_enabled=True,
+    vuln_libs_enabled=True,
 )
 
 #: Lightweight periodic check optimised for WADE baseline comparison.
@@ -168,6 +175,7 @@ ENTERPRISE = ScanProfile(
     verify_tls=True,
     asm_enabled=True,
     browser_enabled=True,
+    vuln_libs_enabled=True,
 )
 
 #: Registry of all built-in profiles, keyed by name.

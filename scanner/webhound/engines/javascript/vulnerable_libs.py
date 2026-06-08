@@ -221,13 +221,31 @@ class VulnerableLibsEngine:
     NAME = _ENGINE
 
     def analyze(self, artifacts: PageArtifacts) -> list[Finding]:
+        """Per-page entry point: scan one page's external script srcs."""
+        urls = [
+            s.src for s in artifacts.scripts
+            if s.is_external and s.src
+        ]
+        return self.analyze_script_urls(urls, page_url=artifacts.url)
+
+    def analyze_script_urls(
+        self, script_urls: list[str], page_url: str = "",
+    ) -> list[Finding]:
+        """Scan an arbitrary inventory of script URLs.
+
+        Used by the orchestrator's scan-wide pass to feed static,
+        rendered-DOM, and browser-loaded script URLs (including dynamic
+        chunks) through one deduplicated detection run. Non-CDN or
+        unversioned URLs are silently ignored — ``_parse_cdn_url`` only
+        matches recognised ``(library, version)`` conventions.
+        """
         findings: list[Finding] = []
         seen: set[tuple[str, str]] = set()  # (library, version) dedup
 
-        for script in artifacts.scripts:
-            if not script.is_external or not script.src:
+        for src in script_urls:
+            if not src:
                 continue
-            parsed = _parse_cdn_url(script.src)
+            parsed = _parse_cdn_url(src)
             if not parsed:
                 continue
             lib, version = parsed
@@ -240,7 +258,7 @@ class VulnerableLibsEngine:
             if key in seen:
                 continue
             seen.add(key)
-            findings.append(self._build(rule, script.src, version, artifacts.url))
+            findings.append(self._build(rule, src, version, page_url))
 
         return findings
 

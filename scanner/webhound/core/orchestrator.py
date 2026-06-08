@@ -58,6 +58,7 @@ from webhound.engines.javascript.js_analyzer import JsAnalyzerEngine
 from webhound.engines.javascript.js_collector import JsCollectorEngine
 from webhound.engines.javascript.obfuscation_detector import ObfuscationDetectorEngine
 from webhound.engines.javascript.third_party_domains import ThirdPartyDomainEngine
+from webhound.engines.javascript.vulnerable_libs import VulnerableLibsEngine
 from webhound.engines.recon.robots_sitemap import RobotsAndSitemapEngine
 from webhound.engines.recon.sensitive_paths import SensitivePathsEngine
 from webhound.engines.recon.technology import TechnologyEngine
@@ -337,6 +338,7 @@ class Scanner:
         self._js_analyzer = JsAnalyzerEngine()
         self._obfuscation = ObfuscationDetectorEngine()
         self._third_party = ThirdPartyDomainEngine()
+        self._vuln_libs = VulnerableLibsEngine()
         self._technology = TechnologyEngine()
         self._sensitive_paths = SensitivePathsEngine()
         self._robots_sitemap = RobotsAndSitemapEngine()
@@ -571,6 +573,20 @@ class Scanner:
             except Exception:  # noqa: BLE001
                 logger.warning(
                     "framework detection failed; scan output unaffected",
+                    exc_info=True,
+                )
+
+            # 4e. Known-vulnerable JS library detection. Scan-wide pass
+            # over the combined static + rendered-DOM + browser-loaded
+            # script inventory (incl. dynamic chunks). Gated to the DEEP
+            # / ENTERPRISE profiles via vuln_libs_enabled. Cheap, fully
+            # passive (URL parsing only). Best-effort — a failure records
+            # a diagnostic and never aborts the scan.
+            try:
+                self._run_vulnerable_libs(ctx, crawl_results)
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "vulnerable-libs pass failed; scan output unaffected",
                     exc_info=True,
                 )
 
@@ -1582,6 +1598,121 @@ class Scanner:
         if correlations:
             ctx.scan_result.metadata["threat_correlations"] = [
                 c.to_dict() for c in correlations]
+
+    def _collect_script_urls(
+        self, ctx: ScanContext, crawl_results: list,
+    ) -> list[str]:
+        """Build the deduplicated scan-wide script-URL inventory the
+        vulnerable-libs engine analyses.
+
+        Sources, in order:
+          1. Static external <script src> from every crawled page.
+          2. Rendered-DOM script tags / module srcs the browser saw
+             (post-hydration scripts the static crawler missed).
+          3. Browser-loaded script resources from captured network
+             traffic — JS responses + dynamic_import chunks that only
+             appear at runtime on SPA / code-split sites.
+        """
+        urls: list[str] = []
+        seen: set[str] = set()
+
+        def _add(u: str | None) -> None:
+            if u and u not in seen:
+                seen.add(u)
+                urls.append(u)
+
+        # 1. Static external scripts.
+        for r in crawl_results:
+            arts = getattr(r, "artifacts", None)
+            if arts is None:
+                continue
+            for u in getattr(arts, "external_script_urls", None) or []:
+                _add(u)
+
+        # 2. Rendered-DOM script tags / module srcs.
+        try:
+            for u in ctx.browser.get_all_script_urls():
+                _add(u)
+        except Exception:  # noqa: BLE001
+            logger.debug("rendered script-url collection failed", exc_info=True)
+
+        # 3. Browser-loaded script resources (incl. dynamic chunks).
+        try:
+            for art in ctx.browser.get_all_network_requests():
+                url = getattr(art, "url", None)
+                if not url:
+                    continue
+                kind = (getattr(art, "initiator_kind", "") or "").lower()
+                ctype = (getattr(art, "content_type", "") or "").lower()
+                path = urlparse(url).path.lower()
+                if (
+                    kind in ("script", "dynamic_import", "module")
+                    or "javascript" in ctype
+                    or path.endswith((".js", ".mjs"))
+                ):
+                    _add(url)
+        except Exception:  # noqa: BLE001
+            logger.debug("browser script-url collection failed", exc_info=True)
+
+        return urls
+
+    def _run_vulnerable_libs(
+        self, ctx: ScanContext, crawl_results: list,
+    ) -> None:
+        """Detect known-vulnerable JS libraries across the scan-wide
+        script inventory. No-op unless ``vuln_libs_enabled`` is set on
+        the active profile. Records a ``metadata.vulnerable_libs``
+        diagnostic block (engine, ran, input_scripts, findings,
+        duration_ms, errors) whether it succeeds or fails."""
+        name = self._vuln_libs.NAME
+        if not self._target.scan_options.vuln_libs_enabled:
+            ctx.scan_result.metadata["vulnerable_libs"] = {
+                "engine": name, "ran": False, "input_scripts": 0,
+                "findings": 0, "duration_ms": 0.0, "errors": [],
+                "skipped_reason": "profile does not enable vuln_libs",
+            }
+            return
+
+        started_at = datetime.now(timezone.utc)
+        t0 = time.perf_counter()
+        try:
+            urls = self._collect_script_urls(ctx, crawl_results)
+            findings = self._vuln_libs.analyze_script_urls(
+                urls, page_url=self._target.url,
+            )
+            for f in findings:
+                ctx.add_finding(f)
+            duration_ms = (time.perf_counter() - t0) * 1000
+            ctx.tracker.record_run(
+                name, findings, duration_ms, started_at,
+                datetime.now(timezone.utc),
+            )
+            if name not in ctx.scan_result.engines_run:
+                ctx.scan_result.engines_run.append(name)
+            ctx.scan_result.metadata["vulnerable_libs"] = {
+                "engine": name,
+                "ran": True,
+                "input_scripts": len(urls),
+                "findings": len(findings),
+                "duration_ms": round(duration_ms, 2),
+                "errors": [],
+            }
+        except Exception as exc:  # noqa: BLE001
+            duration_ms = (time.perf_counter() - t0) * 1000
+            err = f"{type(exc).__name__}: {exc}"
+            ctx.record_error(name, err)
+            ctx.tracker.record_error(
+                name, err, duration_ms, started_at,
+                datetime.now(timezone.utc),
+            )
+            ctx.scan_result.metadata["vulnerable_libs"] = {
+                "engine": name,
+                "ran": False,
+                "input_scripts": 0,
+                "findings": 0,
+                "duration_ms": round(duration_ms, 2),
+                "errors": [err],
+            }
 
     def _run_wade(self, ctx: ScanContext, crawl_results: list) -> None:
         """Build a WADE baseline and, if a previous baseline is available, compare."""

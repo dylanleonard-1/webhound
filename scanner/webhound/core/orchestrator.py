@@ -30,6 +30,24 @@ from webhound.telemetry import Stage as _TEL_STAGE
 from webhound.telemetry import Status as _TEL_STATUS
 
 
+def _infer_profile_name(opts: Any) -> str | None:
+    """Best-effort, read-only reverse-lookup of the profile name from a
+    ScanOptions object. ScanOptions carries no name field, so we match on
+    the coverage knobs. Telemetry-only — never affects scan behaviour."""
+    try:
+        from webhound.core.scan_profiles import PROFILES
+        key = (getattr(opts, "max_pages", None),
+               getattr(opts, "max_depth", None),
+               getattr(opts, "browser_enabled", None))
+        for name, prof in PROFILES.items():
+            po = prof.to_scan_options()
+            if (po.max_pages, po.max_depth, po.browser_enabled) == key:
+                return name
+    except Exception:  # noqa: BLE001 — inference is best-effort
+        return None
+    return None
+
+
 def _safe_hostname(url: str | None) -> str | None:
     """Best-effort hostname extraction used by browser-pass plumbing.
     Returns None when ``url`` is falsy or malformed."""
@@ -431,9 +449,26 @@ class Scanner:
         ctx = ScanContext(self._target)
         ctx.telemetry.emit(
             _TEL.SCAN_STARTED, _TEL_STAGE.SCAN,
-            metadata={"profile": getattr(self._target.scan_options,
-                                         "profile_name", None),
+            metadata={"profile": _infer_profile_name(self._target.scan_options),
                       "host": self._target.hostname})
+        # Phase-2 telemetry — profile.loaded. Records the safe profile
+        # knobs that determine coverage (esp. browser_enabled, the gate
+        # behind the deep≈standard root cause). Observability only.
+        _opts = self._target.scan_options
+        ctx.telemetry.emit(
+            _TEL.PROFILE_LOADED, _TEL_STAGE.PROFILE,
+            metadata={
+                "profile": _infer_profile_name(_opts),
+                "browser_enabled": getattr(_opts, "browser_enabled", None),
+                "max_pages": getattr(_opts, "max_pages", None),
+                "max_depth": getattr(_opts, "max_depth", None),
+                "safe_interactions_enabled": getattr(
+                    _opts, "safe_interactions_enabled", None),
+                "asm_enabled": getattr(_opts, "asm_enabled", None),
+                "vuln_libs_enabled": getattr(_opts, "vuln_libs_enabled", None),
+                "auth_mode": getattr(_opts, "auth_mode", None),
+                "baseline_loaded": self._previous_baseline is not None,
+            })
         # Phase-10: build the authenticated-scan context (secret-free)
         # + the Playwright auth_state (secret-carrying, browser-only).
         # Defaults to public_only — no behaviour change when no session.
@@ -1152,16 +1187,38 @@ class Scanner:
             and not getattr(r.response, "failed", True)
         ]
         if not page_urls:
+            # Phase-2 telemetry — nothing to render; record as deferred.
+            ctx.telemetry.emit(
+                _TEL.BROWSER_DEFERRED, _TEL_STAGE.BROWSER,
+                status=_TEL_STATUS.SKIPPED,
+                metadata={"deferred_reason": "no_crawled_pages"})
+            ctx.telemetry.stage_snapshot(
+                "after_browser_discovery", {"deferred": True})
             return
+
+        # Phase-2 telemetry — browser.started at the pass boundary.
+        ctx.telemetry.emit(
+            _TEL.BROWSER_STARTED, _TEL_STAGE.BROWSER,
+            inputs={"pages": len(page_urls)},
+            metadata={"allow_network": allow_net})
 
         t0 = time.perf_counter()
         started_at = datetime.now(timezone.utc)
-        result = await run_browser_pass(
-            page_urls, allow_network=allow_net,
-            user_agent=self._target.scan_options.user_agent,
-            url_filter=ctx.scope.is_in_scope,
-            auth_state=getattr(self, "_browser_auth_state", None),
-        )
+        try:
+            result = await run_browser_pass(
+                page_urls, allow_network=allow_net,
+                user_agent=self._target.scan_options.user_agent,
+                url_filter=ctx.scope.is_in_scope,
+                auth_state=getattr(self, "_browser_auth_state", None),
+            )
+        except Exception as _bexc:  # noqa: BLE001 — re-raised below
+            ctx.telemetry.emit(
+                _TEL.BROWSER_FAILED, _TEL_STAGE.BROWSER,
+                status=_TEL_STATUS.ERROR,
+                errors=[f"{type(_bexc).__name__}: {_bexc}"])
+            ctx.telemetry.stage_snapshot(
+                "after_browser_discovery", {"deferred": True, "failed": True})
+            raise
         duration_ms = (time.perf_counter() - t0) * 1000.0
 
         # Attach the discovery container so engines + reporting access
@@ -1298,6 +1355,36 @@ class Scanner:
             logger.debug(
                 "browser-pass metadata write failed", exc_info=True,
             )
+
+        # Phase-2 telemetry — browser.finished / browser.deferred +
+        # after_browser_discovery handoff. Counts are read back from the
+        # browser_pass metadata block built above (single source), so no
+        # recomputation and no behaviour change. Pure observability.
+        _bp = ctx.scan_result.metadata.get("browser_pass") or {}
+        _bcounts = {
+            "rendered_page_count": _bp.get("browser_pages_rendered"),
+            "rendered_link_count": _bp.get("rendered_links_found"),
+            "rendered_form_count": _bp.get("rendered_forms_found"),
+            "artifact_count": _bp.get("artifact_count"),
+            "client_route_count": _bp.get("browser_client_routes_found"),
+            "api_endpoint_count": _bp.get("browser_api_requests"),
+            "third_party_count": _bp.get("browser_third_party_requests"),
+            "host_count": _bp.get("host_count"),
+        }
+        _bcounts = {k: v for k, v in _bcounts.items() if v is not None}
+        if result.deferred:
+            ctx.telemetry.emit(
+                _TEL.BROWSER_DEFERRED, _TEL_STAGE.BROWSER,
+                status=_TEL_STATUS.SKIPPED,
+                duration_ms=round(duration_ms, 2),
+                metadata={"deferred_reason": result.error or "deferred"})
+        else:
+            ctx.telemetry.emit(
+                _TEL.BROWSER_FINISHED, _TEL_STAGE.BROWSER,
+                duration_ms=round(duration_ms, 2), outputs=_bcounts)
+        ctx.telemetry.stage_snapshot(
+            "after_browser_discovery",
+            {"deferred": bool(result.deferred), **_bcounts})
 
     # ------------------------------------------------------------------
     # Rendered-DOM engine pass (Phase-6A)

@@ -61,6 +61,7 @@ class EventType(str, Enum):
     BROWSER_ROUTE_DISCOVERED = "browser.route.discovered"
     BROWSER_FINISHED = "browser.finished"
     BROWSER_FAILED = "browser.failed"
+    BROWSER_DEFERRED = "browser.deferred"
     # framework
     FRAMEWORK_DETECTED = "framework.detected"
     FRAMEWORK_ROUTE_DISCOVERED = "framework.route.discovered"

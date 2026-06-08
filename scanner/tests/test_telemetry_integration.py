@@ -123,3 +123,132 @@ async def test_telemetry_does_not_change_findings(monkeypatch) -> None:
     assert len(off.findings) == len(on.findings)
     assert {f.title for f in off.findings} == {f.title for f in on.findings}
     assert off.metadata.get("risk_score") == on.metadata.get("risk_score")
+
+
+# ---------------------------------------------------------------------------
+# Phase-2 (option a): profile.loaded + browser-pass + after_browser_discovery
+# ---------------------------------------------------------------------------
+
+
+def _profile_opts(name: str) -> "ScanOptions":
+    """Real profile options, sped up for tests. Only rate/verify are
+    changed — max_pages/max_depth/browser_enabled stay intact so profile
+    inference and the browser gate behave exactly as in production."""
+    from webhound.core.scan_profiles import get_profile
+    return get_profile(name).to_scan_options().model_copy(
+        update={"rate_limit_rps": 50.0, "verify_tls": False})
+
+
+async def _run_capture(monkeypatch, *, profile: str | None = None):
+    """Run a scan and return (result, recorder) by intercepting the
+    recorder ScanContext builds — gives event-level access the compact
+    summary doesn't carry."""
+    import webhound.telemetry as _telmod
+    from webhound.core.orchestrator import Scanner
+    _patch_net(monkeypatch)
+    captured: dict = {}
+    _orig = _telmod.build_recorder
+
+    def _capture(*a, **k):
+        rec = _orig(*a, **k)
+        captured["rec"] = rec
+        return rec
+
+    monkeypatch.setattr(_telmod, "build_recorder", _capture)
+    opts = _profile_opts(profile) if profile else _target().scan_options
+    target = Target.from_url("https://t.test", scan_options=opts)
+    result = await Scanner(target, _transport=_transport()).scan()
+    return result, captured["rec"]
+
+
+def _events_of(rec, type_value: str) -> list:
+    return [e for e in rec.events() if e.event_type.value == type_value]
+
+
+@pytest.mark.anyio
+async def test_profile_loaded_fires(monkeypatch) -> None:
+    monkeypatch.setenv("WEBHOUND_TELEMETRY_LEVEL", "engines")
+    result = await _run(monkeypatch)
+    assert result.metadata["telemetry"]["event_type_counts"].get(
+        "profile.loaded") == 1
+
+
+@pytest.mark.anyio
+async def test_profile_loaded_quick_browser_disabled(monkeypatch) -> None:
+    monkeypatch.setenv("WEBHOUND_TELEMETRY_LEVEL", "engines")
+    _result, rec = await _run_capture(monkeypatch, profile="quick")
+    ev = _events_of(rec, "profile.loaded")
+    assert len(ev) == 1
+    assert ev[0].metadata["profile"] == "quick"
+    assert ev[0].metadata["browser_enabled"] is False
+
+
+@pytest.mark.anyio
+async def test_profile_loaded_deep_browser_enabled(monkeypatch) -> None:
+    monkeypatch.setenv("WEBHOUND_TELEMETRY_LEVEL", "engines")
+    _result, rec = await _run_capture(monkeypatch, profile="deep")
+    ev = _events_of(rec, "profile.loaded")
+    assert len(ev) == 1
+    assert ev[0].metadata["profile"] == "deep"
+    assert ev[0].metadata["browser_enabled"] is True
+
+
+@pytest.mark.anyio
+async def test_browser_deferred_emits_reason(monkeypatch) -> None:
+    """DEEP wants the browser; with WEBHOUND_BROWSER_ENABLED unset the pass
+    defers — telemetry must record browser.started + browser.deferred(reason)
+    and the after_browser_discovery handoff."""
+    monkeypatch.setenv("WEBHOUND_TELEMETRY_LEVEL", "engines")
+    monkeypatch.delenv("WEBHOUND_BROWSER_ENABLED", raising=False)
+    result, rec = await _run_capture(monkeypatch, profile="deep")
+    assert result.status == ScanStatus.COMPLETED
+    assert _events_of(rec, "browser.started"), "browser.started fired"
+    deferred = _events_of(rec, "browser.deferred")
+    assert len(deferred) == 1
+    assert deferred[0].metadata.get("deferred_reason")
+    assert not _events_of(rec, "browser.finished")
+    assert "after_browser_discovery" in rec.handoffs
+    assert rec.handoffs["after_browser_discovery"]["deferred"] is True
+
+
+@pytest.mark.anyio
+async def test_browser_finished_emits_counts(monkeypatch) -> None:
+    """Patch run_browser_pass to a non-deferred result → browser.finished
+    fires with safe counts (no raw bodies)."""
+    monkeypatch.setenv("WEBHOUND_TELEMETRY_LEVEL", "engines")
+    from webhound.browser.models import BrowserTelemetry, NetworkArtifact
+    from webhound.browser.playwright_runner import BrowserPassResult
+
+    art = NetworkArtifact(url="https://api.t.test/v1/data", method="GET",
+                          initiator_kind="fetch", page_url="https://t.test/")
+    tel = BrowserTelemetry(
+        page_url="https://t.test/", artifacts=[art],
+        rendered_html="<html><body><a href='/x'>x</a></body></html>",
+        rendered_links=["https://t.test/x"])
+    fake = BrowserPassResult(telemetries=[tel], deferred=False, error=None)
+
+    async def _fake_run(*a, **k):
+        return fake
+
+    import webhound.browser.playwright_runner as _pr
+    monkeypatch.setattr(_pr, "run_browser_pass", _fake_run)
+    monkeypatch.setattr(_pr, "browser_pass_enabled", lambda: True)
+
+    result, rec = await _run_capture(monkeypatch, profile="deep")
+    assert result.status == ScanStatus.COMPLETED
+    finished = _events_of(rec, "browser.finished")
+    assert len(finished) == 1, "browser.finished fired"
+    out = finished[0].outputs
+    assert out.get("artifact_count") == 1
+    assert out.get("rendered_link_count") == 1
+    # No browser.deferred on the success path.
+    assert not _events_of(rec, "browser.deferred")
+
+
+@pytest.mark.anyio
+async def test_after_browser_discovery_handoff_fires(monkeypatch) -> None:
+    monkeypatch.setenv("WEBHOUND_TELEMETRY_LEVEL", "engines")
+    result, rec = await _run_capture(monkeypatch, profile="deep")
+    assert "after_browser_discovery" in rec.handoffs
+    # And it surfaces in the persisted summary's handoff map.
+    assert "after_browser_discovery" in result.metadata["telemetry"]["handoffs"]

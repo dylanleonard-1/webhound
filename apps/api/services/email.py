@@ -93,34 +93,79 @@ def _send_smtp(to: str, subject: str, html: str, text: str) -> None:
     msg.attach(MIMEText(html, "html"))
     with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
         server.ehlo()
-        server.starttls()
+        # FIX 11 — STARTTLS is opt-out via SMTP_USE_TLS (default on). Some
+        # relays (localhost dev MTA, internal smtphost) don't offer STARTTLS.
+        if getattr(settings, "smtp_use_tls", True):
+            server.starttls()
+            server.ehlo()
         if settings.smtp_username:
             server.login(settings.smtp_username, settings.smtp_password)
         server.sendmail(settings.smtp_from_email, to, msg.as_string())
+    logger.info("SMTP delivered email to %s (subject=%r)", to, subject)
 
 
-def _send_email(to: str, subject: str, html: str, text: str) -> None:
-    """Send via Resend, falling back to SMTP if Resend fails.
+# FIX 11 — substrings that mark a permanent Resend/SMTP rejection. A bad
+# recipient address will fail the same way on SMTP, so we must NOT burn the
+# fallback (or retry) on these — re-raise immediately.
+_PERMANENT_EMAIL_MARKERS = (
+    "invalid",            # "invalid `to` field", "invalid recipient", "invalid email"
+    "validation_error",   # Resend validation errors
+    "not a valid",
+    "recipient",          # SMTPRecipientsRefused str()
+    "no such user",
+    "mailbox unavailable",
+    "does not exist",
+    "5.1.1",              # SMTP enhanced status: bad destination mailbox
+    "550",               # SMTP permanent: mailbox unavailable
+)
 
-    Resend stays the primary provider. If a Resend send raises (outage, rate
-    limit, domain issue) and SMTP is configured, we transparently fall back so
-    a single-provider outage doesn't block verification / password-reset /
-    login-code emails. The Resend failure is logged either way.
+
+def _is_permanent_email_error(exc: Exception) -> bool:
+    """True when the failure is about the *message/recipient* (won't be fixed by
+    trying another provider) rather than a transient provider/transport issue."""
+    import smtplib as _smtplib
+
+    if isinstance(exc, (_smtplib.SMTPRecipientsRefused, _smtplib.SMTPSenderRefused)):
+        return True
+    msg = str(exc).lower()
+    return any(marker in msg for marker in _PERMANENT_EMAIL_MARKERS)
+
+
+def _send_email(to: str, subject: str, html: str, text: str) -> str:
+    """Send via Resend, failing over to SMTP if enabled. Returns the provider
+    that delivered the message ("resend" or "smtp").
+
+    Resend stays the primary provider. If a Resend send raises a *transient*
+    error (outage, rate limit, domain issue) AND SMTP failover is enabled
+    (SMTP_FALLBACK_ENABLED=1 with SMTP_HOST), we transparently fall back so a
+    single-provider outage doesn't block verification / reset / login-code /
+    notification emails. We do NOT fail over on a permanent error (e.g. invalid
+    recipient) — that would just fail again and waste the attempt.
     """
     settings = get_settings()
+    smtp_fallback = (
+        bool(getattr(settings, "smtp_fallback_enabled", False))
+        and bool(settings.smtp_host)
+    )
     if settings.resend_api_key:
         try:
             _send_resend(to, subject, html, text)
-            return
-        except Exception:
-            if not settings.smtp_host:
+            return "resend"
+        except Exception as exc:
+            if not smtp_fallback:
                 raise
-            logger.exception("Resend send failed; falling back to SMTP for %s", to)
+            if _is_permanent_email_error(exc):
+                logger.warning(
+                    "Resend rejected %s permanently (%s); not failing over to SMTP",
+                    to, exc,
+                )
+                raise
+            logger.exception("Resend send failed; failing over to SMTP for %s", to)
             _send_smtp(to, subject, html, text)
-            return
+            return "smtp"
     if settings.smtp_host:
         _send_smtp(to, subject, html, text)
-        return
+        return "smtp"
     raise RuntimeError("No email provider configured")
 
 

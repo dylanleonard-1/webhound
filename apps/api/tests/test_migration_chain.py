@@ -96,6 +96,15 @@ def test_chain_has_expected_minimum_length() -> None:
     assert len(chain) >= 33, f"only {len(chain)} migrations — expected >= 33"
 
 
+def test_portfolio_migration_0032_linked() -> None:
+    # FIX 7 — the Phase-16 portfolio migration must exist and descend from
+    # 0031, and the head must be reachable past it (>= 0032).
+    chain = _load_all()
+    assert "0032" in chain, "portfolio migration 0032 (website_groups) is missing"
+    assert chain["0032"] == "0031", "0032 must descend from 0031"
+    assert resolve_head(chain) >= "0032", "head is below the portfolio migration"
+
+
 if __name__ == "__main__":  # pragma: no cover — manual static check
     c = _load_all()
     print(f"migrations={len(c)} head={resolve_head(c)}")

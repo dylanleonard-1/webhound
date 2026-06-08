@@ -9,12 +9,19 @@ from typing import Annotated
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.database import get_db
 from apps.api.internal.audit import record_action
 from apps.api.internal.rbac import require_admin
+from apps.api.services.admin_scan import (
+    ALLOWED_PROFILES,
+    AdminScanError,
+    read_scan_telemetry,
+    run_admin_scan,
+)
 from apps.api.models.admin_audit_log import AdminAuditLog  # noqa: F401 (ensure registered)
 from apps.api.models.engine_diagnostic import EngineDiagnosticRecord
 from apps.api.models.enums import AdminRole
@@ -199,6 +206,52 @@ async def force_rescan(scan_id: uuid.UUID, admin: _Op, db: _DB, request: Request
                         detail={"origin_scan": str(scan_id)}, **_audit_ctx(request))
     await db.commit()
     return {"ok": True, "new_scan_id": str(new.id), "origin": str(scan_id)}
+
+
+class AdminRunScanRequest(BaseModel):
+    url: str = Field(min_length=1, max_length=2048)
+    profile: str = Field(description="quick|standard|deep|enterprise|monitor|baseline")
+    reason: str = Field(min_length=1, max_length=500)
+    internal_test_mode: bool = False
+    save_baseline: bool | None = None
+    use_latest_baseline: bool = False
+
+
+@router.post("/scans/run", status_code=201)
+async def run_scan_on_demand(
+    payload: AdminRunScanRequest, admin: _Op, db: _DB, request: Request,
+) -> dict:
+    """Internal/admin: run ANY scan profile on demand through the production
+    pipeline. ANALYST+ only; every run is audited (actor + url + profile +
+    reason). Same Website/ScanJob/worker path as customer scans — no parallel
+    scanner, no scanner-behaviour change. Returns {job_id, scan_id, profile,
+    status}."""
+    if payload.profile.strip().lower() not in ALLOWED_PROFILES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"profile must be one of: {', '.join(ALLOWED_PROFILES)}")
+    try:
+        result = await run_admin_scan(
+            db, url=payload.url, profile=payload.profile, reason=payload.reason,
+            triggered_by=admin.email, actor=admin,
+            internal_test_mode=payload.internal_test_mode,
+            save_baseline=payload.save_baseline,
+            use_latest_baseline=payload.use_latest_baseline,
+            audit_ctx=_audit_ctx(request))
+    except AdminScanError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    await db.commit()
+    return result
+
+
+@router.get("/scans/{job_id}/telemetry")
+async def scan_telemetry(job_id: uuid.UUID, admin: _Read, db: _DB) -> dict:
+    """Internal/admin: read the persisted telemetry + browser_pass for a scan
+    job, folded into the browser-telemetry verification view. Read-only."""
+    try:
+        return await read_scan_telemetry(db, job_id)
+    except AdminScanError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
 
 
 @router.get("/engines")

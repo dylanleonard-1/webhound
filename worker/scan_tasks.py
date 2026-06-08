@@ -234,8 +234,9 @@ async def _execute(
                         job_id,
                     )
 
+        created_notifications: list = []
         if user_id is not None and job is not None:
-            await generate_scan_notifications(
+            created_notifications = await generate_scan_notifications(
                 db,
                 user_id=user_id,
                 website_id=job.website_id,
@@ -248,6 +249,31 @@ async def _execute(
             )
 
         await db.commit()
+
+        # FIX 6 — outbound email delivery. Feature-flagged + provider-gated:
+        # eligible_for_email returns [] unless NOTIFICATIONS_ENABLED=1 and a
+        # provider is configured, so by default nothing is enqueued and no
+        # email is claimed. Best-effort — a queueing hiccup never affects the
+        # already-committed scan result.
+        try:
+            from apps.api.config import get_settings
+            from apps.api.services.notification_delivery import eligible_for_email
+
+            user_email = None
+            if user_id is not None:
+                from apps.api.models.user import User as _User
+                _user = await db.get(_User, user_id)
+                user_email = getattr(_user, "email", None)
+
+            if user_email and get_settings().notifications_enabled:
+                from worker.notification_tasks import deliver_notification_email
+                for n in eligible_for_email(created_notifications):
+                    deliver_notification_email.delay(str(n.id), user_email)
+        except Exception:
+            logger.warning(
+                "notification email enqueue failed for job %s (non-fatal)",
+                job_id, exc_info=True,
+            )
 
     if own_engine:
         await own_engine.dispose()

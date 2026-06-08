@@ -70,4 +70,19 @@ class Notification(Base, TimestampMixin):
     extra_metadata: Mapped[dict | None] = mapped_column("metadata", sa.JSON)
     read_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
 
+    # --- Outbound email delivery (FIX 6) ---------------------------------
+    # Tracks whether this in-app notification was ALSO delivered by email.
+    # Values: skipped (not eligible / feature off — never attempted),
+    # pending (queued), sent, failed (retries exhausted), suppressed
+    # (duplicate within the dedup window). Default "skipped" so existing
+    # rows and the email-off path never claim an email was sent.
+    email_status: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False, default="skipped", server_default="skipped",
+    )
+    email_attempts: Mapped[int] = mapped_column(
+        sa.Integer, nullable=False, default=0, server_default="0",
+    )
+    email_sent_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    email_last_error: Mapped[str | None] = mapped_column(sa.Text)
+
     user: Mapped["User"] = relationship("User", back_populates="notifications")

@@ -33,6 +33,7 @@ celery = Celery(
         "worker.scan_tasks",
         "worker.report_tasks",
         "worker.monitoring_tasks",
+        "worker.notification_tasks",
         "worker.alert_tasks",
         "worker.fraud_tasks",
         "worker.infra_tasks",

@@ -132,6 +132,9 @@ class BrowserTelemetry:
     )
     finished_at: datetime | None = None
     final_url: str | None = None
+    # Main navigation HTTP status (page.goto response). Used by the
+    # browser-yield/challenge detector to spot 403/429/503 block pages.
+    status_code: int | None = None
     artifacts: list[NetworkArtifact] = field(default_factory=list)
     # Rendered-DOM capture (Phase-6A). ``rendered_html`` is the
     # post-hydration ``page.content()`` snapshot — what the user's

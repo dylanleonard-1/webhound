@@ -1372,6 +1372,35 @@ class Scanner:
             "host_count": _bp.get("host_count"),
         }
         _bcounts = {k: v for k, v in _bcounts.items() if v is not None}
+
+        # Browser Yield & Challenge Detection (detection/reporting only — no
+        # evasion). Classifies whether the browser rendered the real site or a
+        # CDN/WAF challenge/block page, so coverage gaps are explained rather
+        # than silent. Stored on browser_pass + surfaced in telemetry.
+        try:
+            from webhound.browser.challenge_detection import (
+                assess_browser_yield,
+                build_signals,
+            )
+            _static_size = 0
+            for _cr in (crawl_results or []):
+                _body = getattr(getattr(_cr, "response", None), "body", None)
+                if _body:
+                    _static_size = max(_static_size, len(_body))
+            _assess = assess_browser_yield(build_signals(
+                result.telemetries, static_html_size=_static_size or None,
+                deferred=result.deferred))
+            _bpd = ctx.scan_result.metadata.get("browser_pass")
+            if not isinstance(_bpd, dict):
+                _bpd = ctx.scan_result.metadata.setdefault("browser_pass", {})
+            _bpd["yield_assessment"] = _assess
+            _bcounts["rendered_real_app"] = _assess.get("rendered_real_app")
+            _bcounts["challenge_detected"] = _assess.get("challenge_detected")
+            _bcounts["challenge_provider"] = _assess.get("challenge_provider")
+            _bcounts["yield_confidence"] = _assess.get("confidence")
+        except Exception:  # noqa: BLE001 — assessment is best-effort
+            logger.debug("browser yield assessment failed", exc_info=True)
+
         if result.deferred:
             ctx.telemetry.emit(
                 _TEL.BROWSER_DEFERRED, _TEL_STAGE.BROWSER,

@@ -252,3 +252,19 @@ async def test_after_browser_discovery_handoff_fires(monkeypatch) -> None:
     assert "after_browser_discovery" in rec.handoffs
     # And it surfaces in the persisted summary's handoff map.
     assert "after_browser_discovery" in result.metadata["telemetry"]["handoffs"]
+
+
+@pytest.mark.anyio
+async def test_browser_yield_assessment_present(monkeypatch) -> None:
+    """The challenge/yield detector runs during a browser-enabled scan and
+    stores an assessment on browser_pass (detection only — results unchanged)."""
+    monkeypatch.setenv("WEBHOUND_TELEMETRY_LEVEL", "engines")
+    result, _rec = await _run_capture(monkeypatch, profile="deep")
+    bp = result.metadata.get("browser_pass") or {}
+    ya = bp.get("yield_assessment")
+    assert ya is not None
+    for k in ("rendered_real_app", "challenge_detected", "challenge_provider",
+              "confidence", "recommended_action", "evidence"):
+        assert k in ya
+    # Browser deferred in tests (no allow_network) → can't judge content.
+    assert ya["challenge_detected"] in (True, False, "unknown")

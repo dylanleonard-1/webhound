@@ -319,10 +319,15 @@ async def _playwright_pass(
                     tel = BrowserTelemetry(page_url=url)
                     _wire_capture(page, tel)
                     try:
-                        await asyncio.wait_for(
+                        _resp = await asyncio.wait_for(
                             page.goto(url, wait_until="domcontentloaded"),
                             timeout=per_page_timeout_ms / 1000.0,
                         )
+                        # Capture the main response status for the
+                        # challenge/block detector (403/429/503). Purely
+                        # observational — does not alter navigation.
+                        if _resp is not None:
+                            tel.status_code = _resp.status
                         # Redirects can carry the browser out of scope
                         # (cross-domain SSO hops, parked-domain
                         # bounces). When that happens: record the

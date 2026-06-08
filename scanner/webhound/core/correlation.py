@@ -125,7 +125,15 @@ def _supply_chain_chain(findings: list[Finding]) -> Chain | None:
     )
     matches = tuple(_finding_to_match(s) for s in
                     (csp_signal, third_party_signal, obfuscation_signal) if s)
-    if len(matches) < 2:
+    # The threat-intel hit is the supply-chain-DEFINING signal. Without a
+    # flagged third-party host, this is just a site with no CSP and some
+    # minified/base64 inline JS — both ubiquitous and benign on modern
+    # sites. Firing a HIGH "compromise" chain on those two alone is a
+    # false positive (and the description would claim a third-party was
+    # flagged when none was). Require the threat-intel signal; csp+inline
+    # without a flagged vendor is covered by the lower-severity
+    # _csp_external_inline_chain instead.
+    if third_party_signal is None or len(matches) < 2:
         return None
     return Chain(
         name="supply_chain_compromise_risk",
@@ -175,6 +183,11 @@ def _exposed_admin_chain(findings: list[Finding]) -> Chain | None:
     admin_signal = next(
         (f for f in findings
          if _engine_matches(f, ["sensitive_paths"])
+         # Exclude weak catch-all-403 heuristics: hosts like Vercel return
+         # 403 for EVERY unknown path, so a 35-45%-confidence "/phpmyadmin
+         # returned 403" is not evidence of a real admin surface. Require a
+         # substantive (>=0.6) signal — a path that actually exists.
+         and f.confidence >= 0.6
          and _matches_keywords(
              (f.metadata or {}).get("path", ""),
              ["admin", "login", "phpmyadmin", "adminer", "wp-admin"],
@@ -197,7 +210,11 @@ def _exposed_admin_chain(findings: list[Finding]) -> Chain | None:
     )
     matches = tuple(_finding_to_match(s) for s in
                     (admin_signal, headers_signal, form_signal) if s)
-    if len(matches) < 2:
+    # The admin/auth surface is the defining signal: weak headers + a login
+    # form without a real admin path is generic hardening, not an "exposed
+    # admin attack surface". Require the admin signal so the chain can't
+    # fire on a catch-all-403 probe.
+    if admin_signal is None or len(matches) < 2:
         return None
     return Chain(
         name="exposed_admin_attack_surface",

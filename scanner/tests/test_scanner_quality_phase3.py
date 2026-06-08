@@ -65,19 +65,35 @@ def test_supply_chain_chain_fires_on_three_signals() -> None:
     assert len(cluster.metadata["constituent_finding_ids"]) == 3
 
 
-def test_supply_chain_chain_fires_on_two_signals_minimum() -> None:
-    """Two converging signals is enough — the rule shouldn't insist on all
-    three. (User policy: heightened concern when ≥2 signals agree.)"""
+def test_supply_chain_chain_fires_on_threat_intel_plus_one() -> None:
+    """Two signals is enough — but ONE of them must be the threat-intel hit
+    (the supply-chain-defining signal). threat-intel + CSP fires."""
     findings = [
         _f("Weak Content-Security-Policy: unsafe-inline allowed",
            "security_headers", severity=Severity.MEDIUM, confidence=0.7),
-        _f("Inline script contains long base64 blob",
-           "obfuscation_detector", severity=Severity.LOW, confidence=0.4),
+        _f("Suspicious third-party domain detected: punycode label",
+           "threat_intel", severity=Severity.MEDIUM, confidence=0.7),
     ]
     result = correlate_findings(findings)
     assert len(result.cluster_findings) == 1
     cluster = result.cluster_findings[0]
     assert cluster.metadata["signal_count"] == 2
+
+
+def test_supply_chain_chain_does_not_fire_without_threat_intel() -> None:
+    """Regression: no-CSP + base64-in-minified-JS (both ubiquitous on clean
+    modern sites) must NOT fire a HIGH 'supply chain compromise' chain when
+    no third-party host was actually flagged. This was the
+    webhoundsecurity.com false positive."""
+    findings = [
+        _f("No Content-Security-Policy",
+           "security_headers", severity=Severity.MEDIUM, confidence=1.0),
+        _f("Inline script contains a large base64 chunk (heuristic)",
+           "obfuscation_detector", severity=Severity.LOW, confidence=0.5),
+    ]
+    result = correlate_findings(findings)
+    assert all("supply_chain_compromise_risk" not in c.tags
+               for c in result.cluster_findings)
 
 
 def test_supply_chain_chain_does_not_fire_on_one_signal() -> None:
@@ -124,6 +140,23 @@ def test_exposed_admin_chain_inspects_metadata_path() -> None:
     ]
     result = correlate_findings(findings)
     assert len(result.cluster_findings) == 1
+
+
+def test_exposed_admin_chain_ignores_catch_all_403_heuristic() -> None:
+    """Regression: a 35-45%-confidence '/phpmyadmin returned 403' probe (a
+    catch-all 403 that hosts like Vercel return for EVERY path) plus a
+    missing-HSTS finding must NOT fire 'exposed admin attack surface'. This
+    was the webhoundsecurity.com false positive."""
+    findings = [
+        _f("Path '/phpmyadmin' returned HTTP 403 (heuristic)",
+           "sensitive_paths", severity=Severity.INFO, confidence=0.45,
+           metadata={"path": "/phpmyadmin"}),
+        _f("No HSTS", "security_headers", severity=Severity.MEDIUM,
+           confidence=1.0),
+    ]
+    result = correlate_findings(findings)
+    assert all(c.metadata.get("chain_name") != "exposed_admin_attack_surface"
+               for c in result.cluster_findings)
 
 
 # ---------------------------------------------------------------------------
@@ -177,6 +210,8 @@ def test_confidence_bump_only_raises_never_lowers() -> None:
 def test_apply_correlation_tags_corroborated_findings() -> None:
     findings = [
         _f("Missing CSP", "security_headers", confidence=0.7),
+        _f("Suspicious third-party domain: punycode label",
+           "threat_intel", confidence=0.7),
         _f("base64 inline blob", "obfuscation_detector", confidence=0.5),
     ]
     corr = correlate_findings(findings)
@@ -193,6 +228,8 @@ def test_apply_correlation_is_idempotent() -> None:
     UI re-renders without rescanning."""
     findings = [
         _f("Missing CSP", "security_headers", confidence=0.7),
+        _f("Suspicious third-party domain: punycode label",
+           "threat_intel", confidence=0.7),
         _f("base64 inline blob", "obfuscation_detector", confidence=0.5),
     ]
     corr = correlate_findings(findings)

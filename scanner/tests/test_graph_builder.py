@@ -178,6 +178,25 @@ def test_graph_handles_missing_browser_and_empty_scan() -> None:
     assert g.node_count >= 1               # at least the site node
 
 
+def test_sensitive_path_probes_dont_inflate_page_count() -> None:
+    """Regression: sensitive_paths findings probe uncrawled URLs (e.g.
+    /phpmyadmin) that 403. They must NOT create phantom PAGE nodes — the
+    '24 pages on a 1-page site' bug. They anchor to the site instead."""
+    g = build_graph(_result(grouped=[
+        _gf("Path '/phpmyadmin' returned HTTP 403 (heuristic)",
+            engine="sensitive_paths", urls=["https://t.test/phpmyadmin"]),
+        _gf("Path '/wp-config.php' returned HTTP 403 (heuristic)",
+            engine="sensitive_paths", urls=["https://t.test/wp-config.php"]),
+    ]), crawl_results=[_crawl("https://t.test/")])
+    # Only the one crawled page is a PAGE node — not the two probes.
+    assert len(g.nodes_of_type(NodeType.PAGE)) == 1
+    # The probe findings are still connected (to the site), not orphaned.
+    site = g.find_node(NodeType.SITE, "t.test")
+    linked = g.neighbors(site.id, EdgeType.RELATED_TO_FINDING,
+                         target_type=NodeType.FINDING)
+    assert len(linked) == 2
+
+
 def test_build_is_deterministic() -> None:
     crawl = [_crawl("https://t.test/", scripts=[_script(src="https://x.test/a.js")])]
     g1 = build_graph(_result(), crawl_results=crawl)

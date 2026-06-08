@@ -49,6 +49,7 @@ class GraphBuilder:
                                        "base_url", "")) or "").lower()
 
         site = g.node(NodeType.SITE, primary or "site", label=primary or "site")
+        self._site_id = site.id
 
         # 1. Pages + their assets (static crawl).
         for r in crawl_results or []:
@@ -233,13 +234,17 @@ class GraphBuilder:
         if hint == "third_party_domain" and host:
             target = g.find_node(NodeType.THIRD_PARTY_DOMAIN, host) \
                 or g.node(NodeType.THIRD_PARTY_DOMAIN, host, label=host)
-        elif hint == "page" and page_url:
-            target = g.find_node(NodeType.PAGE, page_url) \
-                or g.node(NodeType.PAGE, page_url, label=page_url)
-        elif hint in ("header", "cookie") and page_url:
-            target = g.find_node(NodeType.PAGE, page_url)
-        if target is None and page_url:
-            target = g.find_node(NodeType.PAGE, page_url)
+        elif page_url:
+            # Link to a page only if it was actually crawled/rendered. We
+            # do NOT fabricate a PAGE node for an uncrawled URL — e.g.
+            # sensitive_paths probes /phpmyadmin, /wp-config.php etc. that
+            # 403'd and were never real pages; creating page nodes for them
+            # would inflate the graph's page_count (the '24 pages' on a
+            # 1-page site bug). Anchor those to the site node instead, so
+            # the finding is connected but page_count stays honest.
+            target = (g.find_node(NodeType.PAGE, page_url)
+                      or g.find_node(NodeType.RENDERED_PAGE, page_url)
+                      or g.get_node(getattr(self, "_site_id", None)))
         if target is not None:
             g.edge(target, node, EdgeType.RELATED_TO_FINDING, source=engine)
 

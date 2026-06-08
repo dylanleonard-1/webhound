@@ -209,9 +209,33 @@ async def _execute(
     except Exception:
         logger.debug("publish scan.started failed (non-fatal)", exc_info=True)
 
+    # FIX 10 — cancellation probe. Awaited by the scanner at each phase
+    # boundary; opens a short-lived session, refreshes the job heartbeat
+    # (FIX 9), and returns True when the API has flagged the scan for
+    # cancellation. Probe failures are swallowed by the scanner (never abort a
+    # healthy scan on a transient DB hiccup).
+    async def _cancel_check() -> bool:
+        from datetime import datetime as _dt, timezone as _tz
+
+        from apps.api.models.scan_job import ScanJob as _ScanJob
+        from apps.api.models.enums import ScanStatus as _Status
+
+        async with factory() as cdb:
+            row = await cdb.get(_ScanJob, job_uuid)
+            if row is None:
+                return False
+            row.heartbeat_at = _dt.now(_tz.utc)
+            cancelled = bool(getattr(row, "cancellation_requested", False)) or (
+                row.status == _Status.CANCELLED
+            )
+            await cdb.commit()
+            return cancelled
+
     scan_options = get_profile(profile).to_scan_options()
     target = Target.from_url(target_url, scan_options=scan_options)
-    scanner = Scanner(target, previous_baseline=previous_baseline)
+    scanner = Scanner(
+        target, previous_baseline=previous_baseline, cancel_check=_cancel_check
+    )
     try:
         result = await scanner.scan()
     except BaseException:

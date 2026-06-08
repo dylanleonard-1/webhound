@@ -15,6 +15,7 @@ import logging
 import os
 import time
 from datetime import datetime, timezone
+from collections.abc import Awaitable, Callable
 from typing import Any
 from urllib.parse import urlparse
 
@@ -325,6 +326,7 @@ class Scanner:
         session_context: SessionContext | None = None,
         auth_session_cookies: list | None = None,
         auth_storage_state: str | dict | None = None,
+        cancel_check: Callable[[], Awaitable[bool]] | None = None,
     ) -> None:
         if isinstance(target, str):
             target = Target.from_url(target, scan_options=options or ScanOptions())
@@ -340,6 +342,12 @@ class Scanner:
         # Playwright auth_state, then the raw inputs are dropped.
         self._auth_session_cookies = auth_session_cookies
         self._auth_storage_state = auth_storage_state
+        # FIX 10 — optional cooperative-cancellation probe. Awaited at each scan
+        # phase boundary; when it returns True the pipeline raises ScanCancelled
+        # and aborts. Also used by the worker to refresh the job heartbeat. A
+        # probe that raises is treated as "not cancelled" (never abort a healthy
+        # scan because the cancellation lookup hiccuped).
+        self._cancel_check = cancel_check
 
         # Engines instantiated once; all are stateless.
         self._security_headers = SecurityHeadersEngine()
@@ -376,6 +384,25 @@ class Scanner:
     # ------------------------------------------------------------------
     # Public entry point
     # ------------------------------------------------------------------
+
+    async def _raise_if_cancelled(self) -> None:
+        """FIX 10 — abort the pipeline if cancellation was requested.
+
+        Probe failures never abort a healthy scan. Raises ScanCancelled (a
+        BaseException) so it propagates past the broad ``except Exception`` in
+        :meth:`scan` straight to the worker.
+        """
+        if self._cancel_check is None:
+            return
+        try:
+            cancelled = await self._cancel_check()
+        except Exception:  # noqa: BLE001
+            logger.debug("cancel_check probe failed (treated as not-cancelled)",
+                         exc_info=True)
+            return
+        if cancelled:
+            logger.info("scan cancellation requested — aborting pipeline")
+            raise ScanCancelled()
 
     async def scan(self) -> ScanResult:
         """Execute the full scan pipeline and return a completed ScanResult."""
@@ -418,9 +445,11 @@ class Scanner:
                 transport=self._transport,
                 session_context=self._session_context,
             ) as client:
+                await self._raise_if_cancelled()  # FIX 10 — phase boundary
                 # 1. Target-level engines that use the HTTP client
                 await self._run_target_engines(ctx, client)
 
+                await self._raise_if_cancelled()  # FIX 10 — phase boundary
                 # 2. BFS crawl (timed separately for throughput metrics)
                 crawler = Crawler(ctx, client)
                 _crawl_t0 = time.perf_counter()
@@ -430,6 +459,7 @@ class Scanner:
                 # rendered views through the context.
                 ctx.crawl_results = crawl_results
 
+                await self._raise_if_cancelled()  # FIX 10 — phase boundary
                 # 3. Per-page engines
                 for result in crawl_results:
                     await self._run_page_engines(
@@ -449,6 +479,7 @@ class Scanner:
             # all degrade gracefully — telemetry is recorded for
             # whatever pages succeeded and the rest of the scan
             # proceeds normally.
+            await self._raise_if_cancelled()  # FIX 10 — phase boundary
             browser_telemetries: list = []
             if self._target.scan_options.browser_enabled:
                 try:
@@ -501,6 +532,7 @@ class Scanner:
                     exc_info=True,
                 )
 
+            await self._raise_if_cancelled()  # FIX 10 — phase boundary
             # 4. TLS / DNS — blocking I/O, run in thread pool
             await self._run_tls_dns(ctx)
 
@@ -605,6 +637,7 @@ class Scanner:
                     exc_info=True,
                 )
 
+            await self._raise_if_cancelled()  # FIX 10 — phase boundary
             # 5. WADE — build baseline; optionally compare against previous
             self._run_wade(ctx, crawl_results)
 

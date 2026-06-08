@@ -155,6 +155,25 @@ async def list_scan_jobs(
     return list(rows.all()), total
 
 
+def _revoke_scan_task(task_id: str | None) -> None:
+    """FIX 10 — best-effort revoke(terminate) of a running scan's Celery task.
+
+    Lazily imports the worker app so this module has no import-time dependency on
+    Celery/worker (worker already depends on apps.api). Any failure (broker
+    unreachable, worker package absent in this process) is swallowed — the
+    cooperative cancellation_requested flag is the source of truth; revoke just
+    speeds termination of an in-flight scan.
+    """
+    if not task_id:
+        return
+    try:
+        from worker.celery_app import celery
+
+        celery.control.revoke(task_id, terminate=True, signal="SIGTERM")
+    except Exception:  # noqa: BLE001
+        pass
+
+
 async def cancel_scan_job(
     db: AsyncSession, job_id: uuid.UUID, user_id: uuid.UUID | None = None
 ) -> ScanJob | None:
@@ -163,6 +182,14 @@ async def cancel_scan_job(
         return None
     if job.status not in _CANCELLABLE:
         raise InvalidStatusTransitionError(job.status, ScanStatus.CANCELLED)
+    # FIX 10 — set the cooperative-cancellation flag the worker checks between
+    # scan phases, then hard-revoke the in-flight task. The flag guarantees a
+    # running scan aborts (and never persists a success result) even if the
+    # revoke signal is lost; the transition to CANCELLED is the user-visible
+    # status.
+    job.cancellation_requested = True
+    if job.status == ScanStatus.RUNNING:
+        _revoke_scan_task(job.celery_task_id)
     return await _apply_transition(db, job, ScanStatus.CANCELLED)
 
 

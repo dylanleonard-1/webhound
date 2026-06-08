@@ -87,6 +87,12 @@ celery.conf.update(
             "task": "worker.monitoring_tasks.heartbeat",
             "schedule": crontab(minute="*/5"),     # every 5 minutes
         },
+        # FIX 9 — stale-job reaper. Re-enqueues lost QUEUED jobs and fails
+        # hung/dead RUNNING jobs so nothing stays stuck forever.
+        "reap-stale-scan-jobs": {
+            "task": "worker.monitoring_tasks.reap_stale_scan_jobs",
+            "schedule": crontab(minute="*/5"),     # every 5 minutes
+        },
         "evaluate-alerts": {
             "task": "worker.alert_tasks.evaluate_alerts",
             "schedule": crontab(minute="*/5"),     # SOC alert evaluation, every 5 min

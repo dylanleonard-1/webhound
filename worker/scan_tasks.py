@@ -181,6 +181,16 @@ async def _execute(
         await sj_service.update_scan_job_status(
             db, job_uuid, ScanJobStatusUpdate(status=ScanStatus.RUNNING)
         )
+        # FIX 9 — stamp initial liveness + record the Celery task id so the
+        # reaper can attribute (and best-effort revoke) a lost worker's job.
+        from datetime import datetime as _dt, timezone as _tz
+        job.heartbeat_at = _dt.now(_tz.utc)
+        try:
+            from celery import current_task
+            if current_task is not None and current_task.request.id:
+                job.celery_task_id = current_task.request.id
+        except Exception:
+            pass
         await db.commit()
 
     # Slice 4.B — publish scan.started event so the public SSE

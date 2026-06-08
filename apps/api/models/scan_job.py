@@ -61,6 +61,19 @@ class ScanJob(Base, UpdatedAtMixin):
     error_message: Mapped[str | None] = mapped_column(sa.Text)
     celery_task_id: Mapped[str | None] = mapped_column(sa.String(255))
 
+    # FIX 9 — liveness. The worker stamps heartbeat_at when it picks the job up
+    # (RUNNING) and again at each scan-phase boundary; the stale-job reaper marks
+    # a RUNNING job whose heartbeat stopped advancing (worker died/hung) as
+    # failed. Nullable: legacy rows and freshly-queued jobs have no heartbeat.
+    heartbeat_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
+
+    # FIX 10 — cooperative cancellation. The API sets this when a user cancels a
+    # RUNNING scan; the worker checks it between scan phases and aborts
+    # (ScanCancelled) so the job ends CANCELLED instead of completing.
+    cancellation_requested: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=False, server_default=sa.false()
+    )
+
     # Slice 4.A — public/guest scan flow. When a visitor enters a
     # URL on /scan without an account, we create the scan_job with
     # a guest_token; the public router only looks up jobs by this

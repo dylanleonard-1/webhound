@@ -122,6 +122,31 @@ docker compose -f docker-compose.prod.yml exec api alembic -c apps/api/alembic.i
 curl https://api.webhoundsecurity.com/health
 ```
 
+### Railway migrations (portfolio migration 0032 and later)
+
+The API service deploys on Railway (see `railway.toml`). Run Alembic against
+the Railway-injected `DATABASE_URL` with `railway run`:
+
+```bash
+# Readiness check FIRST — compare current DB revision against the code head.
+railway run alembic -c apps/api/alembic.ini current      # DB's applied head
+railway run alembic -c apps/api/alembic.ini heads         # code head (expect 0033)
+
+# Apply all pending migrations up to head (idempotent; safe to re-run).
+railway run alembic -c apps/api/alembic.ini upgrade head
+
+# Confirm: `current` now equals `heads`.
+railway run alembic -c apps/api/alembic.ini current
+```
+
+The portfolio feature (Phase-16 `website_groups` + `websites.group_id`) ships
+in migration **0032**, which descends from 0031; the current head is **0033**
+(notification email delivery). 0032 is purely additive and idempotent
+(table/column-exists guards) — single-site users are unaffected because
+`group_id` stays NULL. The chain (0001 → … → 0033, single linear path) is
+verified statically by `apps/api/tests/test_migration_chain.py` and reported by
+`scripts/audit_runtime_config.py`, neither of which opens a database.
+
 ---
 
 ## 7. Production Checklist

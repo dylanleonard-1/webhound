@@ -12,7 +12,10 @@ __pycache__/
 # Virtual Environments
 # =========================
 venv/
+.venv/
+.venv-api/
 scanner/venv/
+scanner/.venv/
 
 # =========================
 # Node / Frontend
@@ -31,6 +34,9 @@ build/
 # =========================
 .env
 .env.*
+# ...but always track the documented templates (no secrets in these).
+!.env.example
+!**/.env.example
 
 # =========================
 # Logs

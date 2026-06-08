@@ -21,6 +21,18 @@ RUN pip install --no-cache-dir -r /tmp/api-requirements.txt
 COPY worker/requirements.txt /tmp/worker-requirements.txt
 RUN pip install --no-cache-dir -r /tmp/worker-requirements.txt
 
+# Playwright + Chromium for the browser discovery pass (RC1 fix). Without
+# this the deep-scan browser pass defers to a no-op and JS/SPA sites scan
+# like static HTML. The browser is installed to a SHARED path (not root's
+# home) so the non-root `webhound` runtime user can read it via
+# PLAYWRIGHT_BROWSERS_PATH. `--with-deps` pulls the required system
+# libraries (needs root — runs before `USER webhound`). The version pin
+# keeps the pip package and the downloaded Chromium build in lockstep.
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN pip install --no-cache-dir playwright==1.48.0 \
+    && playwright install --with-deps chromium \
+    && chmod -R a+rX /ms-playwright
+
 # Install scanner as an editable package
 COPY scanner /app/scanner
 RUN pip install --no-cache-dir -e /app/scanner
@@ -34,6 +46,13 @@ RUN chown -R webhound:webhound /app
 ENV PYTHONPATH=/app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+
+# Enable the browser discovery pass now that Chromium is installed. This
+# is the operator opt-in the scanner gates on (orchestrator runs the
+# browser pass only when the profile asks for it AND this is "1"). Set to
+# "0" in the Railway env to disable without rebuilding (e.g. to cut
+# per-scan cost) — Railway env vars override this image default.
+ENV WEBHOUND_BROWSER_ENABLED=1
 
 USER webhound
 

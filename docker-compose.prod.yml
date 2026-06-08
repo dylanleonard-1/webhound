@@ -66,11 +66,7 @@ services:
       # OAuth — GitHub
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
-      # OAuth — Apple (future)
-      APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-}
-      APPLE_TEAM_ID: ${APPLE_TEAM_ID:-}
-      APPLE_KEY_ID: ${APPLE_KEY_ID:-}
-      APPLE_PRIVATE_KEY: ${APPLE_PRIVATE_KEY:-}
+      # (Apple Sign In is not implemented; APPLE_* removed as dead config — see docs/env.md)
       # Email — Resend (preferred) or SMTP fallback
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-auth@webhoundsecurity.com}

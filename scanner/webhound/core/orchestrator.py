@@ -24,6 +24,11 @@ import tldextract as _tldextract
 
 logger = logging.getLogger(__name__)
 
+# Phase-2 telemetry enums (aliased short to keep the hot-path emits terse).
+from webhound.telemetry import EventType as _TEL
+from webhound.telemetry import Stage as _TEL_STAGE
+from webhound.telemetry import Status as _TEL_STATUS
+
 
 def _safe_hostname(url: str | None) -> str | None:
     """Best-effort hostname extraction used by browser-pass plumbing.
@@ -205,6 +210,11 @@ async def _safe(
     started_at = datetime.now(timezone.utc)
     t0 = time.perf_counter()
     timeout_s = _engine_timeout_for(engine_name)
+    # Phase-2 telemetry — single point that instruments ALL engines. Pure
+    # side-effect; never alters control flow or findings.
+    _tel = getattr(ctx, "telemetry", None)
+    if _tel is not None:
+        _tel.emit(_TEL.ENGINE_STARTED, _TEL_STAGE.ENGINE, engine=engine_name)
     try:
         result = fn(*args, **kwargs)
         if asyncio.iscoroutine(result):
@@ -216,6 +226,10 @@ async def _safe(
         ctx.tracker.record_run(
             engine_name, findings, duration_ms, started_at, datetime.now(timezone.utc)
         )
+        if _tel is not None:
+            _tel.emit(_TEL.ENGINE_FINISHED, _TEL_STAGE.ENGINE,
+                      engine=engine_name, duration_ms=round(duration_ms, 2),
+                      outputs={"findings": len(findings)})
         return findings
     except asyncio.TimeoutError:
         duration_ms = (time.perf_counter() - t0) * 1000
@@ -224,6 +238,10 @@ async def _safe(
         ctx.tracker.record_error(
             engine_name, err, duration_ms, started_at, datetime.now(timezone.utc)
         )
+        if _tel is not None:
+            _tel.emit(_TEL.ENGINE_FAILED, _TEL_STAGE.ENGINE,
+                      status=_TEL_STATUS.ERROR, engine=engine_name,
+                      duration_ms=round(duration_ms, 2), errors=[err])
         return []
     except Exception as exc:
         duration_ms = (time.perf_counter() - t0) * 1000
@@ -232,6 +250,10 @@ async def _safe(
         ctx.tracker.record_error(
             engine_name, err, duration_ms, started_at, datetime.now(timezone.utc)
         )
+        if _tel is not None:
+            _tel.emit(_TEL.ENGINE_FAILED, _TEL_STAGE.ENGINE,
+                      status=_TEL_STATUS.ERROR, engine=engine_name,
+                      duration_ms=round(duration_ms, 2), errors=[err])
         return []
 
 
@@ -407,6 +429,11 @@ class Scanner:
     async def scan(self) -> ScanResult:
         """Execute the full scan pipeline and return a completed ScanResult."""
         ctx = ScanContext(self._target)
+        ctx.telemetry.emit(
+            _TEL.SCAN_STARTED, _TEL_STAGE.SCAN,
+            metadata={"profile": getattr(self._target.scan_options,
+                                         "profile_name", None),
+                      "host": self._target.hostname})
         # Phase-10: build the authenticated-scan context (secret-free)
         # + the Playwright auth_state (secret-carrying, browser-only).
         # Defaults to public_only — no behaviour change when no session.
@@ -458,6 +485,12 @@ class Scanner:
                 # Phase-6C: post-crawl passes correlate static and
                 # rendered views through the context.
                 ctx.crawl_results = crawl_results
+                ctx.telemetry.emit(
+                    _TEL.CRAWL_FINISHED, _TEL_STAGE.CRAWL,
+                    duration_ms=round(_crawl_duration_seconds * 1000, 2),
+                    outputs={"pages": len(crawl_results)})
+                ctx.telemetry.stage_snapshot(
+                    "after_crawl", {"pages": len(crawl_results)})
 
                 await self._raise_if_cancelled()  # FIX 10 — phase boundary
                 # 3. Per-page engines
@@ -637,9 +670,19 @@ class Scanner:
                     exc_info=True,
                 )
 
+            ctx.telemetry.stage_snapshot(
+                "after_engines",
+                {"findings": len(ctx.scan_result.findings),
+                 "errors": len(ctx.scan_result.errors)})
+
             await self._raise_if_cancelled()  # FIX 10 — phase boundary
             # 5. WADE — build baseline; optionally compare against previous
+            ctx.telemetry.emit(_TEL.WADE_STARTED, _TEL_STAGE.WADE)
             self._run_wade(ctx, crawl_results)
+            ctx.telemetry.emit(
+                _TEL.WADE_FINISHED, _TEL_STAGE.WADE,
+                metadata={"compared_to_previous": bool(
+                    ctx.scan_result.metadata.get("wade_compared_to_previous"))})
 
             # 5b. Phase-13 supply-chain + threat correlation. When a
             # previous baseline exists, diff the third-party host
@@ -654,6 +697,9 @@ class Scanner:
                     exc_info=True)
 
         except Exception as exc:
+            ctx.telemetry.emit(_TEL.SCAN_FAILED, _TEL_STAGE.SCAN,
+                               status=_TEL_STATUS.ERROR,
+                               errors=[f"{type(exc).__name__}: {exc}"])
             ctx.scan_result.mark_failed(str(exc))
             return ctx.scan_result
 
@@ -676,6 +722,12 @@ class Scanner:
             ctx.scan_result.findings = apply_correlation(
                 ctx.scan_result.findings, corr_result,
             )
+            for _ in getattr(corr_result, "cluster_findings", []) or []:
+                ctx.telemetry.emit(_TEL.CORRELATION_CHAIN_CREATED,
+                                   _TEL_STAGE.CORRELATION)
+            ctx.telemetry.stage_snapshot(
+                "after_correlation",
+                {"findings": len(ctx.scan_result.findings)})
         except Exception:  # noqa: BLE001
             logger.warning("correlation pass failed; using per-engine findings only",
                            exc_info=True)
@@ -872,6 +924,24 @@ class Scanner:
             }
         except Exception:  # noqa: BLE001
             logger.debug("coverage summary build failed", exc_info=True)
+
+        # Phase-2 telemetry finalization (MetadataSink — the default, opt-
+        # out via WEBHOUND_TELEMETRY_LEVEL=off). Emits scan.finished and
+        # folds the COMPACT summary (counts + handoffs + engine rollup, no
+        # raw timeline) into metadata.telemetry. The full audit trace +
+        # event stream are exported by the worker/API layer when DB
+        # persistence is opted in. Best-effort — never affects the result.
+        try:
+            from webhound.telemetry import to_metadata_summary
+            ctx.telemetry.emit(
+                _TEL.SCAN_FINISHED, _TEL_STAGE.SCAN,
+                metadata={"status": getattr(result.status, "value",
+                                            str(result.status))})
+            if ctx.telemetry.enabled:
+                result.metadata["telemetry"] = to_metadata_summary(
+                    ctx.telemetry)
+        except Exception:  # noqa: BLE001
+            logger.debug("telemetry finalization failed", exc_info=True)
 
         return result
 

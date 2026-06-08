@@ -55,6 +55,13 @@ class ScanContext:
 
         self.tracker: EngineTracker = EngineTracker()
 
+        # Phase-2 telemetry recorder. Observability only — emitting events
+        # never changes scan behaviour. Level-gated via
+        # WEBHOUND_TELEMETRY_LEVEL (default 'engines'); 'off' yields a
+        # NullRecorder so every ctx.telemetry call is a no-op.
+        from webhound.telemetry import build_recorder
+        self.telemetry = build_recorder(str(self.scan_result.id))
+
         self._visited: set[str] = set()
         self._queued: set[str] = set()          # Track queued URLs to avoid duplicates
         self._queue: deque[QueueItem] = deque()

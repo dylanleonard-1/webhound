@@ -209,6 +209,49 @@ class TestSensitivePathsEngine:
         assert f.quality_label in ("informational", "advisory")
 
     @pytest.mark.anyio
+    async def test_catch_all_403_via_baseline_suppresses_all(self):
+        """A host that 403s EVERY unknown path (incl. the random calibration
+        probes) → baseline detects catch-all → zero path findings."""
+        async def handler(request):
+            return httpx.Response(403, text="Forbidden",
+                                  headers={"content-type": "text/html"})
+        target = _target()
+        async with SafeHttpClient(transport=httpx.MockTransport(handler)) as c:
+            findings = await SensitivePathsEngine().probe(target, c)
+        assert findings == []
+
+    @pytest.mark.anyio
+    async def test_catch_all_403_backstop_when_probes_404(self):
+        """Vercel case: the `.html`-shaped calibration probes 404 but the
+        sensitive paths (/phpmyadmin, /.env, ...) all 403. The baseline
+        misses it, so the post-hoc backstop must drop the 403 flood."""
+        async def handler(request):
+            # Random calibration probes 404; everything else 403.
+            if "__wh_probe" in request.url.path:
+                return httpx.Response(404, text="nf")
+            return httpx.Response(403, text="Forbidden",
+                                  headers={"content-type": "text/html"})
+        target = _target()
+        async with SafeHttpClient(transport=httpx.MockTransport(handler)) as c:
+            findings = await SensitivePathsEngine().probe(target, c)
+        # Far more than the threshold would have fired — all suppressed.
+        path_403 = [f for f in findings if "403" in (f.title or "")]
+        assert path_403 == []
+
+    @pytest.mark.anyio
+    async def test_few_403s_below_threshold_still_reported(self):
+        """A couple of genuinely access-controlled sensitive files (403)
+        below the catch-all threshold are still surfaced as heuristics."""
+        transport = _route_transport({
+            "/.env": (403, "Forbidden", None),
+            "/server-status": (403, "Forbidden", None),
+        })
+        target = _target()
+        async with SafeHttpClient(transport=transport) as client:
+            findings = await SensitivePathsEngine().probe(target, client)
+        assert findings, "2 access-controlled paths are below the catch-all threshold"
+
+    @pytest.mark.anyio
     async def test_scope_enforcement_single_page(self):
         transport = _route_transport({
             "/.env": (200, "DB_PASSWORD=secret\n", None),

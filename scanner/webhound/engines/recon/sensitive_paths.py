@@ -84,6 +84,12 @@ def _build_fa(category: str, severity: Severity) -> FrameworkAlignment:
     )
 
 
+# If at least this many distinct sensitive paths return 403/401, the
+# server forbids every unknown path → the 403-only signals are catch-all
+# noise and are all suppressed (post-hoc backstop to the baseline probe).
+_CATCH_ALL_403_THRESHOLD = 5
+
+
 @dataclass(frozen=True)
 class _PathDef:
     path: str
@@ -469,6 +475,9 @@ class SensitivePathsEngine:
         _scope = scope if scope is not None else ScopeChecker(target)
         baseline = await self._calibrate_baseline(target, client, _scope)
         findings: list[Finding] = []
+        # 403/401-only heuristics collected separately so we can apply a
+        # post-hoc catch-all backstop (below) if too many fire.
+        access_controlled: list[Finding] = []
 
         for spec in _PATHS:
             url = f"{target.base_url}{spec.path}"
@@ -514,7 +523,19 @@ class SensitivePathsEngine:
                 # Even then, demote to INFO + low confidence + heuristic tag
                 # so the UI doesn't treat 403-alone as a real exposure.
                 if spec.severity >= Severity.HIGH:
-                    findings.append(self._make_access_controlled_finding(spec, url, head))
+                    access_controlled.append(
+                        self._make_access_controlled_finding(spec, url, head))
+
+        # Post-hoc catch-all backstop: if many DISTINCT sensitive paths all
+        # return 403/401, the server forbids every unknown path (the
+        # calibration probes may have been routed differently and missed
+        # it). A real server having 5+ genuinely-present-but-access-
+        # controlled sensitive files is implausible — treat the whole set
+        # as catch-all noise and drop it, rather than flooding the report
+        # with 20+ "returned 403 (heuristic)" findings (the
+        # webhoundsecurity.com / Vercel case).
+        if len(access_controlled) < _CATCH_ALL_403_THRESHOLD:
+            findings.extend(access_controlled)
 
         return findings
 
@@ -527,10 +548,17 @@ class SensitivePathsEngine:
         """Probe a few random nonexistent paths to figure out what the server
         does for "missing." Cheap (3 HEADs + maybe 2 GETs), runs once per
         target."""
+        # Probe shapes must MATCH the sensitive paths we test, or the
+        # calibration is unrepresentative. Hosts like Vercel 404 unknown
+        # `.html` files but 403 unknown dotfiles / extensionless / `.php`
+        # paths (the shapes of /.env, /phpmyadmin, /wp-config.php) — so a
+        # `.html`-only baseline misses the catch-all 403 and every
+        # sensitive path then looks individually "forbidden". Vary the
+        # shapes to mirror the real probes.
         probes = [
-            "/__wh_probe_a_4f3d1c.html",
-            "/__wh_probe_b_8e21bb.html",
-            "/__wh_probe_c_a907de.html",
+            "/__wh_probe_a_4f3d1c",          # extensionless (cf. /phpmyadmin)
+            "/.__wh_probe_b_8e21bb",         # dotfile        (cf. /.env)
+            "/__wh_probe_c_a907de.php",      # .php           (cf. /wp-config.php)
         ]
         status_codes: list[int] = []
         body_lengths: list[int] = []

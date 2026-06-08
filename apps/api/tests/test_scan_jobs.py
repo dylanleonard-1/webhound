@@ -27,7 +27,20 @@ async def _create_job(
     **kwargs,
 ) -> dict:
     payload = {"website_id": website_id, "profile": profile, **kwargs}
-    return await client.post("/scan-jobs", json=payload)
+    resp = await client.post("/scan-jobs", json=payload)
+    # Product enforces a 60s per-(user, website) scan cooldown. Listing /
+    # transition tests legitimately create several jobs on one site in quick
+    # succession; clear only the scan-cooldown keys so setup isn't throttled.
+    # The cooldown behaviour itself is a product feature, unrelated to these
+    # tests. (Before the suite was hermetic this was masked by Redis being
+    # unavailable; fakeredis now actually enforces it.)
+    from apps.api import rate_limit
+    r = getattr(rate_limit, "_REDIS", None)
+    if r is not None:
+        keys = await r.keys("scan_cd:*")
+        if keys:
+            await r.delete(*keys)
+    return resp
 
 
 async def _transition(

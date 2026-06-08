@@ -54,6 +54,27 @@ def _mock_celery_task():
         yield mock_task
 
 
+@pytest.fixture(autouse=True)
+def _fake_redis():
+    """Back the rate-limit / cooldown / auth-lockout primitives with an
+    in-process fakeredis so the suite is hermetic and needs no Redis server.
+    Resets the module-level singleton around every test."""
+    import apps.api.rate_limit as rate_limit
+
+    try:
+        import fakeredis.aioredis as fakeredis_aio
+    except ImportError:  # pragma: no cover - fakeredis is a dev dependency
+        yield
+        return
+
+    prev = rate_limit._REDIS
+    rate_limit._REDIS = fakeredis_aio.FakeRedis(decode_responses=True)
+    try:
+        yield
+    finally:
+        rate_limit._REDIS = prev
+
+
 @pytest.fixture
 async def db_engine():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)

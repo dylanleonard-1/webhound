@@ -7,28 +7,76 @@ import uuid
 from typing import Any
 
 import sqlalchemy as sa
+from celery.exceptions import SoftTimeLimitExceeded
 from webhound.core.orchestrator import Scanner
 from webhound.core.scan_profiles import get_profile
 from webhound.models.target import Target
 
 from worker._db import get_async_db_url
-from worker.celery_app import celery
+from worker.celery_app import (
+    _SCAN_HARD_TIME_LIMIT,
+    _SCAN_SOFT_TIME_LIMIT,
+    celery,
+)
 
 logger = logging.getLogger(__name__)
 
+_MAX_RETRIES = 3
 
-@celery.task(name="worker.scan_tasks.run_scan", bind=True, max_retries=3)
+
+@celery.task(
+    name="worker.scan_tasks.run_scan",
+    bind=True,
+    max_retries=_MAX_RETRIES,
+    # FIX 8 — per-task limits (also the global defaults, set explicitly here so
+    # they survive a global-config change). soft -> SoftTimeLimitExceeded inside
+    # the task; hard -> SIGKILL backstop.
+    soft_time_limit=_SCAN_SOFT_TIME_LIMIT,
+    time_limit=_SCAN_HARD_TIME_LIMIT,
+)
 def run_scan(self, job_id: str, target_url: str, profile: str = "standard") -> dict:
-    """Execute a scan job: run Scanner, persist results, update job status."""
+    """Execute a scan job: run Scanner, persist results, update job status.
+
+    FIX 8: a soft time-limit hit is terminal — the job is marked failed with a
+    timeout message and is NOT retried (a scan that exhausted its budget will
+    almost certainly do so again). Other transient failures retry with bounded
+    exponential backoff (max_retries caps the total — never an infinite loop).
+    FIX 10: a cancelled scan raises ScanCancelled (a BaseException, so it skips
+    the generic handler); the job is marked cancelled and never retried.
+    """
+    from webhound.core.orchestrator import ScanCancelled
+
     try:
         return asyncio.run(_execute(job_id, target_url, profile))
+    except SoftTimeLimitExceeded:
+        logger.warning("scan job %s exceeded its time limit; marking timed out", job_id)
+        msg = f"scan timed out (soft time limit {_SCAN_SOFT_TIME_LIMIT}s exceeded)"
+        try:
+            asyncio.run(_mark_failed(job_id, msg))
+        except Exception:
+            logger.exception("could not mark timed-out job %s failed", job_id)
+        # Terminal: do not retry a timeout.
+        return {"job_id": job_id, "timed_out": True}
+    except ScanCancelled:
+        logger.info("scan job %s cancelled mid-run", job_id)
+        try:
+            asyncio.run(_mark_cancelled(job_id))
+        except Exception:
+            logger.exception("could not mark cancelled job %s", job_id)
+        return {"job_id": job_id, "cancelled": True}
     except Exception as exc:
         logger.exception("scan task failed for job %s", job_id)
         try:
             asyncio.run(_mark_failed(job_id, str(exc)))
         except Exception:
             logger.exception("could not mark job %s failed", job_id)
-        raise self.retry(exc=exc, countdown=60)
+        if self.request.retries >= _MAX_RETRIES:
+            logger.error("scan job %s failed permanently after %d retries",
+                         job_id, self.request.retries)
+            return {"job_id": job_id, "failed": True}
+        # 60s, 120s, 240s bounded backoff.
+        countdown = 60 * (2 ** self.request.retries)
+        raise self.retry(exc=exc, countdown=countdown)
 
 
 def _make_factory(db_url: str) -> Any:
@@ -154,7 +202,17 @@ async def _execute(
     scan_options = get_profile(profile).to_scan_options()
     target = Target.from_url(target_url, scan_options=scan_options)
     scanner = Scanner(target, previous_baseline=previous_baseline)
-    result = await scanner.scan()
+    try:
+        result = await scanner.scan()
+    except BaseException:
+        # FIX 8 / FIX 10 — scanner raised, timed out (SoftTimeLimitExceeded),
+        # or was cancelled (ScanCancelled). The Scanner tears down its own
+        # browser/HTTP contexts via internal `async with` blocks as the
+        # exception unwinds; here we additionally release the DB engine this
+        # task owns before re-raising so run_scan can apply the terminal status.
+        if own_engine:
+            await own_engine.dispose()
+        raise
 
     async with factory() as db:
         from apps.api.models.website import Website
@@ -317,3 +375,45 @@ async def _mark_failed(
 
     if own_engine:
         await own_engine.dispose()
+
+
+async def _mark_cancelled(
+    job_id: str,
+    *,
+    _session_factory: Any = None,
+) -> None:
+    """FIX 10 — transition a cancelled scan to CANCELLED.
+
+    The DB row may already be CANCELLED (the API flips it when the user clicks
+    cancel); RUNNING -> CANCELLED is a valid transition, and an already-terminal
+    row raises InvalidStatusTransitionError which we swallow (idempotent). A
+    cancelled scan must never persist a success result — run_scan reaches this
+    path only by catching ScanCancelled BEFORE any result is written.
+    """
+    import apps.api.models  # noqa: F401
+
+    from apps.api.models.enums import ScanStatus
+    from apps.api.models.scan_job import ScanJob
+
+    own_engine = None
+    if _session_factory is None:
+        factory, own_engine = _make_factory(get_async_db_url())
+    else:
+        factory = _session_factory
+
+    job_uuid = uuid.UUID(job_id)
+    try:
+        async with factory() as db:
+            job = await db.get(ScanJob, job_uuid)
+            if job is not None and job.status not in (
+                ScanStatus.CANCELLED, ScanStatus.COMPLETED, ScanStatus.FAILED,
+            ):
+                from datetime import datetime, timezone
+                job.status = ScanStatus.CANCELLED
+                job.completed_at = datetime.now(timezone.utc)
+                await db.commit()
+    except Exception:
+        logger.exception("failed to write cancelled status for job %s", job_id)
+    finally:
+        if own_engine:
+            await own_engine.dispose()

@@ -25,6 +25,24 @@ if _sentry_dsn and os.getenv("APP_ENV", "development") != "development":
 
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
+
+def _int_env(name: str, default: int) -> int:
+    """Parse an int env var, falling back to *default* on missing/garbage."""
+    try:
+        return int(os.getenv(name, "") or default)
+    except (TypeError, ValueError):
+        return default
+
+
+# FIX 8 — scan time limits. A soft limit raises SoftTimeLimitExceeded inside the
+# task (caught by run_scan, which marks the job failed/timed-out and cleans up
+# browser resources); the hard limit is a backstop that SIGKILLs a wedged worker
+# process. Hard must exceed soft so the task gets a chance to clean up first.
+_SCAN_SOFT_TIME_LIMIT = _int_env("SCAN_SOFT_TIME_LIMIT", 600)   # 10 min
+_SCAN_HARD_TIME_LIMIT = _int_env("SCAN_HARD_TIME_LIMIT", 720)   # 12 min
+if _SCAN_HARD_TIME_LIMIT <= _SCAN_SOFT_TIME_LIMIT:
+    _SCAN_HARD_TIME_LIMIT = _SCAN_SOFT_TIME_LIMIT + 120
+
 celery = Celery(
     "webhound",
     broker=redis_url,
@@ -50,6 +68,13 @@ celery.conf.update(
     enable_utc=True,
     worker_prefetch_multiplier=1,
     task_acks_late=True,
+    # FIX 8 — global default time limits (per-task overrides on run_scan below).
+    # task_reject_on_worker_lost re-queues a task whose worker died (e.g. hard
+    # SIGKILL or OOM) so it isn't silently lost; combined with the stale-job
+    # reaper (FIX 9) this prevents jobs from getting stuck RUNNING forever.
+    task_soft_time_limit=_SCAN_SOFT_TIME_LIMIT,
+    task_time_limit=_SCAN_HARD_TIME_LIMIT,
+    task_reject_on_worker_lost=True,
     # Beat schedule — runs every minute, finds due scan_schedules,
     # creates ScanJob rows, and enqueues run_scan for each.
     beat_schedule={

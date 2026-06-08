@@ -282,6 +282,21 @@ def _dedup_findings(findings: list[Finding]) -> list[Finding]:
 
 
 # ---------------------------------------------------------------------------
+# Cancellation
+# ---------------------------------------------------------------------------
+
+
+class ScanCancelled(BaseException):
+    """Raised when a scan is cancelled mid-run via the cancel_check hook (FIX 10).
+
+    Subclasses BaseException (like asyncio.CancelledError) so it bypasses the
+    broad ``except Exception`` inside ``Scanner.scan`` — a cancellation must
+    abort the pipeline and propagate to the worker, NOT be recorded as a normal
+    scan failure with a partial result.
+    """
+
+
+# ---------------------------------------------------------------------------
 # Scanner
 # ---------------------------------------------------------------------------
 

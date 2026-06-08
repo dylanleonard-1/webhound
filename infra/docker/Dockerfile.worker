@@ -1,4 +1,6 @@
-FROM python:3.12-slim
+# Pinned to bookworm so the Chromium runtime-library package names below
+# are deterministic (trixie renames some, e.g. libasound2 -> libasound2t64).
+FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
@@ -23,14 +25,26 @@ RUN pip install --no-cache-dir -r /tmp/worker-requirements.txt
 
 # Playwright + Chromium for the browser discovery pass (RC1 fix). Without
 # this the deep-scan browser pass defers to a no-op and JS/SPA sites scan
-# like static HTML. The browser is installed to a SHARED path (not root's
-# home) so the non-root `webhound` runtime user can read it via
-# PLAYWRIGHT_BROWSERS_PATH. `--with-deps` pulls the required system
-# libraries (needs root — runs before `USER webhound`). The version pin
-# keeps the pip package and the downloaded Chromium build in lockstep.
+# like static HTML.
+#
+# NOTE: we deliberately do NOT use `playwright install --with-deps` — on a
+# Debian base Playwright falls back to its Ubuntu dependency list, which
+# names Ubuntu-only font packages (ttf-unifont, ttf-ubuntu-font-family)
+# that have no Debian apt candidate, so --with-deps fails the build. We
+# instead apt-install Chromium's runtime libraries by their real Debian
+# (bookworm) names, then `playwright install chromium` only DOWNLOADS the
+# browser binary (no apt). Installed to a SHARED path so the non-root
+# `webhound` runtime user can read it via PLAYWRIGHT_BROWSERS_PATH.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libnss3 libnspr4 libdbus-1-3 libatk1.0-0 libatk-bridge2.0-0 \
+    libatspi2.0-0 libcups2 libdrm2 libgbm1 libxcb1 libxkbcommon0 \
+    libx11-6 libxcomposite1 libxdamage1 libxext6 libxfixes3 libxrandr2 \
+    libpango-1.0-0 libcairo2 libasound2 libglib2.0-0 libxshmfence1 \
+    fonts-liberation libfontconfig1 \
+    && rm -rf /var/lib/apt/lists/*
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN pip install --no-cache-dir playwright==1.48.0 \
-    && playwright install --with-deps chromium \
+    && playwright install chromium \
     && chmod -R a+rX /ms-playwright
 
 # Install scanner as an editable package

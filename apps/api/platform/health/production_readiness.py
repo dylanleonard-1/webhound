@@ -90,6 +90,20 @@ def build_readiness_report(
     _dep("worker", worker_ok, False)
     _dep("migrations_current", migrations_current, False)
 
+    # Browser discovery status (non-critical, but high-impact for modern
+    # JS/SPA sites). Surfaced so operators can SEE when deep scans are
+    # running without rendered-DOM/SPA/browser-API discovery — the most
+    # common reason deep scans look identical to static scans.
+    import os as _os
+    _env = env if env is not None else _os.environ
+    browser_on = str(_env.get("WEBHOUND_BROWSER_ENABLED", "0")) == "1"
+    checks.append(ReadinessCheck(
+        "browser_discovery", True, False,
+        "enabled" if browser_on else
+        "disabled — deep scans skip rendered-DOM/SPA/browser-API discovery "
+        "(set WEBHOUND_BROWSER_ENABLED=1 on a worker with Playwright/Chromium "
+        "installed)"))
+
     ready = all(c.ok for c in checks if c.critical)
     return ProductionReadinessReport(
         ready=ready, app_env=env_res.app_env, checks=checks)

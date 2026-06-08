@@ -223,3 +223,17 @@ def test_readiness_includes_scanner_import() -> None:
     names = {c.name for c in rep.checks}
     assert "scanner_importable" in names
     assert "env" in names
+
+
+def test_readiness_surfaces_browser_discovery_disabled() -> None:
+    # The RC1 visibility: deep scans silently skipping browser discovery.
+    rep = build_readiness_report(env=_PROD_BASE, db_ok=True, redis_ok=True)
+    bd = next(c for c in rep.checks if c.name == "browser_discovery")
+    assert "disabled" in bd.detail
+    assert not bd.critical                       # non-blocking, informational
+    # Enabled → ok detail.
+    rep2 = build_readiness_report(
+        env={**_PROD_BASE, "WEBHOUND_BROWSER_ENABLED": "1"},
+        db_ok=True, redis_ok=True)
+    bd2 = next(c for c in rep2.checks if c.name == "browser_discovery")
+    assert bd2.detail == "enabled"

@@ -19,6 +19,7 @@ import { ExternalDomainsSection } from '@/components/results/external-domains-se
 import { ThreatIntelDomainsSection } from '@/components/results/threat-intel-domains-section'
 import { ComplianceSummary } from '@/components/results/compliance-summary'
 import { ScanInsights } from '@/components/results/scan-insights'
+import { ScanIntelligence } from '@/components/results/scan-intelligence'
 import { GroupedFindingsTable } from '@/components/results/grouped-findings-table'
 import { EngineDiagnosticsTable } from '@/components/results/engine-diagnostics-table'
 import { ReportDownloads } from '@/components/results/report-downloads'
@@ -240,6 +241,7 @@ export default function ScanResultPage() {
           transition={{ duration: 0.4, delay: 0.05 }}
         >
           <ScanInsights scannerMetadata={result.scanner_metadata} />
+          <ScanIntelligence scannerMetadata={result.scanner_metadata} />
         </motion.div>
 
         {/* ============================================================ */}

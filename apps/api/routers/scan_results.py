@@ -29,6 +29,15 @@ from apps.api.schemas.scan_results import (
 from apps.api.security import get_active_org_id, get_current_user
 from apps.api.services import scan_results as sr_service
 
+try:
+    # Reuse the scanner's customer-safe coverage projection (single source).
+    from webhound.reporting.browser_coverage import (
+        build_browser_coverage as _build_browser_coverage,
+    )
+except Exception:  # noqa: BLE001 — scanner not importable in some test paths
+    def _build_browser_coverage(metadata, *, internal: bool = False):  # type: ignore
+        return None
+
 router = APIRouter(prefix="/scan-results", tags=["scan-results"])
 
 _DB = Annotated[AsyncSession, Depends(get_db)]
@@ -128,6 +137,7 @@ async def get_scan_result(
         actionable_findings=record.actionable_findings,
         severity_breakdown=record.severity_breakdown,
         scanner_metadata=record.scanner_metadata,
+        browser_coverage=_build_browser_coverage(record.scanner_metadata),
         created_at=record.created_at,
         scan_job=ScanJobSummary.model_validate(job),
         website=WebsiteSummary.model_validate(website),

@@ -64,6 +64,12 @@ class ScanResultDetail(BaseModel):
     actionable_findings: int
     severity_breakdown: dict
     scanner_metadata: dict | None = None
+    # Customer-safe Browser Yield & Challenge Detection summary. None when the
+    # scan ran no browser pass. When a bot/security challenge limited
+    # rendering, ``limited`` is true with a plain-English ``note`` + redacted
+    # ``evidence_summary``. Full technical evidence stays in
+    # scanner_metadata.browser_pass.yield_assessment (internal/admin).
+    browser_coverage: dict | None = None
     created_at: datetime
 
     scan_job: ScanJobSummary

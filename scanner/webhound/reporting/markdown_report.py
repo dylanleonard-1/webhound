@@ -20,6 +20,7 @@ from webhound.core.performance import ScanTelemetry
 from webhound.models.finding import FindingCategory
 from webhound.models.scan_result import ScanResult
 from webhound.models.severity import Severity
+from webhound.reporting.browser_coverage import build_browser_coverage
 
 _MAX_FINDINGS_TABLE = 20
 _MAX_ACTIONS = 5
@@ -60,6 +61,7 @@ class MarkdownReport:
         self._severity_breakdown(result, lines)
         self._findings_table(result, lines)
         self._recommended_actions(result, lines)
+        self._browser_coverage_section(result, lines)
         self._engine_diagnostics(result, lines)
         self._wade_section(result, lines)
         self._performance_section(result, lines)
@@ -91,6 +93,37 @@ class MarkdownReport:
             lines.append(f"**Duration:** {duration:.1f}s  ")
         lines.append(f"**Pages Crawled:** {result.urls_crawled}  ")
         lines.append(f"**Scan ID:** `{result.id}`  ")
+        lines.append("")
+        lines.append("---")
+
+    def _browser_coverage_section(
+        self, result: ScanResult, lines: list[str],
+    ) -> None:
+        """Customer-facing note shown only when a bot/security challenge
+        limited browser-based analysis. No warning appears otherwise."""
+        cov = build_browser_coverage(result.metadata, internal=False)
+        if not cov or not cov.get("limited"):
+            return
+        prov = cov.get("challenge_provider") or "unknown"
+        conf = cov.get("confidence")
+        lines.append("")
+        lines.append("## Browser Coverage")
+        lines.append("")
+        lines.append(f"> ⚠️ {cov['note']}")
+        lines.append("")
+        lines.append(
+            f"**Challenge detected:** yes "
+            f"({_esc(str(prov))}, {conf}% confidence)  ")
+        lines.append(f"**Rendered real app:** {cov.get('rendered_real_app')}  ")
+        if cov.get("recommended_action"):
+            lines.append(
+                f"**Recommended action:** {_esc(str(cov['recommended_action']))}  ")
+        summary = cov.get("evidence_summary") or []
+        if summary:
+            lines.append("")
+            lines.append("What we observed:")
+            for item in summary:
+                lines.append(f"- {_esc(str(item))}")
         lines.append("")
         lines.append("---")
 

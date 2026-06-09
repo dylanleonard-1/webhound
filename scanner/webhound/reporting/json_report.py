@@ -22,6 +22,9 @@ from typing import Any
 
 from webhound.core.performance import ScanTelemetry
 from webhound.models.scan_result import ScanResult
+from webhound.reporting.browser_coverage import (
+    build_browser_coverage as _browser_coverage,
+)
 
 _REPORT_SCHEMA_VERSION = 4
 
@@ -272,6 +275,13 @@ class JsonReport:
             # Phase-5A browser-pass summary — None when the profile
             # didn't opt in.
             "browser_pass": result.metadata.get("browser_pass"),
+            # Browser Yield & Challenge Detection — customer-safe coverage
+            # note. None when there was no browser pass. When a bot/security
+            # challenge limited rendering, ``limited`` is true and ``note``
+            # explains it in plain language (raw evidence is redacted into
+            # ``evidence_summary`` categories). Full evidence stays in
+            # ``browser_pass.yield_assessment`` for internal/admin views.
+            "browser_coverage": _browser_coverage(result.metadata),
             # Phase-5D evidence-quality audit report. None when the
             # orchestrator skipped the audit. Consumed by the
             # dashboard's "evidence complete" badges + the

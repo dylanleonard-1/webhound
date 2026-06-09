@@ -235,6 +235,12 @@ async def read_scan_telemetry(
     handoffs = tel.get("handoffs") or {}
     bp = md.get("browser_pass")
     abd = handoffs.get("after_browser_discovery")
+    # Internal/admin coverage view — full evidence + counts.
+    try:
+        from webhound.reporting.browser_coverage import build_browser_coverage
+        out["browser_coverage"] = build_browser_coverage(md, internal=True)
+    except Exception:  # noqa: BLE001
+        out["browser_coverage"] = None
 
     out.update({
         "scanner_scan_id": result.scan_id,

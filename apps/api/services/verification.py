@@ -238,6 +238,51 @@ async def _ensure_default_schedule(db: AsyncSession, website: Website) -> None:
     await db.flush()
 
 
+async def mark_verified_via_provider(
+    db: AsyncSession,
+    website: Website,
+    *,
+    provider: str,
+    evidence: list | None = None,
+    actor_user_id: uuid.UUID | None = None,
+    org_id: uuid.UUID | None = None,
+) -> DomainVerification:
+    """Phase 4.2 — mark ownership VERIFIED using connected-provider evidence
+    (e.g. an ACTIVE Cloudflare zone the customer demonstrably controls).
+
+    Reuses the same guards + side effects as DNS/meta/file verification: the
+    cross-account ownership-conflict guard STILL runs (provider evidence must not
+    let one account hijack a hostname already verified by another), the default
+    monitoring schedule is ensured, and the same website.verification.* events
+    fire with method ``provider_connection``. The CALLER must have already proven
+    control (active-zone match) before calling this — this does not re-check the
+    provider.
+    """
+    conflict = await _find_ownership_conflict(db, website)
+    if conflict is not None:
+        emit_verification_event(
+            VERIFICATION_FAILED, website,
+            method=VerificationMethod.PROVIDER_CONNECTION.value, reason="ownership_conflict")
+        record_phase3_event(
+            db, event_type=VERIFICATION_FAILED, website=website,
+            actor_user_id=actor_user_id or website.user_id, org_id=org_id or website.org_id,
+            status="failed", reason="ownership_conflict", resource_type="domain_verification")
+        raise OwnershipConflictError(
+            "This domain is already verified under a different account.")
+    dv = await get_or_create_verification(db, website, VerificationMethod.PROVIDER_CONNECTION)
+    _mark_verified(website, dv)
+    await _ensure_default_schedule(db, website)
+    emit_verification_event(
+        VERIFICATION_COMPLETED, website,
+        method=VerificationMethod.PROVIDER_CONNECTION.value, reason=f"provider:{provider}")
+    record_phase3_event(
+        db, event_type=VERIFICATION_COMPLETED, website=website,
+        actor_user_id=actor_user_id or website.user_id, org_id=org_id or website.org_id,
+        status="verified", reason=f"provider:{provider}",
+        resource_type="domain_verification", resource_id=dv.id)
+    return dv
+
+
 async def _check_dns(hostname: str, token: str) -> bool:
     """Look up _webhound-verify.<hostname> TXT and match the expected token.
 

@@ -19,6 +19,10 @@ class VerificationMethod(str, enum.Enum):
     DNS_TXT = "dns_txt"
     META_TAG = "meta_tag"
     HTML_FILE = "html_file"
+    # Phase-4.2: ownership proven via a connected provider (e.g. an ACTIVE
+    # Cloudflare zone the customer demonstrably controls). Native PG enum value —
+    # added by migration 0042. Manual DNS/meta/file methods remain available.
+    PROVIDER_CONNECTION = "provider_connection"
 
 
 class ScanStatus(str, enum.Enum):
@@ -261,4 +265,14 @@ class SecretClassification(str, enum.Enum):
 class SecretStatus(str, enum.Enum):
     """Phase-4.1 stored-secret lifecycle."""
     ACTIVE = "active"
+    REVOKED = "revoked"
+
+
+class ProviderConnectionStatus(str, enum.Enum):
+    """Phase-4.2 provider (Cloudflare) connection lifecycle (String-backed column
+    — grows without ALTER TYPE, deliberate divergence from native PG enums)."""
+    NOT_CONNECTED = "not_connected"
+    CONNECTING = "connecting"
+    CONNECTED = "connected"
+    FAILED = "failed"
     REVOKED = "revoked"

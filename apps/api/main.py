@@ -28,6 +28,7 @@ from apps.api.routers import (
     auth,
     baselines,
     billing,
+    cloudflare,
     health,
     notifications,
     oauth,
@@ -128,6 +129,7 @@ app.include_router(public_scan.router)
 app.include_router(scanner_identity.router)
 app.include_router(websites.router)
 app.include_router(providers.router)
+app.include_router(cloudflare.router)
 app.include_router(trusted_access.router)
 app.include_router(access_validation.router)
 app.include_router(onboarding.router)

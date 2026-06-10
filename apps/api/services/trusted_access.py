@@ -242,6 +242,42 @@ async def start_trusted_access(
     return profile, guidance
 
 
+async def start_provider_oauth_access(
+    db: AsyncSession, website: Website, *, provider: str,
+    evidence: list | None = None, user_id=None, org_id=None,
+) -> TrustedAccessProfile:
+    """Phase 4.2 — record/refresh a provider-OAuth trusted-access profile in
+    PENDING after a provider (Cloudflare) connection is verified. Reuses the
+    TrustedAccessProfile model + audit seam; status stays PENDING because no
+    scanner access has actually been configured yet (Phase 3.5 validation remains
+    the single 'active' gate — we never claim active here)."""
+    profile = await get_trusted_access(db, website)
+    if profile is None:
+        profile = TrustedAccessProfile(website_id=website.id)
+        db.add(profile)
+    profile.org_id = org_id if org_id is not None else website.org_id
+    profile.user_id = user_id if user_id is not None else website.user_id
+    profile.domain = website.hostname
+    profile.provider = provider
+    profile.scanner_identity_version = SCANNER_VERSION
+    profile.scanner_user_agent = SCANNER_USER_AGENT
+    profile.access_status = TrustedAccessStatus.PENDING.value
+    profile.access_method = TrustedAccessMethod.PROVIDER_OAUTH.value
+    profile.permissions_granted = []  # no scanner access configured yet (pending)
+    profile.evidence = list(evidence or [])
+    profile.revoked_at = None
+    await db.flush()
+    await db.refresh(profile)
+    emit_trusted_access_event(
+        TRUSTED_ACCESS_STARTED, website, user_id=user_id, org_id=org_id,
+        provider=provider, status=profile.access_status, reason="provider_oauth")
+    record_phase3_event(
+        db, event_type=TRUSTED_ACCESS_STARTED, website=website, actor_user_id=user_id,
+        org_id=org_id, provider=provider, status=profile.access_status,
+        reason="provider_oauth", resource_type="trusted_access", resource_id=profile.id)
+    return profile
+
+
 async def _set_status(
     db: AsyncSession, website: Website, profile: TrustedAccessProfile,
     status: TrustedAccessStatus, event: str, *, reason: str | None = None,

@@ -3,6 +3,7 @@ from apps.api.models.abuse import AbuseFlag, IPDeviceFingerprint
 from apps.api.models.access_validation import AccessValidationResult
 from apps.api.models.admin_audit_log import AdminAuditLog
 from apps.api.models.encrypted_secret import EncryptedSecret
+from apps.api.models.provider_connection import ProviderConnection
 from apps.api.models.alert import Alert, AlertComment
 from apps.api.models.baseline import BaselineRecord
 from apps.api.models.deployment import Deployment
@@ -113,4 +114,6 @@ __all__ = [
     "OnboardingWizardState",
     # Phase-4.1 secret management
     "EncryptedSecret",
+    # Phase-4.2 provider connections
+    "ProviderConnection",
 ]

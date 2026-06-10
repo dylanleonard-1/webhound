@@ -107,6 +107,10 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     github_client_id: str = ""
     github_client_secret: str = ""
+    # Phase-4.2 Cloudflare provider integration (read-only scopes only; we do NOT
+    # request firewall/WAF write access in this foundation). Empty = disabled.
+    cloudflare_client_id: str = ""
+    cloudflare_client_secret: str = ""
     # Public-facing URLs (used in OAuth redirect_uri and post-auth redirects)
     # Production: api_base_url=https://api.webhoundsecurity.com  frontend_url=https://webhoundsecurity.com
     api_base_url: str = "http://localhost:8000"

@@ -386,6 +386,9 @@ export default function WebsiteDetailPage() {
   const [scansLoading, setScansLoading] = useState(true)
   const [siteError, setSiteError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  // Manual DNS/meta/.well-known verification is a fallback — revealed only when
+  // the customer chooses it from the provider-first onboarding card.
+  const [showManualVerify, setShowManualVerify] = useState(false)
 
   async function loadSite() {
     setSiteLoading(true)
@@ -526,9 +529,22 @@ export default function WebsiteDetailPage() {
         </div>
       </Card>
 
-      {/* Verification — shown prominently until the site is verified. The
-          guided-setup card's "Verify Website" CTA scrolls here. */}
-      {!isVerified && (
+      {/* Guided onboarding setup (customer view; provider-first). Technical
+          detail is behind Advanced; manual verification is revealed on demand. */}
+      <OnboardingPanel
+        websiteId={id}
+        onRevealVerification={() => {
+          setShowManualVerify(true)
+          setTimeout(
+            () => document.getElementById('verify-ownership')?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+            60,
+          )
+        }}
+      />
+
+      {/* Manual ownership verification (DNS TXT / meta / .well-known) — fallback
+          only, revealed when the customer chooses it (not shown by default). */}
+      {!isVerified && showManualVerify && (
         <div id="verify-ownership">
           <VerificationCard
             site={site}
@@ -536,9 +552,6 @@ export default function WebsiteDetailPage() {
           />
         </div>
       )}
-
-      {/* Guided onboarding setup (customer view; full technical detail behind Advanced) */}
-      <OnboardingPanel websiteId={id} />
 
       {/* PRIMARY: Automated monitoring — set it once, scans run on a schedule */}
       <section className="space-y-3">

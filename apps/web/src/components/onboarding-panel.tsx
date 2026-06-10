@@ -82,7 +82,11 @@ interface PanelData {
   audit: OnboardingAuditView | null
 }
 
-export function OnboardingPanel({ websiteId, isAdmin = false }: { websiteId: string; isAdmin?: boolean }) {
+export function OnboardingPanel({ websiteId, isAdmin = false, onRevealVerification }: {
+  websiteId: string
+  isAdmin?: boolean
+  onRevealVerification?: () => void
+}) {
   const [data, setData] = useState<PanelData | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -118,10 +122,18 @@ export function OnboardingPanel({ websiteId, isAdmin = false }: { websiteId: str
   const view = buildOnboardingView(wizard, provider, validation)
   const percent = wizard?.completion_percent ?? 0
   const onValidationStep = view.cta?.action === 'run_validation'
+  const verified = (readiness?.verification ?? '') === 'verified'
+
+  function revealVerification() {
+    if (onRevealVerification) onRevealVerification()
+    else document.getElementById('verify-ownership')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
 
   async function handleCta(action: CtaAction) {
-    if (action === 'verify') {
-      document.getElementById('verify-ownership')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // "verify" (provider connect) and "manual_verify" both reveal the ownership
+    // verification flow (DNS/meta/.well-known) — kept out of the primary path.
+    if (action === 'verify' || action === 'manual_verify') {
+      revealVerification()
       return
     }
     setBusy(true)
@@ -187,11 +199,22 @@ export function OnboardingPanel({ websiteId, isAdmin = false }: { websiteId: str
             {onValidationStep && view.validationPendingMessage && (
               <p className="text-xs text-gray-500 mt-2">{view.validationPendingMessage}</p>
             )}
-            {view.cta && (
-              <Button onClick={() => handleCta(view.cta!.action)} disabled={busy} className="mt-3">
-                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : view.cta.label}
-              </Button>
-            )}
+            <div className="mt-3 flex items-center gap-3 flex-wrap">
+              {view.cta && (
+                <Button onClick={() => handleCta(view.cta!.action)} disabled={busy}>
+                  {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : view.cta.label}
+                </Button>
+              )}
+              {view.secondaryCta && (
+                <button
+                  type="button"
+                  onClick={() => handleCta(view.secondaryCta!.action)}
+                  className="text-xs text-gray-500 hover:text-gray-300 underline-offset-2 hover:underline"
+                >
+                  {view.secondaryCta.label}
+                </button>
+              )}
+            </div>
           </div>
         )}
       </Card>
@@ -208,6 +231,16 @@ export function OnboardingPanel({ websiteId, isAdmin = false }: { websiteId: str
 
       {advancedOpen && (
         <div className="space-y-4">
+          {!verified && (
+            <Card className="p-5">
+              <SectionTitle icon={KeyRound} title="Manual Verification" source="Fallback" />
+              <p className="text-xs text-gray-400 mb-3">
+                Prefer to verify ownership yourself? Use a DNS TXT record, meta tag, or
+                a .well-known file instead of connecting your provider.
+              </p>
+              <Button variant="ghost" onClick={revealVerification}>Open manual verification</Button>
+            </Card>
+          )}
           {validation && validation.status === 'limited' && validation.challenge_detected && (
             <Card className="p-5" style={{ borderColor: 'rgba(245,158,11,0.3)' }}>
               <SectionTitle icon={AlertTriangle} title="Coverage Limited" source="Phase 3.5" />

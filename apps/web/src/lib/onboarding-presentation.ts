@@ -11,6 +11,7 @@ import type {
 
 export type CtaAction =
   | 'verify'
+  | 'manual_verify'
   | 'configure_access'
   | 'run_validation'
   | 'activate_monitoring'
@@ -49,9 +50,9 @@ const STEP_META: Record<string, { title: string; explanation: string; cta: { lab
     cta: null,
   },
   verification: {
-    title: 'Verify Website Ownership',
-    explanation: 'Verifying ownership ensures only authorized users can monitor this website.',
-    cta: { label: 'Verify Website', action: 'verify' },
+    title: 'Connect WebHound to your website',
+    explanation: 'Connect your website provider so WebHound can verify ownership and prepare monitoring safely.',
+    cta: { label: 'Connect Website', action: 'verify' },
   },
   trusted_access: {
     title: 'Set Up Scanner Access',
@@ -100,6 +101,8 @@ export interface OnboardingView {
   /** True only once validation has actually run (never show 0/0/0/0 as data). */
   showValidationMetrics: boolean
   validationPendingMessage: string | null
+  /** Secondary action for the connect step (e.g. "Manual verification" fallback). */
+  secondaryCta: { label: string; action: CtaAction } | null
 }
 
 /** Hosting / DNS / Framework only. Confidence, evidence, attribution are hidden. */
@@ -117,6 +120,33 @@ export function environmentFields(
 /** Validation metrics are meaningful only after validation has run. */
 export function showValidationMetrics(v: AccessValidationView | null): boolean {
   return !!v && v.status !== 'pending'
+}
+
+// Provider-FIRST connect direction. Prefer the access provider (Cloudflare —
+// DNS/WAF/access) over hosting (Vercel). null = no supported provider, so
+// manual verification becomes the primary path.
+export function detectedConnectProvider(
+  p: ProviderProfileResponse | null,
+): 'cloudflare' | 'vercel' | null {
+  if (!p) return null
+  const fields = [p.cdn_provider, p.waf_provider, p.dns_provider, p.hosting_provider]
+    .map((x) => (x || '').toLowerCase())
+  if (fields.some((x) => x.includes('cloudflare'))) return 'cloudflare'
+  if (fields.some((x) => x.includes('vercel'))) return 'vercel'
+  return null
+}
+
+const CONNECT_LABEL: Record<'cloudflare' | 'vercel', string> = {
+  cloudflare: 'Connect Cloudflare',
+  vercel: 'Connect Vercel',
+}
+
+/** Provider-first primary CTA for the connect/verify step. DNS-TXT/meta/.well-known
+ * are NOT the primary path — they live behind "Manual verification". */
+export function connectCta(p: ProviderProfileResponse | null): { label: string; action: CtaAction } {
+  const cp = detectedConnectProvider(p)
+  if (cp) return { label: CONNECT_LABEL[cp], action: 'verify' }
+  return { label: 'Verify manually', action: 'manual_verify' }
 }
 
 export function buildOnboardingView(
@@ -137,6 +167,17 @@ export function buildOnboardingView(
   const currentKey = steps.find((s) => s.step === currentStep)?.key ?? 'provider_discovery'
   const meta = STEP_META[currentKey] ?? STEP_META.provider_discovery
 
+  // Provider-first action for the connect/verify step; DNS/manual verification is
+  // the fallback (and the primary only when no supported provider is detected).
+  let cta = isComplete ? null : meta.cta
+  let secondaryCta: { label: string; action: CtaAction } | null = null
+  if (!isComplete && currentKey === 'verification') {
+    cta = connectCta(provider)
+    if (cta.action !== 'manual_verify') {
+      secondaryCta = { label: 'Manual verification', action: 'manual_verify' }
+    }
+  }
+
   return {
     title: isComplete ? 'WebHound Monitoring Active' : 'Finish Setting Up WebHound',
     stepNumber: Math.min(currentStep, totalSteps),
@@ -145,7 +186,7 @@ export function buildOnboardingView(
     currentStepExplanation: isComplete
       ? 'Your website is verified and monitoring is active.'
       : meta.explanation,
-    cta: isComplete ? null : meta.cta,
+    cta,
     completed: [...new Set(completed)],
     isComplete,
     environment: environmentFields(provider),
@@ -153,6 +194,7 @@ export function buildOnboardingView(
     validationPendingMessage: showValidationMetrics(validation)
       ? null
       : 'Validation will run automatically after ownership verification is complete.',
+    secondaryCta,
   }
 }
 

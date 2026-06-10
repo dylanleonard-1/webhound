@@ -8,11 +8,24 @@ import type {
 import {
   advancedDefaultOpen,
   buildOnboardingView,
+  connectCta,
+  detectedConnectProvider,
   environmentFields,
   friendlyStatus,
   isAdvancedOnly,
   showValidationMetrics,
 } from './onboarding-presentation'
+
+const vercelOnly: ProviderProfileResponse = {
+  id: 'p', website_id: 'w', domain: 'x', registrar: null, dns_provider: null,
+  hosting_provider: 'Vercel', cdn_provider: null, waf_provider: null, cms: null,
+  framework: 'Next.js', confidence: 80, evidence: [], detected_at: '',
+}
+const noSupported: ProviderProfileResponse = {
+  id: 'p', website_id: 'w', domain: 'x', registrar: null, dns_provider: 'GoDaddy',
+  hosting_provider: 'Netlify', cdn_provider: null, waf_provider: null, cms: null,
+  framework: null, confidence: 60, evidence: [], detected_at: '',
+}
 
 function wizard(currentStep: number, overrides: Partial<OnboardingWizardView> = {}): OnboardingWizardView {
   const steps = [
@@ -83,11 +96,14 @@ describe('pending validation does not show misleading zero metrics', () => {
 })
 
 describe('correct CTA for verification-pending + progression', () => {
-  it('verification step -> Verify Website', () => {
+  it('verification step is provider-first (Connect, not Verify Website / DNS)', () => {
     const v = buildOnboardingView(wizard(2), provider, null)
+    expect(v.currentStepTitle).toBe('Connect WebHound to your website')
+    expect(v.cta?.label).toBe('Connect Cloudflare') // provider has Cloudflare DNS
+    expect(v.cta?.label).not.toBe('Verify Website')
+    expect(v.cta?.label).not.toContain('TXT')
     expect(v.cta?.action).toBe('verify')
-    expect(v.cta?.label).toBe('Verify Website')
-    expect(v.currentStepTitle).toBe('Verify Website Ownership')
+    expect(v.secondaryCta?.label).toBe('Manual verification') // DNS is fallback, not primary
   })
   it('CTA changes as onboarding progresses', () => {
     expect(buildOnboardingView(wizard(2), provider, null).cta?.action).toBe('verify')
@@ -130,5 +146,30 @@ describe('advanced vs customer split + admin visibility', () => {
     expect(advancedDefaultOpen(true)).toBe(true)
     expect(advancedDefaultOpen(false)).toBe(false)
     expect(advancedDefaultOpen(undefined)).toBe(false)
+  })
+})
+
+describe('provider-first connect direction (DNS only as fallback)', () => {
+  it('prefers the access provider (Cloudflare over Vercel)', () => {
+    expect(detectedConnectProvider(provider)).toBe('cloudflare') // Cloudflare DNS + Vercel hosting
+    expect(detectedConnectProvider(vercelOnly)).toBe('vercel')
+    expect(detectedConnectProvider(noSupported)).toBeNull()
+    expect(detectedConnectProvider(null)).toBeNull()
+  })
+  it('Cloudflare -> Connect Cloudflare; Vercel-only -> Connect Vercel; none -> Verify manually', () => {
+    expect(connectCta(provider).label).toBe('Connect Cloudflare')
+    expect(connectCta(vercelOnly).label).toBe('Connect Vercel')
+    expect(connectCta(noSupported)).toEqual({ label: 'Verify manually', action: 'manual_verify' })
+  })
+  it('Vercel-only -> Connect Vercel primary + Manual verification secondary', () => {
+    const v = buildOnboardingView(wizard(2), vercelOnly, null)
+    expect(v.cta?.label).toBe('Connect Vercel')
+    expect(v.secondaryCta?.label).toBe('Manual verification')
+  })
+  it('no supported provider -> manual verification is the primary action, no secondary', () => {
+    const v = buildOnboardingView(wizard(2), noSupported, null)
+    expect(v.cta?.action).toBe('manual_verify')
+    expect(v.cta?.label).toBe('Verify manually')
+    expect(v.secondaryCta).toBeNull()
   })
 })

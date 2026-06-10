@@ -28,9 +28,15 @@ def upgrade() -> None:
     bind = op.get_bind()
     if bind.dialect.name != "postgresql":
         return
-    with op.get_context().autocommit_block():
-        op.execute("ALTER TYPE verificationstatus ADD VALUE IF NOT EXISTS 'expired'")
-        op.execute("ALTER TYPE verificationstatus ADD VALUE IF NOT EXISTS 'revoked'")
+    # PostgreSQL 12+ allows ALTER TYPE ... ADD VALUE inside a transaction — the
+    # new value just may not be USED in the same transaction (we don't use it
+    # here). This project's alembic runs every migration inside one
+    # asyncpg-managed transaction (env.py: `async with conn.begin()`), so we must
+    # NOT use op.get_context().autocommit_block() — it cannot escape that
+    # async-managed transaction and raises, aborting the whole upgrade. Running
+    # ADD VALUE directly works (verified against prod PG18).
+    op.execute("ALTER TYPE verificationstatus ADD VALUE IF NOT EXISTS 'expired'")
+    op.execute("ALTER TYPE verificationstatus ADD VALUE IF NOT EXISTS 'revoked'")
 
 
 def downgrade() -> None:

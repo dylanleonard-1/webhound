@@ -39,6 +39,7 @@ from apps.api.routers import (
     scan_results,
     scan_schedules,
     scanner_identity,
+    trusted_access,
     websites,
 )
 
@@ -123,6 +124,7 @@ app.include_router(public_scan.router)
 app.include_router(scanner_identity.router)
 app.include_router(websites.router)
 app.include_router(providers.router)
+app.include_router(trusted_access.router)
 app.include_router(portfolio.router)
 app.include_router(scan_jobs.router)
 app.include_router(scan_results.router)
@@ -144,6 +146,7 @@ from apps.api.internal.logs import router as internal_logs_router  # noqa: E402
 from apps.api.internal.threat_intel import router as internal_threat_intel_router  # noqa: E402
 from apps.api.internal.incidents import router as internal_incidents_router  # noqa: E402
 from apps.api.internal.engines import router as internal_engines_router  # noqa: E402
+from apps.api.internal.trusted_access import router as internal_trusted_access_router  # noqa: E402
 app.include_router(internal_router)
 app.include_router(internal_scan_ops_router)
 app.include_router(internal_alerts_router)
@@ -156,6 +159,7 @@ app.include_router(internal_logs_router)
 app.include_router(internal_threat_intel_router)
 app.include_router(internal_incidents_router)
 app.include_router(internal_engines_router)
+app.include_router(internal_trusted_access_router)
 
 
 @app.on_event("startup")

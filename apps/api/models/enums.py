@@ -175,3 +175,31 @@ class DriftSeverity(str, enum.Enum):
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
+
+
+class TrustedAccessStatus(str, enum.Enum):
+    """Phase-3.4 trusted scanner access lifecycle for a website/domain.
+
+    DELIBERATELY String-backed (stored as a String column, not a native PG enum
+    like verification_status / scan_job.status) so this vocabulary can grow —
+    e.g. when provider_oauth methods land — without ALTER TYPE migrations.
+    Validate against this enum at the service / schema boundary."""
+    NOT_CONFIGURED = "not_configured"
+    PENDING = "pending"
+    ACTIVE = "active"
+    LIMITED = "limited"
+    FAILED = "failed"
+    REVOKED = "revoked"
+
+
+class TrustedAccessMethod(str, enum.Enum):
+    """How trusted scanner access was established. String-backed for the same
+    reason as :class:`TrustedAccessStatus`."""
+    PROVIDER_OAUTH = "provider_oauth"
+    PROVIDER_MANUAL = "provider_manual"
+    DNS_VERIFIED = "dns_verified"
+    WELL_KNOWN_VERIFIED = "well_known_verified"
+    META_VERIFIED = "meta_verified"
+    INTERNAL_OWNED_DOMAIN = "internal_owned_domain"
+    STATIC_ALLOWLIST = "static_allowlist"
+    UNKNOWN = "unknown"

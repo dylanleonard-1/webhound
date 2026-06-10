@@ -41,6 +41,7 @@ from apps.api.models.scan_schedule import ScanSchedule
 from apps.api.models.subscription import Subscription
 from apps.api.models.support_ticket import SupportTicket, SupportTicketEvent
 from apps.api.models.threat_indicator import ThreatIndicator
+from apps.api.models.trusted_access import TrustedAccessProfile
 from apps.api.models.user import User
 from apps.api.models.website import DomainVerification, Website
 from apps.api.models.website_group import WebsiteGroup
@@ -98,4 +99,6 @@ __all__ = [
     "SuppressionScope",
     # Phase-3.1 provider discovery
     "ProviderProfile",
+    # Phase-3.4 trusted scanner access
+    "TrustedAccessProfile",
 ]

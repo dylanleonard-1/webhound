@@ -203,3 +203,16 @@ class TrustedAccessMethod(str, enum.Enum):
     INTERNAL_OWNED_DOMAIN = "internal_owned_domain"
     STATIC_ALLOWLIST = "static_allowlist"
     UNKNOWN = "unknown"
+
+
+class AccessValidationStatus(str, enum.Enum):
+    """Phase-3.5 access-validation lifecycle. String-backed (see
+    TrustedAccessStatus) — validated at the service boundary.
+
+    READY = scanner can see the site; LIMITED = sees it but with restrictions;
+    FAILED = cannot reliably see it."""
+    PENDING = "pending"
+    VALIDATING = "validating"
+    READY = "ready"
+    LIMITED = "limited"
+    FAILED = "failed"

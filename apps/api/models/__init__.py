@@ -1,5 +1,6 @@
 """Import all models so SQLAlchemy registers them with Base.metadata."""
 from apps.api.models.abuse import AbuseFlag, IPDeviceFingerprint
+from apps.api.models.access_validation import AccessValidationResult
 from apps.api.models.admin_audit_log import AdminAuditLog
 from apps.api.models.alert import Alert, AlertComment
 from apps.api.models.baseline import BaselineRecord
@@ -101,4 +102,6 @@ __all__ = [
     "ProviderProfile",
     # Phase-3.4 trusted scanner access
     "TrustedAccessProfile",
+    # Phase-3.5 access validation
+    "AccessValidationResult",
 ]

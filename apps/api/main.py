@@ -23,6 +23,7 @@ from apps.api.middleware import (
 )
 from apps.api.models.user import User
 from apps.api.routers import (
+    access_validation,
     auth,
     baselines,
     billing,
@@ -125,6 +126,7 @@ app.include_router(scanner_identity.router)
 app.include_router(websites.router)
 app.include_router(providers.router)
 app.include_router(trusted_access.router)
+app.include_router(access_validation.router)
 app.include_router(portfolio.router)
 app.include_router(scan_jobs.router)
 app.include_router(scan_results.router)

@@ -12,6 +12,8 @@ from uuid import UUID, uuid4
 
 from pydantic import AnyHttpUrl, BaseModel, Field, field_validator, model_validator
 
+from webhound.identity import SCANNER_USER_AGENT
+
 
 class TargetScope(str, Enum):
     """How broadly the scan is permitted to crawl."""
@@ -58,9 +60,7 @@ class ScanOptions(BaseModel):
     max_pages: int = Field(default=100, ge=1, le=5000)
     request_timeout_seconds: int = Field(default=30, ge=5, le=120)
     follow_redirects: bool = Field(default=True)
-    user_agent: str = Field(
-        default="WebHound/1.0 (security-scanner; +https://webhoundsecurity.com/bot)"
-    )
+    user_agent: str = Field(default=SCANNER_USER_AGENT)
     rate_limit_rps: float = Field(
         default=2.0,
         gt=0.0,

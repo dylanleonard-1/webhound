@@ -33,10 +33,13 @@ from webhound.core.retry_policy import (
 )
 from webhound.core.session_context import SessionContext
 from webhound.core.ssrf_guard import build_guarded_transport
+from webhound.identity import SCANNER_USER_AGENT
 from webhound.models.target import ScanOptions
 
 # WebHound identifies itself clearly so site owners can recognize and allow it.
-WEBHOUND_USER_AGENT = "WebHound/1.0 (security-scanner; +https://webhoundsecurity.com/bot)"
+# The canonical value lives in webhound.identity (single source of truth);
+# this name is kept as a back-compat alias.
+WEBHOUND_USER_AGENT = SCANNER_USER_AGENT
 
 # Maximum redirects the client will follow before giving up.
 _MAX_REDIRECTS: int = 10

@@ -192,6 +192,39 @@ export default function ScannerPage() {
         </div>
       </section>
 
+      <section className="relative px-6 sm:px-12 xl:px-20 py-20 lg:py-28">
+        <div className="max-w-4xl mx-auto">
+          <p className="text-[10px] font-bold tracking-[0.28em] uppercase mb-3" style={{ color: 'rgba(139,255,62,0.65)' }}>
+            For site owners &amp; security teams
+          </p>
+          <h2 className="font-bold leading-[1.05] tracking-[-0.02em] mb-5" style={{ fontSize: 'clamp(1.7rem, 3.2vw, 2.6rem)' }}>
+            Verifying WebHound traffic
+          </h2>
+          <p className="text-[14.5px] leading-[1.65] mb-6 max-w-[680px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+            WebHound identifies itself honestly on every request — we never spoof a
+            browser or disguise what we are. If you see this User-Agent in your logs,
+            it&apos;s us:
+          </p>
+          <pre className="rounded-[10px] p-4 mb-8 text-[13px] overflow-x-auto" style={{ background: 'rgba(8,12,22,0.9)', border: '1px solid rgba(255,255,255,0.08)', color: '#7CFF00' }}>
+            WebHoundScanner/1.0 (+https://webhoundsecurity.com/scanner)
+          </pre>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Link href="/verification" className="rounded-[12px] p-5 block" style={{ background: 'rgba(8,12,22,0.9)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <h3 className="text-[14.5px] font-bold mb-1.5">Ownership verification</h3>
+              <p className="text-[12.5px] leading-[1.55]" style={{ color: 'rgba(255,255,255,0.5)' }}>How we confirm you control a domain before advanced scans.</p>
+            </Link>
+            <Link href="/ip-ranges" className="rounded-[12px] p-5 block" style={{ background: 'rgba(8,12,22,0.9)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <h3 className="text-[14.5px] font-bold mb-1.5">IP ranges</h3>
+              <p className="text-[12.5px] leading-[1.55]" style={{ color: 'rgba(255,255,255,0.5)' }}>Where WebHound scans originate from.</p>
+            </Link>
+            <a href="mailto:security@webhoundsecurity.com" className="rounded-[12px] p-5 block" style={{ background: 'rgba(8,12,22,0.9)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <h3 className="text-[14.5px] font-bold mb-1.5">Contact</h3>
+              <p className="text-[12.5px] leading-[1.55]" style={{ color: 'rgba(255,255,255,0.5)' }}>security@webhoundsecurity.com</p>
+            </a>
+          </div>
+        </div>
+      </section>
+
       <section className="relative px-6 sm:px-12 xl:px-20 py-20 lg:py-28 text-center" style={{ background: '#02060f' }}>
         <div className="max-w-3xl mx-auto">
           <h2

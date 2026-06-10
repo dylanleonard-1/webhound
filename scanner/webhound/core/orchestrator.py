@@ -25,6 +25,7 @@ import tldextract as _tldextract
 logger = logging.getLogger(__name__)
 
 # Phase-2 telemetry enums (aliased short to keep the hot-path emits terse).
+from webhound.identity import identity_dict
 from webhound.telemetry import EventType as _TEL
 from webhound.telemetry import Stage as _TEL_STAGE
 from webhound.telemetry import Status as _TEL_STATUS
@@ -447,6 +448,10 @@ class Scanner:
     async def scan(self) -> ScanResult:
         """Execute the full scan pipeline and return a completed ScanResult."""
         ctx = ScanContext(self._target)
+        # Phase-3.3: stamp the public scanner identity onto result metadata so
+        # reports + telemetry record who scanned. Observability only — no
+        # behaviour change, no findings/scoring impact.
+        ctx.scan_result.metadata["scanner_identity"] = identity_dict()
         ctx.telemetry.emit(
             _TEL.SCAN_STARTED, _TEL_STAGE.SCAN,
             metadata={"profile": _infer_profile_name(self._target.scan_options),

@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   type LucideIcon,
-  AlertTriangle, CheckCircle2, Circle, Globe2, History, KeyRound,
-  ListChecks, Loader2, ScanLine, XCircle,
+  AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Globe2, History,
+  KeyRound, Loader2, ScanLine, ShieldCheck,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import {
   api,
   type AccessValidationView,
@@ -17,9 +18,16 @@ import {
 } from '@/lib/api'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  type CtaAction,
+  advancedDefaultOpen,
+  buildOnboardingView,
+} from '@/lib/onboarding-presentation'
 
-// All data is read-only and sourced from the Phase 3.1-3.8 services — this
-// component performs no recalculation and never displays secrets.
+// Primary card = customer-friendly guided setup (no raw statuses, no internals).
+// Advanced Details (collapsible) keeps the full technical view for advanced/admin
+// users — nothing is removed, only moved behind the expander.
 
 const GREEN = 'bg-[#8BFF3E]/10 text-[#8BFF3E] border border-[#8BFF3E]/20'
 const AMBER = 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
@@ -74,38 +82,32 @@ interface PanelData {
   audit: OnboardingAuditView | null
 }
 
-export function OnboardingPanel({ websiteId }: { websiteId: string }) {
+export function OnboardingPanel({ websiteId, isAdmin = false }: { websiteId: string; isAdmin?: boolean }) {
   const [data, setData] = useState<PanelData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [advancedOpen, setAdvancedOpen] = useState(advancedDefaultOpen(isAdmin))
 
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      setLoading(true)
-      // Provider discovery 404s until it has run — tolerate it (and any
-      // transient error) so the panel always renders what IS available.
-      const [provider, trusted, validation, readiness, wizard, audit] = await Promise.all([
-        api.websites.providers(websiteId).catch(() => null),
-        api.websites.trustedAccess(websiteId).catch(() => null),
-        api.websites.accessValidation(websiteId).catch(() => null),
-        api.websites.onboarding(websiteId).catch(() => null),
-        api.websites.onboardingWizard(websiteId).catch(() => null),
-        api.websites.audit(websiteId).catch(() => null),
-      ])
-      if (!cancelled) {
-        setData({ provider, trusted, validation, readiness, wizard, audit })
-        setLoading(false)
-      }
-    }
-    void load()
-    return () => { cancelled = true }
+  const load = useCallback(async () => {
+    const [provider, trusted, validation, readiness, wizard, audit] = await Promise.all([
+      api.websites.providers(websiteId).catch(() => null),
+      api.websites.trustedAccess(websiteId).catch(() => null),
+      api.websites.accessValidation(websiteId).catch(() => null),
+      api.websites.onboarding(websiteId).catch(() => null),
+      api.websites.onboardingWizard(websiteId).catch(() => null),
+      api.websites.audit(websiteId).catch(() => null),
+    ])
+    setData({ provider, trusted, validation, readiness, wizard, audit })
+    setLoading(false)
   }, [websiteId])
+
+  useEffect(() => { void load() }, [load])
 
   if (loading) {
     return (
       <Card className="p-5">
         <div className="flex items-center gap-2 text-sm text-gray-400">
-          <Loader2 className="w-4 h-4 animate-spin" /> Loading onboarding status…
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading setup…
         </div>
       </Card>
     )
@@ -113,136 +115,178 @@ export function OnboardingPanel({ websiteId }: { websiteId: string }) {
   if (!data) return null
 
   const { provider, trusted, validation, readiness, wizard, audit } = data
-  const counts: [string, number][] = validation
-    ? [['Pages', validation.pages_found], ['Scripts', validation.scripts_found],
-       ['APIs', validation.apis_found], ['3rd Parties', validation.third_parties_found]]
-    : []
+  const view = buildOnboardingView(wizard, provider, validation)
+  const percent = wizard?.completion_percent ?? 0
+  const onValidationStep = view.cta?.action === 'run_validation'
+
+  async function handleCta(action: CtaAction) {
+    if (action === 'verify') {
+      document.getElementById('verify-ownership')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+    setBusy(true)
+    try {
+      if (action === 'configure_access') await api.websites.trustedAccessStart(websiteId)
+      else if (action === 'run_validation') await api.websites.accessValidationRun(websiteId)
+      else if (action === 'activate_monitoring') await api.websites.activateMonitoring(websiteId)
+      await load()
+      toast.success('Setup updated')
+    } catch (e) {
+      toast.error((e as Error)?.message || 'That step can’t be completed yet.')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
-      {/* Status overview */}
-      <Card className="p-5">
-        <SectionTitle icon={Globe2} title="Onboarding & Scanner Access" source="Phase 3" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-          <Row label="Provider" value={provider?.cdn_provider || provider?.waf_provider || provider?.hosting_provider || readiness?.provider || 'unknown'} />
-          <Row label="Verification" badge={readiness?.verification} />
-          <Row label="Trusted Access" badge={trusted?.status} />
-          <Row label="Validation" badge={validation?.status} />
-          <Row label="Readiness" badge={readiness?.status} />
-          <Row label="Monitoring" badge={readiness?.monitoring} />
+      {/* ── Primary guided-setup card ─────────────────────────────── */}
+      <Card className="p-5" style={{ border: '1px solid rgba(124,255,0,0.18)' }}>
+        <div className="flex items-center gap-2 mb-1">
+          <ShieldCheck className="w-5 h-5 text-[#8BFF3E]" />
+          <h2 className="text-base font-semibold text-white">{view.title}</h2>
+          {!view.isComplete && (
+            <span className="ml-auto text-xs text-gray-500">Step {view.stepNumber} of {view.totalSteps}</span>
+          )}
         </div>
-        {wizard && (
-          <div className="mt-4">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-gray-500">Onboarding progress</span>
-              <span className="text-xs text-[#8BFF3E] font-semibold">{wizard.completion_percent}% complete</span>
-            </div>
-            <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
-              <div className="h-full rounded-full bg-[#8BFF3E]" style={{ width: `${wizard.completion_percent}%` }} />
-            </div>
+
+        <div className="h-1.5 rounded-full bg-white/5 overflow-hidden my-3">
+          <div className="h-full rounded-full bg-[#8BFF3E] transition-all" style={{ width: `${percent}%` }} />
+        </div>
+
+        {view.completed.length > 0 && (
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5 mb-4">
+            {view.completed.map((c) => (
+              <span key={c} className="inline-flex items-center gap-1.5 text-xs text-gray-300">
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#8BFF3E]" /> {c}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {view.environment.length > 0 && (
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            {view.environment.map((e) => (
+              <div key={e.label} className="rounded-lg bg-white/5 p-2.5">
+                <div className="text-[10px] text-gray-500 uppercase tracking-wider">{e.label}</div>
+                <div className="text-sm text-white font-medium truncate">{e.value}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {view.isComplete ? (
+          <div className="flex items-center gap-2 text-sm text-[#8BFF3E] font-medium">
+            <CheckCircle2 className="w-4 h-4" /> Monitoring is active for this website.
+          </div>
+        ) : (
+          <div className="rounded-[10px] p-4" style={{ background: 'rgba(8,12,22,0.6)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-1">Current step</div>
+            <div className="text-sm font-semibold text-white">{view.currentStepTitle}</div>
+            <p className="text-xs text-gray-400 mt-1 leading-relaxed">{view.currentStepExplanation}</p>
+            {onValidationStep && view.validationPendingMessage && (
+              <p className="text-xs text-gray-500 mt-2">{view.validationPendingMessage}</p>
+            )}
+            {view.cta && (
+              <Button onClick={() => handleCta(view.cta!.action)} disabled={busy} className="mt-3">
+                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : view.cta.label}
+              </Button>
+            )}
           </div>
         )}
       </Card>
 
-      {/* Coverage limited notice */}
-      {validation && validation.status === 'limited' && validation.challenge_detected && (
-        <Card className="p-5" style={{ borderColor: 'rgba(245,158,11,0.3)' }}>
-          <SectionTitle icon={AlertTriangle} title="Coverage Limited" source="Phase 3.5" />
-          <Row label="Challenge Provider" value={validation.challenge_provider} />
-          <Row label="Impact" value="Reduced browser visibility" />
-          <p className="text-xs text-gray-400 mt-2">{validation.recommendation}</p>
-        </Card>
-      )}
+      {/* ── Advanced details (technical / internal — collapsed by default) ── */}
+      <button
+        type="button"
+        onClick={() => setAdvancedOpen((o) => !o)}
+        className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+      >
+        {advancedOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+        Advanced details{isAdmin ? ' (admin)' : ''}
+      </button>
 
-      {/* Onboarding steps */}
-      {wizard && wizard.steps.length > 0 && (
-        <Card className="p-5">
-          <SectionTitle icon={ListChecks} title="Onboarding Steps" source="Phase 3.7" />
-          <div className="space-y-1">
-            {wizard.steps.map((step) => {
-              const done = ['completed', 'limited', 'active'].includes(step.status)
-              const failed = step.status === 'failed'
-              const current = step.step === wizard.current_step
-              const Icon = failed ? XCircle : done ? CheckCircle2 : Circle
-              const color = failed ? 'text-red-400' : done ? 'text-[#8BFF3E]' : current ? 'text-amber-400' : 'text-gray-600'
-              return (
-                <div key={step.key} className="flex items-center gap-2.5 py-1">
-                  <Icon className={`w-4 h-4 ${color}`} />
-                  <span className={`text-xs ${current ? 'text-white font-medium' : 'text-gray-400'}`}>{step.name}</span>
-                  {current && <span className="text-[10px] text-amber-400 uppercase tracking-wider">current</span>}
-                  <Badge className={`ml-auto ${statusClass(step.status)}`}>{step.status}</Badge>
-                </div>
-              )
-            })}
-          </div>
-        </Card>
-      )}
-
-      {/* Website environment */}
-      {provider && (
-        <Card className="p-5">
-          <SectionTitle icon={Globe2} title="Website Environment" source="Phase 3.1" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-            <Row label="Registrar" value={provider.registrar} />
-            <Row label="DNS Provider" value={provider.dns_provider} />
-            <Row label="Hosting" value={provider.hosting_provider} />
-            <Row label="CDN" value={provider.cdn_provider} />
-            <Row label="WAF" value={provider.waf_provider} />
-            <Row label="CMS" value={provider.cms} />
-            <Row label="Framework" value={provider.framework} />
-            <Row label="Confidence" value={`${provider.confidence}%`} />
-          </div>
-        </Card>
-      )}
-
-      {/* Trusted access */}
-      {trusted && (
-        <Card className="p-5">
-          <SectionTitle icon={KeyRound} title="Trusted Scanner Access" source="Phase 3.4" />
-          <Row label="Status" badge={trusted.status} />
-          <Row label="Provider" value={trusted.provider} />
-          <Row label="Access Method" value={humanize(trusted.access_method)} />
-          <Row label="Last Validation" value={fmt(trusted.last_validated_at)} />
-          {trusted.status !== 'active' && (
-            <p className="text-xs text-gray-400 mt-2">{trusted.recommended_action}</p>
+      {advancedOpen && (
+        <div className="space-y-4">
+          {validation && validation.status === 'limited' && validation.challenge_detected && (
+            <Card className="p-5" style={{ borderColor: 'rgba(245,158,11,0.3)' }}>
+              <SectionTitle icon={AlertTriangle} title="Coverage Limited" source="Phase 3.5" />
+              <Row label="Challenge Provider" value={validation.challenge_provider} />
+              <Row label="Impact" value="Reduced browser visibility" />
+              <p className="text-xs text-gray-400 mt-2">{validation.recommendation}</p>
+            </Card>
           )}
-        </Card>
-      )}
 
-      {/* Access validation */}
-      {validation && (
-        <Card className="p-5">
-          <SectionTitle icon={ScanLine} title="Access Validation" source="Phase 3.5" />
-          <Row label="Status" badge={validation.status} />
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-3">
-            {counts.map(([k, v]) => (
-              <div key={k} className="rounded-lg bg-white/5 p-2.5 text-center">
-                <div className="text-lg font-semibold text-white">{v}</div>
-                <div className="text-[10px] text-gray-500 uppercase tracking-wider">{k}</div>
+          {provider && (
+            <Card className="p-5">
+              <SectionTitle icon={Globe2} title="Website Environment" source="Phase 3.1" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
+                <Row label="Registrar" value={provider.registrar} />
+                <Row label="DNS Provider" value={provider.dns_provider} />
+                <Row label="Hosting" value={provider.hosting_provider} />
+                <Row label="CDN" value={provider.cdn_provider} />
+                <Row label="WAF" value={provider.waf_provider} />
+                <Row label="CMS" value={provider.cms} />
+                <Row label="Framework" value={provider.framework} />
+                <Row label="Confidence" value={`${provider.confidence}%`} />
               </div>
-            ))}
-          </div>
-          <Row label="Challenge Detected"
-               value={validation.challenge_detected === null ? 'unknown'
-                      : validation.challenge_detected ? `yes (${validation.challenge_provider || 'unknown'})` : 'no'} />
-          <Row label="Last Validation" value={fmt(validation.validated_at)} />
-        </Card>
-      )}
+            </Card>
+          )}
 
-      {/* Audit timeline */}
-      {audit && audit.audit_trail_available && (
-        <Card className="p-5">
-          <SectionTitle icon={History} title="Recent Activity" source="Phase 3.8" />
-          <div className="space-y-2">
-            {[...audit.timeline].slice(-8).reverse().map((ev, i) => (
-              <div key={i} className="flex items-center gap-2.5 text-xs">
-                <span className="text-gray-300 flex-1">{humanize(ev.event_type)}</span>
-                {ev.status && <Badge className={statusClass(ev.status)}>{ev.status}</Badge>}
-                <span className="text-gray-600 font-mono">{fmt(ev.created_at)}</span>
+          {trusted && (
+            <Card className="p-5">
+              <SectionTitle icon={KeyRound} title="Trusted Scanner Access" source="Phase 3.4" />
+              <Row label="Status" badge={trusted.status} />
+              <Row label="Provider" value={trusted.provider} />
+              <Row label="Access Method" value={humanize(trusted.access_method)} />
+              <Row label="Last Validation" value={fmt(trusted.last_validated_at)} />
+              {trusted.status !== 'active' && (
+                <p className="text-xs text-gray-400 mt-2">{trusted.recommended_action}</p>
+              )}
+            </Card>
+          )}
+
+          {validation && (
+            <Card className="p-5">
+              <SectionTitle icon={ScanLine} title="Access Validation" source="Phase 3.5" />
+              <Row label="Status" badge={validation.status} />
+              {validation.status !== 'pending' ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-3">
+                  {([['Pages', validation.pages_found], ['Scripts', validation.scripts_found],
+                     ['APIs', validation.apis_found], ['3rd Parties', validation.third_parties_found]] as [string, number][]).map(([k, v]) => (
+                    <div key={k} className="rounded-lg bg-white/5 p-2.5 text-center">
+                      <div className="text-lg font-semibold text-white">{v}</div>
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wider">{k}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500 my-3">
+                  Validation will run automatically after ownership verification is complete.
+                </p>
+              )}
+              <Row label="Challenge Detected"
+                   value={validation.challenge_detected === null ? 'unknown'
+                          : validation.challenge_detected ? `yes (${validation.challenge_provider || 'unknown'})` : 'no'} />
+              <Row label="Last Validation" value={fmt(validation.validated_at)} />
+            </Card>
+          )}
+
+          {audit && audit.audit_trail_available && (
+            <Card className="p-5">
+              <SectionTitle icon={History} title="Recent Activity" source="Phase 3.8" />
+              <div className="space-y-2">
+                {[...audit.timeline].slice(-8).reverse().map((ev, i) => (
+                  <div key={i} className="flex items-center gap-2.5 text-xs">
+                    <span className="text-gray-300 flex-1">{humanize(ev.event_type)}</span>
+                    {ev.status && <Badge className={statusClass(ev.status)}>{ev.status}</Badge>}
+                    <span className="text-gray-600 font-mono">{fmt(ev.created_at)}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </Card>
+            </Card>
+          )}
+        </div>
       )}
     </div>
   )

@@ -577,6 +577,15 @@ export const api = {
       request<OnboardingWizardView>('GET', `/websites/${id}/onboarding/wizard`),
     audit: (id: string) =>
       request<OnboardingAuditView>('GET', `/websites/${id}/audit`),
+
+    // Phase-3 onboarding actions (the simplified wizard CTAs). All reuse the
+    // existing endpoints; the caller refetches the read views afterwards.
+    trustedAccessStart: (id: string) =>
+      request<Record<string, unknown>>('POST', `/websites/${id}/trusted-access/start`),
+    accessValidationRun: (id: string) =>
+      request<AccessValidationView>('POST', `/websites/${id}/access-validation/run`),
+    activateMonitoring: (id: string) =>
+      request<Record<string, unknown>>('POST', `/websites/${id}/onboarding/activate-monitoring`),
   },
 
   scanJobs: {

@@ -526,15 +526,18 @@ export default function WebsiteDetailPage() {
         </div>
       </Card>
 
-      {/* Verification — shown prominently until the site is verified */}
+      {/* Verification — shown prominently until the site is verified. The
+          guided-setup card's "Verify Website" CTA scrolls here. */}
       {!isVerified && (
-        <VerificationCard
-          site={site}
-          onVerified={() => setSite(s => s ? { ...s, verification_status: 'verified' } : s)}
-        />
+        <div id="verify-ownership">
+          <VerificationCard
+            site={site}
+            onVerified={() => setSite(s => s ? { ...s, verification_status: 'verified' } : s)}
+          />
+        </div>
       )}
 
-      {/* Phase-3 onboarding & scanner-access status (read-only; from existing services) */}
+      {/* Guided onboarding setup (customer view; full technical detail behind Advanced) */}
       <OnboardingPanel websiteId={id} />
 
       {/* PRIMARY: Automated monitoring — set it once, scans run on a schedule */}

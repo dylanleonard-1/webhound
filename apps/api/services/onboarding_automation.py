@@ -155,3 +155,22 @@ async def run_automation(
                         actor_user_id=user_id, org_id=org_id, provider=provider, status="completed")
     return _state(current_stage="monitoring", status="completed",
                   completed_stages=completed, provider=provider, next_action=None)
+
+
+async def run_automation_for_website(website_id, *, user_id=None, org_id=None) -> None:
+    """Background entrypoint (e.g. from website creation). Opens its OWN session,
+    loads the website, and runs the same run_automation conductor. Best-effort:
+    failures are logged, never raised — website creation must not depend on
+    discovery, and the flow is idempotent + resumable so a retry is safe."""
+    from apps.api.database import AsyncSessionLocal
+    from apps.api.models.website import Website
+    try:
+        async with AsyncSessionLocal() as db:
+            website = await db.get(Website, website_id)
+            if website is None:
+                logger.warning("automation trigger: website %s not found", website_id)
+                return
+            await run_automation(db, website, user_id=user_id, org_id=org_id)
+            await db.commit()
+    except Exception:  # noqa: BLE001 — best-effort; never break the triggering request
+        logger.exception("background onboarding automation failed for website %s", website_id)

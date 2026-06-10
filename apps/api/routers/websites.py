@@ -5,7 +5,7 @@ import uuid
 from typing import Annotated
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.billing.quota import (
@@ -31,6 +31,7 @@ from apps.api.schemas.websites import (
 from apps.api.security import get_active_org_id, get_current_user
 from apps.api.services import websites as ws_service
 from apps.api.services import verification as verify_service
+from apps.api.services.onboarding_automation import run_automation_for_website
 from apps.api.services.phase3_audit import record_phase3_event
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,7 @@ async def create_website(
     data: WebsiteCreate,
     db: _DB,
     current_user: _CurrentUser,
+    background_tasks: BackgroundTasks,
     active_org: _ActiveOrg = None,
 ) -> WebsiteResponse:
     if not await consume_quota_bypass(db, current_user):
@@ -76,6 +78,13 @@ async def create_website(
     except ws_service.DuplicateWebsiteError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     await db.commit()
+    # Phase-3.10 trigger: run onboarding automation (provider discovery -> ... ->
+    # pause at verification) in the background. Best-effort, idempotent, and
+    # resumable — it never blocks or fails website creation. Reuses the existing
+    # run_automation conductor (no second orchestration path).
+    background_tasks.add_task(
+        run_automation_for_website, website.id,
+        user_id=current_user.id, org_id=active_org)
     return WebsiteResponse.model_validate(website)
 
 

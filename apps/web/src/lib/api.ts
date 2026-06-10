@@ -80,6 +80,102 @@ export interface WebsiteResponse {
 export type ScanStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 export type ScanProfile = 'quick' | 'standard' | 'deep' | 'monitor'
 
+// Phase-3 onboarding / scanner-access views (presentation only; sourced from
+// the Phase 3.1-3.8 read endpoints — no recalculation client-side).
+export interface ProviderProfileResponse {
+  id: string
+  website_id: string
+  domain: string
+  registrar: string | null
+  dns_provider: string | null
+  hosting_provider: string | null
+  cdn_provider: string | null
+  waf_provider: string | null
+  cms: string | null
+  framework: string | null
+  confidence: number
+  evidence: string[]
+  detected_at: string
+}
+
+export interface TrustedAccessView {
+  provider: string | null
+  status: string
+  access_method: string
+  recommended_action: string
+  scanner_identity_url: string
+  verification_url: string
+  ip_ranges_url: string
+  last_validated_at: string | null
+}
+
+export interface AccessValidationView {
+  status: string
+  pages_found: number
+  scripts_found: number
+  apis_found: number
+  third_parties_found: number
+  browser_rendered: boolean
+  challenge_detected: boolean | null
+  challenge_provider: string | null
+  validated_at: string | null
+  recommendation: string
+}
+
+export interface OnboardingReadinessView {
+  status: string
+  checks: Record<string, string>
+  monitoring_allowed: boolean
+  deep_scan_allowed: boolean
+  baseline_allowed: boolean
+  provider: string | null
+  verification: string
+  trusted_access: string
+  validation: string
+  evidence: string[]
+  recommendation: string
+  monitoring: string
+  coverage_notice: boolean
+}
+
+export interface OnboardingWizardStep {
+  step: number
+  key: string
+  name: string
+  status: string
+}
+
+export interface OnboardingWizardView {
+  overall_status: string
+  completion_percent: number
+  current_step: number
+  provider: string | null
+  steps: OnboardingWizardStep[]
+  notice?: string
+}
+
+export interface OnboardingAuditEvent {
+  event_type: string
+  resource_type: string | null
+  resource_id: string | null
+  domain: string | null
+  provider: string | null
+  status: string | null
+  reason: string | null
+  compliance_tags: string[] | null
+  created_at: string | null
+}
+
+export interface OnboardingAuditView {
+  audit_trail_available: boolean
+  event_count: number
+  last_verification: string | null
+  last_validation: string | null
+  last_monitoring_change: string | null
+  last_provider_change: string | null
+  timeline: OnboardingAuditEvent[]
+}
+
 export interface ScanJobResponse {
   id: string
   website_id: string
@@ -466,6 +562,21 @@ export const api = {
       request<{ verification_status: string; pending_method: string | null; pending_token: string | null }>(
         'GET', `/websites/${id}/verify`
       ),
+
+    // Phase-3 onboarding read endpoints (presentation only — no client-side
+    // recalculation; all data comes from the existing Phase 3.1-3.8 services).
+    providers: (id: string) =>
+      request<ProviderProfileResponse>('GET', `/websites/${id}/providers`),
+    trustedAccess: (id: string) =>
+      request<TrustedAccessView>('GET', `/websites/${id}/trusted-access`),
+    accessValidation: (id: string) =>
+      request<AccessValidationView>('GET', `/websites/${id}/access-validation`),
+    onboarding: (id: string) =>
+      request<OnboardingReadinessView>('GET', `/websites/${id}/onboarding`),
+    onboardingWizard: (id: string) =>
+      request<OnboardingWizardView>('GET', `/websites/${id}/onboarding/wizard`),
+    audit: (id: string) =>
+      request<OnboardingAuditView>('GET', `/websites/${id}/audit`),
   },
 
   scanJobs: {

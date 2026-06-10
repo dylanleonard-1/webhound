@@ -15,6 +15,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ScanLaunchForm } from '@/components/scan-launch-form'
 import { ScheduleList } from '@/components/monitoring/schedule-list'
+import { OnboardingPanel } from '@/components/onboarding-panel'
 import { LoadingState } from '@/components/loading-state'
 import { ErrorState } from '@/components/error-state'
 import { EmptyState } from '@/components/empty-state'
@@ -532,6 +533,9 @@ export default function WebsiteDetailPage() {
           onVerified={() => setSite(s => s ? { ...s, verification_status: 'verified' } : s)}
         />
       )}
+
+      {/* Phase-3 onboarding & scanner-access status (read-only; from existing services) */}
+      <OnboardingPanel websiteId={id} />
 
       {/* PRIMARY: Automated monitoring — set it once, scans run on a schedule */}
       <section className="space-y-3">

@@ -19,6 +19,7 @@ from apps.api.models.trusted_access import TrustedAccessProfile
 from apps.api.models.website import DomainVerification, Website
 from apps.api.models.enums import VerificationStatus
 from apps.api.owned_domains import is_host_allowlisted
+from apps.api.services.phase3_audit import record_phase3_event
 from apps.api.services.verification import is_ownership_verified
 from webhound.identity import (
     SCANNER_IP_RANGES_URL,
@@ -225,6 +226,10 @@ async def start_trusted_access(
     emit_trusted_access_event(
         TRUSTED_ACCESS_STARTED, website, user_id=user_id, org_id=org_id,
         provider=provider, status=profile.access_status, reason=method.value)
+    record_phase3_event(
+        db, event_type=TRUSTED_ACCESS_STARTED, website=website, actor_user_id=user_id,
+        org_id=org_id, provider=provider, status=profile.access_status,
+        reason=method.value, resource_type="trusted_access", resource_id=profile.id)
     emit_trusted_access_event(
         TRUSTED_ACCESS_PROVIDER_GUIDANCE, website, user_id=user_id, org_id=org_id,
         provider=provider, status=profile.access_status)
@@ -253,6 +258,10 @@ async def _set_status(
     emit_trusted_access_event(
         event, website, user_id=user_id, org_id=org_id,
         provider=profile.provider, status=profile.access_status, reason=reason)
+    record_phase3_event(
+        db, event_type=event, website=website, actor_user_id=user_id, org_id=org_id,
+        provider=profile.provider, status=profile.access_status, reason=reason,
+        resource_type="trusted_access", resource_id=profile.id)
     return profile
 
 

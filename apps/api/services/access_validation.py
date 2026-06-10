@@ -19,6 +19,7 @@ from apps.api.models.scan_job import ScanJob
 from apps.api.models.scan_result import ScanResultRecord
 from apps.api.models.website import Website
 from apps.api.services import trusted_access as ta_service
+from apps.api.services.phase3_audit import record_phase3_event
 from apps.api.services.verification import is_ownership_verified
 
 logger = logging.getLogger(__name__)
@@ -176,6 +177,10 @@ async def validate_access(
         )
         emit_validation_event(VALIDATION_COMPLETED, website, provider=ta_profile.provider,
                               status=result.validation_status, reason="no_scan_evidence")
+        record_phase3_event(
+            db, event_type=VALIDATION_COMPLETED, website=website, actor_user_id=user_id,
+            org_id=org_id, provider=ta_profile.provider, status=result.validation_status,
+            reason="no_scan_evidence", resource_type="access_validation", resource_id=result.id)
         return result
 
     # Reuse the SINGLE source of truth: the browser yield assessment the
@@ -230,8 +235,16 @@ async def validate_access(
     if challenge_detected:
         emit_validation_event(VALIDATION_CHALLENGE_DETECTED, website,
                               provider=challenge_provider, status=status.value)
+        record_phase3_event(
+            db, event_type=VALIDATION_CHALLENGE_DETECTED, website=website,
+            actor_user_id=user_id, org_id=org_id, provider=challenge_provider,
+            status=status.value, resource_type="access_validation", resource_id=result.id)
     emit_validation_event(VALIDATION_COMPLETED, website, provider=ta_profile.provider,
                           status=status.value)
+    record_phase3_event(
+        db, event_type=VALIDATION_COMPLETED, website=website, actor_user_id=user_id,
+        org_id=org_id, provider=ta_profile.provider, status=status.value,
+        resource_type="access_validation", resource_id=result.id)
     if status is AccessValidationStatus.READY:
         emit_validation_event(VALIDATION_READY, website, provider=ta_profile.provider,
                               status=status.value)

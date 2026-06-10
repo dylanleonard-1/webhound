@@ -18,6 +18,7 @@ from apps.api.models.enums import (
 )
 from apps.api.models.scan_schedule import ScanSchedule
 from apps.api.models.website import DomainVerification, Website
+from apps.api.services.phase3_audit import record_phase3_event
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,10 @@ async def check_verification(
             VERIFICATION_COMPLETED, website,
             method=dv.method.value, reason="dev_skip",
         )
+        record_phase3_event(
+            db, event_type=VERIFICATION_COMPLETED, website=website,
+            actor_user_id=website.user_id, org_id=website.org_id, status="verified",
+            reason="dev_skip", resource_type="domain_verification", resource_id=dv.id)
         return True
 
     method = dv.method
@@ -152,17 +157,31 @@ async def check_verification(
                 VERIFICATION_FAILED, website,
                 method=method.value, reason="ownership_conflict",
             )
+            record_phase3_event(
+                db, event_type=VERIFICATION_FAILED, website=website,
+                actor_user_id=website.user_id, org_id=website.org_id,
+                status="failed", reason="ownership_conflict",
+                resource_type="domain_verification", resource_id=dv.id)
             raise OwnershipConflictError(
                 "This domain is already verified under a different account."
             )
         _mark_verified(website, dv)
         await _ensure_default_schedule(db, website)
         emit_verification_event(VERIFICATION_COMPLETED, website, method=method.value)
+        record_phase3_event(
+            db, event_type=VERIFICATION_COMPLETED, website=website,
+            actor_user_id=website.user_id, org_id=website.org_id, status="verified",
+            reason=method.value, resource_type="domain_verification", resource_id=dv.id)
     else:
         emit_verification_event(
             VERIFICATION_FAILED, website,
             method=method.value, reason="proof_not_found",
         )
+        record_phase3_event(
+            db, event_type=VERIFICATION_FAILED, website=website,
+            actor_user_id=website.user_id, org_id=website.org_id, status="failed",
+            reason="proof_not_found", resource_type="domain_verification",
+            resource_id=dv.id)
     # Note: we no longer mark dv.status = FAILED on a failed check.
     # Verification is a polling flow — failure on tick N just means the
     # DNS record hasn't propagated yet; we want subsequent ticks to
@@ -354,6 +373,9 @@ async def revoke_verification(db: AsyncSession, website: Website) -> None:
         .values(is_enabled=False)
     )
     emit_verification_event(VERIFICATION_REVOKED, website)
+    record_phase3_event(
+        db, event_type=VERIFICATION_REVOKED, website=website,
+        actor_user_id=website.user_id, org_id=website.org_id, status="revoked")
 
 
 def _normalize_hostname(hostname: str) -> str:

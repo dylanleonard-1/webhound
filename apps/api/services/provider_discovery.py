@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.models.provider_profile import ProviderProfile
 from apps.api.models.website import Website
+from apps.api.services.phase3_audit import record_phase3_event
 
 logger = logging.getLogger(__name__)
 
@@ -64,4 +65,11 @@ async def run_provider_discovery(db: AsyncSession, website: Website) -> Provider
 
     await db.flush()
     await db.refresh(profile)
+    record_phase3_event(
+        db, event_type="provider.discovery.completed", website=website,
+        actor_user_id=website.user_id, org_id=website.org_id,
+        provider=(profile.cdn_provider or profile.waf_provider
+                  or profile.hosting_provider or profile.cms),
+        status="completed", reason=f"confidence {profile.confidence}",
+        resource_type="provider_profile", resource_id=profile.id)
     return profile

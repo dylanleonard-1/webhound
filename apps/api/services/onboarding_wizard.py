@@ -19,6 +19,7 @@ from apps.api.models.onboarding_wizard import OnboardingWizardState
 from apps.api.models.scan_schedule import ScanSchedule
 from apps.api.models.website import Website
 from apps.api.services import onboarding_readiness as ob
+from apps.api.services.phase3_audit import record_phase3_event
 
 logger = logging.getLogger(__name__)
 
@@ -161,9 +162,15 @@ async def sync_wizard(
     if prior is None:
         emit_wizard_event(ONBOARDING_STARTED, website, provider=provider,
                           current_step=view["current_step"], status=view["overall_status"])
+        record_phase3_event(db, event_type=ONBOARDING_STARTED, website=website,
+                            actor_user_id=user_id, org_id=org_id, provider=provider,
+                            status=view["overall_status"], resource_type="onboarding_wizard")
     elif not prior_completed:
         emit_wizard_event(ONBOARDING_RESUMED, website, provider=provider,
                           current_step=view["current_step"], status=view["overall_status"])
+        record_phase3_event(db, event_type=ONBOARDING_RESUMED, website=website,
+                            actor_user_id=user_id, org_id=org_id, provider=provider,
+                            status=view["overall_status"], resource_type="onboarding_wizard")
 
     for (_n, key, name) in _STEPS:
         new_s = statuses[key]
@@ -171,9 +178,15 @@ async def sync_wizard(
         if _done(new_s) and not _done(old_s):
             emit_wizard_event(ONBOARDING_STEP_COMPLETED, website, provider=provider,
                               current_step=view["current_step"], status=new_s, reason=name)
+            record_phase3_event(db, event_type=ONBOARDING_STEP_COMPLETED, website=website,
+                                actor_user_id=user_id, org_id=org_id, provider=provider,
+                                status=new_s, reason=name, resource_type="onboarding_wizard")
         elif new_s == "failed" and old_s != "failed":
             emit_wizard_event(ONBOARDING_STEP_FAILED, website, provider=provider,
                               current_step=view["current_step"], status=new_s, reason=name)
+            record_phase3_event(db, event_type=ONBOARDING_STEP_FAILED, website=website,
+                                actor_user_id=user_id, org_id=org_id, provider=provider,
+                                status=new_s, reason=name, resource_type="onboarding_wizard")
         if key == "monitoring" and new_s == "active" and old_s != "active":
             emit_wizard_event(MONITORING_ACTIVATED, website, provider=provider,
                               current_step=view["current_step"], status="active")
@@ -183,6 +196,9 @@ async def sync_wizard(
     if is_complete and not prior_completed:
         emit_wizard_event(ONBOARDING_COMPLETED, website, provider=provider,
                           current_step=view["current_step"], status=view["overall_status"])
+        record_phase3_event(db, event_type=ONBOARDING_COMPLETED, website=website,
+                            actor_user_id=user_id, org_id=org_id, provider=provider,
+                            status=view["overall_status"], resource_type="onboarding_wizard")
 
     if prior is None:
         prior = OnboardingWizardState(website_id=website.id, domain=website.hostname)

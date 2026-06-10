@@ -31,6 +31,7 @@ from apps.api.schemas.websites import (
 from apps.api.security import get_active_org_id, get_current_user
 from apps.api.services import websites as ws_service
 from apps.api.services import verification as verify_service
+from apps.api.services.phase3_audit import record_phase3_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/websites", tags=["websites"])
@@ -173,6 +174,10 @@ async def initiate_verification(
     verify_service.emit_verification_event(
         verify_service.VERIFICATION_STARTED, website, method=method.value,
     )
+    record_phase3_event(
+        db, event_type=verify_service.VERIFICATION_STARTED, website=website,
+        actor_user_id=current_user.id, status="pending", reason=method.value,
+        resource_type="domain_verification", resource_id=dv.id)
     await db.commit()
     return {
         "method": method.value,
@@ -206,6 +211,7 @@ async def check_verification(
     try:
         verified = await verify_service.check_verification(db, website, dv)
     except verify_service.OwnershipConflictError as exc:
+        await db.commit()  # persist the conflict audit record before surfacing 409
         raise HTTPException(409, str(exc))
     await db.commit()
     return {"verified": verified}

@@ -28,6 +28,7 @@ from apps.api.models.provider_profile import ProviderProfile
 from apps.api.models.scan_schedule import ScanSchedule
 from apps.api.models.trusted_access import TrustedAccessProfile
 from apps.api.models.website import Website
+from apps.api.services.phase3_audit import record_phase3_event
 
 logger = logging.getLogger(__name__)
 
@@ -220,9 +221,18 @@ async def activate_monitoring(
     _emit_decision_events(website, view)
 
     provider, status = view["provider"], view["status"]
+    record_phase3_event(
+        db, event_type=(DEEP_SCAN_ACTIVATION_ALLOWED if view["deep_scan_allowed"]
+                        else DEEP_SCAN_ACTIVATION_BLOCKED),
+        website=website, actor_user_id=user_id, org_id=org_id, provider=provider,
+        status=status, resource_type="onboarding_readiness")
     if not view["monitoring_allowed"]:
         emit_onboarding_event(MONITORING_ACTIVATION_BLOCKED, website, provider=provider,
                               status=status, reason="not_ready")
+        record_phase3_event(
+            db, event_type=MONITORING_ACTIVATION_BLOCKED, website=website,
+            actor_user_id=user_id, org_id=org_id, provider=provider, status=status,
+            reason="not_ready", resource_type="onboarding_readiness")
         raise NotReadyError()
 
     # Enable (do not create) the website's monitoring schedule(s). Additive —
@@ -232,4 +242,8 @@ async def activate_monitoring(
         .values(is_enabled=True))
     emit_onboarding_event(MONITORING_ACTIVATION_ALLOWED, website, provider=provider,
                           status=status, reason=status)
+    record_phase3_event(
+        db, event_type=MONITORING_ACTIVATION_ALLOWED, website=website,
+        actor_user_id=user_id, org_id=org_id, provider=provider, status=status,
+        reason=status, resource_type="onboarding_readiness")
     return dashboard_view(view, monitoring_active=True)

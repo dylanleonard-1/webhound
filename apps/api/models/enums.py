@@ -234,3 +234,12 @@ class OnboardingReadinessStatus(str, enum.Enum):
     NOT_READY = "not_ready"
     LIMITED = "limited"
     READY = "ready"
+
+
+class WizardStatus(str, enum.Enum):
+    """Phase-3.7 onboarding wizard overall progress (String-backed)."""
+    NOT_STARTED = "not_started"
+    IN_PROGRESS = "in_progress"
+    LIMITED = "limited"
+    COMPLETED = "completed"
+    FAILED = "failed"

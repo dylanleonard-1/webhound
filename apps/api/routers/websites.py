@@ -4,6 +4,7 @@ import logging
 import uuid
 from typing import Annotated
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +19,7 @@ from apps.api.internal.admin_bypass import (
 from apps.api.database import get_db
 from apps.api.pagination import page_meta
 from apps.api.models.enums import VerificationStatus
+from apps.api.models.provider_profile import ProviderProfile
 from apps.api.models.user import User
 from apps.api.target_validation import TargetRejected, validate_target
 from apps.api.schemas.websites import (
@@ -168,6 +170,9 @@ async def initiate_verification(
         await db.commit()
         return {"already_verified": True}
     dv = await verify_service.get_or_create_verification(db, website, method)
+    verify_service.emit_verification_event(
+        verify_service.VERIFICATION_STARTED, website, method=method.value,
+    )
     await db.commit()
     return {
         "method": method.value,
@@ -198,7 +203,10 @@ async def check_verification(
     dv = await verify_service.get_pending_verification(db, website_id)
     if dv is None:
         raise HTTPException(400, "No pending verification. Please initiate first.")
-    verified = await verify_service.check_verification(db, website, dv)
+    try:
+        verified = await verify_service.check_verification(db, website, dv)
+    except verify_service.OwnershipConflictError as exc:
+        raise HTTPException(409, str(exc))
     await db.commit()
     return {"verified": verified}
 
@@ -213,8 +221,31 @@ async def get_verification_status(
     if website is None:
         raise HTTPException(404, "Website not found")
     dv = await verify_service.get_pending_verification(db, website_id)
+    provider_profile = await db.scalar(
+        sa.select(ProviderProfile).where(ProviderProfile.website_id == website.id)
+    )
+    recommendation = verify_service.recommend_verification(provider_profile)
     return {
         "verification_status": website.verification_status.value,
         "pending_method": dv.method.value if dv else None,
         "pending_token": dv.token if dv else None,
+        # Phase-3.2: ProviderProfile-driven method ordering (3.1 -> 3.2 link).
+        "recommended_method": recommendation["recommended_method"],
+        "fallback_methods": recommendation["fallback_methods"],
     }
+
+
+@router.post("/{website_id}/verify/revoke")
+async def revoke_verification(
+    website_id: uuid.UUID,
+    db: _DB,
+    current_user: _CurrentUser,
+) -> dict:
+    """Owner withdraws verified access: set REVOKED and pause monitoring.
+    Advanced scans/monitoring are blocked until the domain is re-verified."""
+    website = await ws_service.get_website(db, website_id, user_id=_uid(current_user))
+    if website is None:
+        raise HTTPException(404, "Website not found")
+    await verify_service.revoke_verification(db, website)
+    await db.commit()
+    return {"verification_status": website.verification_status.value}

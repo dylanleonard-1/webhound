@@ -7,10 +7,11 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.config import get_settings
-from apps.api.models.enums import ScanStatus, VerificationStatus
+from apps.api.models.enums import ScanStatus
 from apps.api.models.scan_job import ScanJob
 from apps.api.models.website import Website
 from apps.api.schemas.scan_jobs import ScanJobCreate, ScanJobStatusUpdate
+from apps.api.services.verification import is_ownership_verified
 
 
 class WebsiteNotFoundError(Exception):
@@ -66,8 +67,11 @@ async def create_scan_job(
         raise WebsiteNotFoundError(f"Website not found: {data.website_id}")
 
     settings = get_settings()
+    # Ownership gate (Phase-3.2): blocks any non-VERIFIED status — including
+    # REVOKED / EXPIRED — for non-admin, non-dev paths. Centralised in the
+    # verification service so advanced actions share one definition.
     if (
-        website.verification_status != VerificationStatus.VERIFIED
+        not is_ownership_verified(website)
         and not settings.dev_allow_unverified_scans
         and not is_admin
     ):

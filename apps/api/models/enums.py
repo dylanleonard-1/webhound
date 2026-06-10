@@ -8,6 +8,11 @@ class VerificationStatus(str, enum.Enum):
     PENDING = "pending"
     VERIFIED = "verified"
     FAILED = "failed"
+    # Phase-3.2: ownership lifecycle. EXPIRED = a previously-valid proof
+    # lapsed (re-verify required); REVOKED = the owner withdrew access
+    # (monitoring paused). Both are treated as "not verified" by the gate.
+    EXPIRED = "expired"
+    REVOKED = "revoked"
 
 
 class VerificationMethod(str, enum.Enum):

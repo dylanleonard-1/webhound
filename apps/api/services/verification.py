@@ -21,6 +21,33 @@ from apps.api.models.website import DomainVerification, Website
 
 logger = logging.getLogger(__name__)
 
+# --- Phase-3.2 verification audit events ------------------------------------
+# Single emit seam (emit_verification_event) so callers and tests have one
+# stable hook. Logged into the standard pipeline; the DomainVerification row +
+# website.verification_status are the durable state of record. A dedicated
+# customer-audit table is deferred (see Phase-3.2/3.8 audit).
+VERIFICATION_STARTED = "website.verification.started"
+VERIFICATION_COMPLETED = "website.verification.completed"
+VERIFICATION_FAILED = "website.verification.failed"
+VERIFICATION_REVOKED = "website.verification.revoked"
+VERIFICATION_EXPIRED = "website.verification.expired"
+
+
+def emit_verification_event(
+    event: str, website: Website, *,
+    method: str | None = None, reason: str | None = None,
+) -> None:
+    """Emit a website.verification.* audit event (logger-backed)."""
+    logger.info(
+        "verification-event %s website_id=%s hostname=%s method=%s reason=%s",
+        event, website.id, website.hostname, method, reason,
+    )
+
+
+class OwnershipConflictError(Exception):
+    """A proof passed, but a different account already holds a VERIFIED site
+    for the same (normalised) hostname. Surfaced as HTTP 409."""
+
 
 def generate_token() -> str:
     return f"webhound-verify={secrets.token_urlsafe(24)}"
@@ -80,6 +107,10 @@ async def check_verification(
             website.hostname,
         )
         _mark_verified(website, dv)
+        emit_verification_event(
+            VERIFICATION_COMPLETED, website,
+            method=dv.method.value, reason="dev_skip",
+        )
         return True
 
     method = dv.method
@@ -107,8 +138,31 @@ async def check_verification(
     )
 
     if result:
+        # Ownership-integrity guard: the proof passed, but block if a different
+        # account already holds a VERIFIED site for the same hostname (apex/www
+        # variants) — uq_websites_url only dedupes the exact URL.
+        conflict = await _find_ownership_conflict(db, website)
+        if conflict is not None:
+            logger.warning(
+                "verify: ownership conflict for hostname=%s — already verified "
+                "under website_id=%s (different owner)",
+                website.hostname, conflict.id,
+            )
+            emit_verification_event(
+                VERIFICATION_FAILED, website,
+                method=method.value, reason="ownership_conflict",
+            )
+            raise OwnershipConflictError(
+                "This domain is already verified under a different account."
+            )
         _mark_verified(website, dv)
         await _ensure_default_schedule(db, website)
+        emit_verification_event(VERIFICATION_COMPLETED, website, method=method.value)
+    else:
+        emit_verification_event(
+            VERIFICATION_FAILED, website,
+            method=method.value, reason="proof_not_found",
+        )
     # Note: we no longer mark dv.status = FAILED on a failed check.
     # Verification is a polling flow — failure on tick N just means the
     # DNS record hasn't propagated yet; we want subsequent ticks to
@@ -257,4 +311,68 @@ async def get_pending_verification(
             DomainVerification.website_id == website_id,
             DomainVerification.status != VerificationStatus.VERIFIED,
         ).order_by(DomainVerification.created_at.desc())
+    )
+
+
+# --- Phase-3.2 ownership gate, recommendation, revoke -----------------------
+
+def is_ownership_verified(website: Website) -> bool:
+    """True only when ownership is currently proven. PENDING / FAILED /
+    EXPIRED / REVOKED / UNVERIFIED all count as not-verified. This is the
+    single gate for advanced actions (deep scan, monitoring, baselines, WADE,
+    trusted scanner access)."""
+    return website.verification_status == VerificationStatus.VERIFIED
+
+
+def recommend_verification(provider_profile: object | None) -> dict:
+    """Order the (always-valid) verification methods using the Phase-3.1
+    ProviderProfile when present. Hosted site builders often lock raw DNS but
+    allow markup injection, so a meta tag is the smoother path there."""
+    all_methods = [
+        VerificationMethod.DNS_TXT,
+        VerificationMethod.META_TAG,
+        VerificationMethod.HTML_FILE,
+    ]
+    recommended = VerificationMethod.DNS_TXT
+    cms = (getattr(provider_profile, "cms", None) or "").lower()
+    if cms in {"wix", "squarespace", "shopify"}:
+        recommended = VerificationMethod.META_TAG
+    return {
+        "recommended_method": recommended.value,
+        "fallback_methods": [m.value for m in all_methods if m != recommended],
+    }
+
+
+async def revoke_verification(db: AsyncSession, website: Website) -> None:
+    """Owner withdraws verified access: mark REVOKED and pause (not delete) any
+    monitoring schedules. Advanced actions are blocked thereafter via
+    is_ownership_verified."""
+    website.verification_status = VerificationStatus.REVOKED
+    await db.execute(
+        sa.update(ScanSchedule)
+        .where(ScanSchedule.website_id == website.id)
+        .values(is_enabled=False)
+    )
+    emit_verification_event(VERIFICATION_REVOKED, website)
+
+
+def _normalize_hostname(hostname: str) -> str:
+    return (hostname or "").strip().lower().removeprefix("www.")
+
+
+async def _find_ownership_conflict(
+    db: AsyncSession, website: Website,
+) -> Website | None:
+    """Another user's already-VERIFIED website for the same normalised hostname
+    (apex/www variants), or None. Guards against two accounts each 'owning' the
+    same site via http/https/www URL variants."""
+    base = _normalize_hostname(website.hostname)
+    variants = [base, f"www.{base}"]
+    return await db.scalar(
+        sa.select(Website).where(
+            Website.id != website.id,
+            Website.user_id != website.user_id,
+            Website.verification_status == VerificationStatus.VERIFIED,
+            sa.func.lower(Website.hostname).in_(variants),
+        ).limit(1)
     )

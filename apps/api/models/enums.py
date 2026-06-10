@@ -243,3 +243,22 @@ class WizardStatus(str, enum.Enum):
     LIMITED = "limited"
     COMPLETED = "completed"
     FAILED = "failed"
+
+
+class SecretClassification(str, enum.Enum):
+    """Phase-4.1 secret sensitivity tiers (stored on each secret).
+
+    L1 public (provider names, domains, scanner identity); L2 sensitive
+    (customer metadata, provider account ids); L3 confidential (OAuth access/
+    refresh tokens, API keys — encrypted at rest); L4 restricted (master/signing
+    keys, JWT/infra secrets — live in env/KMS, never in this table)."""
+    LEVEL_1_PUBLIC = "level_1_public"
+    LEVEL_2_SENSITIVE = "level_2_sensitive"
+    LEVEL_3_CONFIDENTIAL = "level_3_confidential"
+    LEVEL_4_RESTRICTED = "level_4_restricted"
+
+
+class SecretStatus(str, enum.Enum):
+    """Phase-4.1 stored-secret lifecycle."""
+    ACTIVE = "active"
+    REVOKED = "revoked"

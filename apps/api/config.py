@@ -40,6 +40,15 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24  # 24 hours
 
+    # Phase-4.1 encryption-at-rest for provider secrets (Fernet, versioned).
+    # Format: "<version>:<fernet-key>,<version>:<fernet-key>" e.g. "1:abc...,2:def..."
+    # Generate: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # PROD MUST set this — without it SecretStorageService refuses to store (fail
+    # closed). Dev falls back to an EPHEMERAL key (secrets won't survive restart).
+    # NEVER evict a key version until every secret on it has been re-encrypted.
+    encryption_keys: str = ""
+    encryption_active_version: str = ""
+
     # CORS — override with CORS_ORIGINS env var as JSON array for staging/prod
     # e.g. CORS_ORIGINS='["https://webhoundsecurity.com","https://app.webhoundsecurity.com"]'
     # NoDecode: pydantic-settings would otherwise JSON-decode this list field

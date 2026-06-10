@@ -2,6 +2,7 @@
 from apps.api.models.abuse import AbuseFlag, IPDeviceFingerprint
 from apps.api.models.access_validation import AccessValidationResult
 from apps.api.models.admin_audit_log import AdminAuditLog
+from apps.api.models.encrypted_secret import EncryptedSecret
 from apps.api.models.alert import Alert, AlertComment
 from apps.api.models.baseline import BaselineRecord
 from apps.api.models.deployment import Deployment
@@ -110,4 +111,6 @@ __all__ = [
     "OnboardingReadiness",
     # Phase-3.7 onboarding wizard
     "OnboardingWizardState",
+    # Phase-4.1 secret management
+    "EncryptedSecret",
 ]

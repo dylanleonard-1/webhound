@@ -155,6 +155,7 @@ from apps.api.internal.threat_intel import router as internal_threat_intel_route
 from apps.api.internal.incidents import router as internal_incidents_router  # noqa: E402
 from apps.api.internal.engines import router as internal_engines_router  # noqa: E402
 from apps.api.internal.trusted_access import router as internal_trusted_access_router  # noqa: E402
+from apps.api.internal.secrets import router as internal_secrets_router  # noqa: E402
 app.include_router(internal_router)
 app.include_router(internal_scan_ops_router)
 app.include_router(internal_alerts_router)
@@ -168,6 +169,7 @@ app.include_router(internal_threat_intel_router)
 app.include_router(internal_incidents_router)
 app.include_router(internal_engines_router)
 app.include_router(internal_trusted_access_router)
+app.include_router(internal_secrets_router)
 
 
 @app.on_event("startup")

@@ -216,3 +216,21 @@ class AccessValidationStatus(str, enum.Enum):
     READY = "ready"
     LIMITED = "limited"
     FAILED = "failed"
+
+
+class ReadinessCheck(str, enum.Enum):
+    """Result of a single onboarding readiness check."""
+    PASS = "pass"
+    WARNING = "warning"
+    FAIL = "fail"
+
+
+class OnboardingReadinessStatus(str, enum.Enum):
+    """Phase-3.6 per-website monitoring readiness (String-backed). Distinct from
+    the account-level onboarding checklist in platform/onboarding.
+
+    READY = safe to enter monitoring; LIMITED = may proceed with visibility
+    concerns; NOT_READY = onboarding incomplete (activation blocked)."""
+    NOT_READY = "not_ready"
+    LIMITED = "limited"
+    READY = "ready"

@@ -34,6 +34,7 @@ from apps.api.models.grouped_finding import GroupedFindingRecord
 from apps.api.models.internal_note import InternalNote
 from apps.api.models.log_record import LogRecord
 from apps.api.models.notification import Notification
+from apps.api.models.onboarding_readiness import OnboardingReadiness
 from apps.api.models.provider_profile import ProviderProfile
 from apps.api.models.report import ReportRecord
 from apps.api.models.scan_job import ScanJob
@@ -104,4 +105,6 @@ __all__ = [
     "TrustedAccessProfile",
     # Phase-3.5 access validation
     "AccessValidationResult",
+    # Phase-3.6 onboarding readiness
+    "OnboardingReadiness",
 ]

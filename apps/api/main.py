@@ -30,6 +30,7 @@ from apps.api.routers import (
     health,
     notifications,
     oauth,
+    onboarding,
     orgs,
     phone,
     portfolio,
@@ -127,6 +128,7 @@ app.include_router(websites.router)
 app.include_router(providers.router)
 app.include_router(trusted_access.router)
 app.include_router(access_validation.router)
+app.include_router(onboarding.router)
 app.include_router(portfolio.router)
 app.include_router(scan_jobs.router)
 app.include_router(scan_results.router)

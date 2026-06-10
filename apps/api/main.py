@@ -32,6 +32,7 @@ from apps.api.routers import (
     orgs,
     phone,
     portfolio,
+    providers,
     public_scan,
     suppressions,
     scan_jobs,
@@ -119,6 +120,7 @@ app.include_router(orgs.router)
 app.include_router(suppressions.router)
 app.include_router(public_scan.router)
 app.include_router(websites.router)
+app.include_router(providers.router)
 app.include_router(portfolio.router)
 app.include_router(scan_jobs.router)
 app.include_router(scan_results.router)

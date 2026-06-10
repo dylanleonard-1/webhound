@@ -33,6 +33,7 @@ from apps.api.models.grouped_finding import GroupedFindingRecord
 from apps.api.models.internal_note import InternalNote
 from apps.api.models.log_record import LogRecord
 from apps.api.models.notification import Notification
+from apps.api.models.provider_profile import ProviderProfile
 from apps.api.models.report import ReportRecord
 from apps.api.models.scan_job import ScanJob
 from apps.api.models.scan_result import ScanResultRecord
@@ -95,4 +96,6 @@ __all__ = [
     "DriftSeverity",
     "Suppression",
     "SuppressionScope",
+    # Phase-3.1 provider discovery
+    "ProviderProfile",
 ]

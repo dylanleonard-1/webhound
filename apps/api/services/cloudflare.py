@@ -17,30 +17,25 @@
 from __future__ import annotations
 
 import logging
-import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from urllib.parse import urlencode
 
 import httpx
-import jwt
-import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.config import get_settings
 from apps.api.models.enums import ProviderConnectionStatus
-from apps.api.models.provider_connection import ProviderConnection
 from apps.api.models.website import Website
+from apps.api.services import provider_oauth
 from apps.api.services import trusted_access as ta_service
 from apps.api.services import verification as verify_service
 from apps.api.services.key_management import get_key_management
-from apps.api.services.phase3_audit import record_phase3_event
+from apps.api.services.provider_oauth import EncryptionNotConfiguredError, InvalidStateError
 from apps.api.services.secret_storage import store_secret
 
 logger = logging.getLogger(__name__)
 
 CLOUDFLARE_PROVIDER = "cloudflare"
-_STATE_PURPOSE = "cf_oauth"
-_STATE_TTL_MINUTES = 15
 
 # Cloudflare OAuth + API endpoints. Read-only scopes only — we never request
 # firewall/WAF write access in this foundation (§8 deferred).
@@ -65,14 +60,6 @@ class CloudflareNotConfiguredError(RuntimeError):
     """Cloudflare OAuth client credentials are not configured."""
 
 
-class EncryptionNotConfiguredError(RuntimeError):
-    """ENCRYPTION_KEYS not configured — refuse to persist tokens (fail closed)."""
-
-
-class InvalidStateError(RuntimeError):
-    """OAuth state is missing, tampered, expired, or has the wrong purpose."""
-
-
 class CloudflareOAuthError(RuntimeError):
     """Token exchange / API call failed."""
 
@@ -89,27 +76,12 @@ def _redirect_uri() -> str:
 # ── OAuth state (signed JWT = CSRF protection + callback identity) ─────────────
 
 def sign_state(*, website_id, user_id, org_id) -> str:
-    s = get_settings()
-    payload = {
-        "wid": str(website_id),
-        "uid": str(user_id) if user_id else None,
-        "oid": str(org_id) if org_id else None,
-        "purpose": _STATE_PURPOSE,
-        "jti": secrets.token_urlsafe(8),
-        "exp": datetime.now(timezone.utc) + timedelta(minutes=_STATE_TTL_MINUTES),
-    }
-    return jwt.encode(payload, s.secret_key, algorithm=s.algorithm)
+    return provider_oauth.sign_state(CLOUDFLARE_PROVIDER, website_id=website_id,
+                                     user_id=user_id, org_id=org_id)
 
 
 def verify_state(state: str) -> dict:
-    s = get_settings()
-    try:
-        payload = jwt.decode(state, s.secret_key, algorithms=[s.algorithm])
-    except jwt.PyJWTError as exc:
-        raise InvalidStateError(str(exc)) from exc
-    if payload.get("purpose") != _STATE_PURPOSE or not payload.get("wid"):
-        raise InvalidStateError("bad state purpose")
-    return payload
+    return provider_oauth.verify_state(CLOUDFLARE_PROVIDER, state)
 
 
 def build_authorize_url(state: str) -> str:
@@ -178,28 +150,18 @@ def _capabilities(zone: dict) -> dict:
     }
 
 
-async def get_connection(db: AsyncSession, website_id) -> ProviderConnection | None:
-    return await db.scalar(
-        sa.select(ProviderConnection).where(
-            ProviderConnection.website_id == website_id,
-            ProviderConnection.provider == CLOUDFLARE_PROVIDER))
+async def get_connection(db: AsyncSession, website_id):
+    return await provider_oauth.get_connection(db, website_id, CLOUDFLARE_PROVIDER)
 
 
-async def _get_or_create(db: AsyncSession, website: Website, user_id, org_id) -> ProviderConnection:
-    conn = await get_connection(db, website.id)
-    if conn is None:
-        conn = ProviderConnection(website_id=website.id, provider=CLOUDFLARE_PROVIDER)
-        db.add(conn)
-    conn.user_id = user_id if user_id is not None else website.user_id
-    conn.org_id = org_id if org_id is not None else website.org_id
-    return conn
+async def _get_or_create(db: AsyncSession, website: Website, user_id, org_id):
+    return await provider_oauth.get_or_create_connection(
+        db, website, CLOUDFLARE_PROVIDER, user_id, org_id)
 
 
 def _audit(db, event, website, *, user_id, org_id, status, reason=None):
-    record_phase3_event(
-        db, event_type=event, website=website, actor_user_id=user_id, org_id=org_id,
-        provider=CLOUDFLARE_PROVIDER, status=status, reason=reason,
-        resource_type="provider_connection")
+    provider_oauth.audit_event(db, event, website, provider=CLOUDFLARE_PROVIDER,
+                               user_id=user_id, org_id=org_id, status=status, reason=reason)
 
 
 async def complete_connection(db: AsyncSession, *, website: Website, code: str,
@@ -301,16 +263,5 @@ async def complete_connection(db: AsyncSession, *, website: Website, code: str,
     return {"matched": True, "status": "connected", "zone": zone_name}
 
 
-def dashboard_view(conn: ProviderConnection | None) -> dict:
-    """Customer-safe view — NO account/zone ids, tokens, permissions, or raw
-    metadata. Only the connection state + the customer's own domain name."""
-    if conn is None:
-        return {"provider": CLOUDFLARE_PROVIDER, "connection_status": "not_connected",
-                "connected": False, "connected_at": None, "domain": None}
-    return {
-        "provider": CLOUDFLARE_PROVIDER,
-        "connection_status": conn.connection_status,
-        "connected": conn.connection_status == ProviderConnectionStatus.CONNECTED.value,
-        "connected_at": conn.connected_at.isoformat() if conn.connected_at else None,
-        "domain": conn.zone_name,
-    }
+def dashboard_view(conn) -> dict:
+    return provider_oauth.dashboard_view(conn, provider=CLOUDFLARE_PROVIDER)

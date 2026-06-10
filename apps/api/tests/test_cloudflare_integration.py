@@ -58,7 +58,7 @@ def test_zone_match_active_only():
 
 def test_state_csrf():
     s = cf.sign_state(website_id=uuid.uuid4(), user_id=uuid.uuid4(), org_id=None)
-    assert cf.verify_state(s)["purpose"] == "cf_oauth"
+    assert cf.verify_state(s)["purpose"] == "cloudflare_oauth"
     with pytest.raises(cf.InvalidStateError):
         cf.verify_state("nope.nope.nope")
 

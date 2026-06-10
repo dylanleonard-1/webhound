@@ -28,7 +28,7 @@ COMPLIANCE_TAGS = ["SOC2", "ISO27001", "GDPR", "HIPAA_READINESS", "ENTERPRISE"]
 PHASE3_ACTION_PREFIXES = (
     "website.verification.", "provider.", "trusted_access.",
     "access_validation.", "challenge.", "onboarding.",
-    "monitoring.", "deep_scan.", "automation.", "cloudflare.",
+    "monitoring.", "deep_scan.", "automation.", "cloudflare.", "vercel.",
 )
 
 

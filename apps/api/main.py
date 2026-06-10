@@ -45,6 +45,7 @@ from apps.api.routers import (
     scan_schedules,
     scanner_identity,
     trusted_access,
+    vercel,
     websites,
 )
 
@@ -130,6 +131,7 @@ app.include_router(scanner_identity.router)
 app.include_router(websites.router)
 app.include_router(providers.router)
 app.include_router(cloudflare.router)
+app.include_router(vercel.router)
 app.include_router(trusted_access.router)
 app.include_router(access_validation.router)
 app.include_router(onboarding.router)

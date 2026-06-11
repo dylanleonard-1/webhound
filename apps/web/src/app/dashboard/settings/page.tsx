@@ -451,6 +451,9 @@ interface SiteConnections {
   cloudflareStatus: string
   vercelConnected: boolean
   vercelStatus: string
+  vercelScannerIps?: string[]
+  vercelNextAction?: string | null
+  vercelTicketable?: boolean
 }
 
 function ConnectedServicesPanel() {
@@ -473,6 +476,9 @@ function ConnectedServicesPanel() {
           cloudflareStatus: cf?.cloudflare_scanner_access ?? 'not_connected',
           vercelConnected: !!vc?.connected,
           vercelStatus: vc?.status ?? 'not_connected',
+          vercelScannerIps: vc?.scanner_ips ?? [],
+          vercelNextAction: vc?.next_action ?? null,
+          vercelTicketable: !!vc?.ticketable,
         }
       }))
       setSites(rows)
@@ -511,11 +517,33 @@ function ConnectedServicesPanel() {
     }
   }
 
-  type Row = { siteId: string; hostname: string; provider: 'Cloudflare' | 'Vercel'; status: string; onDisconnect: () => void; key: string }
+  async function createManualSetupTicket(siteId: string, hostname: string, ips: string[], nextAction?: string | null) {
+    setBusy(`tk:${siteId}`)
+    try {
+      const res = await api.createTicket({
+        subject: `Vercel scanner-access help for ${hostname}`,
+        description: `Customer needs help adding a Vercel System Bypass Rule for the WebHound scanner IP(s): ${ips.join(', ')}.\n\n${nextAction ?? ''}`,
+        kind: 'onboarding_help', website_id: siteId, blocker: 'vercel',
+        diagnosis: `pending_manual_setup — allowlist scanner IP(s) ${ips.join(', ')} via Vercel System Bypass`,
+        evidence: ips,
+      })
+      toast.success(`Ticket #${res.number} created — our team will help.`)
+    } catch (e) {
+      toast.error((e as Error)?.message || 'Could not create ticket.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  type Row = {
+    siteId: string; hostname: string; provider: 'Cloudflare' | 'Vercel'; status: string
+    onDisconnect: () => void; key: string
+    scannerIps?: string[]; nextAction?: string | null; ticketable?: boolean
+  }
   const connected: Row[] = sites.flatMap((s) => {
     const out: Row[] = []
     if (s.cloudflareConnected) out.push({ siteId: s.id, hostname: s.hostname, provider: 'Cloudflare', status: s.cloudflareStatus, onDisconnect: () => disconnectCloudflare(s.id, s.hostname), key: `cf:${s.id}` })
-    if (s.vercelConnected) out.push({ siteId: s.id, hostname: s.hostname, provider: 'Vercel', status: s.vercelStatus, onDisconnect: () => disconnectVercel(s.id, s.hostname), key: `vc:${s.id}` })
+    if (s.vercelConnected) out.push({ siteId: s.id, hostname: s.hostname, provider: 'Vercel', status: s.vercelStatus, onDisconnect: () => disconnectVercel(s.id, s.hostname), key: `vc:${s.id}`, scannerIps: s.vercelScannerIps, nextAction: s.vercelNextAction, ticketable: s.vercelTicketable })
     return out
   })
 
@@ -531,22 +559,47 @@ function ConnectedServicesPanel() {
       ) : (
         <div className="space-y-2">
           {connected.map((r) => (
-            <div key={r.key} className="rounded-[10px] p-4 flex items-center justify-between gap-3"
+            <div key={r.key} className="rounded-[10px] p-4"
                  style={{ background: 'rgba(8,12,22,0.95)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <div className="min-w-0">
-                <p className="text-[13px] text-white font-mono truncate">{r.hostname}</p>
-                <p className="text-[11px] text-gray-500">
-                  {r.provider} · scanner access: {r.status.replace(/_/g, ' ')}
-                </p>
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[13px] text-white font-mono truncate">{r.hostname}</p>
+                  <p className="text-[11px] text-gray-500">
+                    {r.provider} · scanner access: {r.status.replace(/_/g, ' ')}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={r.onDisconnect}
+                  disabled={busy === r.key}
+                  className="h-8 px-3 rounded-lg text-[12px] font-medium text-red-300 border border-red-500/30 hover:bg-red-500/10 disabled:opacity-50"
+                >
+                  {busy === r.key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Disconnect'}
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={r.onDisconnect}
-                disabled={busy === r.key}
-                className="h-8 px-3 rounded-lg text-[12px] font-medium text-red-300 border border-red-500/30 hover:bg-red-500/10 disabled:opacity-50"
-              >
-                {busy === r.key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Disconnect'}
-              </button>
+              {r.provider === 'Vercel' && r.status === 'pending_manual_setup' && (r.scannerIps?.length ?? 0) > 0 && (
+                <div className="mt-3 rounded-lg p-3 text-[12px]"
+                     style={{ background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.25)' }}>
+                  <p className="text-amber-200/90">
+                    Vercel blocks the scanner. Add a <span className="font-medium">System Bypass Rule</span> for the
+                    WebHound scanner IP{(r.scannerIps?.length ?? 0) > 1 ? 's' : ''}:
+                  </p>
+                  <p className="mt-1 font-mono text-white">{r.scannerIps?.join(', ')}</p>
+                  <p className="mt-1 text-gray-400">
+                    {r.nextAction || 'Vercel → Project → Firewall → DDoS Mitigations & System Bypasses → Add Bypass Rule → Source IP.'}
+                  </p>
+                  {r.ticketable && (
+                    <button
+                      type="button"
+                      onClick={() => createManualSetupTicket(r.siteId, r.hostname, r.scannerIps ?? [], r.nextAction)}
+                      disabled={busy === `tk:${r.siteId}`}
+                      className="mt-2 h-8 px-3 rounded-lg text-[12px] font-medium text-amber-200 border border-amber-400/30 hover:bg-amber-400/10 disabled:opacity-50"
+                    >
+                      {busy === `tk:${r.siteId}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Create ticket for assistance'}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

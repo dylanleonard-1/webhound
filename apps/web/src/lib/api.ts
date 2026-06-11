@@ -146,11 +146,16 @@ export interface CloudflareScannerAccessView {
 
 export interface VercelScannerAccessView {
   connected: boolean
-  // not_needed | pending_permissions | pending_rule_setup | active | blocked_non_bypassable | failed
+  // not_needed | pending_permissions | pending_manual_setup | pending_firewall_setup |
+  // pending_rule_setup | active | blocked_non_bypassable | failed
   status: string
   blocker: string | null
   next_action: string | null
   message: string
+  // pending_manual_setup: the scanner egress IP(s) to allowlist via a Vercel System
+  // Bypass Rule, and whether a support ticket can be raised for assistance.
+  scanner_ips?: string[]
+  ticketable?: boolean
 }
 
 export interface AccessValidationView {

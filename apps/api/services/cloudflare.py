@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 
@@ -32,8 +31,6 @@ from apps.api.services import verification as verify_service
 from apps.api.services.key_management import get_key_management
 from apps.api.services.provider_oauth import EncryptionNotConfiguredError, InvalidStateError
 from apps.api.services.secret_storage import store_secret
-
-logger = logging.getLogger(__name__)
 
 CLOUDFLARE_PROVIDER = "cloudflare"
 
@@ -84,9 +81,9 @@ class CloudflareOAuthError(RuntimeError):
     def __init__(self, *args, http_status: int | None = None,
                  oauth_error: dict | None = None) -> None:
         super().__init__(*args)
-        # TEMPORARY DEBUG: safe, non-secret detail for the callback to log/surface.
-        # `oauth_error` is a whitelisted subset (error/error_description/message)
-        # of the token-exchange response — NEVER the tokens or full body.
+        # Safe, non-secret detail for the caller to log. `oauth_error` is a
+        # whitelisted subset (error/error_description/message) of the token-exchange
+        # response — NEVER the tokens or full body.
         self.http_status = http_status
         self.oauth_error = oauth_error
 
@@ -139,16 +136,6 @@ async def _exchange_code(code: str) -> dict:
     # authorize URL and must match the Cloudflare client registration exactly.
     # Creds are whitespace-stripped (see _client_credentials).
     cid, csecret = _client_credentials()
-    # TEMPORARY DEBUG: presence/length only — confirms the app actually loaded
-    # non-empty creds at runtime (diagnoses invalid_client when env names match).
-    # Lengths are of the STRIPPED values, so a fixed trailing-newline shows as a
-    # shorter len. NEVER logs the id/secret/code/token values; redirect_uri is
-    # non-secret.
-    logger.info(
-        "cf_token_exchange stage=creds client_id_present=%s client_id_len=%d "
-        "client_secret_present=%s client_secret_len=%d redirect_uri=%s",
-        bool(cid), len(cid), bool(csecret), len(csecret), _redirect_uri(),
-    )
     # Shared body (no client creds here — each method adds them its own way).
     base_form = {
         "grant_type": "authorization_code",
@@ -160,7 +147,7 @@ async def _exchange_code(code: str) -> dict:
 
     def _safe_oauth_error(resp) -> dict:
         # Whitelist ONLY error/error_description/message — NEVER tokens or the rest
-        # of the body. TEMPORARY DEBUG so the callback can log/surface the reason.
+        # of the body, so the caller can safely log the failure reason.
         try:
             body = resp.json()
         except Exception:  # noqa: BLE001 — body may be non-JSON
@@ -174,7 +161,6 @@ async def _exchange_code(code: str) -> dict:
         r = await client.post(
             _CF_TOKEN, headers=_hdrs,
             data={**base_form, "client_id": cid, "client_secret": csecret})
-        logger.info("cf_token_exchange method=client_secret_post http_status=%d", r.status_code)
         if not r.is_error:
             return r.json()
 
@@ -191,7 +177,6 @@ async def _exchange_code(code: str) -> dict:
         # redirect_uri). `auth=` makes httpx send `Authorization: Basic <b64>`.
         r2 = await client.post(_CF_TOKEN, headers=_hdrs, data=base_form,
                                auth=(cid, csecret))
-        logger.info("cf_token_exchange method=client_secret_basic http_status=%d", r2.status_code)
         if not r2.is_error:
             return r2.json()
 

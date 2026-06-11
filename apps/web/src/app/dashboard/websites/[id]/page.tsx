@@ -389,11 +389,6 @@ export default function WebsiteDetailPage() {
   // Manual DNS/meta/.well-known verification is a fallback — revealed only when
   // the customer chooses it from the provider-first onboarding card.
   const [showManualVerify, setShowManualVerify] = useState(false)
-  // TEMPORARY DEBUG — surfaces the safe Cloudflare OAuth callback fields
-  // (status/reason/cf_error/cf_desc) so a failing connect can be diagnosed.
-  const [cfDebug, setCfDebug] = useState<
-    { status: string; reason: string; cfError: string; cfDesc: string } | null
-  >(null)
 
   async function loadSite() {
     setSiteLoading(true)
@@ -442,23 +437,20 @@ export default function WebsiteDetailPage() {
         'account that manages it, or verify ownership manually.',
       )
     } else {
-      const reasonRaw = sp.get('reason') || ''
-      const reason = reasonRaw.replace(/_/g, ' ')
-      // TEMPORARY DEBUG — capture the safe extra fields the API now forwards so
-      // the operator can see the real Cloudflare error, not just a generic note.
-      const cfError = sp.get('cf_error') || ''
-      const cfDescRaw = sp.get('cf_desc') || ''
-      // URLSearchParams.get already decodes once; decode again defensively in
-      // case the backend double-encoded the description. Fall back to raw.
-      let cfDesc = cfDescRaw
-      try { cfDesc = decodeURIComponent(cfDescRaw) } catch { /* keep raw */ }
-      setCfDebug({ status: cf, reason: reasonRaw, cfError, cfDesc })
-      toast.error(reason ? `Cloudflare connection failed: ${reason}.` : 'Cloudflare connection failed.')
+      // Map the short reason code to a clean, user-friendly message.
+      const reason = sp.get('reason') || ''
+      const MESSAGES: Record<string, string> = {
+        oauth_denied: 'Cloudflare authorization was denied or cancelled. Please try connecting again.',
+        connection_failed: 'We couldn’t complete the Cloudflare connection. Please try again, or verify ownership manually.',
+        invalid_state: 'Your Cloudflare connection session expired. Please start the connection again.',
+        ownership_conflict: 'This domain is already verified under a different account.',
+        website_not_found: 'We couldn’t find this website. Please refresh and try again.',
+        encryption_not_configured: 'Secure storage isn’t ready yet. Please try again shortly or contact support.',
+      }
+      toast.error(MESSAGES[reason] || 'Cloudflare connection failed. Please try again.')
     }
     sp.delete('cloudflare')
     sp.delete('reason')
-    sp.delete('cf_error')
-    sp.delete('cf_desc')
     const qs = sp.toString()
     window.history.replaceState(null, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`)
   }, [])
@@ -529,48 +521,6 @@ export default function WebsiteDetailPage() {
           Websites
         </Link>
       </Button>
-
-      {/* TEMPORARY DEBUG — Cloudflare connect failure detail. Remove once the
-          OAuth callback issue is resolved. Shows the safe fields the API
-          forwards (status/reason/cf_error/cf_desc) in a copyable form. */}
-      {cfDebug && (
-        <Card className="p-4 border" style={{ borderColor: 'rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.06)' }}>
-          <div className="flex items-start gap-2.5">
-            <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#ef4444' }} />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[12px] font-semibold text-red-300">
-                  TEMPORARY DEBUG · Cloudflare connect failed
-                </p>
-                <div className="flex items-center gap-2">
-                  <CopyButton
-                    text={`Cloudflare error: ${cfDebug.cfError || '(none)'} — ${cfDebug.cfDesc || '(none)'} (reason: ${cfDebug.reason || '(none)'}, status: ${cfDebug.status})`}
-                  />
-                  <button
-                    onClick={() => setCfDebug(null)}
-                    className="text-[11px] transition-opacity hover:opacity-70"
-                    style={{ color: 'rgba(255,255,255,0.4)' }}
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              </div>
-              <p
-                className="mt-2 font-mono text-[12px] text-red-100 break-all select-all whitespace-pre-wrap"
-                style={{ userSelect: 'text' }}
-              >
-                {`Cloudflare error: ${cfDebug.cfError || '(none)'} — ${cfDebug.cfDesc || '(none)'} (reason: ${cfDebug.reason || '(none)'})`}
-              </p>
-              <div className="mt-2 grid gap-1 font-mono text-[11px]" style={{ color: 'rgba(255,255,255,0.6)' }}>
-                <div className="flex gap-2"><span className="w-20 flex-shrink-0 text-red-300/70">cloudflare</span><span className="select-all break-all">{cfDebug.status || '(none)'}</span></div>
-                <div className="flex gap-2"><span className="w-20 flex-shrink-0 text-red-300/70">reason</span><span className="select-all break-all">{cfDebug.reason || '(none)'}</span></div>
-                <div className="flex gap-2"><span className="w-20 flex-shrink-0 text-red-300/70">cf_error</span><span className="select-all break-all">{cfDebug.cfError || '(none)'}</span></div>
-                <div className="flex gap-2"><span className="w-20 flex-shrink-0 text-red-300/70">cf_desc</span><span className="select-all break-all">{cfDebug.cfDesc || '(none)'}</span></div>
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
 
       {/* Website header */}
       <Card className="p-5">

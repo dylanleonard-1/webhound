@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import uuid
 from typing import Annotated
-from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import RedirectResponse
@@ -70,60 +69,28 @@ async def cloudflare_callback(
     settings = get_settings()
     base = f"{settings.frontend_url}/dashboard"
 
-    def _debug_qs(cf_error: str = "", cf_desc: str = "",
-                  cf_status: int | None = None) -> str:
-        # TEMPORARY DEBUG (remove with the logging below once the live failure is
-        # diagnosed): surface the SAFE, non-secret OAuth error to the browser so
-        # the failure is readable without server-log access. Only the OAuth
-        # `error`/`error_description` and token-exchange HTTP status — NEVER the
-        # code, tokens, client_secret, or state.
-        parts = []
-        if cf_error:
-            parts.append(f"cf_error={quote(cf_error, safe='')}")
-        if cf_desc:
-            parts.append(f"cf_desc={quote(cf_desc[:200], safe='')}")
-        if cf_status is not None:
-            parts.append(f"cf_status={cf_status}")
-        return ("&" + "&".join(parts)) if parts else ""
-
-    def _fail(reason: str, website_id: uuid.UUID | None = None, *,
-              cf_error: str = "", cf_desc: str = "",
-              cf_status: int | None = None) -> RedirectResponse:
+    def _fail(reason: str, website_id: uuid.UUID | None = None) -> RedirectResponse:
+        # Redirect back with a short, non-secret reason code the dashboard maps to
+        # a friendly message. Never carries the OAuth code, tokens, or state.
         path = f"{base}/websites/{website_id}" if website_id else base
-        return RedirectResponse(
-            f"{path}?cloudflare=error&reason={reason}"
-            f"{_debug_qs(cf_error, cf_desc, cf_status)}")
-
-    # ── TEMPORARY DEBUG: safe structured logging of the OAuth callback path. ──
-    # Logs ONLY non-secret fields: the verbatim OAuth error/description (not
-    # secret), booleans for code/state presence, and status strings. NEVER logs
-    # the code value, the raw state, or any token. Remove once diagnosed.
-    logger.info(
-        "cf_callback stage=received query_error=%r query_error_description=%r "
-        "has_code=%s has_state=%s",
-        error, error_description, bool(code), bool(state),
-    )
+        return RedirectResponse(f"{path}?cloudflare=error&reason={reason}")
 
     if not state:
-        logger.info("cf_callback stage=state_lookup result=missing")
-        return _fail("invalid_state", cf_error=error, cf_desc=error_description)
+        return _fail("invalid_state")
     try:
         st = cf.verify_state(state)
     except cf.InvalidStateError:
-        logger.info("cf_callback stage=state_lookup result=invalid_or_expired")
-        return _fail("invalid_state", cf_error=error, cf_desc=error_description)
+        return _fail("invalid_state")
     website = await db.get(Website, uuid.UUID(st["wid"]))
     if website is None:
-        logger.info("cf_callback stage=state_lookup result=website_not_found")
-        return _fail("website_not_found", cf_error=error, cf_desc=error_description)
-    logger.info("cf_callback stage=state_lookup result=valid")
+        return _fail("website_not_found")
 
     if error or not code:
         # Cloudflare bounced us at the authorize step (e.g. access_denied) — the
-        # token exchange never runs. The query error/description is the real cause.
-        logger.info("cf_callback stage=authorize result=oauth_denied query_error=%r", error)
-        return _fail("oauth_denied", website.id,
-                     cf_error=error, cf_desc=error_description)
+        # token exchange never runs. Log the safe OAuth error as the cause.
+        logger.warning("cloudflare authorize denied for website %s: error=%r",
+                       website.id, error)
+        return _fail("oauth_denied", website.id)
 
     user_id = uuid.UUID(st["uid"]) if st.get("uid") else None
     org_id = uuid.UUID(st["oid"]) if st.get("oid") else None
@@ -135,21 +102,15 @@ async def cloudflare_callback(
         return _fail("encryption_not_configured", website.id)
     except cf.CloudflareOAuthError as exc:
         await db.commit()
-        # TEMPORARY DEBUG: log + surface the token-exchange HTTP status and the
-        # whitelisted OAuth error fields (never the body/tokens).
+        # Sane error logging: the token-exchange HTTP status + whitelisted OAuth
+        # error fields (never the body/tokens) for server-side diagnosis.
         http_status = getattr(exc, "http_status", None)
         oauth_error = getattr(exc, "oauth_error", None) or {}
         logger.warning(
-            "cf_callback stage=token_exchange result=failed http_status=%s "
-            "oauth_error=%r oauth_error_description=%r oauth_message=%r",
-            http_status, oauth_error.get("error"),
-            oauth_error.get("error_description"), oauth_error.get("message"),
+            "cloudflare token exchange failed for website %s: http_status=%s error=%r",
+            website.id, http_status, oauth_error.get("error"),
         )
-        return _fail("connection_failed", website.id,
-                     cf_error=oauth_error.get("error") or "",
-                     cf_desc=(oauth_error.get("error_description")
-                              or oauth_error.get("message") or ""),
-                     cf_status=http_status)
+        return _fail("connection_failed", website.id)
     except OwnershipConflictError:
         await db.rollback()  # undo token store + connection (nothing persists)
         return _fail("ownership_conflict", website.id)

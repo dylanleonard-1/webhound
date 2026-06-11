@@ -138,8 +138,16 @@ class Settings(BaseSettings):
         "analytics.read"
     )
     # Phase-4.3 Vercel provider integration (read-only integration; empty = disabled).
+    # This is a CLASSIC Vercel Integration (Integration Console), NOT "Sign in with
+    # Vercel". The connect entry point is the install URL built from the integration
+    # SLUG (https://vercel.com/integrations/<slug>/new), and the token is exchanged at
+    # /v2/oauth/access_token with the oac_* client id + secret. The slug is required —
+    # sending users to the Sign-in-with-Vercel authorize endpoint with an oac_* id is
+    # what Vercel rejects as "the app ID is invalid". Env-configurable like Cloudflare
+    # so the slug/creds can be tuned from Railway without a redeploy.
     vercel_client_id: str = ""
     vercel_client_secret: str = ""
+    vercel_integration_slug: str = ""  # the <slug> in https://vercel.com/integrations/<slug>
     # Public-facing URLs (used in OAuth redirect_uri and post-auth redirects)
     # Production: api_base_url=https://api.webhoundsecurity.com  frontend_url=https://webhoundsecurity.com
     api_base_url: str = "http://localhost:8000"

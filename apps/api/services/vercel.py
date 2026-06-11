@@ -47,9 +47,17 @@ logger = logging.getLogger(__name__)
 
 VERCEL_PROVIDER = "vercel"
 
-# Vercel OAuth + API endpoints. Vercel integration permissions (read-only) are
-# configured on the integration itself, not via a scope query param.
-_V_AUTHORIZE = "https://vercel.com/oauth/authorize"
+# Vercel CLASSIC Integration endpoints (Integration Console), NOT "Sign in with
+# Vercel". Integration permissions (read-only: project/domain read) are configured on
+# the integration itself, not via a scope query param. The connect ENTRY point is the
+# install URL built from the integration SLUG — NOT the /oauth/authorize
+# authorization-server endpoint (that one only accepts Sign-in-with-Vercel App ids and
+# rejects an oac_* integration id as "the app ID is invalid").
+#   install:  https://vercel.com/integrations/<slug>/new?state=<state>
+#   token:    POST https://api.vercel.com/v2/oauth/access_token  (client_id+secret+code+redirect_uri)
+# Ref: vercel.com/docs/integrations/create-integration/submit-integration (External
+# installation flow) + .../vercel-api-integrations (Exchange code for Access Token).
+_V_INSTALL_BASE = "https://vercel.com/integrations"
 _V_TOKEN = "https://api.vercel.com/v2/oauth/access_token"
 _V_API = "https://api.vercel.com"
 
@@ -73,8 +81,12 @@ class VercelOAuthError(RuntimeError):
 
 
 def is_configured() -> bool:
+    # All three are required for a WORKING classic-integration connect: the slug builds
+    # the install URL, and the oac_* client id + secret exchange the returned code. A
+    # missing slug must fail closed here (503 "not configured") rather than send users
+    # to a broken authorize URL that Vercel rejects as "the app ID is invalid".
     s = get_settings()
-    return bool(s.vercel_client_id and s.vercel_client_secret)
+    return bool(s.vercel_client_id and s.vercel_client_secret and s.vercel_integration_slug)
 
 
 def _redirect_uri() -> str:
@@ -91,13 +103,13 @@ def verify_state(state: str) -> dict:
 
 
 def build_authorize_url(state: str) -> str:
+    # Classic Integration External installation flow: send the user to the integration
+    # install page identified by the SLUG, carrying only our signed CSRF `state`. The
+    # redirect_uri / client_id are NOT query params here — Vercel uses the Redirect URL
+    # configured on the Integration Console and appends code/teamId/configurationId/
+    # state to it. (The oac_* client id + secret are used only at token exchange.)
     s = get_settings()
-    params = {
-        "client_id": s.vercel_client_id,
-        "redirect_uri": _redirect_uri(),
-        "state": state,
-    }
-    return f"{_V_AUTHORIZE}?{urlencode(params)}"
+    return f"{_V_INSTALL_BASE}/{s.vercel_integration_slug}/new?{urlencode({'state': state})}"
 
 
 async def get_connection(db: AsyncSession, website_id):

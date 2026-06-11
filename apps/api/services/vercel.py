@@ -283,7 +283,10 @@ async def complete_connection(db: AsyncSession, *, website: Website, code: str,
     scanner_result = {"applied": False, "status": "skipped"}
     try:
         from apps.api.services import vercel_scanner_access as _v_scanner
-        scanner_result = await _v_scanner.apply_scanner_bypass(
+        # IP-scoped System Bypass (allowlist the scanner egress IP) is the primary path —
+        # NOT a UA-only WAF rule. Forbidden for the marketplace token -> honest guided
+        # manual setup (pending_manual_setup). Never marks trusted access active here.
+        scanner_result = await _v_scanner.apply_ip_scanner_access(
             db, website=website, access_token=access_token,
             project_id=project.get("id"), team_id=team_id, user_id=user_id, org_id=org_id)
     except Exception:  # noqa: BLE001 — rule setup must never fail the connection itself

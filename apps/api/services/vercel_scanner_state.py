@@ -20,6 +20,7 @@ from apps.api.services.vercel_scanner_access import SCANNER_ACCESS_META_KEY
 
 STATUS_NOT_NEEDED = "not_needed"                       # Vercel connected but not blocking
 STATUS_PENDING_PERMISSIONS = "pending_permissions"     # Vercel may block but token lacks firewall write
+STATUS_PENDING_MANUAL_SETUP = "pending_manual_setup"   # token forbidden -> customer adds the IP System Bypass
 STATUS_PENDING_FIREWALL_SETUP = "pending_firewall_setup"  # firewall config not initialized (404 GET+PUT)
 STATUS_PENDING_RULE_SETUP = "pending_rule_setup"       # Vercel may block; needs the bypass rule
 STATUS_ACTIVE = "active"                               # rule created AND verified
@@ -106,6 +107,18 @@ async def scanner_access_view(db: AsyncSession, website: Website) -> dict:
     attack_mode = bool(meta.get("attack_mode"))
     profile = await ta_service.get_trusted_access(db, website)
     ta_status = profile.access_status if profile else None
+
+    # Guided manual IP allowlist (the marketplace-integration reality): the token can't
+    # create the System Bypass, so the customer adds it. Surface the exact IP(s) + steps.
+    if meta.get("method") == "manual_ip_bypass" and ta_status != TrustedAccessStatus.ACTIVE.value:
+        from apps.api.services.vercel_scanner_access import manual_setup_action
+        ips = meta.get("scanner_ips") or []
+        out = _c(STATUS_PENDING_MANUAL_SETUP, "vercel", manual_setup_action(ips),
+                 "Vercel connected. Add a System Bypass for the WebHound scanner IP(s) to let "
+                 "the scanner through — we can't create it for you on this integration.")
+        out["scanner_ips"] = ips
+        out["ticketable"] = True
+        return out
 
     if meta.get("firewall_status") == "not_initialized" and not has_rule:
         return _c(STATUS_PENDING_FIREWALL_SETUP, "vercel", _FIREWALL_INIT_ACTION,

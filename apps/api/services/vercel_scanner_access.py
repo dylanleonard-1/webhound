@@ -47,6 +47,10 @@ V_SCANNER_ACCESS_PENDING_PERMS = "vercel.scanner.access.pending_permissions"
 V_SCANNER_ACCESS_PENDING_FIREWALL = "vercel.scanner.access.pending_firewall_setup"
 V_BYPASS_STORED = "vercel.protection_bypass.stored"
 V_BYPASS_REMOVED = "vercel.protection_bypass.removed"
+V_IP_BYPASS_CREATED = "vercel.scanner.ip_bypass.created"
+V_IP_BYPASS_VERIFIED = "vercel.scanner.ip_bypass.verified"
+V_IP_BYPASS_REMOVED = "vercel.scanner.ip_bypass.removed"
+V_SCANNER_PENDING_MANUAL = "vercel.scanner.access.pending_manual_setup"
 
 # Customer-provided Vercel "Protection Bypass for Automation" secret. The marketplace
 # integration token cannot mint OR read it (native-integrations only), so the customer
@@ -60,8 +64,18 @@ V_SCANNER_ACCESS_FAILED = "vercel.scanner.access.failed"
 ST_ACTIVE = "active"
 ST_PENDING_PERMISSIONS = "pending_permissions"
 ST_PENDING_FIREWALL_SETUP = "pending_firewall_setup"
+ST_PENDING_MANUAL_SETUP = "pending_manual_setup"
+ST_CONFIGURED = "configured"
 ST_BLOCKED_NON_BYPASSABLE = "blocked_non_bypassable"
 ST_FAILED = "failed"
+
+
+def manual_setup_action(ips: list[str]) -> str:
+    """The exact customer step to allowlist the scanner by IP via a Vercel System Bypass."""
+    ip_list = ", ".join(ips) if ips else "the WebHound scanner IP"
+    return (f"Add a System Bypass Rule for {ip_list} in Vercel: Project → Firewall → "
+            f"DDoS Mitigations & System Bypasses → Add Bypass Rule → Source IP → {ip_list}. "
+            f"Then re-validate (we'll re-scan to confirm).")
 
 _FIREWALL_INIT_ACTION = ("Enable the Firewall once in Vercel (Project → Firewall), then "
                          "reconnect Vercel. If it persists, grant the integration firewall access.")
@@ -186,6 +200,96 @@ async def apply_scanner_bypass(
     return {"applied": True, "status": ST_ACTIVE, "rules": created, "verify": verify}
 
 
+# ── IP-scoped System Bypass orchestration (the primary connect path) ───────────
+
+def _store_ip_metadata(conn, *, project_id, team_id, ips, method, created_by_webhound) -> None:
+    if conn is None:
+        return
+    now_iso = datetime.now(timezone.utc).isoformat()
+    md = dict(conn.connection_metadata or {})
+    md[SCANNER_ACCESS_META_KEY] = {
+        "method": method, "rule_type": "ip_system_bypass",
+        "scanner_ips": list(ips), "project_id": project_id, "team_id": team_id,
+        "created_by_webhound": created_by_webhound,
+        "created_at": now_iso, "last_validated_at": now_iso,
+    }
+    conn.connection_metadata = md
+
+
+async def apply_ip_scanner_access(
+    db: AsyncSession, *, website: Website, access_token: str,
+    project_id: str | None, team_id: str | None, user_id, org_id,
+) -> dict:
+    """PRIMARY Vercel scanner-access path: allowlist the WebHound scanner egress IP(s)
+    (WEBHOUND_SCANNER_OUTBOUND_IPS) via a project-scoped Vercel System Bypass — IP-based,
+    never UA, never global. If the token is FORBIDDEN (the marketplace-integration case),
+    fall back to honest guided manual setup (pending_manual_setup) with the exact IP(s)
+    and Vercel steps. NEVER marks trusted access ACTIVE here — only a scan that actually
+    crawls past the challenge can do that. Never logs the token."""
+    from apps.api.config import scanner_outbound_ips as _outbound_ips
+    if not project_id:
+        return {"applied": False, "status": ST_FAILED, "reason": "no_project"}
+    ips = _outbound_ips()
+
+    try:
+        created = await v_rules.ensure_ip_system_bypass(access_token, project_id, team_id, ips)
+    except v_rules.VercelBypassForbiddenError:
+        # Forbidden (integration token can't write firewall/ipBlocking) -> guided manual
+        # setup. Honest: trusted access stays PENDING; surface the IP(s) + steps + ticket.
+        _audit(db, V_SCANNER_PENDING_MANUAL, website, user_id=user_id, org_id=org_id,
+               status="pending", reason="ip_bypass_forbidden")
+        await ta_service.start_provider_oauth_access(
+            db, website, provider=v.VERCEL_PROVIDER, user_id=user_id, org_id=org_id)
+        conn = await v.get_connection(db, website.id)
+        _store_ip_metadata(conn, project_id=project_id, team_id=team_id, ips=ips,
+                           method="manual_ip_bypass", created_by_webhound=False)
+        await db.flush()
+        return {"applied": False, "status": ST_PENDING_MANUAL_SETUP, "scanner_ips": ips,
+                "ticketable": True, "customer_action": manual_setup_action(ips)}
+    except v_rules.VercelRuleError:
+        await _fail(db, website, user_id=user_id, org_id=org_id, reason="ip_bypass_failed")
+        return {"applied": False, "status": ST_FAILED, "reason": "ip_bypass_failed"}
+
+    # Token HAD permission (future-proof / native integration): rule created. Verify, but
+    # do NOT claim active — a scan must prove the IP bypass actually clears the challenge.
+    _audit(db, V_IP_BYPASS_CREATED, website, user_id=user_id, org_id=org_id, status="configured",
+           reason=",".join(created.get("created", []) + created.get("existing", [])) or "none")
+    verify = await v_rules.verify_ip_system_bypass(access_token, project_id, team_id, ips)
+    if verify.get("verified"):
+        _audit(db, V_IP_BYPASS_VERIFIED, website, user_id=user_id, org_id=org_id, status="configured")
+    conn = await v.get_connection(db, website.id)
+    _store_ip_metadata(conn, project_id=project_id, team_id=team_id, ips=ips,
+                       method="ip_system_bypass", created_by_webhound=True)
+    # Keep trusted access PENDING — validated by the next scan (no fake active).
+    await ta_service.start_provider_oauth_access(
+        db, website, provider=v.VERCEL_PROVIDER, user_id=user_id, org_id=org_id)
+    await db.flush()
+    return {"applied": True, "status": ST_CONFIGURED, "scanner_ips": ips, "verify": verify,
+            "note": "Vercel IP System Bypass created for the scanner IP(s); coverage is "
+                    "confirmed on the next scan."}
+
+
+async def remove_ip_scanner_access(db: AsyncSession, *, website: Website, user_id, org_id) -> dict:
+    """Best-effort removal of the scanner IP System Bypass on disconnect. Idempotent;
+    swallows a forbidden token (nothing was created)."""
+    from apps.api.config import scanner_outbound_ips as _outbound_ips
+    conn = await v.get_connection(db, website.id)
+    project_id = conn.zone_id if conn else None
+    team_id = conn.account_id if conn else None
+    token = await _load_access_token(db, website.id)
+    removed: list[str] = []
+    if token and project_id:
+        try:
+            res = await v_rules.remove_ip_system_bypass(token, project_id, team_id, _outbound_ips())
+            removed = res.get("removed", [])
+            if removed:
+                _audit(db, V_IP_BYPASS_REMOVED, website, user_id=user_id, org_id=org_id,
+                       status="disconnected", reason=",".join(removed))
+        except v_rules.VercelRuleError:
+            pass  # forbidden / nothing to remove — best-effort
+    return {"removed": removed}
+
+
 # ── token retrieval / disconnect ──────────────────────────────────────────────
 
 async def _load_access_token(db: AsyncSession, website_id) -> str | None:
@@ -282,10 +386,18 @@ async def disconnect_scanner_bypass(
     token = await _load_access_token(db, website.id)
     removed: list[str] = []
     if token and project_id:
-        result = await v_rules.remove_bypass_rule(token, project_id, team_id)
-        removed = result.get("removed", [])
-        _audit(db, V_SCANNER_RULE_REMOVED, website, user_id=user_id, org_id=org_id,
-               status="disconnected", reason=",".join(removed) or "none")
+        try:
+            result = await v_rules.remove_bypass_rule(token, project_id, team_id)
+            removed = result.get("removed", [])
+            if removed:
+                _audit(db, V_SCANNER_RULE_REMOVED, website, user_id=user_id, org_id=org_id,
+                       status="disconnected", reason=",".join(removed))
+        except v_rules.VercelRuleError:
+            pass  # firewall API unavailable/forbidden — nothing to remove
+
+    # Remove the IP System Bypass entries (best-effort; forbidden token = no-op).
+    ip_removed = (await remove_ip_scanner_access(db, website=website, user_id=user_id, org_id=org_id)).get("removed", [])
+    removed = list(removed) + list(ip_removed)
 
     # Revoke the stored protection-bypass secret (if any) — scanner stops sending it.
     await _revoke_bypass_secrets(db, website.id)

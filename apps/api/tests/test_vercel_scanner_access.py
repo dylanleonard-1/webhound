@@ -176,6 +176,80 @@ async def _coro(value):
     return value
 
 
+_SCANNER_IPS = ["152.55.180.27"]
+
+
+async def test_ip_access_forbidden_is_pending_manual_setup(db_session, monkeypatch):
+    u, w, conn = await _connected_site(db_session, "vip1@x.com", "example.com")
+    import apps.api.config as _cfg
+    monkeypatch.setattr(_cfg, "scanner_outbound_ips", lambda: list(_SCANNER_IPS))
+
+    async def forbidden(tok, pid, tid, ips):
+        raise v_rules.VercelBypassForbiddenError("forbidden", http_status=403)
+    monkeypatch.setattr(v_rules, "ensure_ip_system_bypass", forbidden)
+
+    res = await vsa.apply_ip_scanner_access(
+        db_session, website=w, access_token=TOKEN, project_id="prj_x", team_id="team_x",
+        user_id=u.id, org_id=u.id)
+    assert res["status"] == "pending_manual_setup" and res["ticketable"] is True
+    assert res["scanner_ips"] == _SCANNER_IPS and "152.55.180.27" in res["customer_action"]
+    ta = await ta_service.get_trusted_access(db_session, w)
+    assert ta.access_status == TrustedAccessStatus.PENDING.value  # honest: never active
+    assert conn.connection_metadata["scanner_access"]["method"] == "manual_ip_bypass"
+    assert TOKEN not in await _audit_text(db_session)
+    # The status view surfaces the guided manual setup (IP + steps + ticketable).
+    from apps.api.services import vercel_scanner_state as _vstate
+    view = await _vstate.scanner_access_view(db_session, w)
+    assert view["status"] == "pending_manual_setup" and view["scanner_ips"] == _SCANNER_IPS
+    assert view["ticketable"] is True and "152.55.180.27" in view["next_action"]
+
+
+async def test_ip_access_success_is_configured_not_active(db_session, monkeypatch):
+    u, w, conn = await _connected_site(db_session, "vip2@x.com", "example.com")
+    import apps.api.config as _cfg
+    monkeypatch.setattr(_cfg, "scanner_outbound_ips", lambda: list(_SCANNER_IPS))
+
+    async def ens(tok, pid, tid, ips):
+        return {"created": list(ips), "existing": []}
+    async def ver(tok, pid, tid, ips):
+        return {"present": list(ips), "missing": [], "verified": True}
+    monkeypatch.setattr(v_rules, "ensure_ip_system_bypass", ens)
+    monkeypatch.setattr(v_rules, "verify_ip_system_bypass", ver)
+
+    res = await vsa.apply_ip_scanner_access(
+        db_session, website=w, access_token=TOKEN, project_id="prj_x", team_id="team_x",
+        user_id=u.id, org_id=u.id)
+    assert res["applied"] and res["status"] == "configured"
+    ta = await ta_service.get_trusted_access(db_session, w)
+    # Rule created, but coverage UNPROVEN -> NEVER active until a scan validates.
+    assert ta.access_status == TrustedAccessStatus.PENDING.value
+    assert conn.connection_metadata["scanner_access"]["method"] == "ip_system_bypass"
+    assert conn.connection_metadata["scanner_access"]["scanner_ips"] == _SCANNER_IPS
+
+
+async def test_disconnect_removes_ip_bypass(db_session, monkeypatch):
+    u, w, conn = await _connected_site(db_session, "vip3@x.com", "example.com")
+    import apps.api.config as _cfg
+    monkeypatch.setattr(_cfg, "scanner_outbound_ips", lambda: list(_SCANNER_IPS))
+    removed_args = {}
+
+    async def fake_remove_ip(tok, pid, tid, ips):
+        removed_args["ips"] = list(ips)
+        return {"removed": list(ips)}
+    monkeypatch.setattr(v_rules, "remove_ip_system_bypass", fake_remove_ip)
+    monkeypatch.setattr(vsa, "_load_access_token", lambda db, wid: _coro(TOKEN))
+    # WAF removal path is a no-op here (firewall 404); stub it to avoid network.
+    async def fake_remove_waf(tok, pid, tid=None):
+        return {"removed": []}
+    monkeypatch.setattr(v_rules, "remove_bypass_rule", fake_remove_waf)
+
+    res = await vsa.disconnect_scanner_bypass(db_session, website=w, user_id=u.id, org_id=u.id)
+    assert removed_args.get("ips") == _SCANNER_IPS
+    assert _SCANNER_IPS[0] in res["removed"]
+    ta = await ta_service.get_trusted_access(db_session, w)
+    assert ta.access_status == TrustedAccessStatus.PENDING.value
+
+
 _SECRET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345"  # 32-char fake bypass secret
 
 

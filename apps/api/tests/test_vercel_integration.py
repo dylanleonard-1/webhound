@@ -83,8 +83,8 @@ async def test_successful_connect(db_session, monkeypatch):
     # trusted access stays pending (the scanner flow is what promotes it to active).
     from apps.api.services import vercel_scanner_access as _vsa
     async def fake_apply(db, **kw):
-        return {"applied": False, "status": "pending_permissions"}
-    monkeypatch.setattr(_vsa, "apply_scanner_bypass", fake_apply)
+        return {"applied": False, "status": "pending_manual_setup"}
+    monkeypatch.setattr(_vsa, "apply_ip_scanner_access", fake_apply)
     u, w = await _site(db_session, "v1@x.com", "www.example.com")
     res = await v.complete_connection(db_session, website=w, code="c", user_id=u.id, org_id=u.id)
     await db_session.flush()

@@ -15,6 +15,7 @@ import {
   providersConnectComplete,
   shouldShowPrimaryCta,
   onboardingCardHidden,
+  onboardingShouldPoll,
   detectedConnectProvider,
   environmentFields,
   friendlyStatus,
@@ -389,5 +390,18 @@ describe('onboardingCardHidden — deterministic, stays until ALL providers conn
   it('does NOT hide on partial connect even if wizard would say limited', () => {
     // The core bug: 1-of-2 connected must keep the card open regardless of wizard state.
     expect(onboardingCardHidden({ detected: ['cloudflare', 'vercel'], connected: [] }, 'verified')).toBe(false)
+  })
+})
+
+describe('onboardingShouldPoll — auto-refresh while incomplete, stops when done', () => {
+  it('polls while a provider is still unconnected (1 of 2)', () => {
+    expect(onboardingShouldPoll({ detected: ['cloudflare', 'vercel'], connected: ['cloudflare'] }, 'verified')).toBe(true)
+  })
+  it('stops polling once all providers connected', () => {
+    expect(onboardingShouldPoll({ detected: ['cloudflare', 'vercel'], connected: ['cloudflare', 'vercel'] }, 'verified')).toBe(false)
+  })
+  it('manual-DNS site: polls until verified, then stops', () => {
+    expect(onboardingShouldPoll({ detected: [], connected: [] }, 'unverified')).toBe(true)
+    expect(onboardingShouldPoll({ detected: [], connected: [] }, 'verified')).toBe(false)
   })
 })

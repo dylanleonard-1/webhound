@@ -62,13 +62,10 @@ def _map_trusted(t: str) -> str:
 
 
 def _map_providers(rv: dict) -> str:
-    # Every detected supported provider connected -> completed; some -> limited.
-    pc = rv["checks"].get("provider_connected")
-    if pc == "pass":
-        return "completed"
-    if pc == "warning":
-        return "limited"
-    return "pending"
+    # DONE only when EVERY detected provider is connected (provider_connected PASS).
+    # A partial connect is a hard FAIL -> 'pending' (NOT a done status), so the
+    # "Providers connected" step stays unchecked and onboarding can't complete.
+    return "completed" if rv["checks"].get("provider_connected") == "pass" else "pending"
 
 
 def _map_readiness(s: str) -> str:
@@ -103,7 +100,11 @@ async def compute_steps(db: AsyncSession, website: Website) -> dict:
         "trusted_access": _map_trusted(rv["trusted_access"]),
         "providers_connected": _map_providers(rv),
         "readiness": _map_readiness(rv["status"]),
-        "monitoring": "active" if monitoring_on else "inactive",
+        # Monitoring counts as ACTIVE for onboarding only when readiness permits
+        # (every detected provider connected). A schedule auto-enabled on verify does
+        # NOT make the monitoring step active while onboarding is NOT_READY (e.g. a
+        # provider still unconnected).
+        "monitoring": "active" if (monitoring_on and rv["status"] != "not_ready") else "inactive",
     }
     steps = [{"step": n, "key": k, "name": name, "status": statuses[k]} for (n, k, name) in _STEPS]
     current_step = next((n for (n, k, _n) in _STEPS if not _done(statuses[k])), 6)

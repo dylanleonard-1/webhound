@@ -66,17 +66,15 @@ def detected_supported_providers(pp: ProviderProfile | None) -> set[str]:
 def provider_connected_check(
     detected: set[str], connected: set[str], *, verified: bool,
 ) -> ReadinessCheck:
-    """PASS when every detected supported provider is connected. When NONE is
-    detected (unsupported provider), 'connected' falls back to ownership verified
-    (manual DNS path). Partial connect -> WARN; none -> FAIL."""
+    """PASS only when EVERY detected supported provider is connected. ANY missing
+    provider is a HARD FAIL (partial connect must NOT complete onboarding) — a
+    1-of-2 connect blocks completion until the second provider is connected. When
+    NONE is detected (unsupported provider), 'connected' falls back to ownership
+    verified (manual DNS path)."""
     if not detected:
         return _PASS if verified else _FAIL
-    missing = detected - connected
-    if not missing:
-        return _PASS
-    if connected & detected:
-        return _WARN
-    return _FAIL
+    # Any detected provider not yet connected -> hard FAIL (NOT a warning).
+    return _PASS if detected.issubset(connected) else _FAIL
 
 
 class NotReadyError(Exception):

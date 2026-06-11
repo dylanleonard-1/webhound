@@ -33,7 +33,8 @@ def test_detect_none_when_unsupported():
 def test_both_detected_completes_only_when_both_connected():
     det = {"cloudflare", "vercel"}
     assert ob.provider_connected_check(det, {"cloudflare", "vercel"}, verified=True) is _PASS
-    assert ob.provider_connected_check(det, {"cloudflare"}, verified=True) is _WARN   # partial
+    # Partial connect is a HARD FAIL now (must NOT complete onboarding), not WARN.
+    assert ob.provider_connected_check(det, {"cloudflare"}, verified=True) is _FAIL   # partial
     assert ob.provider_connected_check(det, set(), verified=True) is _FAIL
 
 
@@ -58,5 +59,16 @@ def test_webhoundsecurity_layout_detects_both():
     # The real layout: Cloudflare in DNS, Vercel in HOSTING (the bug scenario).
     pp = _pp(dns_provider="Cloudflare", hosting_provider="Vercel")
     assert ob.detected_supported_providers(pp) == {"cloudflare", "vercel"}
-    # Only Cloudflare connected -> NOT complete (Vercel still missing).
-    assert ob.provider_connected_check({"cloudflare", "vercel"}, {"cloudflare"}, verified=True) is _WARN
+    # Only Cloudflare connected -> hard FAIL (onboarding NOT complete; Vercel missing).
+    assert ob.provider_connected_check({"cloudflare", "vercel"}, {"cloudflare"}, verified=True) is _FAIL
+
+
+def test_map_providers_partial_is_not_done():
+    from apps.api.services import onboarding_wizard as wz
+    # partial -> provider_connected FAIL -> step 'pending' (NOT a done status).
+    assert wz._map_providers({"checks": {"provider_connected": "fail"}}) == "pending"
+    assert wz._map_providers({"checks": {"provider_connected": "warning"}}) == "pending"
+    # all connected -> PASS -> 'completed'.
+    assert wz._map_providers({"checks": {"provider_connected": "pass"}}) == "completed"
+    # 'pending' is NOT in the wizard's DONE set.
+    assert "pending" not in wz._DONE

@@ -27,6 +27,7 @@ import {
   connectTarget,
   detectedProviderRows,
   onboardingCardHidden,
+  onboardingShouldPoll,
   runValidationFeedback,
   shouldShowPrimaryCta,
 } from '@/lib/onboarding-presentation'
@@ -98,6 +99,8 @@ export function OnboardingPanel({ websiteId, isAdmin = false, onRevealVerificati
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(advancedDefaultOpen(isAdmin))
+  // Keep polling while onboarding is still showing (incomplete) so steps advance live.
+  const [polling, setPolling] = useState(true)
 
   const load = useCallback(async () => {
     const [provider, trusted, validation, readiness, wizard, audit, cfScanner] = await Promise.all([
@@ -110,10 +113,23 @@ export function OnboardingPanel({ websiteId, isAdmin = false, onRevealVerificati
       api.websites.cloudflareScannerAccessStatus(websiteId).catch(() => null),
     ])
     setData({ provider, trusted, validation, readiness, wizard, audit, cfScanner })
+    // Stop polling once setup is done (card will hide). Keep polling while incomplete.
+    setPolling(onboardingShouldPoll(readiness?.providers, readiness?.verification))
     setLoading(false)
   }, [websiteId])
 
   useEffect(() => { void load() }, [load])
+
+  // Auto-advance without a manual refresh: while incomplete, re-fetch every 5s and on
+  // window focus (e.g. returning from the provider OAuth redirect). Fresh data via the
+  // api client's cache:'no-store'.
+  useEffect(() => {
+    if (!polling) return
+    const onFocus = () => { void load() }
+    window.addEventListener('focus', onFocus)
+    const id = setInterval(() => { void load() }, 5000)
+    return () => { window.removeEventListener('focus', onFocus); clearInterval(id) }
+  }, [polling, load])
 
   if (loading) {
     return (

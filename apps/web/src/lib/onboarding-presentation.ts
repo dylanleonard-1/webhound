@@ -181,6 +181,15 @@ export function onboardingCardHidden(
   return providersConnectComplete(providers)
 }
 
+// Poll onboarding state while the card is still showing (incomplete) so steps advance
+// live (detection finishing, a provider connecting) without a manual refresh. Stops
+// once setup is done.
+export function onboardingShouldPoll(
+  providers: DetectedProvidersInput, verification: string | null | undefined,
+): boolean {
+  return !onboardingCardHidden(providers, verification)
+}
+
 // Honest coverage assessment. Validation status "limited" means the scanner saw the
 // site only partially (e.g. blocked by a provider challenge after 1 page). We must
 // NOT present that as a clean "Coverage validated" — surface the blocker + pages +

@@ -156,19 +156,19 @@ export function OnboardingPanel({ websiteId, isAdmin = false, onRevealVerificati
       revealVerification()
       return
     }
-    // "Set Up Scanner Access": for Cloudflare this starts the ELEVATED OAuth
-    // re-consent (firewall-write scopes) that creates the scanner skip rule on
-    // return. Other providers fall back to manual trusted-access guidance.
+    // "Set Up Scanner Access": ONE flow now — the single Connect Cloudflare consent
+    // already requests firewall-write and sets up the scanner rule. So this CTA just
+    // (re-)runs that single connect (e.g. to grant the elevated scopes if the site
+    // was connected read-only before). Other providers fall back to manual guidance.
     if (action === 'configure_access' && connectTarget(provider) === 'cloudflare_oauth') {
       setBusy(true)
       try {
-        const { authorization_url } = await api.websites.cloudflareScannerAccessStart(websiteId)
-        window.location.href = authorization_url   // -> Cloudflare elevated consent
+        const { authorization_url } = await api.websites.cloudflareConnect(websiteId)
+        window.location.href = authorization_url   // -> single Cloudflare consent
         return                                       // (navigating away; keep busy)
       } catch (e) {
-        // Manual-guidance fallback if the elevated flow can't start (e.g. scopes).
         toast.error((e as Error)?.message
-          || 'Could not start automatic scanner access — set it up manually below.')
+          || 'Could not start the Cloudflare connection — set up access manually below.')
         try { await api.websites.trustedAccessStart(websiteId); await load() } catch { /* noop */ }
         setBusy(false)
       }

@@ -122,12 +122,15 @@ def verify_state(state: str) -> dict:
 
 
 def build_authorize_url(state: str) -> str:
+    # ONE consent: the single "Connect Cloudflare" requests the combined
+    # least-privilege set (zone read + firewall/WAF read+write) so the callback can
+    # both verify ownership AND set up the scanner allow rule — no second authorize.
     client_id, _ = _client_credentials()
     params = {
         "client_id": client_id,
         "redirect_uri": _redirect_uri(),
         "response_type": "code",
-        "scope": _scopes(),
+        "scope": _scanner_scopes(),
         "state": state,
     }
     return f"{_CF_AUTHORIZE}?{urlencode(params)}"
@@ -311,7 +314,7 @@ async def complete_connection(db: AsyncSession, *, website: Website, code: str,
 
     access_token = token_data.get("access_token")
     refresh_token = token_data.get("refresh_token")
-    scope = token_data.get("scope") or _scopes()
+    scope = token_data.get("scope") or _scanner_scopes()
     if not access_token:
         conn = await _get_or_create(db, website, user_id, org_id)
         conn.connection_status = ProviderConnectionStatus.FAILED.value
@@ -379,8 +382,8 @@ async def complete_connection(db: AsyncSession, *, website: Website, code: str,
         db, website, provider=CLOUDFLARE_PROVIDER, evidence=conn.evidence,
         actor_user_id=user_id, org_id=org_id)
 
-    # Reuse Phase 3.4 trusted access -> PENDING (we have NOT configured scanner
-    # access / WAF rules; Phase 3.5 validation remains the single 'active' gate).
+    # Reuse Phase 3.4 trusted access -> PENDING (Phase 3.5 validation remains the
+    # single 'active' gate).
     await ta_service.start_provider_oauth_access(
         db, website, provider=CLOUDFLARE_PROVIDER,
         evidence=conn.evidence, user_id=user_id, org_id=org_id)
@@ -388,7 +391,23 @@ async def complete_connection(db: AsyncSession, *, website: Website, code: str,
            status="pending", reason="scanner access validation is next")
     _audit(db, CF_VALIDATION_QUEUED, website, user_id=user_id, org_id=org_id, status="queued")
 
-    return {"matched": True, "status": "connected", "zone": zone_name}
+    # ONE flow: the combined consent already granted firewall write, so set up the
+    # scanner allow rule now (tightly UA-scoped + reversible) — no second authorize.
+    # If the token lacks the write scope, this is a no-op and the dashboard shows
+    # pending_permissions (re-authorize). Deferred import avoids a circular module load.
+    scanner_result = {"applied": False, "reason": "skipped"}
+    try:
+        from apps.api.services import cloudflare_scanner_access as _cf_scanner
+        scanner_result = await _cf_scanner.apply_scanner_rules(
+            db, website=website, access_token=access_token, refresh_token=refresh_token,
+            scope=scope, zone_id=conn.zone_id, user_id=user_id, org_id=org_id)
+    except Exception:  # noqa: BLE001 — rule setup must never fail the connection itself
+        scanner_result = {"applied": False, "reason": "rule_setup_error"}
+        _audit(db, CF_SCANNER_ACCESS_FAILED, website, user_id=user_id, org_id=org_id,
+               status="failed", reason="rule_setup_error")
+
+    return {"matched": True, "status": "connected", "zone": zone_name,
+            "scanner_access": scanner_result}
 
 
 def dashboard_view(conn) -> dict:

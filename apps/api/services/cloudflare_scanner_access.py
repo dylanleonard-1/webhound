@@ -17,6 +17,7 @@ from apps.api.models.enums import SecretStatus, TrustedAccessMethod
 from apps.api.models.website import Website
 from apps.api.services import cloudflare as cf
 from apps.api.services import cloudflare_rules as cf_rules
+from apps.api.services import cloudflare_scopes as cf_scopes
 from apps.api.services import cloudflare_telemetry as cf_telemetry
 from apps.api.services import trusted_access as ta_service
 from apps.api.services.key_management import get_key_management
@@ -47,41 +48,27 @@ async def _zone_id(db: AsyncSession, website: Website) -> str | None:
     return conn.zone_id if conn else None
 
 
-async def complete_scanner_access(
-    db: AsyncSession, *, website: Website, code: str, user_id, org_id,
+async def apply_scanner_rules(
+    db: AsyncSession, *, website: Website, access_token: str, refresh_token: str | None,
+    scope: str, zone_id: str | None, user_id, org_id,
 ) -> dict:
-    """Exchange the elevated code, create + verify the scanner skip rules, persist
-    the elevated token, and mark trusted access ACTIVE. Returns a result dict for
-    the callback redirect. Never logs the code or token."""
-    cf._audit(db, cf.CF_SCANNER_ACCESS_STARTED, website, user_id=user_id, org_id=org_id,
-              status="connecting")
+    """Create + verify the scanner skip rules with an ALREADY-exchanged token, persist
+    the token + reversible rule metadata, and flip trusted access ACTIVE.
 
-    # Fail closed if we cannot encrypt the elevated token at rest.
-    if not get_key_management().is_configured:
-        await _fail(db, website, user_id=user_id, org_id=org_id,
-                    reason="encryption_not_configured")
-        raise EncryptionNotConfiguredError()
-
-    # The read-only connect already matched + stored the owning zone; we need its id
-    # to target the Rulesets API.
-    zone_id = await _zone_id(db, website)
+    Permission-gated: if `scope` lacks a firewall WRITE scope, NO rules are created
+    (the dashboard then shows pending_permissions). Shared by the single Connect
+    Cloudflare flow AND the standalone re-consent. Never logs the token."""
     if not zone_id:
-        await _fail(db, website, user_id=user_id, org_id=org_id, reason="no_connected_zone")
-        return {"status": "failed", "reason": "no_connected_zone"}
+        return {"applied": False, "reason": "no_zone"}
+    if not cf_scopes.has_rule_edit_permission(scope):
+        # No firewall write granted -> can't create the rule. Honest, not a failure.
+        cf._audit(db, cf.CF_SCANNER_ACCESS_FAILED, website, user_id=user_id, org_id=org_id,
+                  status="pending", reason="missing_rule_edit_permission")
+        return {"applied": False, "reason": "no_permission"}
 
-    # Exchange elevated code -> token (held in memory only). Reuses the proven
-    # client_secret_post(+basic fallback) exchange.
-    token_data = await cf._exchange_code(code)
-    access_token = token_data.get("access_token")
-    refresh_token = token_data.get("refresh_token")
-    scope = token_data.get("scope") or cf._scanner_scopes()
-    if not access_token:
-        await _fail(db, website, user_id=user_id, org_id=org_id, reason="no_access_token")
-        raise cf.CloudflareOAuthError("no access_token in scanner-access response")
     cf._audit(db, cf.CF_SCANNER_ACCESS_AUTHORIZED, website, user_id=user_id, org_id=org_id,
               status="connecting")
-
-    # Create the skip rules, then read them back to verify (rules in memory token).
+    # Create the skip rules, then read them back to verify.
     try:
         created = await cf_rules.ensure_scanner_rules(access_token, zone_id)
         verify = await cf_rules.verify_scanner_rules(access_token, zone_id)
@@ -92,16 +79,13 @@ async def complete_scanner_access(
               status="connecting",
               reason=",".join(created.get("created", []) + created.get("updated", [])
                               + created.get("existing", [])) or "none")
-
     if not verify.get("verified"):
-        # Rules didn't read back as present+enabled — do NOT claim active. The
-        # elevated token is discarded (never stored).
         await _fail(db, website, user_id=user_id, org_id=org_id, reason="rule_verify_failed")
-        return {"status": "failed", "reason": "rule_verify_failed", "verify": verify}
+        return {"applied": False, "reason": "rule_verify_failed", "verify": verify}
     cf._audit(db, cf.CF_SCANNER_RULE_VERIFIED, website, user_id=user_id, org_id=org_id,
               status="connected")
 
-    # Rules verified -> persist the elevated token(s) encrypted (Phase 4.1).
+    # Persist the token (for later disconnect/telemetry/re-validate) + rule metadata.
     await store_secret(
         db, resource_type=cf.CLOUDFLARE_PROVIDER, secret_type=SCANNER_TOKEN_TYPE,
         plaintext=access_token, org_id=org_id, user_id=user_id, website_id=website.id,
@@ -110,26 +94,18 @@ async def complete_scanner_access(
         await store_secret(
             db, resource_type=cf.CLOUDFLARE_PROVIDER, secret_type=SCANNER_REFRESH_TYPE,
             plaintext=refresh_token, org_id=org_id, user_id=user_id, website_id=website.id)
-
-    # Persist reversible rule metadata on the connection (no new DB column) so the
-    # dashboard + disconnect can use it. Rule ids enable targeted rollback.
     now_iso = datetime.now(timezone.utc).isoformat()
     conn = await cf.get_connection(db, website.id)
     if conn is not None:
         md = dict(conn.connection_metadata or {})
         md[SCANNER_ACCESS_META_KEY] = {
-            "rule_ids": created.get("rule_ids"),
-            "ruleset_id": created.get("ruleset_id"),
-            "zone_id": zone_id,
-            "rule_type": "skip",
-            "created_by_webhound": True,
-            "created_at": now_iso,
-            "last_validated_at": now_iso,   # verified moments ago
+            "rule_ids": created.get("rule_ids"), "ruleset_id": created.get("ruleset_id"),
+            "zone_id": zone_id, "rule_type": "skip", "created_by_webhound": True,
+            "created_at": now_iso, "last_validated_at": now_iso,
             "degraded": created.get("degraded", False),
         }
         conn.connection_metadata = md
 
-    # Flip trusted access -> ACTIVE (rules are the proof access actually works).
     profile = await ta_service.get_trusted_access(db, website)
     if profile is None:
         profile = await ta_service.start_provider_oauth_access(
@@ -140,7 +116,38 @@ async def complete_scanner_access(
     await ta_service.mark_active(db, website, profile, reason="cloudflare:scanner_rules_verified",
                                  user_id=user_id, org_id=org_id)
     await db.flush()
-    return {"status": "active", "rules": created, "verify": verify}
+    return {"applied": True, "verified": True, "rules": created}
+
+
+async def complete_scanner_access(
+    db: AsyncSession, *, website: Website, code: str, user_id, org_id,
+) -> dict:
+    """Standalone scanner-access re-consent (kept for backward-compat / re-authorize).
+    The PRIMARY path is now the single Connect Cloudflare flow, which calls
+    apply_scanner_rules directly with the already-exchanged token."""
+    cf._audit(db, cf.CF_SCANNER_ACCESS_STARTED, website, user_id=user_id, org_id=org_id,
+              status="connecting")
+    if not get_key_management().is_configured:
+        await _fail(db, website, user_id=user_id, org_id=org_id,
+                    reason="encryption_not_configured")
+        raise EncryptionNotConfiguredError()
+    zone_id = await _zone_id(db, website)
+    if not zone_id:
+        await _fail(db, website, user_id=user_id, org_id=org_id, reason="no_connected_zone")
+        return {"status": "failed", "reason": "no_connected_zone"}
+    token_data = await cf._exchange_code(code)
+    access_token = token_data.get("access_token")
+    refresh_token = token_data.get("refresh_token")
+    scope = token_data.get("scope") or cf._scanner_scopes()
+    if not access_token:
+        await _fail(db, website, user_id=user_id, org_id=org_id, reason="no_access_token")
+        raise cf.CloudflareOAuthError("no access_token in scanner-access response")
+    result = await apply_scanner_rules(
+        db, website=website, access_token=access_token, refresh_token=refresh_token,
+        scope=scope, zone_id=zone_id, user_id=user_id, org_id=org_id)
+    if result.get("applied"):
+        return {"status": "active", "rules": result.get("rules")}
+    return {"status": "failed", "reason": result.get("reason", "unknown")}
 
 
 # ── token retrieval / disconnect ──────────────────────────────────────────────

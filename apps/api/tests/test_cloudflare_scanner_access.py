@@ -12,9 +12,50 @@ import pytest
 
 from apps.api.services import cloudflare as cf
 from apps.api.services import cloudflare_rules as cf_rules
+from apps.api.services import cloudflare_scanner_access as cf_scanner
 from apps.api.services import cloudflare_telemetry as cf_telemetry
 
 pytestmark = pytest.mark.anyio
+
+
+_COMBINED_SCOPES = ("zone.read firewall-services.read firewall-services.write "
+                    "zone-waf.read zone-waf.write")
+
+
+def test_single_connect_requests_combined_scopes(monkeypatch):
+    # ONE button: the main Connect Cloudflare authorize now requests the combined
+    # least-privilege set (incl. firewall WRITE) so one consent does verify + rules.
+    monkeypatch.setattr(cf, "get_settings", lambda: SimpleNamespace(
+        cloudflare_client_id="cid", cloudflare_client_secret="s",
+        api_base_url="https://api.webhoundsecurity.com",
+        cloudflare_scanner_oauth_scopes=_COMBINED_SCOPES))
+    url = cf.build_authorize_url("st")
+    assert "firewall-services.write" in url   # write requested up front (one consent)
+    assert "zone.read" in url
+    assert "account" not in url.split("scope=", 1)[1].split("&", 1)[0]  # still least-privilege
+
+
+async def test_apply_scanner_rules_no_zone():
+    res = await cf_scanner.apply_scanner_rules(
+        db=None, website=SimpleNamespace(id="w", hostname="x"), access_token="t",
+        refresh_token=None, scope="firewall-services.write", zone_id=None,
+        user_id=None, org_id=None)
+    assert res == {"applied": False, "reason": "no_zone"}
+
+
+async def test_apply_scanner_rules_skips_when_no_write_scope(monkeypatch):
+    # Read-only connect token (zone.read) -> NO rule created -> pending_permissions.
+    calls = {"ensure": 0}
+    monkeypatch.setattr(cf_scanner.cf, "_audit", lambda *a, **k: None)
+    async def _ensure(*a, **k):
+        calls["ensure"] += 1
+        return {}
+    monkeypatch.setattr(cf_scanner.cf_rules, "ensure_scanner_rules", _ensure)
+    res = await cf_scanner.apply_scanner_rules(
+        db=None, website=SimpleNamespace(id="w", hostname="x"), access_token="t",
+        refresh_token=None, scope="zone.read", zone_id="z1", user_id=None, org_id=None)
+    assert res == {"applied": False, "reason": "no_permission"}
+    assert calls["ensure"] == 0   # never created a rule without write scope
 
 # The committed default scanner scope set.
 _SCANNER_SCOPES = (

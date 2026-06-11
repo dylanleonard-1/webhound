@@ -14,6 +14,7 @@ import {
   detectedProviderRows,
   providersConnectComplete,
   shouldShowPrimaryCta,
+  onboardingCardHidden,
   detectedConnectProvider,
   environmentFields,
   friendlyStatus,
@@ -367,5 +368,26 @@ describe('shouldShowPrimaryCta — never hides ALL connect actions', () => {
   it('non-connect CTAs (activate monitoring) always show', () => {
     expect(shouldShowPrimaryCta('activate_monitoring', rows(2))).toBe(true)
     expect(shouldShowPrimaryCta(null, rows(2))).toBe(false)   // no cta -> nothing
+  })
+})
+
+describe('onboardingCardHidden — deterministic, stays until ALL providers connected', () => {
+  it('CF+Vercel detected, only CF connected -> NOT hidden (card stays for Vercel)', () => {
+    expect(onboardingCardHidden({ detected: ['cloudflare', 'vercel'], connected: ['cloudflare'] }, 'verified')).toBe(false)
+  })
+  it('both connected -> hidden', () => {
+    expect(onboardingCardHidden({ detected: ['cloudflare', 'vercel'], connected: ['cloudflare', 'vercel'] }, 'verified')).toBe(true)
+  })
+  it('CF-only site, CF connected -> hidden', () => {
+    expect(onboardingCardHidden({ detected: ['cloudflare'], connected: ['cloudflare'] }, 'verified')).toBe(true)
+  })
+  it('manual-DNS site (no detected provider): hidden only when verified', () => {
+    expect(onboardingCardHidden({ detected: [], connected: [] }, 'verified')).toBe(true)
+    expect(onboardingCardHidden({ detected: [], connected: [] }, 'unverified')).toBe(false)
+    expect(onboardingCardHidden(null, 'verified')).toBe(true)
+  })
+  it('does NOT hide on partial connect even if wizard would say limited', () => {
+    // The core bug: 1-of-2 connected must keep the card open regardless of wizard state.
+    expect(onboardingCardHidden({ detected: ['cloudflare', 'vercel'], connected: [] }, 'verified')).toBe(false)
   })
 })

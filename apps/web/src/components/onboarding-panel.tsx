@@ -26,7 +26,7 @@ import {
   buildOnboardingView,
   connectTarget,
   detectedProviderRows,
-  providersConnectComplete,
+  onboardingCardHidden,
   runValidationFeedback,
   shouldShowPrimaryCta,
 } from '@/lib/onboarding-presentation'
@@ -129,15 +129,11 @@ export function OnboardingPanel({ websiteId, isAdmin = false, onRevealVerificati
   const { provider, trusted, validation, readiness, wizard, audit, cfScanner } = data
   const view = buildOnboardingView(wizard, provider, validation, cfScanner)
 
-  // Card hides ONLY when setup is truly done: the wizard is complete AND every
-  // DETECTED provider is connected. A partial connect (1 of 2 providers) keeps the
-  // card visible — never hide just because overall_status is 'limited'. Manual-DNS
-  // sites (no detected supported provider) fall back to the wizard's completion.
-  const detectedCount = (readiness?.providers?.detected ?? []).length
-  const allProvidersConnected = detectedCount === 0
-    ? true
-    : providersConnectComplete(readiness?.providers)
-  if (view.isComplete && allProvidersConnected) return null
+  // Card-hide is DETERMINISTIC from readiness ONLY (not the wizard), so a stale/
+  // racing wizard can't hide the card mid-flow. Hide only when every detected
+  // provider is connected (or, for manual-DNS sites, when ownership is verified).
+  // 1-of-2 providers connected -> card STAYS so the user can connect the second.
+  if (onboardingCardHidden(readiness?.providers, readiness?.verification)) return null
 
   async function handleConnectProvider(name: 'cloudflare' | 'vercel') {
     setBusy(true)

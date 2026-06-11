@@ -167,6 +167,20 @@ export function providersConnectComplete(providers: DetectedProvidersInput): boo
   return detected.every((p) => connected.has(p))
 }
 
+// DETERMINISTIC card-hide from ONE source (readiness) to avoid flicker / partial-state
+// races. The setup card hides ONLY when setup is truly done:
+//   - providers detected -> EVERY detected provider is connected
+//   - no supported provider (manual-DNS site) -> ownership verified
+// A partial connect (1 of 2 providers) keeps the card visible — it never hides just
+// because the wizard reports overall_status 'limited'.
+export function onboardingCardHidden(
+  providers: DetectedProvidersInput, verification: string | null | undefined,
+): boolean {
+  const detected = providers?.detected ?? []
+  if (detected.length === 0) return verification === 'verified'
+  return providersConnectComplete(providers)
+}
+
 // Honest coverage assessment. Validation status "limited" means the scanner saw the
 // site only partially (e.g. blocked by a provider challenge after 1 page). We must
 // NOT present that as a clean "Coverage validated" — surface the blocker + pages +

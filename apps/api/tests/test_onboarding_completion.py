@@ -52,3 +52,11 @@ def test_access_validation_not_in_hard_checks():
     # The scan-based coverage check is no longer a completion gate.
     assert "access_validation" not in ob._HARD_CHECKS
     assert "provider_connected" in ob._HARD_CHECKS
+
+
+def test_webhoundsecurity_layout_detects_both():
+    # The real layout: Cloudflare in DNS, Vercel in HOSTING (the bug scenario).
+    pp = _pp(dns_provider="Cloudflare", hosting_provider="Vercel")
+    assert ob.detected_supported_providers(pp) == {"cloudflare", "vercel"}
+    # Only Cloudflare connected -> NOT complete (Vercel still missing).
+    assert ob.provider_connected_check({"cloudflare", "vercel"}, {"cloudflare"}, verified=True) is _WARN

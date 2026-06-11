@@ -468,6 +468,10 @@ async function request<T>(
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
       signal: controller.signal,
+      // Never serve stale GETs from the browser cache — after the OAuth return the
+      // onboarding/readiness state must reflect the just-made connection without a
+      // manual refresh.
+      cache: 'no-store',
     })
   } catch (err) {
     clearTimeout(timer)

@@ -515,6 +515,11 @@ function qs(params?: Record<string, string | number | boolean | undefined | null
 // ---------------------------------------------------------------------------
 
 export const api = {
+  // Customer support ticket (reuses the staff support system). Safe context only.
+  createTicket: (payload: {
+    subject: string; description?: string; kind?: 'scan_blocked' | 'onboarding_help'
+    website_id?: string; scan_id?: string; blocker?: string | null
+  }) => request<{ id: string; number: string; status: string }>('POST', '/tickets', payload),
   auth: {
     register: (payload: RegisterPayload) =>
       request<UserResponse & { access_token: string; token_type: string; dev_verify_url?: string }>(
@@ -637,6 +642,8 @@ export const api = {
     // authorization URL; the callback creates+verifies the rules server-side.
     cloudflareScannerAccessStatus: (id: string) =>
       request<CloudflareScannerAccessView>('GET', `/websites/${id}/providers/cloudflare/scanner-access`),
+    trustedAccessRevoke: (id: string) =>
+      request<Record<string, unknown>>('POST', `/websites/${id}/trusted-access/revoke`),
     cloudflareScannerAccessStart: (id: string) =>
       request<CloudflareConnectResponse>('POST', `/websites/${id}/providers/cloudflare/scanner-access/start`),
     cloudflareScannerAccessDisconnect: (id: string) =>

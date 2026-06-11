@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScanLaunchForm } from '@/components/scan-launch-form'
 import { ScheduleList } from '@/components/monitoring/schedule-list'
 import { OnboardingPanel } from '@/components/onboarding-panel'
+import { ScanBlockedBanner } from '@/components/scan-blocked-banner'
 import { LoadingState } from '@/components/loading-state'
 import { ErrorState } from '@/components/error-state'
 import { EmptyState } from '@/components/empty-state'
@@ -570,6 +571,10 @@ export default function WebsiteDetailPage() {
           </Button>
         </div>
       </Card>
+
+      {/* Scan-time blocked popup — surfaces a provider challenge (e.g. Vercel) with
+          a Create-ticket action. Hides itself when nothing is blocking. */}
+      <ScanBlockedBanner websiteId={id} latestScanId={scans[0]?.id} />
 
       {/* Guided onboarding setup (customer view; provider-first). Technical
           detail is behind Advanced; manual verification is revealed on demand. */}

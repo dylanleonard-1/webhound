@@ -20,10 +20,17 @@ from webhound.identity import SCANNER_NAME  # "WebHoundScanner" — stable acros
 
 _V_API = "https://api.vercel.com"
 _CONFIG_PATH = "/v1/security/firewall/config"
+# IP-scoped System Bypass (DDoS Mitigations & System Bypasses). Matches by sourceIp +
+# projectScope — NOT user-agent. Ref: vercel.com/docs/rest-api/reference/endpoints/
+# security/create-system-bypass-rule (POST), list (GET), remove (DELETE).
+_BYPASS_PATH = "/v1/security/firewall/bypass"
 
 # Stable ref embedded in the rule name/description — our idempotency + cleanup key.
 REF = "webhound:scanner-access:bypass"
 RULE_NAME = "WebHound Scanner Bypass"
+# Note tag stamped on the IP system-bypass entries for idempotency + cleanup.
+IP_BYPASS_NOTE = "WebHound scanner egress [webhound:scanner-access]"
+IP_BYPASS_REF = "webhound:scanner-access"
 
 # Match the scanner by its honest UA (op 'sub' = contains, case-insensitive on
 # Vercel). Tightly scoped to the scanner identity — NEVER a blanket allow.
@@ -45,6 +52,14 @@ class VercelFirewallUnavailableError(VercelRuleError):
     returns 404 'Seawall Config not found' for GET and PUT alike. The firewall must be
     initialized once in the Vercel dashboard (Project → Firewall), or the integration
     token lacks firewall access. Honest pending state — NOT a failure, NOT active."""
+
+
+class VercelBypassForbiddenError(VercelRuleError):
+    """The token is not permitted to manage IP System Bypass rules (Vercel returns
+    403 'You don't have permission to create the ip blocking', or 404 'IP Blocking not
+    found'). EMPIRICAL: the marketplace integration token's read-write:project does NOT
+    grant firewall/ipBlocking write — that's gated to native integrations / user-level
+    access. Honest -> customer guided manual setup; NEVER fake active."""
 
 
 def _desired_rule() -> dict:
@@ -236,4 +251,106 @@ async def remove_bypass_rule(access_token: str, project_id: str, team_id: str | 
         if found and found.get("id"):
             await _patch(client, params, {"action": "rules.remove", "id": found["id"]})
             removed.append(REF)
+    return {"removed": removed}
+
+
+# ── IP-scoped System Bypass (DDoS Mitigations & System Bypasses) ───────────────
+# Scoped ONLY to the WebHound scanner egress IP(s) + projectScope — never UA, never a
+# broad/global bypass (we never send allSources). The marketplace integration token is
+# currently FORBIDDEN here (403), so callers fall back to guided manual setup; these
+# functions are correct + future-proof if a token ever has firewall write.
+
+def _bypass_ip_of(entry: dict) -> str:
+    """Extract the source IP from a bypass-list entry (Vercel uses 'Ip' or 'sourceIp')."""
+    return str(entry.get("Ip") or entry.get("ip") or entry.get("sourceIp") or "").strip()
+
+
+async def _bypass_request(client, method: str, params: dict, json=None) -> httpx.Response:
+    r = await client.request(method, f"{_V_API}{_BYPASS_PATH}", params=params, json=json)
+    if r.status_code in (401, 403):
+        raise VercelBypassForbiddenError("ip system bypass forbidden",
+                                         http_status=r.status_code, api_errors=_safe_errors(r))
+    return r
+
+
+def _bypass_list_from(resp: httpx.Response) -> list[dict]:
+    if resp.status_code == 404:  # 'IP Blocking not found' — nothing configured yet
+        return []
+    if resp.is_error:
+        raise VercelRuleError("bypass list failed", http_status=resp.status_code,
+                              api_errors=_safe_errors(resp))
+    try:
+        body = resp.json()
+    except Exception:  # noqa: BLE001
+        return []
+    res = body.get("result") if isinstance(body, dict) else body
+    return [e for e in (res or []) if isinstance(e, dict)]
+
+
+async def ensure_ip_system_bypass(
+    access_token: str, project_id: str, team_id: str | None, ips: list[str],
+) -> dict:
+    """Idempotently ensure a project-scoped System Bypass exists for EACH scanner egress
+    IP. Never sends allSources/global. Raises VercelBypassForbiddenError if the token
+    can't manage IP blocking (the marketplace integration case). Returns
+    {"created": [...ips], "existing": [...ips]}."""
+    headers = {"Authorization": f"Bearer {access_token}",
+               "Content-Type": "application/json", "Accept": "application/json"}
+    params = _params(project_id, team_id)
+    created: list[str] = []
+    existing: list[str] = []
+    async with httpx.AsyncClient(timeout=25, headers=headers) as client:
+        lst = _bypass_list_from(await _bypass_request(client, "GET", params))
+        present = {_bypass_ip_of(e) for e in lst}
+        for ip in ips:
+            ip = (ip or "").strip()
+            if not ip:
+                continue
+            if ip in present:
+                existing.append(ip)
+                continue
+            # projectScope=true + sourceIp -> bypass this exact IP across the project's
+            # domains. NEVER allSources (that would be a global bypass).
+            await _bypass_request(client, "POST", params,
+                                  json={"projectScope": True, "sourceIp": ip, "note": IP_BYPASS_NOTE})
+            created.append(ip)
+    return {"created": created, "existing": existing}
+
+
+async def verify_ip_system_bypass(
+    access_token: str, project_id: str, team_id: str | None, ips: list[str],
+) -> dict:
+    """Read the bypass list back and confirm every scanner IP is present. Returns
+    {"present": [...], "missing": [...], "verified": bool}."""
+    headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
+    params = _params(project_id, team_id)
+    async with httpx.AsyncClient(timeout=25, headers=headers) as client:
+        lst = _bypass_list_from(await _bypass_request(client, "GET", params))
+    present_ips = {_bypass_ip_of(e) for e in lst}
+    want = [(ip or "").strip() for ip in ips if (ip or "").strip()]
+    present = [ip for ip in want if ip in present_ips]
+    missing = [ip for ip in want if ip not in present_ips]
+    return {"present": present, "missing": missing, "verified": bool(want) and not missing}
+
+
+async def remove_ip_system_bypass(
+    access_token: str, project_id: str, team_id: str | None, ips: list[str],
+) -> dict:
+    """Remove the WebHound scanner System Bypass entries (clean disconnect). Idempotent.
+    Returns {"removed": [...ips]}."""
+    headers = {"Authorization": f"Bearer {access_token}",
+               "Content-Type": "application/json", "Accept": "application/json"}
+    params = _params(project_id, team_id)
+    want = {(ip or "").strip() for ip in ips if (ip or "").strip()}
+    removed: list[str] = []
+    async with httpx.AsyncClient(timeout=25, headers=headers) as client:
+        lst = _bypass_list_from(await _bypass_request(client, "GET", params))
+        for entry in lst:
+            ip = _bypass_ip_of(entry)
+            if ip not in want:
+                continue
+            bid = entry.get("Id") or entry.get("id")
+            body = {"id": bid} if bid else {"sourceIp": ip, "projectScope": True}
+            await _bypass_request(client, "DELETE", params, json=body)
+            removed.append(ip)
     return {"removed": removed}

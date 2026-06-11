@@ -168,3 +168,93 @@ def test_attack_mode_blocking_conservative():
     assert vr.attack_mode_blocking({"rules": []}) is False
     assert vr.attack_mode_blocking({"attackModeEnabled": True}) is True
     assert vr.attack_mode_blocking({"managedRules": {"attackChallengeMode": {"active": True}}}) is True
+
+
+# ── IP-scoped System Bypass ────────────────────────────────────────────────────
+
+class _FakeBypassAPI:
+    """Stateful fake of the /v1/security/firewall/bypass endpoint."""
+
+    def __init__(self, *, forbidden=False, exists404=False, seed=None):
+        self.forbidden = forbidden
+        self.exists404 = exists404  # GET returns 404 'IP Blocking not found'
+        self.entries = list(seed or [])
+        self._next = 1
+        self.posts = []
+
+    def __call__(self, *a, **k):
+        return self
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a):
+        return False
+
+    async def request(self, method, url, params=None, json=None):
+        if self.forbidden:
+            return _Resp(403, {"error": {"code": "forbidden",
+                                         "message": "You don't have permission to create the ip blocking",
+                                         "resource": "ipBlocking"}})
+        if method == "GET":
+            if self.exists404 and not self.entries:
+                return _Resp(404, {"error": {"code": "not_found", "message": "IP Blocking not found."}})
+            return _Resp(200, {"result": list(self.entries)})
+        if method == "POST":
+            self.posts.append(json or {})
+            entry = {"Id": f"byp_{self._next}", "Ip": json.get("sourceIp"),
+                     "Note": json.get("note"), "IsProjectRule": bool(json.get("projectScope"))}
+            self._next += 1
+            self.entries.append(entry)
+            return _Resp(200, {"ok": True, "result": [entry]})
+        if method == "DELETE":
+            bid = (json or {}).get("id")
+            ip = (json or {}).get("sourceIp")
+            self.entries = [e for e in self.entries
+                            if e.get("Id") != bid and e.get("Ip") != ip]
+            return _Resp(200, {"ok": True})
+        return _Resp(400, {"error": {"code": "bad_request"}})
+
+
+async def test_ip_bypass_create_verify_remove(monkeypatch):
+    api = _FakeBypassAPI(exists404=True)
+    monkeypatch.setattr(vr.httpx, "AsyncClient", api)
+    ips = ["152.55.180.27"]
+
+    created = await vr.ensure_ip_system_bypass("tok", "prj", "team", ips)
+    assert created["created"] == ips and created["existing"] == []
+    # SCOPED: exactly sourceIp + projectScope; NEVER allSources / global.
+    assert api.posts == [{"projectScope": True, "sourceIp": "152.55.180.27", "note": vr.IP_BYPASS_NOTE}]
+    assert all("allSources" not in p for p in api.posts)
+
+    verify = await vr.verify_ip_system_bypass("tok", "prj", "team", ips)
+    assert verify["verified"] is True and verify["present"] == ips and verify["missing"] == []
+
+    removed = await vr.remove_ip_system_bypass("tok", "prj", "team", ips)
+    assert removed["removed"] == ips
+    after = await vr.verify_ip_system_bypass("tok", "prj", "team", ips)
+    assert after["verified"] is False and after["missing"] == ips
+
+
+async def test_ip_bypass_idempotent(monkeypatch):
+    api = _FakeBypassAPI(seed=[{"Id": "byp_x", "Ip": "152.55.180.27", "Note": vr.IP_BYPASS_NOTE}])
+    monkeypatch.setattr(vr.httpx, "AsyncClient", api)
+    res = await vr.ensure_ip_system_bypass("tok", "prj", "team", ["152.55.180.27"])
+    assert res["existing"] == ["152.55.180.27"] and res["created"] == []
+    assert api.posts == []  # already present -> no duplicate
+
+
+async def test_ip_bypass_forbidden_raises(monkeypatch):
+    api = _FakeBypassAPI(forbidden=True)
+    monkeypatch.setattr(vr.httpx, "AsyncClient", api)
+    with pytest.raises(vr.VercelBypassForbiddenError):
+        await vr.ensure_ip_system_bypass("tok", "prj", "team", ["152.55.180.27"])
+
+
+async def test_ip_bypass_never_global(monkeypatch):
+    # Multiple IPs -> each scoped to its own sourceIp; never a single global rule.
+    api = _FakeBypassAPI(exists404=True)
+    monkeypatch.setattr(vr.httpx, "AsyncClient", api)
+    await vr.ensure_ip_system_bypass("tok", "prj", "team", ["1.2.3.4", "5.6.7.8"])
+    assert {p["sourceIp"] for p in api.posts} == {"1.2.3.4", "5.6.7.8"}
+    assert all(p.get("projectScope") is True and "allSources" not in p for p in api.posts)

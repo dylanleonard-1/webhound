@@ -98,6 +98,21 @@ export interface ProviderProfileResponse {
   detected_at: string
 }
 
+// Phase-4.2 Cloudflare provider OAuth. The connect endpoint returns ONLY the
+// authorization URL (no secrets). The status view is customer-safe (no account/
+// zone ids, tokens, or permissions).
+export interface CloudflareConnectResponse {
+  authorization_url: string
+}
+
+export interface ProviderConnectionView {
+  provider: string | null
+  connection_status: string
+  connected: boolean
+  connected_at: string | null
+  domain: string | null
+}
+
 export interface TrustedAccessView {
   provider: string | null
   status: string
@@ -586,6 +601,14 @@ export const api = {
       request<AccessValidationView>('POST', `/websites/${id}/access-validation/run`),
     activateMonitoring: (id: string) =>
       request<Record<string, unknown>>('POST', `/websites/${id}/onboarding/activate-monitoring`),
+
+    // Phase-4.2 Cloudflare provider OAuth (real provider connection). `connect`
+    // returns the Cloudflare authorization URL to redirect the browser to; the
+    // callback is handled server-side and never exposes tokens to the frontend.
+    cloudflareConnect: (id: string) =>
+      request<CloudflareConnectResponse>('POST', `/websites/${id}/providers/cloudflare/connect`),
+    cloudflareStatus: (id: string) =>
+      request<ProviderConnectionView>('GET', `/websites/${id}/providers/cloudflare`),
   },
 
   scanJobs: {

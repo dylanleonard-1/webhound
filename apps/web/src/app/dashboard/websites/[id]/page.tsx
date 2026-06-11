@@ -420,6 +420,32 @@ export default function WebsiteDetailPage() {
     loadScans()
   }, [id])
 
+  // Cloudflare OAuth callback return. The API callback redirects back here with
+  // ?cloudflare=connected|no_zone|error (&reason=...). Surface a clear message,
+  // then strip the params so a refresh doesn't re-toast. The guided panel and the
+  // site record reload on mount, so the new verified/connected state shows itself.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const sp = new URLSearchParams(window.location.search)
+    const cf = sp.get('cloudflare')
+    if (!cf) return
+    if (cf === 'connected') {
+      toast.success('Cloudflare connected — website ownership verified.')
+    } else if (cf === 'no_zone') {
+      toast.error(
+        'No active Cloudflare zone controls this domain. Connect the Cloudflare ' +
+        'account that manages it, or verify ownership manually.',
+      )
+    } else {
+      const reason = (sp.get('reason') || '').replace(/_/g, ' ')
+      toast.error(reason ? `Cloudflare connection failed: ${reason}.` : 'Cloudflare connection failed.')
+    }
+    sp.delete('cloudflare')
+    sp.delete('reason')
+    const qs = sp.toString()
+    window.history.replaceState(null, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`)
+  }, [])
+
   async function handleDelete() {
     if (!confirm(`Remove ${site?.hostname ?? 'this website'}? This cannot be undone.`)) return
     setDeleting(true)

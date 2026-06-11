@@ -149,6 +149,17 @@ export function connectCta(p: ProviderProfileResponse | null): { label: string; 
   return { label: 'Verify manually', action: 'manual_verify' }
 }
 
+// What the connect/verify CTA ('verify' action) should actually DO. Cloudflare
+// (Phase 4.2) has a real provider-OAuth flow, so its CTA starts OAuth and must
+// NOT open manual DNS. Any other detected provider falls back to the existing
+// manual ownership-verification flow (no parallel wiring — Vercel OAuth is out of
+// this scope). `null` means no provider was detected → manual verification.
+export type ConnectTarget = 'cloudflare_oauth' | 'manual'
+
+export function connectTarget(p: ProviderProfileResponse | null): ConnectTarget {
+  return detectedConnectProvider(p) === 'cloudflare' ? 'cloudflare_oauth' : 'manual'
+}
+
 export function buildOnboardingView(
   wizard: OnboardingWizardView | null,
   provider: ProviderProfileResponse | null,

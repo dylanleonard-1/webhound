@@ -9,6 +9,7 @@ import {
   advancedDefaultOpen,
   buildOnboardingView,
   connectCta,
+  connectTarget,
   detectedConnectProvider,
   environmentFields,
   friendlyStatus,
@@ -171,5 +172,25 @@ describe('provider-first connect direction (DNS only as fallback)', () => {
     expect(v.cta?.action).toBe('manual_verify')
     expect(v.cta?.label).toBe('Verify manually')
     expect(v.secondaryCta).toBeNull()
+  })
+})
+
+describe('Cloudflare connect CTA starts OAuth, NOT manual DNS (Phase 4.2)', () => {
+  it('Cloudflare provider -> real OAuth target (never manual)', () => {
+    // The "Connect Cloudflare" button must hand off to the Cloudflare OAuth flow,
+    // not open the DNS/meta/.well-known manual verification card.
+    expect(connectTarget(provider)).toBe('cloudflare_oauth')
+    expect(connectTarget(provider)).not.toBe('manual')
+  })
+  it('non-Cloudflare providers stay on the manual fallback (Vercel OAuth out of scope)', () => {
+    expect(connectTarget(vercelOnly)).toBe('manual')
+    expect(connectTarget(noSupported)).toBe('manual')
+    expect(connectTarget(null)).toBe('manual')
+  })
+  it('the CTA label is still customer-friendly + DNS stays a secondary fallback', () => {
+    const v = buildOnboardingView(wizard(2), provider, null)
+    expect(v.cta?.label).toBe('Connect Cloudflare')
+    expect(v.cta?.action).toBe('verify')             // routed to OAuth by connectTarget
+    expect(v.secondaryCta?.action).toBe('manual_verify') // manual DNS remains a fallback
   })
 })

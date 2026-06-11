@@ -23,6 +23,7 @@ import {
   type CtaAction,
   advancedDefaultOpen,
   buildOnboardingView,
+  connectTarget,
 } from '@/lib/onboarding-presentation'
 
 // Primary card = customer-friendly guided setup (no raw statuses, no internals).
@@ -130,8 +131,23 @@ export function OnboardingPanel({ websiteId, isAdmin = false, onRevealVerificati
   }
 
   async function handleCta(action: CtaAction) {
-    // "verify" (provider connect) and "manual_verify" both reveal the ownership
-    // verification flow (DNS/meta/.well-known) — kept out of the primary path.
+    // "verify" is the provider-connect action. For Cloudflare (Phase 4.2) it
+    // starts the REAL provider-OAuth flow and must NOT open manual DNS: we ask the
+    // API for the Cloudflare authorization URL and hand the browser off to it. Any
+    // other provider (or "manual_verify") falls back to the manual DNS/meta/
+    // .well-known ownership flow.
+    if (action === 'verify' && connectTarget(provider) === 'cloudflare_oauth') {
+      setBusy(true)
+      try {
+        const { authorization_url } = await api.websites.cloudflareConnect(websiteId)
+        window.location.href = authorization_url   // -> Cloudflare consent screen
+        return                                       // (navigating away; keep busy)
+      } catch (e) {
+        toast.error((e as Error)?.message || 'Could not start the Cloudflare connection.')
+        setBusy(false)
+      }
+      return
+    }
     if (action === 'verify' || action === 'manual_verify') {
       revealVerification()
       return

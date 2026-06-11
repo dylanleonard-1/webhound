@@ -166,6 +166,7 @@ async def run_browser_pass(
     interact: bool = True,
     url_filter: Callable[[str], bool] | None = None,
     auth_state: dict | None = None,
+    extra_http_headers: dict[str, str] | None = None,
     runner: Callable[..., Awaitable["BrowserPassResult"]] | None = None,
 ) -> BrowserPassResult:
     """Visit every URL in ``page_urls`` in a headless Chromium
@@ -235,6 +236,7 @@ async def run_browser_pass(
             interact=interact,
             url_filter=url_filter,
             auth_state=auth_state,
+            extra_http_headers=extra_http_headers,
         )
     result.skipped_urls = skipped + list(result.skipped_urls)
     return result
@@ -265,6 +267,7 @@ async def _playwright_pass(
     interact: bool = True,
     url_filter: Callable[[str], bool] | None = None,
     auth_state: dict | None = None,
+    extra_http_headers: dict[str, str] | None = None,
 ) -> BrowserPassResult:
     try:
         from playwright.async_api import async_playwright  # type: ignore
@@ -296,6 +299,11 @@ async def _playwright_pass(
                     java_script_enabled=True,
                     ignore_https_errors=False,
                 )
+                # Provider trusted-automation bypass headers (e.g. Vercel
+                # x-vercel-protection-bypass + set-bypass-cookie) on every browser
+                # request. Never logged.
+                if extra_http_headers:
+                    _ctx_kwargs["extra_http_headers"] = dict(extra_http_headers)
                 # Phase-10: inject an authenticated session. storage_state
                 # (preferred) is passed at context creation; bare cookies
                 # are added after. Values come from the loaders and are

@@ -173,6 +173,12 @@ class SafeHttpClient:
                 # Session headers override defaults; session cookies are merged in.
                 base_headers.update(self._session_context.merged_headers())
                 base_cookies.update(self._session_context.merged_cookies())
+            # Provider trusted-automation bypass headers (e.g. Vercel
+            # x-vercel-protection-bypass). Applied last so they always take effect.
+            # Never logged.
+            extra = getattr(self._options, "extra_http_headers", None)
+            if extra:
+                base_headers.update(extra)
             kwargs: dict[str, Any] = {
                 "headers": base_headers,
                 "cookies": base_cookies or None,

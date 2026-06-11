@@ -24,7 +24,14 @@ from apps.api.services import provider_oauth
 from apps.api.services import trusted_access as ta_service
 from apps.api.services import vercel as v
 from apps.api.services import vercel_rules as v_rules
-from apps.api.services.secret_storage import reveal_secret
+from apps.api.services.key_management import get_key_management
+from apps.api.services.provider_oauth import EncryptionNotConfiguredError
+from apps.api.services.secret_storage import (
+    get_active_secret,
+    reveal_secret,
+    revoke_secret,
+    store_secret,
+)
 
 # The read-only connect token (read-write:project) doubles as the firewall-write token
 # — no separate elevated secret type, unlike Cloudflare's re-consent.
@@ -38,6 +45,14 @@ V_SCANNER_RULE_REMOVED = "vercel.scanner.rule.removed"
 V_SCANNER_ACCESS_ACTIVE = "vercel.scanner.access.active"
 V_SCANNER_ACCESS_PENDING_PERMS = "vercel.scanner.access.pending_permissions"
 V_SCANNER_ACCESS_PENDING_FIREWALL = "vercel.scanner.access.pending_firewall_setup"
+V_BYPASS_STORED = "vercel.protection_bypass.stored"
+V_BYPASS_REMOVED = "vercel.protection_bypass.removed"
+
+# Customer-provided Vercel "Protection Bypass for Automation" secret. The marketplace
+# integration token cannot mint OR read it (native-integrations only), so the customer
+# creates it in the dashboard and provides it; we store it encrypted and the scanner
+# injects it as `x-vercel-protection-bypass` to clear the BotID/Security Checkpoint.
+V_BYPASS_SECRET_TYPE = "vercel_protection_bypass"
 V_SCANNER_NON_BYPASSABLE = "vercel.scanner.access.non_bypassable"
 V_SCANNER_ACCESS_FAILED = "vercel.scanner.access.failed"
 
@@ -186,6 +201,70 @@ async def _load_access_token(db: AsyncSession, website_id) -> str | None:
     return await reveal_secret(db, sec)  # in-process only; NEVER logged
 
 
+async def _revoke_bypass_secrets(db: AsyncSession, website_id) -> None:
+    rows = await db.scalars(
+        sa.select(EncryptedSecret).where(
+            EncryptedSecret.website_id == website_id,
+            EncryptedSecret.resource_type == v.VERCEL_PROVIDER,
+            EncryptedSecret.secret_type == V_BYPASS_SECRET_TYPE,
+            EncryptedSecret.status == SecretStatus.ACTIVE.value,
+        ))
+    for sec in rows.all():
+        await revoke_secret(db, sec)
+
+
+async def store_protection_bypass(
+    db: AsyncSession, *, website: Website, secret: str, user_id, org_id,
+) -> dict:
+    """Store the customer's Vercel Protection-Bypass-for-Automation secret (encrypted,
+    Phase 4.1) and mark trusted access ACTIVE — the scanner will inject
+    `x-vercel-protection-bypass` on this project's domains to clear Vercel's BotID/
+    Security Checkpoint. Single active secret (revokes any prior). Reversible on
+    disconnect. NEVER logs the secret."""
+    if not get_key_management().is_configured:
+        raise EncryptionNotConfiguredError()
+    secret = (secret or "").strip()
+    if not secret:
+        return {"status": ST_FAILED, "reason": "empty_secret"}
+
+    await _revoke_bypass_secrets(db, website.id)
+    sec = await store_secret(
+        db, resource_type=v.VERCEL_PROVIDER, secret_type=V_BYPASS_SECRET_TYPE,
+        plaintext=secret, org_id=org_id, user_id=user_id, website_id=website.id,
+        metadata={"method": "protection_bypass"})
+
+    conn = await v.get_connection(db, website.id)
+    if conn is not None:
+        md = dict(conn.connection_metadata or {})
+        md[SCANNER_ACCESS_META_KEY] = {
+            "method": "protection_bypass", "created_by_webhound": True,
+            "secret_ref": str(sec.id),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        conn.connection_metadata = md
+
+    _audit(db, V_BYPASS_STORED, website, user_id=user_id, org_id=org_id, status="active")
+    profile = await _ensure_profile(db, website, user_id=user_id, org_id=org_id)
+    profile.access_method = TrustedAccessMethod.PROVIDER_OAUTH.value
+    profile.evidence = [f"Vercel protection-bypass-for-automation configured; scanner "
+                        f"trusted via x-vercel-protection-bypass for {website.hostname}"]
+    await ta_service.mark_active(db, website, profile, reason="vercel:protection_bypass_stored",
+                                 user_id=user_id, org_id=org_id)
+    _audit(db, V_SCANNER_ACCESS_ACTIVE, website, user_id=user_id, org_id=org_id, status="active")
+    await db.flush()
+    return {"status": ST_ACTIVE}
+
+
+async def load_protection_bypass(db: AsyncSession, website_id) -> str | None:
+    """Decrypt + return the website's Vercel protection-bypass secret (worker hot path).
+    Returns None when not configured. The caller MUST NOT log the value."""
+    sec = await get_active_secret(
+        db, resource_type=v.VERCEL_PROVIDER, secret_type=V_BYPASS_SECRET_TYPE, website_id=website_id)
+    if sec is None:
+        return None
+    return await reveal_secret(db, sec)
+
+
 async def disconnect_scanner_bypass(
     db: AsyncSession, *, website: Website, user_id, org_id,
 ) -> dict:
@@ -201,6 +280,9 @@ async def disconnect_scanner_bypass(
         removed = result.get("removed", [])
         _audit(db, V_SCANNER_RULE_REMOVED, website, user_id=user_id, org_id=org_id,
                status="disconnected", reason=",".join(removed) or "none")
+
+    # Revoke the stored protection-bypass secret (if any) — scanner stops sending it.
+    await _revoke_bypass_secrets(db, website.id)
 
     if conn is not None and conn.connection_metadata:
         md = dict(conn.connection_metadata)

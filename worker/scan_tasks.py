@@ -149,6 +149,7 @@ async def _execute(
     previous_baseline = None
     use_latest_baseline = False
     save_baseline_flag = False
+    bypass_headers: dict[str, str] = {}  # provider trusted-automation bypass (never logged)
 
     async with factory() as db:
         job = await db.get(ScanJob, job_uuid)
@@ -164,6 +165,19 @@ async def _execute(
 
         use_latest_baseline = job.use_latest_baseline
         save_baseline_flag = job.save_baseline
+
+        # Provider trusted-automation bypass: if the website has a stored Vercel
+        # Protection-Bypass-for-Automation secret, inject the header on every scan
+        # request so the scanner is let past Vercel's BotID/Security Checkpoint.
+        # Decrypted in-process only; NEVER logged.
+        try:
+            from apps.api.services import vercel_scanner_access as _vsa
+            _secret = await _vsa.load_protection_bypass(db, job.website_id)
+            if _secret:
+                bypass_headers = {"x-vercel-protection-bypass": _secret,
+                                  "x-vercel-set-bypass-cookie": "true"}
+        except Exception:  # noqa: BLE001 — bypass is best-effort; never break the scan
+            logger.debug("protection-bypass load failed (non-fatal)", exc_info=True)
 
         if use_latest_baseline:
             from apps.api.services.baselines import get_latest_baseline
@@ -232,6 +246,8 @@ async def _execute(
             return cancelled
 
     scan_options = get_profile(profile).to_scan_options()
+    if bypass_headers:
+        scan_options.extra_http_headers = dict(bypass_headers)
     target = Target.from_url(target_url, scan_options=scan_options)
     scanner = Scanner(
         target, previous_baseline=previous_baseline, cancel_check=_cancel_check

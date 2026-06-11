@@ -1215,6 +1215,7 @@ class Scanner:
                 user_agent=self._target.scan_options.user_agent,
                 url_filter=ctx.scope.is_in_scope,
                 auth_state=getattr(self, "_browser_auth_state", None),
+                extra_http_headers=getattr(self._target.scan_options, "extra_http_headers", None) or None,
             )
         except Exception as _bexc:  # noqa: BLE001 — re-raised below
             ctx.telemetry.emit(

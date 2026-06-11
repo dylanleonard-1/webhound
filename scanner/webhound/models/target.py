@@ -61,6 +61,11 @@ class ScanOptions(BaseModel):
     request_timeout_seconds: int = Field(default=30, ge=5, le=120)
     follow_redirects: bool = Field(default=True)
     user_agent: str = Field(default=SCANNER_USER_AGENT)
+    # Extra request headers injected on EVERY HTTP + browser request (e.g. a provider
+    # trusted-automation bypass like Vercel's `x-vercel-protection-bypass`). Empty by
+    # default; populated per-scan by the worker from the website's stored provider
+    # secret. Values are NEVER logged.
+    extra_http_headers: dict[str, str] = Field(default_factory=dict)
     rate_limit_rps: float = Field(
         default=2.0,
         gt=0.0,

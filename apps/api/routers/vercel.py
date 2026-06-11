@@ -6,6 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.config import get_settings
@@ -124,6 +125,31 @@ async def vercel_scanner_access_status(
         raise HTTPException(status_code=404, detail="Website not found")
     from apps.api.services import vercel_scanner_state as v_state
     return await v_state.scanner_access_view(db, website)
+
+
+class _ProtectionBypassBody(BaseModel):
+    secret: str
+
+
+@router.post("/websites/{website_id}/providers/vercel/protection-bypass")
+async def vercel_set_protection_bypass(
+    website_id: uuid.UUID, body: _ProtectionBypassBody, db: _DB,
+    current_user: _CurrentUser, active_org: _ActiveOrg = None,
+) -> dict:
+    """Store the customer's Vercel Protection-Bypass-for-Automation secret (encrypted).
+    The scanner injects it as x-vercel-protection-bypass to clear Vercel's BotID/Security
+    Checkpoint. Marks trusted access ACTIVE. The secret is never returned or logged."""
+    website = await ws_service.get_website(db, website_id, user_id=_uid(current_user))
+    if website is None:
+        raise HTTPException(status_code=404, detail="Website not found")
+    if not get_key_management().is_configured:
+        raise HTTPException(status_code=503, detail="Secure secret storage is not configured")
+    org_id = active_org if active_org is not None else website.org_id
+    from apps.api.services import vercel_scanner_access as v_scanner
+    result = await v_scanner.store_protection_bypass(
+        db, website=website, secret=body.secret, user_id=current_user.id, org_id=org_id)
+    await db.commit()
+    return result
 
 
 @router.post("/websites/{website_id}/providers/vercel/scanner-access/disconnect")

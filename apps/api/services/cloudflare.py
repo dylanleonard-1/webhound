@@ -65,6 +65,15 @@ class CloudflareNotConfiguredError(RuntimeError):
 class CloudflareOAuthError(RuntimeError):
     """Token exchange / API call failed."""
 
+    def __init__(self, *args, http_status: int | None = None,
+                 oauth_error: dict | None = None) -> None:
+        super().__init__(*args)
+        # TEMPORARY DEBUG: safe, non-secret detail for the callback to log/surface.
+        # `oauth_error` is a whitelisted subset (error/error_description/message)
+        # of the token-exchange response — NEVER the tokens or full body.
+        self.http_status = http_status
+        self.oauth_error = oauth_error
+
 
 def is_configured() -> bool:
     s = get_settings()
@@ -113,7 +122,20 @@ async def _exchange_code(code: str) -> dict:
             "grant_type": "authorization_code",
             "redirect_uri": _redirect_uri(),
         }, headers={"Accept": "application/json"})
-    r.raise_for_status()
+    if r.is_error:
+        # TEMPORARY DEBUG: capture the HTTP status + ONLY the OAuth error fields
+        # (whitelist: error/error_description/message) so the callback can log and
+        # surface them. NEVER the tokens or the rest of the response body.
+        safe: dict = {}
+        try:
+            body = r.json()
+            if isinstance(body, dict):
+                safe = {k: body[k] for k in ("error", "error_description", "message")
+                        if k in body}
+        except Exception:  # noqa: BLE001 — body may be non-JSON
+            safe = {}
+        raise CloudflareOAuthError("token exchange failed",
+                                   http_status=r.status_code, oauth_error=safe)
     return r.json()
 
 
@@ -189,6 +211,14 @@ async def complete_connection(db: AsyncSession, *, website: Website, code: str,
     # Exchange code -> token (held in memory only).
     try:
         token_data = await _exchange_code(code)
+    except CloudflareOAuthError:
+        # Already a safe, diagnostic error (carries http_status/oauth_error) —
+        # re-raise as-is so the callback can log/surface it. TEMPORARY DEBUG.
+        conn = await _get_or_create(db, website, user_id, org_id)
+        conn.connection_status = ProviderConnectionStatus.FAILED.value
+        _audit(db, CF_OAUTH_FAILED, website, user_id=user_id, org_id=org_id,
+               status="failed", reason="token_exchange_failed")
+        raise
     except Exception as exc:  # noqa: BLE001 — never surface the code/token
         conn = await _get_or_create(db, website, user_id, org_id)
         conn.connection_status = ProviderConnectionStatus.FAILED.value

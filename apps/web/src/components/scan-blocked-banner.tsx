@@ -1,53 +1,50 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ShieldAlert, Loader2, LifeBuoy } from 'lucide-react'
+import { ShieldAlert, Loader2, LifeBuoy, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { api } from '@/lib/api'
+import { api, type CloudflareScannerAccessView } from '@/lib/api'
 import { Button } from '@/components/ui/button'
+import { scanBlockedView } from '@/lib/scan-blocked'
 
-// Scan-time blocked popup: when the latest scan/validation came back blocked by a
-// provider challenge (e.g. Vercel), surface it with a "Create ticket for assistance"
-// action that files a support ticket (reusing the existing system). Read-only fetch;
-// hides itself when nothing is blocking.
+// Scan-time blocked POPUP (modal-style): when the latest scan was blocked by a
+// provider challenge, surface it prominently. Names the provider ONLY when detection
+// confidence is high; otherwise a generic message. Always offers "Create ticket for
+// assistance". Read-only fetch; nothing rendered when not blocking.
 export function ScanBlockedBanner({
   websiteId, latestScanId,
 }: { websiteId: string; latestScanId?: string | null }) {
-  const [blocker, setBlocker] = useState<string | null>(null)
+  const [diag, setDiag] = useState<CloudflareScannerAccessView | null>(null)
+  const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState<string | null>(null)
-  const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
     let active = true
     api.websites.cloudflareScannerAccessStatus(websiteId)
-      .then((d) => {
-        // Blocked when another provider is the wall, or CF rules aren't resolving it.
-        const blocking = d?.cloudflare_scanner_access === 'blocked_by_other_provider'
-          || (!!d?.blocker && d.blocker !== 'cloudflare')
-        if (active) setBlocker(blocking ? (d.blocker ?? 'a security challenge') : null)
-      })
-      .catch(() => { /* no diagnosis -> no banner */ })
+      .then((d) => { if (active) { setDiag(d); if (scanBlockedView(d).blocked) setOpen(true) } })
+      .catch(() => { /* no diagnosis -> no popup */ })
     return () => { active = false }
   }, [websiteId])
 
-  if (!blocker || dismissed) return null
-
-  const who = blocker.charAt(0).toUpperCase() + blocker.slice(1)
+  const view = scanBlockedView(diag)
+  if (!view.blocked || !open) return null
 
   async function createTicket() {
     setSubmitting(true)
     try {
       const t = await api.createTicket({
         kind: 'scan_blocked',
-        subject: `Scan blocked by ${who}`,
-        description: `The scan was blocked by ${who} on this website. Requesting assistance to allow the WebHound scanner.`,
+        subject: view.provider ? `Scan blocked by ${view.provider}` : 'Scan blocked / limited',
+        description: view.body,
         website_id: websiteId,
         scan_id: latestScanId ?? undefined,
-        blocker,
+        blocker: view.ticketBlocker,
+        diagnosis: diag?.diagnosis ?? undefined,
+        evidence: diag?.evidence ?? undefined,
       })
       setDone(t.number)
-      toast.success(`Support ticket ${t.number} created — we’ll help you get the scanner allowlisted.`)
+      toast.success(`Support ticket ${t.number} created — we’ll help you allowlist the scanner.`)
     } catch (e) {
       toast.error((e as Error)?.message || 'Could not create the support ticket.')
     } finally {
@@ -56,30 +53,34 @@ export function ScanBlockedBanner({
   }
 
   return (
-    <div className="rounded-xl p-4" style={{ background: 'rgba(249,115,22,0.07)', border: '1px solid rgba(249,115,22,0.3)' }}>
-      <div className="flex items-start gap-2.5">
-        <ShieldAlert className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#f97316' }} />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white">Your scan was blocked by {who}</p>
-          <p className="text-xs text-gray-300 mt-1 leading-relaxed">
-            {who} served a security challenge to the WebHound scanner, so coverage is limited.
-            We can help you allowlist the scanner.
-          </p>
-          <div className="mt-3 flex items-center gap-3 flex-wrap">
-            {done ? (
-              <span className="text-[12px] text-[#8BFF3E]">Ticket {done} created — support will follow up.</span>
-            ) : (
-              <Button onClick={createTicket} disabled={submitting} className="h-8 px-3 text-[12px]">
-                {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><LifeBuoy className="w-3.5 h-3.5 mr-1" /> Create ticket for assistance</>}
-              </Button>
-            )}
-            <button
-              type="button"
-              onClick={() => setDismissed(true)}
-              className="text-[11px] text-gray-500 hover:text-gray-300"
-            >
-              Dismiss
-            </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+         style={{ background: 'rgba(2,6,23,0.7)' }}
+         role="dialog" aria-modal="true">
+      <div className="w-full max-w-md rounded-2xl p-5"
+           style={{ background: '#0b1120', border: '1px solid rgba(249,115,22,0.35)' }}>
+        <div className="flex items-start gap-3">
+          <ShieldAlert className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: '#f97316' }} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <h2 className="text-base font-semibold text-white">{view.title}</h2>
+              <button onClick={() => setOpen(false)} className="text-gray-500 hover:text-gray-300" aria-label="Close">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-300 mt-2 leading-relaxed">{view.body}</p>
+            <div className="mt-4 flex items-center gap-3 flex-wrap">
+              {done ? (
+                <span className="text-[13px] text-[#8BFF3E]">Ticket {done} created — support will follow up.</span>
+              ) : (
+                <Button onClick={createTicket} disabled={submitting}>
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <><LifeBuoy className="w-4 h-4 mr-1.5" /> Create ticket for assistance</>}
+                </Button>
+              )}
+              <button type="button" onClick={() => setOpen(false)}
+                      className="text-xs text-gray-500 hover:text-gray-300">
+                Dismiss
+              </button>
+            </div>
           </div>
         </div>
       </div>

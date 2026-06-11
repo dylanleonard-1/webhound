@@ -28,6 +28,7 @@ def assemble_diagnosis(
     detection: dict, *, verified: bool, cloudflare_connected: bool,
     has_rule: bool, rule_validated: bool, has_rule_edit_permission: bool,
     rule_setup_failed: bool = False, rule_meta: dict | None = None,
+    evidence: list | None = None,
 ) -> dict:
     """Pure assembly of the layered diagnosis from plain facts."""
     s = state.derive_status(
@@ -42,9 +43,12 @@ def assemble_diagnosis(
         # `diagnosis` = the layer nuance: cloudflare | vercel | both | unknown.
         "blocker": detection.get("active_blocker_provider") or detection.get("diagnosis"),
         "diagnosis": detection.get("diagnosis"),
+        "confidence": detection.get("confidence"),
         "next_action": s["next_action"],
         "message": s["message"],
         "rule": rule_meta or None,
+        # Non-secret detection signals (for the support ticket).
+        "evidence": [str(e)[:200] for e in (evidence or [])][:10],
     }
 
 
@@ -82,8 +86,10 @@ async def diagnose_scanner_access(db: AsyncSession, website: Website) -> dict:
     granted = (profile.permissions_granted if profile else None) or []
     has_perm = cf_scopes.has_rule_edit_permission(granted)
 
+    ev = ya.get("evidence") if isinstance(ya, dict) else None
     return assemble_diagnosis(
         detection, verified=is_ownership_verified(website),
         cloudflare_connected=cloudflare_connected, has_rule=has_rule,
         rule_validated=rule_validated, has_rule_edit_permission=has_perm,
-        rule_setup_failed=rule_setup_failed, rule_meta=_customer_safe_rule(sa_meta))
+        rule_setup_failed=rule_setup_failed, rule_meta=_customer_safe_rule(sa_meta),
+        evidence=ev if isinstance(ev, list) else None)

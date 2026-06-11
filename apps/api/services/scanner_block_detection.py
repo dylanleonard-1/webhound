@@ -59,6 +59,9 @@ def classify_scan_blocker(
     challenge = ya.get("challenge_detected") is True
     provider_field = str(ya.get("challenge_provider") or "").strip().lower()
     text = _haystack(ya)
+    # Detection confidence (0-100) from the scan's yield assessment, when present.
+    conf = ya.get("confidence")
+    confidence = int(conf) if isinstance(conf, (int, float)) else None
 
     cf = _matches(text, provider_field, _CLOUDFLARE_MARKERS, "cloudflare")
     vercel = _matches(text, provider_field, _VERCEL_MARKERS, "vercel")
@@ -69,6 +72,7 @@ def classify_scan_blocker(
             "diagnosis": "cloudflare" if cloudflare_connected else "unknown",
             "active_blocker_provider": None,
             "next_action": None,
+            "confidence": confidence,
         }
 
     # Vercel is the final blocker; Cloudflare may be connected in front of it.
@@ -78,6 +82,7 @@ def classify_scan_blocker(
             "diagnosis": "both",
             "active_blocker_provider": "vercel",
             "next_action": "Set up Vercel scanner access",
+            "confidence": confidence,
         }
     if vercel:
         return {
@@ -85,6 +90,7 @@ def classify_scan_blocker(
             "diagnosis": "vercel",
             "active_blocker_provider": "vercel",
             "next_action": "Set up Vercel scanner access",
+            "confidence": confidence,
         }
     if cf:
         return {
@@ -92,10 +98,12 @@ def classify_scan_blocker(
             "diagnosis": "cloudflare",
             "active_blocker_provider": "cloudflare",
             "next_action": "Set up Cloudflare scanner access",
+            "confidence": confidence,
         }
     return {
         "blocker": BLOCKER_GENERIC,
         "diagnosis": "unknown",
         "active_blocker_provider": None,
         "next_action": "Review scanner access — challenge source is unrecognized",
+        "confidence": confidence,
     }

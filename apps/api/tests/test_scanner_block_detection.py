@@ -73,3 +73,14 @@ def test_none_input_is_safe():
     r = det.classify_scan_blocker(None, cloudflare_connected=False)
     assert r["blocker"] == det.BLOCKER_NONE
     assert r["diagnosis"] == "unknown"
+
+
+def test_confidence_extracted_when_present():
+    ya = {"challenge_detected": True, "challenge_provider": "vercel", "confidence": 97,
+          "evidence": ["vercel security checkpoint"]}
+    assert det.classify_scan_blocker(ya, cloudflare_connected=True)["confidence"] == 97
+
+
+def test_confidence_none_when_absent():
+    ya = {"challenge_detected": True, "challenge_provider": "vercel"}
+    assert det.classify_scan_blocker(ya, cloudflare_connected=False)["confidence"] is None

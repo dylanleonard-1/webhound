@@ -131,6 +131,8 @@ export interface CloudflareScannerAccessView {
   cloudflare_scanner_access: string
   blocker: string | null          // actionable provider: cloudflare | vercel | ...
   diagnosis: string | null        // cloudflare | vercel | both | unknown
+  confidence?: number | null      // detection confidence 0-100
+  evidence?: string[]             // non-secret detection signals
   next_action: string | null
   message: string
   rule: {
@@ -519,6 +521,7 @@ export const api = {
   createTicket: (payload: {
     subject: string; description?: string; kind?: 'scan_blocked' | 'onboarding_help'
     website_id?: string; scan_id?: string; blocker?: string | null
+    diagnosis?: string | null; evidence?: string[]
   }) => request<{ id: string; number: string; status: string }>('POST', '/tickets', payload),
   auth: {
     register: (payload: RegisterPayload) =>

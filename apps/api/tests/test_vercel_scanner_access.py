@@ -174,3 +174,22 @@ async def test_disconnect_removes_rule_and_reverts(db_session, monkeypatch):
 
 async def _coro(value):
     return value
+
+
+_SECRET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345"  # 32-char fake bypass secret
+
+
+async def test_store_protection_bypass_configures_not_active(db_session):
+    u, w, conn = await _connected_site(db_session, "vsa8@x.com", "example.com")
+    res = await vsa.store_protection_bypass(
+        db_session, website=w, secret=_SECRET, user_id=u.id, org_id=u.id)
+    # NEVER fake active on store — coverage is only proven by a scan.
+    assert res["status"] == "configured"
+    ta = await ta_service.get_trusted_access(db_session, w)
+    assert ta.access_status == TrustedAccessStatus.PENDING.value
+    # Secret round-trips (decrypts) for the worker hot path, and is never in the audit log.
+    assert await vsa.load_protection_bypass(db_session, w.id) == _SECRET
+    assert _SECRET not in await _audit_text(db_session)
+    # Disconnect revokes it.
+    await vsa.disconnect_scanner_bypass(db_session, website=w, user_id=u.id, org_id=u.id)
+    assert await vsa.load_protection_bypass(db_session, w.id) is None

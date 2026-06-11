@@ -243,16 +243,22 @@ async def store_protection_bypass(
         }
         conn.connection_metadata = md
 
-    _audit(db, V_BYPASS_STORED, website, user_id=user_id, org_id=org_id, status="active")
+    # Storing the secret CONFIGURES the bypass — it does NOT prove coverage. Some Vercel
+    # protections (notably BotID's client-side "Security Checkpoint") are not cleared by
+    # the automation-bypass header, so we must NEVER claim active on store. Trusted access
+    # stays PENDING; only a scan that actually crawls past the challenge promotes it.
+    _audit(db, V_BYPASS_STORED, website, user_id=user_id, org_id=org_id,
+           status="configured", reason="pending_scan_validation")
     profile = await _ensure_profile(db, website, user_id=user_id, org_id=org_id)
     profile.access_method = TrustedAccessMethod.PROVIDER_OAUTH.value
-    profile.evidence = [f"Vercel protection-bypass-for-automation configured; scanner "
-                        f"trusted via x-vercel-protection-bypass for {website.hostname}"]
-    await ta_service.mark_active(db, website, profile, reason="vercel:protection_bypass_stored",
-                                 user_id=user_id, org_id=org_id)
-    _audit(db, V_SCANNER_ACCESS_ACTIVE, website, user_id=user_id, org_id=org_id, status="active")
+    profile.evidence = [f"Vercel protection-bypass-for-automation secret stored; scanner will "
+                        f"inject x-vercel-protection-bypass for {website.hostname} — coverage "
+                        f"confirmed on the next scan"]
     await db.flush()
-    return {"status": ST_ACTIVE}
+    return {"status": "configured",
+            "note": "Bypass secret stored; the scanner will use it. Coverage is confirmed by "
+                    "the next scan — Vercel BotID/Security Checkpoint may still challenge the "
+                    "headless scanner, which the automation-bypass header does not always clear."}
 
 
 async def load_protection_bypass(db: AsyncSession, website_id) -> str | None:

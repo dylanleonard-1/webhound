@@ -127,6 +127,16 @@ async def _exchange_code(code: str) -> dict:
     # is the SAME `_redirect_uri()` used to build the authorize URL, and must match
     # the value registered on the Cloudflare client exactly.
     s = get_settings()
+    # TEMPORARY DEBUG: presence/length only — confirms the app actually loaded
+    # non-empty creds at runtime (diagnoses invalid_client when env names match).
+    # NEVER logs the id/secret/code/token values; redirect_uri is non-secret.
+    cid = s.cloudflare_client_id or ""
+    csecret = s.cloudflare_client_secret or ""
+    logger.info(
+        "cf_token_exchange stage=creds client_id_present=%s client_id_len=%d "
+        "client_secret_present=%s client_secret_len=%d redirect_uri=%s",
+        bool(cid), len(cid), bool(csecret), len(csecret), _redirect_uri(),
+    )
     form = {
         "grant_type": "authorization_code",
         "code": code,

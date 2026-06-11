@@ -61,6 +61,19 @@ class _FakeFirewallAPI:
             return _Resp(404, {"error": {"code": "not_found", "message": "Seawall Config not found."}})
         return _Resp(200, self.config)
 
+    async def put(self, url, params=None, json=None):
+        # Create/overwrite the whole config (PUT). Assign ids to provided rules.
+        self.calls.append(("PUT", "create", params))
+        rules = []
+        for r in (json or {}).get("rules", []):
+            rules.append({**r, "id": f"rule_{self._next}"})
+            self._next += 1
+        self.config = {"projectId": "prj", "firewallEnabled": bool((json or {}).get("firewallEnabled")),
+                       "rules": rules}
+        if self.attack_mode:
+            self.config["attackModeEnabled"] = True
+        return _Resp(200, {"active": self.config})
+
     async def patch(self, url, params=None, json=None):
         action = (json or {}).get("action")
         self.calls.append(("PATCH", action, params))
@@ -93,9 +106,9 @@ async def test_provision_create_verify_remove(monkeypatch):
 
     created = await vr.ensure_bypass_rule("tok", "prj", "team")
     assert created["created"] == [vr.REF]
-    assert created["firewall_provisioned"] is True  # firewallEnabled was sent
-    assert any(a == "firewallEnabled" for m, a, _ in api.calls if m == "PATCH")
-    assert any(a == "rules.insert" for m, a, _ in api.calls if m == "PATCH")
+    assert created["firewall_provisioned"] is True  # config created via PUT
+    # No config existed -> must CREATE via PUT (PATCH can't create one).
+    assert any(m == "PUT" for m, _a, _ in api.calls)
 
     verify = await vr.verify_bypass_rule("tok", "prj", "team")
     assert verify["bypass"] is True and verify["verified"] is True

@@ -40,6 +40,13 @@ class VercelRuleError(RuntimeError):
         self.api_errors = api_errors  # whitelisted Vercel error objects, never tokens
 
 
+class VercelFirewallUnavailableError(VercelRuleError):
+    """The project's firewall config can't be read OR created via this token: Vercel
+    returns 404 'Seawall Config not found' for GET and PUT alike. The firewall must be
+    initialized once in the Vercel dashboard (Project → Firewall), or the integration
+    token lacks firewall access. Honest pending state — NOT a failure, NOT active."""
+
+
 def _desired_rule() -> dict:
     """The single WebHound scanner bypass rule (matches ONLY the scanner UA): bypass
     the managed bot/WAF protection for the scanner. NEVER disables protection for
@@ -90,16 +97,29 @@ def _differs(found: dict, desired: dict) -> bool:
     return found_action != desired["action"]["mitigate"]["action"]
 
 
+def _config_body(config: dict | None) -> dict:
+    """Normalize the firewall config shape: GET returns the config at top level; PUT
+    returns it wrapped under `active`. Always work against the inner config."""
+    if isinstance(config, dict) and isinstance(config.get("active"), dict):
+        return config["active"]
+    return config or {}
+
+
+def _rules_of(config: dict | None) -> list[dict]:
+    return _config_body(config).get("rules") or []
+
+
 def attack_mode_blocking(config: dict | None) -> bool:
     """Best-effort detection of a project-wide challenge a custom bypass rule cannot
     override (Vercel Attack Challenge Mode). Conservative: only True on a clearly
     truthy flag — we never fabricate a non-bypassable block. The authoritative signal
     remains the scan-time block diagnosis."""
-    if not config:
+    body = _config_body(config)
+    if not body:
         return False
-    if config.get("attackModeEnabled") or config.get("attackChallengeMode"):
+    if body.get("attackModeEnabled") or body.get("attackChallengeMode"):
         return True
-    managed = config.get("managedRules")
+    managed = body.get("managedRules")
     if isinstance(managed, dict):
         acm = managed.get("attackChallengeMode") or managed.get("attackMode")
         if isinstance(acm, dict):
@@ -128,6 +148,14 @@ async def _patch(client: httpx.AsyncClient, params: dict, body: dict) -> dict:
     return (r.json() if r.content else {}) or {}
 
 
+async def _put(client: httpx.AsyncClient, params: dict, body: dict) -> dict:
+    r = await client.put(f"{_V_API}{_CONFIG_PATH}", params=params, json=body)
+    if r.is_error:
+        raise VercelRuleError("firewall config create failed",
+                              http_status=r.status_code, api_errors=_safe_errors(r))
+    return (r.json() if r.content else {}) or {}
+
+
 async def ensure_bypass_rule(access_token: str, project_id: str, team_id: str | None = None) -> dict:
     """Idempotently ensure the scanner bypass rule exists + is active on the project's
     firewall config (creates missing, updates drifted). Provisions the firewall config
@@ -142,12 +170,26 @@ async def ensure_bypass_rule(access_token: str, project_id: str, team_id: str | 
     async with httpx.AsyncClient(timeout=25, headers=headers) as client:
         config = await _get_config(client, params)
         if config is None:
-            # No firewall config yet — enable it (provision), then re-read.
-            await _patch(client, params, {"action": "firewallEnabled", "value": True})
-            config = await _get_config(client, params) or {}
-            provisioned = True
+            # No firewall config exists yet for this project. PATCH actions (incl.
+            # firewallEnabled) 404 with "Seawall Config not found" — only PUT can
+            # CREATE one. Since none exists, a fresh create can't overwrite anyone
+            # else's rules: PUT firewallEnabled=true with our single bypass rule.
+            try:
+                created_cfg = await _put(client, params, {"firewallEnabled": True, "rules": [desired]})
+            except VercelRuleError as exc:
+                # Observed on a Pro project whose firewall was never initialized: PUT
+                # also 404s "Seawall Config not found". The config must be bootstrapped
+                # in the dashboard (or the token lacks firewall access) — honest pending.
+                if exc.http_status == 404:
+                    raise VercelFirewallUnavailableError(
+                        "firewall config not initialized", http_status=404,
+                        api_errors=exc.api_errors) from exc
+                raise
+            return {"created": [REF], "updated": [], "existing": [],
+                    "firewall_provisioned": True,
+                    "attack_mode": attack_mode_blocking(created_cfg)}
         attack_mode = attack_mode_blocking(config)
-        rules = config.get("rules") or []
+        rules = _rules_of(config)
         found = _find(rules)
         if found is None:
             await _patch(client, params, {"action": "rules.insert", "value": desired})
@@ -170,8 +212,7 @@ async def verify_bypass_rule(access_token: str, project_id: str, team_id: str | 
     params = _params(project_id, team_id)
     async with httpx.AsyncClient(timeout=25, headers=headers) as client:
         config = await _get_config(client, params)
-    rules = (config or {}).get("rules") or []
-    found = _find(rules)
+    found = _find(_rules_of(config))
     ok = bool(
         found and found.get("active", True)
         and ((found.get("action") or {}).get("mitigate") or {}).get("action") == "bypass"
@@ -191,7 +232,7 @@ async def remove_bypass_rule(access_token: str, project_id: str, team_id: str | 
         config = await _get_config(client, params)
         if not config:
             return {"removed": removed}
-        found = _find(config.get("rules") or [])
+        found = _find(_rules_of(config))
         if found and found.get("id"):
             await _patch(client, params, {"action": "rules.remove", "id": found["id"]})
             removed.append(REF)

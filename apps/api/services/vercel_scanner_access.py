@@ -37,14 +37,19 @@ V_SCANNER_RULE_VERIFIED = "vercel.scanner.rule.verified"
 V_SCANNER_RULE_REMOVED = "vercel.scanner.rule.removed"
 V_SCANNER_ACCESS_ACTIVE = "vercel.scanner.access.active"
 V_SCANNER_ACCESS_PENDING_PERMS = "vercel.scanner.access.pending_permissions"
+V_SCANNER_ACCESS_PENDING_FIREWALL = "vercel.scanner.access.pending_firewall_setup"
 V_SCANNER_NON_BYPASSABLE = "vercel.scanner.access.non_bypassable"
 V_SCANNER_ACCESS_FAILED = "vercel.scanner.access.failed"
 
 # Status strings returned to callers / dashboard (honest layered model).
 ST_ACTIVE = "active"
 ST_PENDING_PERMISSIONS = "pending_permissions"
+ST_PENDING_FIREWALL_SETUP = "pending_firewall_setup"
 ST_BLOCKED_NON_BYPASSABLE = "blocked_non_bypassable"
 ST_FAILED = "failed"
+
+_FIREWALL_INIT_ACTION = ("Enable the Firewall once in Vercel (Project → Firewall), then "
+                         "reconnect Vercel. If it persists, grant the integration firewall access.")
 
 
 def _audit(db, event, website, *, user_id, org_id, status, reason=None):
@@ -97,6 +102,23 @@ async def apply_scanner_bypass(
 
     try:
         created = await v_rules.ensure_bypass_rule(access_token, project_id, team_id)
+    except v_rules.VercelFirewallUnavailableError:
+        # Firewall config not initialized for this project (Vercel 404s GET+PUT). Honest
+        # pending — NOT failed, NOT active. Keep trusted access PENDING and store a marker
+        # so the dashboard shows the exact one-time customer action.
+        _audit(db, V_SCANNER_ACCESS_PENDING_FIREWALL, website, user_id=user_id, org_id=org_id,
+               status="pending", reason="firewall_not_initialized")
+        await ta_service.start_provider_oauth_access(
+            db, website, provider=v.VERCEL_PROVIDER, user_id=user_id, org_id=org_id)  # reset->pending
+        conn = await v.get_connection(db, website.id)
+        if conn is not None:
+            md = dict(conn.connection_metadata or {})
+            md[SCANNER_ACCESS_META_KEY] = {"firewall_status": "not_initialized",
+                                           "created_by_webhound": False, "project_id": project_id}
+            conn.connection_metadata = md
+        await db.flush()
+        return {"applied": False, "status": ST_PENDING_FIREWALL_SETUP,
+                "reason": "firewall_not_initialized", "customer_action": _FIREWALL_INIT_ACTION}
     except v_rules.VercelRuleError as exc:
         if exc.http_status in (401, 403):
             _audit(db, V_SCANNER_ACCESS_PENDING_PERMS, website, user_id=user_id, org_id=org_id,

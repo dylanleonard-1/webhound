@@ -20,6 +20,7 @@ from apps.api.services.vercel_scanner_access import SCANNER_ACCESS_META_KEY
 
 STATUS_NOT_NEEDED = "not_needed"                       # Vercel connected but not blocking
 STATUS_PENDING_PERMISSIONS = "pending_permissions"     # Vercel may block but token lacks firewall write
+STATUS_PENDING_FIREWALL_SETUP = "pending_firewall_setup"  # firewall config not initialized (404 GET+PUT)
 STATUS_PENDING_RULE_SETUP = "pending_rule_setup"       # Vercel may block; needs the bypass rule
 STATUS_ACTIVE = "active"                               # rule created AND verified
 STATUS_BLOCKED_NON_BYPASSABLE = "blocked_non_bypassable"  # Attack Challenge Mode — rule can't override
@@ -27,6 +28,8 @@ STATUS_BLOCKED_BY_OTHER = "blocked_by_other_provider"  # Vercel connected; anoth
 STATUS_FAILED = "failed"                              # rule setup attempted and failed
 
 _REAUTH_ACTION = "Re-authorize Vercel with firewall (project read-write) permission"
+_FIREWALL_INIT_ACTION = ("Enable the Firewall once in Vercel (Project → Firewall), then reconnect "
+                         "Vercel. If it persists, grant the integration firewall access.")
 _ATTACK_ACTION = ("Turn off Attack Challenge Mode in Vercel → Project → Firewall "
                   "(or scope it to exclude the WebHound scanner), then re-validate.")
 
@@ -38,7 +41,7 @@ def _r(status: str, blocker: str | None, next_action: str | None, message: str) 
 def derive_status(
     detection: dict, *, vercel_connected: bool, has_rule: bool, rule_verified: bool,
     has_firewall_write_permission: bool, attack_mode: bool = False,
-    rule_setup_failed: bool = False,
+    rule_setup_failed: bool = False, firewall_initialized: bool = True,
 ) -> dict:
     """Return {status, blocker, next_action, message}. `detection` is the result of
     scanner_block_detection.classify_scan_blocker (may be empty pre-scan)."""
@@ -47,6 +50,11 @@ def derive_status(
 
     if not vercel_connected:
         return _r(STATUS_NOT_NEEDED, None, None, "Connect Vercel to manage scanner access.")
+
+    if vercel_connected and not firewall_initialized and not has_rule:
+        return _r(STATUS_PENDING_FIREWALL_SETUP, "vercel", _FIREWALL_INIT_ACTION,
+                  "Vercel connected, but the project's Firewall isn't initialized — Vercel's API "
+                  "can't create rules until it exists. " + _FIREWALL_INIT_ACTION)
 
     if rule_setup_failed:
         return _r(STATUS_FAILED, "vercel", "Retry Vercel scanner access setup",
@@ -98,6 +106,11 @@ async def scanner_access_view(db: AsyncSession, website: Website) -> dict:
     attack_mode = bool(meta.get("attack_mode"))
     profile = await ta_service.get_trusted_access(db, website)
     ta_status = profile.access_status if profile else None
+
+    if meta.get("firewall_status") == "not_initialized" and not has_rule:
+        return _c(STATUS_PENDING_FIREWALL_SETUP, "vercel", _FIREWALL_INIT_ACTION,
+                  "Vercel connected, but the project's Firewall isn't initialized yet. "
+                  + _FIREWALL_INIT_ACTION)
 
     if attack_mode:
         return _c(STATUS_BLOCKED_NON_BYPASSABLE, "vercel", _ATTACK_ACTION,

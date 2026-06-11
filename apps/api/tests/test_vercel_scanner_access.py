@@ -123,6 +123,23 @@ async def test_apply_verify_failure_marks_failed(db_session, monkeypatch):
     assert ta.access_status == TrustedAccessStatus.FAILED.value
 
 
+async def test_apply_firewall_not_initialized_is_pending_not_failed(db_session, monkeypatch):
+    u, w, conn = await _connected_site(db_session, "vsa7@x.com", "example.com")
+
+    async def unavailable(tok, pid, tid=None):
+        raise v_rules.VercelFirewallUnavailableError("not init", http_status=404)
+    monkeypatch.setattr(v_rules, "ensure_bypass_rule", unavailable)
+    res = await vsa.apply_scanner_bypass(
+        db_session, website=w, access_token=TOKEN, project_id="prj_x", team_id="team_x",
+        user_id=u.id, org_id=u.id)
+    assert not res["applied"] and res["status"] == "pending_firewall_setup"
+    assert "customer_action" in res
+    ta = await ta_service.get_trusted_access(db_session, w)
+    # Honest: PENDING (a one-time dashboard step), NOT failed, NOT fake-active.
+    assert ta.access_status == TrustedAccessStatus.PENDING.value
+    assert conn.connection_metadata["scanner_access"]["firewall_status"] == "not_initialized"
+
+
 async def test_apply_no_project_is_failed(db_session, monkeypatch):
     u, w, _ = await _connected_site(db_session, "vsa5@x.com", "example.com")
     res = await vsa.apply_scanner_bypass(

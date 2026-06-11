@@ -59,3 +59,11 @@ def test_failed_state():
                            vercel_connected=True, has_rule=False, rule_verified=False,
                            has_firewall_write_permission=True, rule_setup_failed=True)
     assert out["status"] == vs.STATUS_FAILED
+
+
+def test_pending_firewall_setup_when_not_initialized():
+    out = vs.derive_status(_d(det.BLOCKER_VERCEL, provider="vercel"),
+                           vercel_connected=True, has_rule=False, rule_verified=False,
+                           has_firewall_write_permission=True, firewall_initialized=False)
+    assert out["status"] == vs.STATUS_PENDING_FIREWALL_SETUP
+    assert "Firewall" in out["next_action"]

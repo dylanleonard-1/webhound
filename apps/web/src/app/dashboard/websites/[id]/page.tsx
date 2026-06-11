@@ -17,7 +17,6 @@ import { ScanLaunchForm } from '@/components/scan-launch-form'
 import { ScheduleList } from '@/components/monitoring/schedule-list'
 import { OnboardingPanel } from '@/components/onboarding-panel'
 import { ScanBlockedBanner } from '@/components/scan-blocked-banner'
-import { ConnectedServicesCard } from '@/components/connected-services-card'
 import { LoadingState } from '@/components/loading-state'
 import { ErrorState } from '@/components/error-state'
 import { EmptyState } from '@/components/empty-state'
@@ -589,10 +588,6 @@ export default function WebsiteDetailPage() {
           )
         }}
       />
-
-      {/* Connected Services — disconnect controls, available any time (independent
-          of the onboarding card, which hides at 100%). */}
-      <ConnectedServicesCard websiteId={id} />
 
       {/* Manual ownership verification (DNS TXT / meta / .well-known) — fallback
           only, revealed when the customer chooses it (not shown by default). */}

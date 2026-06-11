@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState, type FormEvent } from 'react'
+import { Suspense, useCallback, useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
@@ -15,7 +15,7 @@ import { api, type UseCase } from '@/lib/api'
 
 const SECTION_IDS = [
   'profile', 'account', 'notifications',
-  'api', 'integrations', 'billing', 'team',
+  'connected_services', 'api', 'integrations', 'billing', 'team',
 ] as const
 
 function isSectionId(v: string | null): v is SectionId {
@@ -26,7 +26,7 @@ function isSectionId(v: string | null): v is SectionId {
 
 type SectionId =
   | 'profile' | 'account' | 'notifications'
-  | 'api' | 'integrations' | 'billing' | 'team'
+  | 'connected_services' | 'api' | 'integrations' | 'billing' | 'team'
 
 interface Category {
   id: SectionId
@@ -39,6 +39,7 @@ const CATEGORIES: Category[] = [
   { id: 'profile',       label: 'Profile',         icon: User,       description: 'Your name and how WebHound sees you' },
   { id: 'account',       label: 'Account',         icon: Lock,       description: 'Email, password, account deletion' },
   { id: 'notifications', label: 'Notifications',   icon: Bell,       description: 'Alert channels and delivery' },
+  { id: 'connected_services', label: 'Connected Services', icon: Plug, description: 'Provider connections (Cloudflare, Vercel)' },
   { id: 'api',           label: 'API Keys',        icon: Key,        description: 'Personal access tokens' },
   { id: 'integrations',  label: 'Integrations',    icon: Plug,       description: 'Slack, webhooks, PagerDuty' },
   { id: 'billing',       label: 'Plan & Billing',  icon: CreditCard, description: 'Subscription and usage' },
@@ -439,6 +440,90 @@ function ApiKeysPanel() {
     <>
       <SectionHeader title="API Keys" subtitle="Personal access tokens for the WebHound API." />
       <ComingSoon note="Token creation, scoping, expiry, and revocation. For now, sign in with your password — the JWT in the dashboard works for direct API calls during this preview." />
+    </>
+  )
+}
+
+interface SiteConnections {
+  id: string
+  hostname: string
+  cloudflareConnected: boolean
+  cloudflareStatus: string
+}
+
+function ConnectedServicesPanel() {
+  const [sites, setSites] = useState<SiteConnections[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const list = await api.websites.list({ limit: 100 })
+      const rows = await Promise.all((list.items ?? []).map(async (w) => {
+        const cf = await api.websites.cloudflareScannerAccessStatus(w.id).catch(() => null)
+        return {
+          id: w.id, hostname: w.hostname,
+          cloudflareConnected: !!cf?.cloudflare_connected,
+          cloudflareStatus: cf?.cloudflare_scanner_access ?? 'not_connected',
+        }
+      }))
+      setSites(rows)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+  useEffect(() => { void load() }, [load])
+
+  async function disconnectCloudflare(siteId: string, hostname: string) {
+    if (!confirm(`Disconnect Cloudflare from ${hostname}? Removes the WebHound scanner rules and revokes access.`)) return
+    setBusy(siteId)
+    try {
+      await api.websites.cloudflareScannerAccessDisconnect(siteId)
+      await api.websites.trustedAccessRevoke(siteId).catch(() => null)
+      toast.success(`Cloudflare disconnected from ${hostname}.`)
+      await load()
+    } catch (e) {
+      toast.error((e as Error)?.message || 'Could not disconnect.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const connected = sites.filter((s) => s.cloudflareConnected)
+
+  return (
+    <>
+      <SectionHeader title="Connected Services" subtitle="Provider connections per website. Disconnect any time." />
+      {loading ? (
+        <div className="flex items-center gap-2 text-sm text-gray-400">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading connections…
+        </div>
+      ) : connected.length === 0 ? (
+        <p className="text-sm text-gray-500">No connected providers yet. Connect Cloudflare or Vercel from a website’s setup.</p>
+      ) : (
+        <div className="space-y-2">
+          {connected.map((s) => (
+            <div key={s.id} className="rounded-[10px] p-4 flex items-center justify-between gap-3"
+                 style={{ background: 'rgba(8,12,22,0.95)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="min-w-0">
+                <p className="text-[13px] text-white font-mono truncate">{s.hostname}</p>
+                <p className="text-[11px] text-gray-500">
+                  Cloudflare · scanner access: {s.cloudflareStatus.replace(/_/g, ' ')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => disconnectCloudflare(s.id, s.hostname)}
+                disabled={busy === s.id}
+                className="h-8 px-3 rounded-lg text-[12px] font-medium text-red-300 border border-red-500/30 hover:bg-red-500/10 disabled:opacity-50"
+              >
+                {busy === s.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Disconnect'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </>
   )
 }
@@ -863,6 +948,7 @@ function SettingsPageInner() {
             {active === 'profile'       && <ProfilePanel />}
             {active === 'account'       && <AccountPanel />}
             {active === 'notifications' && <NotificationsPanel />}
+            {active === 'connected_services' && <ConnectedServicesPanel />}
             {active === 'api'           && <ApiKeysPanel />}
             {active === 'integrations'  && <IntegrationsPanel />}
             {active === 'billing'       && <BillingPanel status={status} />}

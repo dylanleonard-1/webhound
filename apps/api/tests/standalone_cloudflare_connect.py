@@ -47,7 +47,7 @@ def _install_mocks(zones):
 
     async def fake_exchange(code):
         return {"access_token": TOKEN, "refresh_token": REFRESH,
-                "scope": "account:read zone:read"}
+                "scope": "zone:read"}
 
     async def fake_fetch(token):
         return zones

@@ -63,9 +63,19 @@ def test_state_csrf():
         cf.verify_state("nope.nope.nope")
 
 
+def test_authorize_url_requests_zone_read_only():
+    # Option B: minimal scope. The authorize URL must request zone:read and must
+    # NOT request account:read (Cloudflare rejects it as invalid_scope).
+    url = cf.build_authorize_url("st")
+    assert "scope=zone%3Aread" in url        # urlencoded "zone:read"
+    assert "account%3Aread" not in url       # no account:read
+    assert cf._CF_SCOPES == "zone:read"
+
+
 async def test_successful_connect(db_session, monkeypatch):
     async def fake_ex(code):
-        return {"access_token": TOKEN, "refresh_token": "rf", "scope": "account:read zone:read"}
+        # zone:read-only — Cloudflare echoes back the minimal granted scope.
+        return {"access_token": TOKEN, "refresh_token": "rf", "scope": "zone:read"}
     async def fake_z(token):
         return ACTIVE
     monkeypatch.setattr(cf, "_exchange_code", fake_ex)
@@ -76,6 +86,10 @@ async def test_successful_connect(db_session, monkeypatch):
     assert res["matched"] and w.verification_status == VerificationStatus.VERIFIED
     conn = await cf.get_connection(db_session, w.id)
     assert conn.connection_status == "connected" and conn.zone_name == "example.com"
+    # Account id is derived from the zone payload (ACTIVE[0].account.id) — no
+    # account:read scope / accounts endpoint required (Option B).
+    assert conn.account_id == "a1" and conn.zone_id == "z1"
+    assert conn.permissions_granted == ["zone:read"]
     sec = await db_session.scalar(sa.select(EncryptedSecret).where(
         EncryptedSecret.resource_type == "cloudflare",
         EncryptedSecret.secret_type == "oauth_access_token"))

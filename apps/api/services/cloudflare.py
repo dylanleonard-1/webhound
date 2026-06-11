@@ -42,7 +42,12 @@ CLOUDFLARE_PROVIDER = "cloudflare"
 _CF_AUTHORIZE = "https://dash.cloudflare.com/oauth2/auth"
 _CF_TOKEN = "https://dash.cloudflare.com/oauth2/token"
 _CF_API = "https://api.cloudflare.com/client/v4"
-_CF_SCOPES = "account:read zone:read"
+# Minimal scope: `zone:read` ONLY. We deliberately do NOT request `account:read`
+# — Cloudflare's OAuth client rejects it (invalid_scope) and we don't need it:
+# the account id is derived from each zone's embedded `account` object (see
+# complete_connection, conn.account_id = zone.account.id). No accounts endpoint
+# is ever called.
+_CF_SCOPES = "zone:read"
 
 # Audit events (admin_audit_log via record_phase3_event). NEVER carry secrets.
 CF_OAUTH_STARTED = "cloudflare.oauth.started"
@@ -269,6 +274,9 @@ async def complete_connection(db: AsyncSession, *, website: Website, code: str,
         refresh_ref = str(refresh_secret.id)
 
     zone_name = zone.get("name")
+    # Account id comes from the zone payload's embedded `account` object — this is
+    # why `zone:read` alone suffices and `account:read` is not requested. Each
+    # /zones result carries {"account": {"id", "name"}, ...}.
     conn.account_id = (zone.get("account") or {}).get("id")
     conn.zone_id = zone.get("id")
     conn.zone_name = zone_name

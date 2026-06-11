@@ -26,6 +26,7 @@ import {
   buildOnboardingView,
   connectTarget,
   detectedProviderRows,
+  providersConnectComplete,
   runValidationFeedback,
 } from '@/lib/onboarding-presentation'
 
@@ -127,10 +128,15 @@ export function OnboardingPanel({ websiteId, isAdmin = false, onRevealVerificati
   const { provider, trusted, validation, readiness, wizard, audit, cfScanner } = data
   const view = buildOnboardingView(wizard, provider, validation, cfScanner)
 
-  // Onboarding is providers-connected based now: once complete, the whole setup
-  // card disappears (disconnect/management lives in Settings). Same self-hide
-  // pattern as OnboardingChecklist.
-  if (view.isComplete) return null
+  // Card hides ONLY when setup is truly done: the wizard is complete AND every
+  // DETECTED provider is connected. A partial connect (1 of 2 providers) keeps the
+  // card visible — never hide just because overall_status is 'limited'. Manual-DNS
+  // sites (no detected supported provider) fall back to the wizard's completion.
+  const detectedCount = (readiness?.providers?.detected ?? []).length
+  const allProvidersConnected = detectedCount === 0
+    ? true
+    : providersConnectComplete(readiness?.providers)
+  if (view.isComplete && allProvidersConnected) return null
 
   async function handleConnectProvider(name: 'cloudflare' | 'vercel') {
     setBusy(true)
@@ -287,7 +293,11 @@ export function OnboardingPanel({ websiteId, isAdmin = false, onRevealVerificati
               <p className="text-xs text-gray-500 mt-2">{view.validationPendingMessage}</p>
             )}
             <div className="mt-3 flex items-center gap-3 flex-wrap">
-              {view.cta && (
+              {/* Suppress the primary provider-connect CTA when the per-provider
+                  block already renders connect buttons (avoids duplicate "Connect
+                  Cloudflare"). Non-connect CTAs (activate monitoring) still show. */}
+              {view.cta && !(providerRows.some((r) => r.connectable)
+                && (view.cta.action === 'verify' || view.cta.action === 'configure_access')) && (
                 <Button onClick={() => handleCta(view.cta!.action)} disabled={busy}>
                   {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : view.cta.label}
                 </Button>

@@ -328,3 +328,18 @@ describe('detectedProviderRows — BOTH detected providers get a connect row', (
     expect(providersConnectComplete(null)).toBe(false)
   })
 })
+
+describe('detectedProviderRows dedupes providers (BUG: 3 Cloudflare buttons)', () => {
+  it('Cloudflare detected in dns+waf+cdn -> exactly ONE Cloudflare row', () => {
+    // Backend should already dedupe, but be defensive against duplicates.
+    const providers = { detected: ['cloudflare', 'cloudflare', 'cloudflare', 'vercel'], connected: ['cloudflare'] }
+    const rows = detectedProviderRows(providers)
+    expect(rows).toHaveLength(2)                       // exactly 2 rows, not 4
+    expect(rows.filter((r) => r.provider === 'cloudflare')).toHaveLength(1)
+    expect(rows.filter((r) => r.provider === 'vercel')).toHaveLength(1)
+  })
+
+  it('one-of-two connected -> NOT complete (card must stay)', () => {
+    expect(providersConnectComplete({ detected: ['cloudflare', 'vercel'], connected: ['cloudflare'] })).toBe(false)
+  })
+})

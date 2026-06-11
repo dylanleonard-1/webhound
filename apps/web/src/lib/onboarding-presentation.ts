@@ -131,13 +131,17 @@ export type DetectedProvidersInput = { detected: string[]; connected: string[] }
 export interface ProviderConnectRow { provider: string; connected: boolean; connectable: boolean }
 
 export function detectedProviderRows(providers: DetectedProvidersInput): ProviderConnectRow[] {
-  const detected = providers?.detected ?? []
   const connected = new Set(providers?.connected ?? [])
-  return detected.map((p) => ({
-    provider: p,
-    connected: connected.has(p),
-    connectable: p === 'cloudflare' || p === 'vercel',
-  }))
+  // DEDUPE: a provider detected in multiple ProviderProfile fields (dns/waf/cdn)
+  // must appear EXACTLY ONCE. Preserve first-seen order.
+  const seen = new Set<string>()
+  const rows: ProviderConnectRow[] = []
+  for (const p of providers?.detected ?? []) {
+    if (seen.has(p)) continue
+    seen.add(p)
+    rows.push({ provider: p, connected: connected.has(p), connectable: p === 'cloudflare' || p === 'vercel' })
+  }
+  return rows
 }
 
 // Completion requires EVERY detected supported provider to be connected.

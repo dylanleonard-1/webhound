@@ -11,35 +11,40 @@ function diag(over: Partial<CloudflareScannerAccessView>): CloudflareScannerAcce
   }
 }
 
-describe('scanBlockedView — confidence-gated provider naming', () => {
-  it('high confidence -> names the provider', () => {
-    const v = scanBlockedView(diag({ confidence: 97 }))
+describe('scanBlockedView — only after a completed blocked/limited scan', () => {
+  it('no scan yet (validation pending) -> NOT shown, even with a diagnosis', () => {
+    expect(scanBlockedView(diag({ confidence: 97 }), 'pending').blocked).toBe(false)
+    expect(scanBlockedView(diag({}), undefined).blocked).toBe(false)
+    expect(scanBlockedView(diag({}), null).blocked).toBe(false)
+  })
+
+  it('clean scan (validation ready) -> NOT shown', () => {
+    expect(scanBlockedView(diag({}), 'ready').blocked).toBe(false)
+  })
+
+  it('no-scan diagnosis with blocker "unknown" never shows (the early-popup bug)', () => {
+    // Adding a site -> not connected -> diagnosis blocker 'unknown', no scan.
+    const d = diag({ cloudflare_scanner_access: 'not_needed', blocker: 'unknown', confidence: null })
+    expect(scanBlockedView(d, 'pending').blocked).toBe(false)
+  })
+
+  it('completed + limited + high confidence -> shown and NAMES the provider', () => {
+    const v = scanBlockedView(diag({ confidence: 97, blocker: 'vercel' }), 'limited')
     expect(v.blocked).toBe(true)
     expect(v.provider).toBe('Vercel')
-    expect(v.title).toContain('Vercel')
     expect(v.ticketBlocker).toBe('vercel')
   })
 
-  it('low confidence -> generic, does NOT name a provider', () => {
-    const v = scanBlockedView(diag({ confidence: 40 }))
+  it('completed + failed + low confidence -> shown but GENERIC (no provider named)', () => {
+    const v = scanBlockedView(diag({ confidence: 40 }), 'failed')
     expect(v.blocked).toBe(true)
     expect(v.provider).toBeNull()
-    expect(v.title).not.toContain('Vercel')
     expect(v.title).toMatch(/blocked or limited/i)
-    expect(v.ticketBlocker).toBe('vercel')   // still passed to the ticket for staff
   })
 
-  it('unknown confidence (undefined) -> generic', () => {
-    const v = scanBlockedView(diag({ confidence: null }))
+  it('limited scan with no diagnosis -> generic popup', () => {
+    const v = scanBlockedView(null, 'limited')
+    expect(v.blocked).toBe(true)
     expect(v.provider).toBeNull()
-  })
-
-  it('not blocked -> nothing', () => {
-    const v = scanBlockedView(diag({ cloudflare_scanner_access: 'active', blocker: 'cloudflare' }))
-    expect(v.blocked).toBe(false)
-  })
-
-  it('null diagnosis -> not blocked', () => {
-    expect(scanBlockedView(null).blocked).toBe(false)
   })
 })

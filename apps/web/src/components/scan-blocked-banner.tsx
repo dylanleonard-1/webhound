@@ -15,19 +15,29 @@ export function ScanBlockedBanner({
   websiteId, latestScanId,
 }: { websiteId: string; latestScanId?: string | null }) {
   const [diag, setDiag] = useState<CloudflareScannerAccessView | null>(null)
+  const [validationStatus, setValidationStatus] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
-    api.websites.cloudflareScannerAccessStatus(websiteId)
-      .then((d) => { if (active) { setDiag(d); if (scanBlockedView(d).blocked) setOpen(true) } })
-      .catch(() => { /* no diagnosis -> no popup */ })
+    // Only show after a COMPLETED scan that's blocked/limited — gate on the access
+    // validation status ('limited'/'failed'); 'pending' (no scan) / 'ready' (clean)
+    // must NOT trigger the popup.
+    Promise.all([
+      api.websites.accessValidation(websiteId).catch(() => null),
+      api.websites.cloudflareScannerAccessStatus(websiteId).catch(() => null),
+    ]).then(([val, d]) => {
+      if (!active) return
+      setValidationStatus(val?.status ?? null)
+      setDiag(d)
+      if (scanBlockedView(d, val?.status).blocked) setOpen(true)
+    })
     return () => { active = false }
   }, [websiteId])
 
-  const view = scanBlockedView(diag)
+  const view = scanBlockedView(diag, validationStatus)
   if (!view.blocked || !open) return null
 
   async function createTicket() {

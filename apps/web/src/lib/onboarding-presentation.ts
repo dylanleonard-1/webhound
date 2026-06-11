@@ -122,6 +122,35 @@ export function showValidationMetrics(v: AccessValidationView | null): boolean {
   return !!v && v.status !== 'pending'
 }
 
+// Map a /access-validation/run result to clear, actionable user feedback. Access
+// validation CONSUMES the latest scan's metadata and runs no new scan, so when
+// there's no completed scan it returns status="pending" (no_scan_evidence) — the
+// button is not broken, the user just needs to run a scan first. Surfacing that
+// (instead of a misleading "Setup updated") is the fix.
+export type ValidationFeedbackVariant = 'success' | 'warning' | 'error' | 'info'
+
+export function runValidationFeedback(
+  v: { status: string; recommendation?: string | null } | null | undefined,
+): { variant: ValidationFeedbackVariant; message: string } {
+  switch (v?.status) {
+    case 'ready':
+      return { variant: 'success',
+               message: 'Coverage validated — the WebHound scanner can see your site. Monitoring can proceed.' }
+    case 'limited':
+      return { variant: 'warning',
+               message: v?.recommendation
+                 || 'Coverage is limited — finish scanner access setup to improve it, then re-validate.' }
+    case 'failed':
+      return { variant: 'error',
+               message: v?.recommendation
+                 || 'The scanner cannot reliably see the site yet. Run a scan, then re-validate.' }
+    // pending / validating / unknown -> no scan to validate yet.
+    default:
+      return { variant: 'info',
+               message: 'No scan to validate yet — run a one-off scan below, then click Validate again.' }
+  }
+}
+
 // Provider-FIRST connect direction. Prefer the access provider (Cloudflare —
 // DNS/WAF/access) over hosting (Vercel). null = no supported provider, so
 // manual verification becomes the primary path.

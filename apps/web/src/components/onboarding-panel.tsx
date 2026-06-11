@@ -24,6 +24,7 @@ import {
   advancedDefaultOpen,
   buildOnboardingView,
   connectTarget,
+  runValidationFeedback,
 } from '@/lib/onboarding-presentation'
 
 // Primary card = customer-friendly guided setup (no raw statuses, no internals).
@@ -172,8 +173,19 @@ export function OnboardingPanel({ websiteId, isAdmin = false, onRevealVerificati
     }
     setBusy(true)
     try {
+      if (action === 'run_validation') {
+        // Validation consumes the latest scan's metadata — when there's no scan it
+        // returns status="pending". Surface clear, actionable feedback instead of a
+        // misleading generic success.
+        const view = await api.websites.accessValidationRun(websiteId)
+        await load()
+        const fb = runValidationFeedback(view)
+        if (fb.variant === 'success') toast.success(fb.message)
+        else if (fb.variant === 'error') toast.error(fb.message)
+        else toast(fb.message)   // warning + info -> neutral (run-a-scan guidance)
+        return
+      }
       if (action === 'configure_access') await api.websites.trustedAccessStart(websiteId)
-      else if (action === 'run_validation') await api.websites.accessValidationRun(websiteId)
       else if (action === 'activate_monitoring') await api.websites.activateMonitoring(websiteId)
       await load()
       toast.success('Setup updated')

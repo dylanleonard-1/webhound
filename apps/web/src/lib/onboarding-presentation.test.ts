@@ -13,6 +13,7 @@ import {
   detectedConnectProvider,
   environmentFields,
   friendlyStatus,
+  runValidationFeedback,
   isAdvancedOnly,
   showValidationMetrics,
 } from './onboarding-presentation'
@@ -192,5 +193,29 @@ describe('Cloudflare connect CTA starts OAuth, NOT manual DNS (Phase 4.2)', () =
     expect(v.cta?.label).toBe('Connect Cloudflare')
     expect(v.cta?.action).toBe('verify')             // routed to OAuth by connectTarget
     expect(v.secondaryCta?.action).toBe('manual_verify') // manual DNS remains a fallback
+  })
+})
+
+describe('runValidationFeedback — Run Validation gives actionable feedback (no silent no-op)', () => {
+  it('pending (no scan yet) -> info telling the user to run a scan first', () => {
+    const fb = runValidationFeedback({ status: 'pending', recommendation: 'Run a scan, then validate access.' })
+    expect(fb.variant).toBe('info')
+    expect(fb.message).toMatch(/run a one-off scan/i)
+  })
+  it('validating / unknown / null also map to the run-a-scan info message', () => {
+    expect(runValidationFeedback({ status: 'validating' }).variant).toBe('info')
+    expect(runValidationFeedback({ status: 'whatever' }).variant).toBe('info')
+    expect(runValidationFeedback(null).variant).toBe('info')
+  })
+  it('ready -> success', () => {
+    expect(runValidationFeedback({ status: 'ready' }).variant).toBe('success')
+  })
+  it('limited -> warning (uses backend recommendation when present)', () => {
+    const fb = runValidationFeedback({ status: 'limited', recommendation: 'Visibility is restricted.' })
+    expect(fb.variant).toBe('warning')
+    expect(fb.message).toBe('Visibility is restricted.')
+  })
+  it('failed -> error', () => {
+    expect(runValidationFeedback({ status: 'failed' }).variant).toBe('error')
   })
 })

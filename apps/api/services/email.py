@@ -169,6 +169,39 @@ def _send_email(to: str, subject: str, html: str, text: str) -> str:
     raise RuntimeError("No email provider configured")
 
 
+async def send_staff_ticket_notification(
+    *, ticket_number: str, subject: str, body_text: str,
+) -> str | None:
+    """Notify staff (admin_emails) that a customer support ticket was created. Reuses
+    the Resend/SMTP path; gated by notifications_enabled + a configured provider.
+    `body_text` MUST be non-secret (no tokens) — the caller composes it. Best-effort:
+    returns the delivery channel, or None when not sent."""
+    settings = get_settings()
+    if not settings.notifications_enabled:
+        return None
+    if not settings.resend_api_key and not settings.smtp_host:
+        return None
+    recipients = list(settings.admin_emails or [])
+    if not recipients:
+        return None
+    title = f"New support ticket {ticket_number}"
+    # body_text is plain, non-secret; escape angle brackets before embedding as HTML.
+    safe = body_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    body_html = (f'<p style="margin:0 0 8px;color:#475569;font-size:14px;line-height:1.6">'
+                 f'A customer created a support ticket. Details:</p>'
+                 f'<pre style="white-space:pre-wrap;font-size:13px;color:#1e293b">{safe}</pre>')
+    cta_url = f"{settings.frontend_url}/control/tickets"
+    html = _email_html(title, body_html, cta_url, "Open in control panel")
+    text = f"{title}\n\n{body_text}"
+    sent: str | None = None
+    for to in recipients:
+        try:
+            sent = _send_email(to, f"[Support] {ticket_number}: {subject}"[:200], html, text)
+        except Exception:
+            logger.exception("Failed to send staff ticket notification to %s", to)
+    return sent
+
+
 async def send_verification_email(to: str, token: str) -> str | None:
     """Returns the verify URL in dev mode so callers can surface it. Returns None when email is sent."""
     settings = get_settings()

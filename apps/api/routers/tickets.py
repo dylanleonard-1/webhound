@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.database import get_db
 from apps.api.models.user import User
 from apps.api.security import get_current_user
+from apps.api.services import email as email_service
 from apps.api.services import support
 
 router = APIRouter(tags=["tickets"])
@@ -37,6 +38,8 @@ class CustomerTicketRequest(BaseModel):
     website_id: uuid.UUID | None = None
     scan_id: uuid.UUID | None = None
     blocker: str | None = Field(default=None, max_length=64)   # e.g. "vercel" / "cloudflare"
+    diagnosis: str | None = Field(default=None, max_length=32)  # cloudflare|vercel|both|unknown
+    evidence: list[str] = Field(default_factory=list)          # detection signals (non-secret)
 
 
 @router.post("/tickets")
@@ -51,17 +54,28 @@ async def create_customer_ticket(
         else "Onboarding help requested")
     subject = f"[{kind}] {subject}"[:200]
 
-    # Safe, non-secret context only.
+    # Safe, non-secret context only — ids, the provider diagnosis, detection evidence,
+    # and a logs reference staff can use. NEVER tokens/secrets.
     lines: list[str] = []
     if payload.description:
         lines.append(payload.description.strip())
+    lines.append(f"request kind: {kind}")
     if payload.website_id:
         lines.append(f"website_id: {payload.website_id}")
     if payload.scan_id:
         lines.append(f"scan_id: {payload.scan_id}")
     if payload.blocker:
         lines.append(f"detected blocker: {payload.blocker}")
-    lines.append(f"request kind: {kind}")
+    if payload.diagnosis:
+        lines.append(f"provider diagnosis: {payload.diagnosis}")
+    if payload.evidence:
+        lines.append("blocker evidence:")
+        lines.extend(f"  - {str(e)[:200]}" for e in payload.evidence[:10])
+    if payload.scan_id:
+        lines.append(
+            f"logs reference: scan {payload.scan_id}"
+            + (f" on website {payload.website_id}" if payload.website_id else "")
+            + " — pull via Railway logs / scan_results")
     body = "\n".join(lines)
 
     ticket = await support.create_ticket(
@@ -69,4 +83,13 @@ async def create_customer_ticket(
         category="question", priority="medium",
         source_scan_id=payload.scan_id, author_email=current_user.email)
     await db.commit()
+
+    # Notify staff via the existing email path (best-effort; respects
+    # notifications_enabled). Never fail ticket creation on a notification error.
+    try:
+        await email_service.send_staff_ticket_notification(
+            ticket_number=ticket.number, subject=subject, body_text=body)
+    except Exception:  # noqa: BLE001
+        pass
+
     return {"id": str(ticket.id), "number": ticket.number, "status": ticket.status}

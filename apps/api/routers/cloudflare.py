@@ -107,6 +107,22 @@ async def cloudflare_scanner_access_disconnect(
     return result
 
 
+@router.get("/websites/{website_id}/providers/cloudflare/scanner-access/telemetry")
+async def cloudflare_scanner_access_telemetry(
+    website_id: uuid.UUID, db: _DB, current_user: _CurrentUser, active_org: _ActiveOrg = None,
+) -> dict:
+    """Foundation-only security telemetry (Security Center / Page Shield) read with
+    the elevated token. Returns availability + counts; never any secret."""
+    website = await ws_service.get_website(db, website_id, user_id=_uid(current_user))
+    if website is None:
+        raise HTTPException(status_code=404, detail="Website not found")
+    org_id = active_org if active_org is not None else website.org_id
+    result = await cf_scanner.read_telemetry(
+        db, website=website, user_id=current_user.id, org_id=org_id)
+    await db.commit()
+    return result
+
+
 @router.get("/integrations/cloudflare/callback")
 async def cloudflare_callback(
     db: _DB,

@@ -15,6 +15,7 @@ from apps.api.models.enums import SecretStatus, TrustedAccessMethod
 from apps.api.models.website import Website
 from apps.api.services import cloudflare as cf
 from apps.api.services import cloudflare_rules as cf_rules
+from apps.api.services import cloudflare_telemetry as cf_telemetry
 from apps.api.services import trusted_access as ta_service
 from apps.api.services.key_management import get_key_management
 from apps.api.services.provider_oauth import EncryptionNotConfiguredError
@@ -143,6 +144,20 @@ async def _load_scanner_token(db: AsyncSession, website_id) -> str | None:
     if sec is None:
         return None
     return await reveal_secret(db, sec)  # in-process only; NEVER logged
+
+
+async def read_telemetry(db: AsyncSession, *, website: Website, user_id, org_id) -> dict:
+    """Foundation-only security-telemetry read using the elevated token's read
+    scopes. Returns a compact summary; never raises on a missing product."""
+    zone_id = await _zone_id(db, website)
+    token = await _load_scanner_token(db, website.id)
+    if not token or not zone_id:
+        return {"available": False, "reason": "scanner_access_not_configured"}
+    summary = await cf_telemetry.read_security_telemetry(token, zone_id)
+    cf._audit(db, cf.CF_SCANNER_TELEMETRY_READ, website, user_id=user_id, org_id=org_id,
+              status="active")
+    await db.flush()
+    return {"available": True, "telemetry": summary}
 
 
 async def disconnect_scanner_access(

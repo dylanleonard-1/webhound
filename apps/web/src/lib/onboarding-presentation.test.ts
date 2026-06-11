@@ -10,6 +10,7 @@ import {
   buildOnboardingView,
   connectCta,
   connectTarget,
+  coverageDiagnosis,
   detectedConnectProvider,
   environmentFields,
   friendlyStatus,
@@ -217,5 +218,81 @@ describe('runValidationFeedback — Run Validation gives actionable feedback (no
   })
   it('failed -> error', () => {
     expect(runValidationFeedback({ status: 'failed' }).variant).toBe('error')
+  })
+})
+
+describe('coverageDiagnosis — honest limited coverage (no fake clean validated)', () => {
+  const lim = (over = {}): AccessValidationView => ({
+    status: 'limited', pages_found: 1, scripts_found: 0, apis_found: 0, third_parties_found: 0,
+    browser_rendered: false, challenge_detected: null, challenge_provider: null,
+    validated_at: 't', recommendation: '', ...over,
+  })
+
+  it('limited + validation.challenge_provider=vercel -> names Vercel + next action', () => {
+    const c = coverageDiagnosis(lim({ challenge_provider: 'vercel' }))
+    expect(c.level).toBe('limited')
+    expect(c.blocker).toBe('vercel')
+    expect(c.pages).toBe(1)
+    expect(c.message).toMatch(/Vercel/)
+    expect(c.message).toMatch(/1 page/)
+    expect(c.nextAction).toMatch(/Vercel/)
+  })
+
+  it('limited + scanner diagnosis blocker=vercel (non-cloudflare) -> uses it + its next_action', () => {
+    const c = coverageDiagnosis(lim(), { blocker: 'vercel', diagnosis: 'both',
+      next_action: 'Set up Vercel scanner access', cloudflare_scanner_access: 'blocked_by_other_provider' })
+    expect(c.level).toBe('limited')
+    expect(c.blocker).toBe('vercel')
+    expect(c.nextAction).toBe('Set up Vercel scanner access')
+  })
+
+  it('limited with no attributable blocker -> still limited (1 page), generic next', () => {
+    const c = coverageDiagnosis(lim())
+    expect(c.level).toBe('limited')
+    expect(c.blocker).toBeNull()
+    expect(c.message).toMatch(/1 page/)
+    expect(c.nextAction).toBe('Set up scanner access')
+  })
+
+  it('ready -> full coverage, no banner', () => {
+    const c = coverageDiagnosis(lim({ status: 'ready', pages_found: 42 }))
+    expect(c.level).toBe('full')
+    expect(c.message).toBeNull()
+  })
+
+  it('does NOT attribute cloudflare scanner status as a blocker', () => {
+    const c = coverageDiagnosis(lim(), { blocker: 'cloudflare' })
+    expect(c.blocker).toBeNull()   // cloudflare is OUR layer, not a separate wall
+  })
+})
+
+describe('limited coverage is surfaced, not a clean green checkmark', () => {
+  function lwizard(): OnboardingWizardView {
+    const w = wizard(6, { overall_status: 'limited' })
+    for (const s of w.steps) s.status = s.key === 'monitoring' ? 'active' : 'completed'
+    const val = w.steps.find((s) => s.key === 'validation'); if (val) val.status = 'limited'
+    return w
+  }
+  const limitedVal: AccessValidationView = {
+    status: 'limited', pages_found: 1, scripts_found: 0, apis_found: 0, third_parties_found: 0,
+    browser_rendered: false, challenge_detected: null, challenge_provider: 'vercel',
+    validated_at: 't', recommendation: '',
+  }
+
+  it('milestones qualify validation + monitoring when coverage is limited', () => {
+    const v = buildOnboardingView(lwizard(), provider, limitedVal,
+      { blocker: 'vercel', next_action: 'Set up Vercel scanner access' })
+    expect(v.coverage.level).toBe('limited')
+    expect(v.completed).toContain('Coverage validated (limited)')
+    expect(v.completed).not.toContain('Coverage validated')   // not the clean claim
+    expect(v.completed).toContain('Monitoring active (limited coverage)')
+  })
+
+  it('full coverage keeps the clean milestones', () => {
+    const w = wizard(6, { overall_status: 'completed' })
+    for (const s of w.steps) s.status = s.key === 'monitoring' ? 'active' : 'completed'
+    const v = buildOnboardingView(w, provider, { ...limitedVal, status: 'ready', pages_found: 40 })
+    expect(v.coverage.level).toBe('full')
+    expect(v.completed).toContain('Coverage validated')
   })
 })

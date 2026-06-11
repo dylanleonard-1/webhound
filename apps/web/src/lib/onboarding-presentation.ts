@@ -103,6 +103,8 @@ export interface OnboardingView {
   validationPendingMessage: string | null
   /** Secondary action for the connect step (e.g. "Manual verification" fallback). */
   secondaryCta: { label: string; action: CtaAction } | null
+  /** Honest coverage state — 'limited' surfaces the blocker even once monitoring is on. */
+  coverage: CoverageDiagnosis
 }
 
 /** Hosting / DNS / Framework only. Confidence, evidence, attribution are hidden. */
@@ -120,6 +122,58 @@ export function environmentFields(
 /** Validation metrics are meaningful only after validation has run. */
 export function showValidationMetrics(v: AccessValidationView | null): boolean {
   return !!v && v.status !== 'pending'
+}
+
+// Honest coverage assessment. Validation status "limited" means the scanner saw the
+// site only partially (e.g. blocked by a provider challenge after 1 page). We must
+// NOT present that as a clean "Coverage validated" — surface the blocker + pages +
+// next action. Reuses the scanner-block diagnosis (blocker/next_action) when a
+// provider is attributable.
+export type CoverageLevel = 'full' | 'limited' | 'none'
+
+interface ScannerDiag {
+  blocker?: string | null
+  diagnosis?: string | null
+  next_action?: string | null
+  cloudflare_scanner_access?: string
+}
+
+export interface CoverageDiagnosis {
+  level: CoverageLevel
+  blocker: string | null
+  pages: number
+  nextAction: string | null
+  message: string | null
+}
+
+export function coverageDiagnosis(
+  validation: AccessValidationView | null,
+  cfScanner?: ScannerDiag | null,
+): CoverageDiagnosis {
+  const status = validation?.status
+  const pages = validation?.pages_found ?? 0
+  // Attribute the blocker: the validation's own challenge_provider first, else the
+  // scanner diagnosis blocker (when it's a non-Cloudflare layer like Vercel).
+  const cfBlocker = cfScanner && cfScanner.blocker && cfScanner.blocker !== 'cloudflare'
+    ? cfScanner.blocker : null
+  const blocker = validation?.challenge_provider || cfBlocker || null
+
+  if (status === 'ready') {
+    return { level: 'full', blocker: null, pages, nextAction: null, message: null }
+  }
+  if (status === 'limited') {
+    const who = blocker ? blocker.charAt(0).toUpperCase() + blocker.slice(1) : null
+    const next = cfScanner?.next_action
+      || (who ? `Set up ${who} scanner access` : 'Set up scanner access')
+    const pageWord = pages === 1 ? '1 page' : `${pages} pages`
+    const blockedBy = who ? `blocked by ${who}` : 'partially blocked'
+    return {
+      level: 'limited', blocker, pages, nextAction: next,
+      message: `Limited coverage — the scanner is ${blockedBy} (${pageWord} seen). `
+        + `${next} for full coverage.`,
+    }
+  }
+  return { level: 'none', blocker: null, pages, nextAction: null, message: null }
 }
 
 // Map a /access-validation/run result to clear, actionable user feedback. Access
@@ -193,15 +247,27 @@ export function buildOnboardingView(
   wizard: OnboardingWizardView | null,
   provider: ProviderProfileResponse | null,
   validation: AccessValidationView | null,
+  cfScanner?: ScannerDiag | null,
 ): OnboardingView {
   const steps = wizard?.steps ?? []
   const totalSteps = steps.length || 6
   const currentStep = wizard?.current_step ?? 1
   const isComplete = wizard?.overall_status === 'completed' || wizard?.overall_status === 'limited'
 
+  const coverage = coverageDiagnosis(validation, cfScanner)
+
   const completed: string[] = ['Website connected']
   for (const s of steps) {
-    if (DONE_STATUSES.has(s.status) && DONE_LABEL[s.key]) completed.push(DONE_LABEL[s.key])
+    if (!DONE_STATUSES.has(s.status) || !DONE_LABEL[s.key]) continue
+    // Don't claim clean "Coverage validated" / "Monitoring active" when coverage is
+    // limited by a provider block — qualify the milestone so it's honest.
+    if (coverage.level === 'limited' && s.key === 'validation') {
+      completed.push('Coverage validated (limited)')
+    } else if (coverage.level === 'limited' && s.key === 'monitoring') {
+      completed.push('Monitoring active (limited coverage)')
+    } else {
+      completed.push(DONE_LABEL[s.key])
+    }
   }
 
   const currentKey = steps.find((s) => s.step === currentStep)?.key ?? 'provider_discovery'
@@ -235,6 +301,7 @@ export function buildOnboardingView(
       ? null
       : 'Validation will run automatically after ownership verification is complete.',
     secondaryCta,
+    coverage,
   }
 }
 

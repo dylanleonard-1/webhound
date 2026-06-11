@@ -124,7 +124,7 @@ export function OnboardingPanel({ websiteId, isAdmin = false, onRevealVerificati
   if (!data) return null
 
   const { provider, trusted, validation, readiness, wizard, audit, cfScanner } = data
-  const view = buildOnboardingView(wizard, provider, validation)
+  const view = buildOnboardingView(wizard, provider, validation, cfScanner)
   const percent = wizard?.completion_percent ?? 0
   const onValidationStep = view.cta?.action === 'run_validation'
   const verified = (readiness?.verification ?? '') === 'verified'
@@ -237,9 +237,25 @@ export function OnboardingPanel({ websiteId, isAdmin = false, onRevealVerificati
         )}
 
         {view.isComplete ? (
-          <div className="flex items-center gap-2 text-sm text-[#8BFF3E] font-medium">
-            <CheckCircle2 className="w-4 h-4" /> Monitoring is active for this website.
-          </div>
+          view.coverage.level === 'limited' ? (
+            // Honest: monitoring is on, but coverage is partial due to a provider block.
+            <div className="rounded-[10px] p-4" style={{ background: 'rgba(249,115,22,0.06)', border: '1px solid rgba(249,115,22,0.3)' }}>
+              <div className="flex items-start gap-2">
+                <ShieldCheck className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#f97316' }} />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-white">Monitoring active — limited coverage</p>
+                  <p className="text-xs text-gray-300 mt-1 leading-relaxed">{view.coverage.message}</p>
+                  {view.coverage.nextAction && (
+                    <p className="text-xs text-[#8BFF3E] mt-1.5">Next: {view.coverage.nextAction}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-[#8BFF3E] font-medium">
+              <CheckCircle2 className="w-4 h-4" /> Monitoring is active for this website.
+            </div>
+          )
         ) : (
           <div className="rounded-[10px] p-4" style={{ background: 'rgba(8,12,22,0.6)', border: '1px solid rgba(255,255,255,0.06)' }}>
             <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-1">Current step</div>

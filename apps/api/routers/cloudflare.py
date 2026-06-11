@@ -16,6 +16,7 @@ from apps.api.security import get_active_org_id, get_current_user
 from apps.api.services import cloudflare as cf
 from apps.api.services import cloudflare_rules as cf_rules
 from apps.api.services import cloudflare_scanner_access as cf_scanner
+from apps.api.services import scanner_access_diagnosis as cf_diag
 from apps.api.services import websites as ws_service
 from apps.api.services.key_management import get_key_management
 from apps.api.services.onboarding_automation import run_automation_for_website
@@ -105,6 +106,19 @@ async def cloudflare_scanner_access_disconnect(
         raise HTTPException(status_code=502, detail="Could not remove scanner rules from Cloudflare")
     await db.commit()
     return result
+
+
+@router.get("/websites/{website_id}/providers/cloudflare/scanner-access")
+async def cloudflare_scanner_access_status(
+    website_id: uuid.UUID, db: _DB, current_user: _CurrentUser,
+) -> dict:
+    """Layered, honest scanner-access diagnosis: verified? cloudflare connected? is
+    Cloudflare actually the blocker? CF scanner-access status + the real next action
+    (which may be a different provider, e.g. Vercel). No secrets."""
+    website = await ws_service.get_website(db, website_id, user_id=_uid(current_user))
+    if website is None:
+        raise HTTPException(status_code=404, detail="Website not found")
+    return await cf_diag.diagnose_scanner_access(db, website)
 
 
 @router.get("/websites/{website_id}/providers/cloudflare/scanner-access/telemetry")

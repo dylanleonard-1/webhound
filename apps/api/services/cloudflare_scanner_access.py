@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,6 +28,8 @@ from apps.api.services.secret_storage import reveal_secret, revoke_secret, store
 # DB column required.
 SCANNER_TOKEN_TYPE = "oauth_scanner_access_token"
 SCANNER_REFRESH_TYPE = "oauth_scanner_refresh_token"
+# Reversible rule metadata is stored under this key in ProviderConnection.metadata.
+SCANNER_ACCESS_META_KEY = "scanner_access"
 
 
 async def _fail(db, website, *, user_id, org_id, reason: str) -> None:
@@ -86,7 +90,8 @@ async def complete_scanner_access(
         raise
     cf._audit(db, cf.CF_SCANNER_RULE_CREATED, website, user_id=user_id, org_id=org_id,
               status="connecting",
-              reason=",".join(created.get("created", []) + created.get("existing", [])) or "none")
+              reason=",".join(created.get("created", []) + created.get("updated", [])
+                              + created.get("existing", [])) or "none")
 
     if not verify.get("verified"):
         # Rules didn't read back as present+enabled — do NOT claim active. The
@@ -105,6 +110,24 @@ async def complete_scanner_access(
         await store_secret(
             db, resource_type=cf.CLOUDFLARE_PROVIDER, secret_type=SCANNER_REFRESH_TYPE,
             plaintext=refresh_token, org_id=org_id, user_id=user_id, website_id=website.id)
+
+    # Persist reversible rule metadata on the connection (no new DB column) so the
+    # dashboard + disconnect can use it. Rule ids enable targeted rollback.
+    now_iso = datetime.now(timezone.utc).isoformat()
+    conn = await cf.get_connection(db, website.id)
+    if conn is not None:
+        md = dict(conn.connection_metadata or {})
+        md[SCANNER_ACCESS_META_KEY] = {
+            "rule_ids": created.get("rule_ids"),
+            "ruleset_id": created.get("ruleset_id"),
+            "zone_id": zone_id,
+            "rule_type": "skip",
+            "created_by_webhound": True,
+            "created_at": now_iso,
+            "last_validated_at": now_iso,   # verified moments ago
+            "degraded": created.get("degraded", False),
+        }
+        conn.connection_metadata = md
 
     # Flip trusted access -> ACTIVE (rules are the proof access actually works).
     profile = await ta_service.get_trusted_access(db, website)
@@ -177,6 +200,13 @@ async def disconnect_scanner_access(
     # Revoke the elevated token secret(s) — nothing decryptable remains.
     for sec in await _scanner_secrets(db, website.id):
         await revoke_secret(db, sec)
+
+    # Clear the stored rule metadata (rule is gone).
+    conn = await cf.get_connection(db, website.id)
+    if conn is not None and conn.connection_metadata:
+        md = dict(conn.connection_metadata)
+        md.pop(SCANNER_ACCESS_META_KEY, None)
+        conn.connection_metadata = md
 
     # Revert trusted access to PENDING (back to the pre-scanner-access state).
     profile = await ta_service.get_trusted_access(db, website)

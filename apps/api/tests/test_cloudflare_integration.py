@@ -74,6 +74,59 @@ def test_authorize_url_requests_zone_read_only():
     assert cf._scopes() == "zone.read"       # env-configurable, default zone.read
 
 
+async def test_exchange_uses_client_secret_post(monkeypatch):
+    # Token exchange must authenticate via client_secret_post: client_id AND
+    # client_secret in the form BODY, NO HTTP Basic / Authorization header
+    # (Cloudflare client is "Client Secret POST"; Basic -> invalid_client).
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(cf, "get_settings", lambda: SimpleNamespace(
+        cloudflare_client_id="cid", cloudflare_client_secret="csecret",
+        api_base_url="https://api.webhoundsecurity.com",
+        cloudflare_oauth_scopes="zone.read"))
+
+    captured: dict = {}
+
+    class FakeResp:
+        is_error = False
+        def json(self):
+            return {"access_token": "tok", "scope": "zone.read"}
+
+    class FakeClient:
+        def __init__(self, *a, **k):
+            captured["client_kwargs"] = k
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *a):
+            return False
+        async def post(self, url, data=None, headers=None, **k):
+            captured.update(url=url, data=dict(data or {}),
+                            headers=dict(headers or {}), auth=k.get("auth"))
+            return FakeResp()
+
+    monkeypatch.setattr(cf.httpx, "AsyncClient", FakeClient)
+
+    out = await cf._exchange_code("the-code")
+    assert out["access_token"] == "tok"
+
+    # Endpoint is Cloudflare's OAuth token endpoint.
+    assert captured["url"] == cf._CF_TOKEN == "https://dash.cloudflare.com/oauth2/token"
+    # client_secret_post: both credentials live in the form body.
+    assert captured["data"]["client_id"] == "cid"
+    assert captured["data"]["client_secret"] == "csecret"
+    assert captured["data"]["grant_type"] == "authorization_code"
+    assert captured["data"]["code"] == "the-code"
+    # redirect_uri matches the authorize URL's (_redirect_uri()) exactly.
+    assert captured["data"]["redirect_uri"] == \
+        "https://api.webhoundsecurity.com/integrations/cloudflare/callback"
+    # NO HTTP Basic: no auth= and no Authorization header.
+    assert captured["auth"] is None
+    assert "Authorization" not in captured["headers"]
+    assert captured["client_kwargs"].get("auth") is None
+    # Form-encoded body.
+    assert captured["headers"].get("Content-Type") == "application/x-www-form-urlencoded"
+
+
 async def test_successful_connect(db_session, monkeypatch):
     async def fake_ex(code):
         # zone.read-only (dot notation) — Cloudflare echoes back the granted scope.

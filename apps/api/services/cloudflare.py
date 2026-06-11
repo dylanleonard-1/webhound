@@ -120,15 +120,27 @@ def build_authorize_url(state: str) -> str:
 # ── Cloudflare API (token exchange + zone discovery) ───────────────────────────
 
 async def _exchange_code(code: str) -> dict:
+    # Client authentication = client_secret_post: BOTH client_id and client_secret
+    # go in the x-www-form-urlencoded POST BODY (NOT HTTP Basic / Authorization
+    # header) — this matches the Cloudflare OAuth client's "Client Secret POST"
+    # token-auth method. Using Basic here yields invalid_client. `redirect_uri`
+    # is the SAME `_redirect_uri()` used to build the authorize URL, and must match
+    # the value registered on the Cloudflare client exactly.
     s = get_settings()
+    form = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": _redirect_uri(),
+        "client_id": s.cloudflare_client_id,
+        "client_secret": s.cloudflare_client_secret,
+    }
     async with httpx.AsyncClient(timeout=15) as client:
-        r = await client.post(_CF_TOKEN, data={
-            "client_id": s.cloudflare_client_id,
-            "client_secret": s.cloudflare_client_secret,
-            "code": code,
-            "grant_type": "authorization_code",
-            "redirect_uri": _redirect_uri(),
-        }, headers={"Accept": "application/json"})
+        # No `auth=` (no Basic). httpx encodes `data=` as form-urlencoded; the
+        # explicit Content-Type makes the client_secret_post method unambiguous.
+        r = await client.post(_CF_TOKEN, data=form, headers={
+            "Accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+        })
     if r.is_error:
         # TEMPORARY DEBUG: capture the HTTP status + ONLY the OAuth error fields
         # (whitelist: error/error_description/message) so the callback can log and

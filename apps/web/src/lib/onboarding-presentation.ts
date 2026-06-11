@@ -124,6 +124,30 @@ export function showValidationMetrics(v: AccessValidationView | null): boolean {
   return !!v && v.status !== 'pending'
 }
 
+// Per-provider connect rows for the onboarding card. EVERY detected supported
+// provider gets a row (so a site with both Cloudflare + Vercel shows BOTH buttons),
+// each with its own connection status. `connectable` = we have a connect flow for it.
+export type DetectedProvidersInput = { detected: string[]; connected: string[] } | null | undefined
+export interface ProviderConnectRow { provider: string; connected: boolean; connectable: boolean }
+
+export function detectedProviderRows(providers: DetectedProvidersInput): ProviderConnectRow[] {
+  const detected = providers?.detected ?? []
+  const connected = new Set(providers?.connected ?? [])
+  return detected.map((p) => ({
+    provider: p,
+    connected: connected.has(p),
+    connectable: p === 'cloudflare' || p === 'vercel',
+  }))
+}
+
+// Completion requires EVERY detected supported provider to be connected.
+export function providersConnectComplete(providers: DetectedProvidersInput): boolean {
+  const detected = providers?.detected ?? []
+  if (detected.length === 0) return false
+  const connected = new Set(providers?.connected ?? [])
+  return detected.every((p) => connected.has(p))
+}
+
 // Honest coverage assessment. Validation status "limited" means the scanner saw the
 // site only partially (e.g. blocked by a provider challenge after 1 page). We must
 // NOT present that as a clean "Coverage validated" — surface the blocker + pages +

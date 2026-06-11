@@ -11,6 +11,8 @@ import {
   connectCta,
   connectTarget,
   coverageDiagnosis,
+  detectedProviderRows,
+  providersConnectComplete,
   detectedConnectProvider,
   environmentFields,
   friendlyStatus,
@@ -293,5 +295,36 @@ describe('limited coverage is surfaced, not a clean green checkmark', () => {
     expect(v.coverage.level).toBe('full')
     expect(v.completed).toContain('Providers connected')
     expect(v.completed).toContain('Monitoring active')
+  })
+})
+
+describe('detectedProviderRows — BOTH detected providers get a connect row', () => {
+  it('CF + Vercel detected, only CF connected -> two rows, completion needs both', () => {
+    const providers = { detected: ['cloudflare', 'vercel'], connected: ['cloudflare'] }
+    const rows = detectedProviderRows(providers)
+    expect(rows).toHaveLength(2)                       // BOTH buttons render
+    const cf = rows.find((r) => r.provider === 'cloudflare')!
+    const vc = rows.find((r) => r.provider === 'vercel')!
+    expect(cf.connected).toBe(true)                   // CF shows Connected
+    expect(vc.connected).toBe(false)                  // Vercel shows Connect
+    expect(vc.connectable).toBe(true)
+    expect(providersConnectComplete(providers)).toBe(false)   // not done until both
+  })
+
+  it('both connected -> complete', () => {
+    const providers = { detected: ['cloudflare', 'vercel'], connected: ['cloudflare', 'vercel'] }
+    expect(detectedProviderRows(providers).every((r) => r.connected)).toBe(true)
+    expect(providersConnectComplete(providers)).toBe(true)
+  })
+
+  it('CF-only site -> one row, complete on CF', () => {
+    const providers = { detected: ['cloudflare'], connected: ['cloudflare'] }
+    expect(detectedProviderRows(providers)).toHaveLength(1)
+    expect(providersConnectComplete(providers)).toBe(true)
+  })
+
+  it('no detected providers -> no rows, not complete', () => {
+    expect(detectedProviderRows({ detected: [], connected: [] })).toHaveLength(0)
+    expect(providersConnectComplete(null)).toBe(false)
   })
 })

@@ -25,6 +25,7 @@ import {
   advancedDefaultOpen,
   buildOnboardingView,
   connectTarget,
+  detectedProviderRows,
   runValidationFeedback,
 } from '@/lib/onboarding-presentation'
 
@@ -145,8 +146,7 @@ export function OnboardingPanel({ websiteId, isAdmin = false, onRevealVerificati
     }
   }
 
-  const detectedProviders = readiness?.providers?.detected ?? []
-  const connectedProviders = new Set(readiness?.providers?.connected ?? [])
+  const providerRows = detectedProviderRows(readiness?.providers)
   const percent = wizard?.completion_percent ?? 0
   const onValidationStep = view.cta?.action === 'run_validation'
   const verified = (readiness?.verification ?? '') === 'verified'
@@ -303,25 +303,29 @@ export function OnboardingPanel({ websiteId, isAdmin = false, onRevealVerificati
               )}
             </div>
 
-            {/* Per-detected-provider connect buttons + status. */}
-            {detectedProviders.length > 0 && (
+            {/* Per-detected-provider connect buttons + status — ONE row per detected
+                provider (a CF+Vercel site shows BOTH; completion needs both). */}
+            {providerRows.length > 0 && (
               <div className="mt-4 space-y-2">
                 <p className="text-[11px] text-gray-500 uppercase tracking-wider">Detected providers</p>
-                {detectedProviders.map((p) => {
-                  const isConnected = connectedProviders.has(p)
-                  const label = p.charAt(0).toUpperCase() + p.slice(1)
+                {providerRows.map((row) => {
+                  const label = row.provider.charAt(0).toUpperCase() + row.provider.slice(1)
                   return (
-                    <div key={p} className="flex items-center justify-between gap-3 rounded-lg bg-white/5 p-2.5">
+                    <div key={row.provider} className="flex items-center justify-between gap-3 rounded-lg bg-white/5 p-2.5">
                       <span className="text-[13px] text-white capitalize">{label}</span>
-                      {isConnected ? (
+                      {row.connected ? (
                         <span className="inline-flex items-center gap-1.5 text-[12px] text-[#8BFF3E]">
                           <CheckCircle2 className="w-3.5 h-3.5" /> Connected
                         </span>
-                      ) : (p === 'cloudflare' || p === 'vercel') ? (
-                        <Button onClick={() => handleConnectProvider(p)} disabled={busy} className="h-8 px-3 text-[12px]">
+                      ) : row.connectable ? (
+                        <Button
+                          onClick={() => handleConnectProvider(row.provider as 'cloudflare' | 'vercel')}
+                          disabled={busy} className="h-8 px-3 text-[12px]">
                           {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : `Connect ${label}`}
                         </Button>
-                      ) : null}
+                      ) : (
+                        <span className="text-[11px] text-gray-500">Verify manually</span>
+                      )}
                     </div>
                   )
                 })}

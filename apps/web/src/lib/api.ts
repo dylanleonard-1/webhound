@@ -609,6 +609,13 @@ export const api = {
       request<CloudflareConnectResponse>('POST', `/websites/${id}/providers/cloudflare/connect`),
     cloudflareStatus: (id: string) =>
       request<ProviderConnectionView>('GET', `/websites/${id}/providers/cloudflare`),
+    // Phase-3.4 scanner access: elevated OAuth re-consent that creates the
+    // Cloudflare firewall skip rule for the scanner UA. `start` returns the
+    // authorization URL; the callback creates+verifies the rules server-side.
+    cloudflareScannerAccessStart: (id: string) =>
+      request<CloudflareConnectResponse>('POST', `/websites/${id}/providers/cloudflare/scanner-access/start`),
+    cloudflareScannerAccessDisconnect: (id: string) =>
+      request<Record<string, unknown>>('POST', `/websites/${id}/providers/cloudflare/scanner-access/disconnect`),
   },
 
   scanJobs: {

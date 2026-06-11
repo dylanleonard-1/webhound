@@ -152,6 +152,24 @@ export function OnboardingPanel({ websiteId, isAdmin = false, onRevealVerificati
       revealVerification()
       return
     }
+    // "Set Up Scanner Access": for Cloudflare this starts the ELEVATED OAuth
+    // re-consent (firewall-write scopes) that creates the scanner skip rule on
+    // return. Other providers fall back to manual trusted-access guidance.
+    if (action === 'configure_access' && connectTarget(provider) === 'cloudflare_oauth') {
+      setBusy(true)
+      try {
+        const { authorization_url } = await api.websites.cloudflareScannerAccessStart(websiteId)
+        window.location.href = authorization_url   // -> Cloudflare elevated consent
+        return                                       // (navigating away; keep busy)
+      } catch (e) {
+        // Manual-guidance fallback if the elevated flow can't start (e.g. scopes).
+        toast.error((e as Error)?.message
+          || 'Could not start automatic scanner access — set it up manually below.')
+        try { await api.websites.trustedAccessStart(websiteId); await load() } catch { /* noop */ }
+        setBusy(false)
+      }
+      return
+    }
     setBusy(true)
     try {
       if (action === 'configure_access') await api.websites.trustedAccessStart(websiteId)

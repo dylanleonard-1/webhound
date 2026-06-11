@@ -431,6 +431,13 @@ export default function WebsiteDetailPage() {
     if (!cf) return
     if (cf === 'connected') {
       toast.success('Cloudflare connected — website ownership verified.')
+    } else if (cf === 'scanner_active') {
+      toast.success('Scanner access configured — Cloudflare will let the WebHound scanner through.')
+    } else if (cf === 'scanner_failed') {
+      toast.error(
+        'We couldn’t finish setting up scanner access on Cloudflare. Please try again, ' +
+        'or add the allow rule manually.',
+      )
     } else if (cf === 'no_zone') {
       toast.error(
         'No active Cloudflare zone controls this domain. Connect the Cloudflare ' +

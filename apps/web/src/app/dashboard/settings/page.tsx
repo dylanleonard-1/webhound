@@ -449,6 +449,8 @@ interface SiteConnections {
   hostname: string
   cloudflareConnected: boolean
   cloudflareStatus: string
+  vercelConnected: boolean
+  vercelStatus: string
 }
 
 function ConnectedServicesPanel() {
@@ -461,11 +463,16 @@ function ConnectedServicesPanel() {
     try {
       const list = await api.websites.list({ limit: 100 })
       const rows = await Promise.all((list.items ?? []).map(async (w) => {
-        const cf = await api.websites.cloudflareScannerAccessStatus(w.id).catch(() => null)
+        const [cf, vc] = await Promise.all([
+          api.websites.cloudflareScannerAccessStatus(w.id).catch(() => null),
+          api.websites.vercelScannerAccessStatus(w.id).catch(() => null),
+        ])
         return {
           id: w.id, hostname: w.hostname,
           cloudflareConnected: !!cf?.cloudflare_connected,
           cloudflareStatus: cf?.cloudflare_scanner_access ?? 'not_connected',
+          vercelConnected: !!vc?.connected,
+          vercelStatus: vc?.status ?? 'not_connected',
         }
       }))
       setSites(rows)
@@ -477,7 +484,7 @@ function ConnectedServicesPanel() {
 
   async function disconnectCloudflare(siteId: string, hostname: string) {
     if (!confirm(`Disconnect Cloudflare from ${hostname}? Removes the WebHound scanner rules and revokes access.`)) return
-    setBusy(siteId)
+    setBusy(`cf:${siteId}`)
     try {
       await api.websites.cloudflareScannerAccessDisconnect(siteId)
       await api.websites.trustedAccessRevoke(siteId).catch(() => null)
@@ -490,7 +497,27 @@ function ConnectedServicesPanel() {
     }
   }
 
-  const connected = sites.filter((s) => s.cloudflareConnected)
+  async function disconnectVercel(siteId: string, hostname: string) {
+    if (!confirm(`Disconnect Vercel from ${hostname}? Removes the WebHound scanner WAF bypass rule and reverts access.`)) return
+    setBusy(`vc:${siteId}`)
+    try {
+      await api.websites.vercelScannerAccessDisconnect(siteId)
+      toast.success(`Vercel disconnected from ${hostname}.`)
+      await load()
+    } catch (e) {
+      toast.error((e as Error)?.message || 'Could not disconnect.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  type Row = { siteId: string; hostname: string; provider: 'Cloudflare' | 'Vercel'; status: string; onDisconnect: () => void; key: string }
+  const connected: Row[] = sites.flatMap((s) => {
+    const out: Row[] = []
+    if (s.cloudflareConnected) out.push({ siteId: s.id, hostname: s.hostname, provider: 'Cloudflare', status: s.cloudflareStatus, onDisconnect: () => disconnectCloudflare(s.id, s.hostname), key: `cf:${s.id}` })
+    if (s.vercelConnected) out.push({ siteId: s.id, hostname: s.hostname, provider: 'Vercel', status: s.vercelStatus, onDisconnect: () => disconnectVercel(s.id, s.hostname), key: `vc:${s.id}` })
+    return out
+  })
 
   return (
     <>
@@ -503,22 +530,22 @@ function ConnectedServicesPanel() {
         <p className="text-sm text-gray-500">No connected providers yet. Connect Cloudflare or Vercel from a website’s setup.</p>
       ) : (
         <div className="space-y-2">
-          {connected.map((s) => (
-            <div key={s.id} className="rounded-[10px] p-4 flex items-center justify-between gap-3"
+          {connected.map((r) => (
+            <div key={r.key} className="rounded-[10px] p-4 flex items-center justify-between gap-3"
                  style={{ background: 'rgba(8,12,22,0.95)', border: '1px solid rgba(255,255,255,0.06)' }}>
               <div className="min-w-0">
-                <p className="text-[13px] text-white font-mono truncate">{s.hostname}</p>
+                <p className="text-[13px] text-white font-mono truncate">{r.hostname}</p>
                 <p className="text-[11px] text-gray-500">
-                  Cloudflare · scanner access: {s.cloudflareStatus.replace(/_/g, ' ')}
+                  {r.provider} · scanner access: {r.status.replace(/_/g, ' ')}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => disconnectCloudflare(s.id, s.hostname)}
-                disabled={busy === s.id}
+                onClick={r.onDisconnect}
+                disabled={busy === r.key}
                 className="h-8 px-3 rounded-lg text-[12px] font-medium text-red-300 border border-red-500/30 hover:bg-red-500/10 disabled:opacity-50"
               >
-                {busy === s.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Disconnect'}
+                {busy === r.key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Disconnect'}
               </button>
             </div>
           ))}

@@ -144,6 +144,15 @@ export interface CloudflareScannerAccessView {
   } | null
 }
 
+export interface VercelScannerAccessView {
+  connected: boolean
+  // not_needed | pending_permissions | pending_rule_setup | active | blocked_non_bypassable | failed
+  status: string
+  blocker: string | null
+  next_action: string | null
+  message: string
+}
+
 export interface AccessValidationView {
   status: string
   pages_found: number
@@ -655,6 +664,14 @@ export const api = {
       request<CloudflareConnectResponse>('POST', `/websites/${id}/providers/cloudflare/scanner-access/start`),
     cloudflareScannerAccessDisconnect: (id: string) =>
       request<Record<string, unknown>>('POST', `/websites/${id}/providers/cloudflare/scanner-access/disconnect`),
+    // Phase-4.3 Vercel scanner access: the WAF bypass rule (UA-scoped) is created
+    // automatically on connect. Status reports the honest state (active /
+    // pending_permissions / blocked_non_bypassable / failed); disconnect removes the
+    // rule + reverts trusted access. Tokens never reach the frontend.
+    vercelScannerAccessStatus: (id: string) =>
+      request<VercelScannerAccessView>('GET', `/websites/${id}/providers/vercel/scanner-access`),
+    vercelScannerAccessDisconnect: (id: string) =>
+      request<Record<string, unknown>>('POST', `/websites/${id}/providers/vercel/scanner-access/disconnect`),
   },
 
   scanJobs: {

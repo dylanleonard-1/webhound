@@ -84,9 +84,15 @@ def derive_status(
 async def scanner_access_view(db: AsyncSession, website: Website) -> dict:
     """DB-backed honest status from stored facts (rule metadata + trusted access). No
     scan-time detection here — that layered tie-in happens in the scan diagnosis."""
+    def _c(status, blocker, next_action, message):  # connected view (connected=True)
+        return {"status": status, "blocker": blocker, "next_action": next_action,
+                "message": message, "connected": True}
+
     conn = await v.get_connection(db, website.id)
     if conn is None or conn.connection_status != "connected":
-        return _r(STATUS_NOT_NEEDED, None, "Connect Vercel", "Vercel is not connected.")
+        return {**_r(STATUS_NOT_NEEDED, None, "Connect Vercel", "Vercel is not connected."),
+                "connected": False}
+
     meta = (conn.connection_metadata or {}).get(SCANNER_ACCESS_META_KEY) or {}
     has_rule = bool(meta.get("created_by_webhound"))
     attack_mode = bool(meta.get("attack_mode"))
@@ -94,18 +100,18 @@ async def scanner_access_view(db: AsyncSession, website: Website) -> dict:
     ta_status = profile.access_status if profile else None
 
     if attack_mode:
-        return _r(STATUS_BLOCKED_NON_BYPASSABLE, "vercel", _ATTACK_ACTION,
+        return _c(STATUS_BLOCKED_NON_BYPASSABLE, "vercel", _ATTACK_ACTION,
                   "Vercel Attack Challenge Mode is on — turn it off (or exclude the scanner) "
                   "for full coverage.")
     if has_rule and ta_status == TrustedAccessStatus.ACTIVE.value:
-        return _r(STATUS_ACTIVE, "vercel", None,
+        return _c(STATUS_ACTIVE, "vercel", None,
                   "Vercel scanner access active. Bypass rule created and verified.")
     if ta_status == TrustedAccessStatus.FAILED.value:
-        return _r(STATUS_FAILED, "vercel", "Retry Vercel scanner access setup",
+        return _c(STATUS_FAILED, "vercel", "Retry Vercel scanner access setup",
                   "Vercel scanner bypass setup failed. Retry, or set it up manually.")
     if not has_rule:
-        return _r(STATUS_PENDING_PERMISSIONS, "vercel", _REAUTH_ACTION,
+        return _c(STATUS_PENDING_PERMISSIONS, "vercel", _REAUTH_ACTION,
                   "Vercel connected but the scanner bypass rule isn't in place yet. "
                   "Re-authorize Vercel with firewall write, then re-validate.")
-    return _r(STATUS_PENDING_RULE_SETUP, "vercel", "Set up Vercel scanner access",
+    return _c(STATUS_PENDING_RULE_SETUP, "vercel", "Set up Vercel scanner access",
               "Vercel connected. Setting up the scanner bypass rule.")

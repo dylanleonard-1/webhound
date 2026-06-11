@@ -91,6 +91,7 @@ async def test_exchange_uses_client_secret_post(monkeypatch):
 
     class FakeResp:
         is_error = False
+        status_code = 200
         def json(self):
             return {"access_token": "tok", "scope": "zone.read"}
 
@@ -130,6 +131,65 @@ async def test_exchange_uses_client_secret_post(monkeypatch):
     assert captured["client_kwargs"].get("auth") is None
     # Form-encoded body.
     assert captured["headers"].get("Content-Type") == "application/x-www-form-urlencoded"
+
+
+async def test_exchange_falls_back_to_client_secret_basic(monkeypatch):
+    # When client_secret_post returns 401 invalid_client, the exchange must retry
+    # ONCE with client_secret_basic (HTTP Basic via auth=(id,secret)) and succeed,
+    # WITHOUT putting the client creds in the body on the Basic attempt.
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(cf, "get_settings", lambda: SimpleNamespace(
+        cloudflare_client_id="cid", cloudflare_client_secret="csecret",
+        api_base_url="https://api.webhoundsecurity.com",
+        cloudflare_oauth_scopes="zone.read"))
+
+    calls: list = []
+
+    class FakeResp:
+        def __init__(self, status, payload):
+            self.status_code = status
+            self._payload = payload
+            self.is_error = status >= 400
+        def json(self):
+            return self._payload
+
+    class FakeClient:
+        def __init__(self, *a, **k):
+            pass
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *a):
+            return False
+        async def post(self, url, data=None, headers=None, auth=None, **k):
+            calls.append({"url": url, "data": dict(data or {}), "auth": auth})
+            if auth is None:
+                # Attempt 1 (client_secret_post) -> 401 invalid_client.
+                return FakeResp(401, {"error": "invalid_client",
+                                      "error_description": "Client authentication failed."})
+            # Attempt 2 (client_secret_basic) -> success.
+            return FakeResp(200, {"access_token": "tok", "scope": "zone.read"})
+
+    monkeypatch.setattr(cf.httpx, "AsyncClient", FakeClient)
+
+    out = await cf._exchange_code("the-code")
+    assert out["access_token"] == "tok"          # succeeded via the Basic retry
+
+    assert len(calls) == 2                        # exactly one retry
+    post_call, basic_call = calls[0], calls[1]
+    # Attempt 1 — client_secret_post: creds in body, NO Basic auth.
+    assert post_call["auth"] is None
+    assert post_call["data"]["client_id"] == "cid"
+    assert post_call["data"]["client_secret"] == "csecret"
+    # Attempt 2 — client_secret_basic: HTTP Basic (auth=(id,secret), which httpx
+    # renders as `Authorization: Basic <b64>`), and NO client creds in the body.
+    assert basic_call["auth"] == ("cid", "csecret")
+    assert "client_secret" not in basic_call["data"]
+    assert "client_id" not in basic_call["data"]
+    assert basic_call["data"]["grant_type"] == "authorization_code"
+    assert basic_call["data"]["code"] == "the-code"
+    assert basic_call["data"]["redirect_uri"] == \
+        "https://api.webhoundsecurity.com/integrations/cloudflare/callback"
 
 
 async def test_successful_connect(db_session, monkeypatch):

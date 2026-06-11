@@ -129,14 +129,15 @@ def build_authorize_url(state: str) -> str:
 # ── Cloudflare API (token exchange + zone discovery) ───────────────────────────
 
 async def _exchange_code(code: str) -> dict:
-    # Client authentication = client_secret_post: BOTH client_id and client_secret
-    # go in the x-www-form-urlencoded POST BODY (NOT HTTP Basic / Authorization
-    # header) — this matches the Cloudflare OAuth client's "Client Secret POST"
-    # token-auth method. Using Basic here yields invalid_client. `redirect_uri`
-    # is the SAME `_redirect_uri()` used to build the authorize URL, and must match
-    # the value registered on the Cloudflare client exactly.
-    # Whitespace-stripped (see _client_credentials) — a trailing newline in the
-    # env var is the classic cause of a 401 invalid_client here.
+    # Self-resolving client authentication. Cloudflare's token endpoint supports
+    # BOTH client_secret_post and client_secret_basic, but a given OAuth client is
+    # pinned to one server-side. We try client_secret_post FIRST (creds in the
+    # x-www-form-urlencoded BODY, no Authorization header); if that returns
+    # 401 invalid_client (the "unsupported authentication method" case), we retry
+    # ONCE with client_secret_basic (HTTP Basic Authorization header, creds NOT in
+    # the body). `redirect_uri` is the SAME `_redirect_uri()` used to build the
+    # authorize URL and must match the Cloudflare client registration exactly.
+    # Creds are whitespace-stripped (see _client_credentials).
     cid, csecret = _client_credentials()
     # TEMPORARY DEBUG: presence/length only — confirms the app actually loaded
     # non-empty creds at runtime (diagnoses invalid_client when env names match).
@@ -148,35 +149,55 @@ async def _exchange_code(code: str) -> dict:
         "client_secret_present=%s client_secret_len=%d redirect_uri=%s",
         bool(cid), len(cid), bool(csecret), len(csecret), _redirect_uri(),
     )
-    form = {
+    # Shared body (no client creds here — each method adds them its own way).
+    base_form = {
         "grant_type": "authorization_code",
         "code": code,
         "redirect_uri": _redirect_uri(),
-        "client_id": cid,
-        "client_secret": csecret,
     }
-    async with httpx.AsyncClient(timeout=15) as client:
-        # No `auth=` (no Basic). httpx encodes `data=` as form-urlencoded; the
-        # explicit Content-Type makes the client_secret_post method unambiguous.
-        r = await client.post(_CF_TOKEN, data=form, headers={
-            "Accept": "application/json",
-            "Content-Type": "application/x-www-form-urlencoded",
-        })
-    if r.is_error:
-        # TEMPORARY DEBUG: capture the HTTP status + ONLY the OAuth error fields
-        # (whitelist: error/error_description/message) so the callback can log and
-        # surface them. NEVER the tokens or the rest of the response body.
-        safe: dict = {}
+    _hdrs = {"Accept": "application/json",
+             "Content-Type": "application/x-www-form-urlencoded"}
+
+    def _safe_oauth_error(resp) -> dict:
+        # Whitelist ONLY error/error_description/message — NEVER tokens or the rest
+        # of the body. TEMPORARY DEBUG so the callback can log/surface the reason.
         try:
-            body = r.json()
-            if isinstance(body, dict):
-                safe = {k: body[k] for k in ("error", "error_description", "message")
-                        if k in body}
+            body = resp.json()
         except Exception:  # noqa: BLE001 — body may be non-JSON
-            safe = {}
+            return {}
+        if not isinstance(body, dict):
+            return {}
+        return {k: body[k] for k in ("error", "error_description", "message") if k in body}
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        # Attempt 1 — client_secret_post: creds in the form BODY, no Authorization.
+        r = await client.post(
+            _CF_TOKEN, headers=_hdrs,
+            data={**base_form, "client_id": cid, "client_secret": csecret})
+        logger.info("cf_token_exchange method=client_secret_post http_status=%d", r.status_code)
+        if not r.is_error:
+            return r.json()
+
+        safe = _safe_oauth_error(r)
+        # Only an auth-method problem (401 invalid_client) is worth retrying with a
+        # different method. Anything else (e.g. invalid_grant) won't be fixed by
+        # switching auth, so fail fast with that attempt's safe detail.
+        if not (r.status_code == 401 and safe.get("error") == "invalid_client"):
+            raise CloudflareOAuthError("token exchange failed",
+                                       http_status=r.status_code, oauth_error=safe)
+
+        # Attempt 2 — client_secret_basic: HTTP Basic Authorization header; the
+        # client_id/client_secret are NOT in the body (only grant_type/code/
+        # redirect_uri). `auth=` makes httpx send `Authorization: Basic <b64>`.
+        r2 = await client.post(_CF_TOKEN, headers=_hdrs, data=base_form,
+                               auth=(cid, csecret))
+        logger.info("cf_token_exchange method=client_secret_basic http_status=%d", r2.status_code)
+        if not r2.is_error:
+            return r2.json()
+
+        # Both methods failed — surface the Basic attempt's safe OAuth detail.
         raise CloudflareOAuthError("token exchange failed",
-                                   http_status=r.status_code, oauth_error=safe)
-    return r.json()
+                                   http_status=r2.status_code, oauth_error=_safe_oauth_error(r2))
 
 
 async def _fetch_zones(access_token: str) -> list[dict]:

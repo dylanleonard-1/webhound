@@ -28,6 +28,7 @@ import {
   detectedProviderRows,
   providersConnectComplete,
   runValidationFeedback,
+  shouldShowPrimaryCta,
 } from '@/lib/onboarding-presentation'
 
 // Primary card = customer-friendly guided setup (no raw statuses, no internals).
@@ -293,11 +294,10 @@ export function OnboardingPanel({ websiteId, isAdmin = false, onRevealVerificati
               <p className="text-xs text-gray-500 mt-2">{view.validationPendingMessage}</p>
             )}
             <div className="mt-3 flex items-center gap-3 flex-wrap">
-              {/* Suppress the primary provider-connect CTA when the per-provider
-                  block already renders connect buttons (avoids duplicate "Connect
-                  Cloudflare"). Non-connect CTAs (activate monitoring) still show. */}
-              {view.cta && !(providerRows.some((r) => r.connectable)
-                && (view.cta.action === 'verify' || view.cta.action === 'configure_access')) && (
+              {/* Show the primary CTA unless the per-provider block already renders a
+                  duplicate connect button (shouldShowPrimaryCta). Manual-verify and
+                  non-connect CTAs always show; never hides ALL connect actions. */}
+              {view.cta && shouldShowPrimaryCta(view.cta.action, providerRows) && (
                 <Button onClick={() => handleCta(view.cta!.action)} disabled={busy}>
                   {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : view.cta.label}
                 </Button>

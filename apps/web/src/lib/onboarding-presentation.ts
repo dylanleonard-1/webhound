@@ -144,6 +144,21 @@ export function detectedProviderRows(providers: DetectedProvidersInput): Provide
   return rows
 }
 
+// Whether to show the PRIMARY step CTA. We suppress it ONLY when the per-provider
+// connect block already renders connect buttons (avoids a duplicate "Connect X").
+// Invariant: a manual-verify CTA, or any non-connect CTA, ALWAYS shows; and when
+// there are NO provider rows (manual-DNS site), the primary CTA must show — we must
+// never hide every connect action.
+export function shouldShowPrimaryCta(
+  ctaAction: string | null | undefined, providerRows: { connectable: boolean }[],
+): boolean {
+  if (!ctaAction) return false
+  const isProviderConnect = ctaAction === 'verify' || ctaAction === 'configure_access'
+  const hasConnectRows = providerRows.some((r) => r.connectable)
+  // Suppress ONLY a provider-connect CTA that the per-provider block duplicates.
+  return !(isProviderConnect && hasConnectRows)
+}
+
 // Completion requires EVERY detected supported provider to be connected.
 export function providersConnectComplete(providers: DetectedProvidersInput): boolean {
   const detected = providers?.detected ?? []

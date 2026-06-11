@@ -13,6 +13,7 @@ import {
   coverageDiagnosis,
   detectedProviderRows,
   providersConnectComplete,
+  shouldShowPrimaryCta,
   detectedConnectProvider,
   environmentFields,
   friendlyStatus,
@@ -341,5 +342,30 @@ describe('detectedProviderRows dedupes providers (BUG: 3 Cloudflare buttons)', (
 
   it('one-of-two connected -> NOT complete (card must stay)', () => {
     expect(providersConnectComplete({ detected: ['cloudflare', 'vercel'], connected: ['cloudflare'] })).toBe(false)
+  })
+})
+
+describe('shouldShowPrimaryCta — never hides ALL connect actions', () => {
+  const rows = (n: number) => Array.from({ length: n }, () => ({ connectable: true }))
+
+  it('manual-verify CTA ALWAYS shows (no detected providers = manual-DNS site)', () => {
+    // The webhohoundsecurity.com case: nothing detected -> manual verify must show.
+    expect(shouldShowPrimaryCta('manual_verify', [])).toBe(true)
+    expect(shouldShowPrimaryCta('manual_verify', rows(2))).toBe(true)
+  })
+
+  it('connect CTA is suppressed ONLY when per-provider rows exist (avoids duplicate)', () => {
+    expect(shouldShowPrimaryCta('verify', rows(2))).toBe(false)        // dup -> suppress
+    expect(shouldShowPrimaryCta('configure_access', rows(2))).toBe(false)
+  })
+
+  it('connect CTA STILL shows when there are no provider rows (never hide all connect)', () => {
+    expect(shouldShowPrimaryCta('verify', [])).toBe(true)
+    expect(shouldShowPrimaryCta('configure_access', [])).toBe(true)
+  })
+
+  it('non-connect CTAs (activate monitoring) always show', () => {
+    expect(shouldShowPrimaryCta('activate_monitoring', rows(2))).toBe(true)
+    expect(shouldShowPrimaryCta(null, rows(2))).toBe(false)   // no cta -> nothing
   })
 })

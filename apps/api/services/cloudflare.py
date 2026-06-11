@@ -46,8 +46,10 @@ _CF_SCOPES = "account:read zone:read"
 
 # Audit events (admin_audit_log via record_phase3_event). NEVER carry secrets.
 CF_OAUTH_STARTED = "cloudflare.oauth.started"
+CF_CALLBACK_RECEIVED = "cloudflare.oauth.callback.received"
 CF_OAUTH_COMPLETED = "cloudflare.oauth.completed"
 CF_OAUTH_FAILED = "cloudflare.oauth.failed"
+CF_TOKEN_STORED = "cloudflare.token.stored"
 CF_ZONE_MATCHED = "cloudflare.zone.matched"
 CF_ZONE_NOT_FOUND = "cloudflare.zone.not_found"
 CF_CONNECTED = "cloudflare.connected"
@@ -70,7 +72,10 @@ def is_configured() -> bool:
 
 
 def _redirect_uri() -> str:
-    return f"{get_settings().api_base_url}/providers/cloudflare/callback"
+    # MUST match the callback URL registered on the Cloudflare OAuth client EXACTLY
+    # (it is echoed in both the authorize URL and the token exchange). Cloudflare is
+    # configured with .../integrations/cloudflare/callback.
+    return f"{get_settings().api_base_url}/integrations/cloudflare/callback"
 
 
 # ── OAuth state (signed JWT = CSRF protection + callback identity) ─────────────
@@ -169,6 +174,10 @@ async def complete_connection(db: AsyncSession, *, website: Website, code: str,
     """Exchange the code, match an ACTIVE owning zone, and ONLY then persist the
     token (via Phase 4.1) + verify ownership + start trusted access. Returns a
     result dict for the callback redirect. Never logs the code or token."""
+    # Record that the OAuth callback reached us (no code/token — never logged).
+    _audit(db, CF_CALLBACK_RECEIVED, website, user_id=user_id, org_id=org_id,
+           status="received")
+
     # Preflight: fail closed if we cannot encrypt the token at rest.
     if not get_key_management().is_configured:
         conn = await _get_or_create(db, website, user_id, org_id)
@@ -219,6 +228,9 @@ async def complete_connection(db: AsyncSession, *, website: Website, code: str,
         db, resource_type=CLOUDFLARE_PROVIDER, secret_type="oauth_access_token",
         plaintext=access_token, org_id=org_id, user_id=user_id, website_id=website.id,
         metadata={"scope": scope})
+    # Token is now encrypted at rest (Phase 4.1). Audit the REFERENCE only.
+    _audit(db, CF_TOKEN_STORED, website, user_id=user_id, org_id=org_id,
+           status="connected", reason="oauth_access_token")
     refresh_ref = None
     if refresh_token:
         refresh_secret = await store_secret(

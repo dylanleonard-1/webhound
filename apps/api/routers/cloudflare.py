@@ -54,7 +54,7 @@ async def cloudflare_connect(
     return {"authorization_url": cf.build_authorize_url(state)}
 
 
-@router.get("/providers/cloudflare/callback")
+@router.get("/integrations/cloudflare/callback")
 async def cloudflare_callback(
     state: str, db: _DB, background_tasks: BackgroundTasks, code: str = "", error: str = "",
 ) -> RedirectResponse:

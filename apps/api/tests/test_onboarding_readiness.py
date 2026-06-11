@@ -35,7 +35,18 @@ def _ready_meta() -> dict:
                                  "evidence": []}}}
 
 
-async def _make_ready(client, monkeypatch, wid: str) -> None:
+async def _connect_provider(db_engine, wid: str, provider: str = "cloudflare") -> None:
+    # Completion now requires the DETECTED provider to be CONNECTED (Phase 4.2).
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from apps.api.models.provider_connection import ProviderConnection
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        s.add(ProviderConnection(
+            website_id=uuid.UUID(wid), provider=provider, connection_status="connected"))
+        await s.commit()
+
+
+async def _make_ready(client, monkeypatch, wid: str, db_engine) -> None:
     # verify ownership
     monkeypatch.setattr(vs, "_check_dns", _t)
     await client.post(f"/websites/{wid}/verify/initiate?method=dns_txt")
@@ -57,6 +68,8 @@ async def _make_ready(client, monkeypatch, wid: str) -> None:
 
     monkeypatch.setattr(av, "_latest_scan_metadata", _meta)
     assert (await client.post(f"/websites/{wid}/access-validation/run")).json()["status"] == "ready"
+    # Connect the DETECTED provider (Cloudflare) — completion gate.
+    await _connect_provider(db_engine, wid, "cloudflare")
 
 
 async def test_get_onboarding_not_ready_by_default(client):
@@ -74,9 +87,9 @@ async def test_activate_blocked_when_not_ready(client):
     assert r.json()["detail"]["error"] == "not_ready"
 
 
-async def test_full_ready_path_activates_monitoring(client, monkeypatch):
+async def test_full_ready_path_activates_monitoring(client, monkeypatch, db_engine):
     wid = await _create(client)
-    await _make_ready(client, monkeypatch, wid)
+    await _make_ready(client, monkeypatch, wid, db_engine)
     body = (await client.get(f"/websites/{wid}/onboarding")).json()
     assert body["status"] == "ready"
     assert body["monitoring_allowed"] is True
@@ -93,9 +106,9 @@ async def test_other_users_website_is_404(client):
     assert r.status_code == 404
 
 
-async def test_activation_events_fire(client, monkeypatch):
+async def test_activation_events_fire(client, monkeypatch, db_engine):
     wid = await _create(client)
-    await _make_ready(client, monkeypatch, wid)
+    await _make_ready(client, monkeypatch, wid, db_engine)
     events: list[str] = []
     monkeypatch.setattr(ob, "emit_onboarding_event",
                         lambda event, website, **k: events.append(event))

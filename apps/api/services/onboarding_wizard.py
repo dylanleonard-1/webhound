@@ -36,7 +36,9 @@ _STEPS = [
     (1, "provider_discovery", "Provider Discovery"),
     (2, "verification", "Website Verification"),
     (3, "trusted_access", "Trusted Scanner Access"),
-    (4, "validation", "Access Validation"),
+    # Step 4 is now "connect detected providers" (CF + Vercel), not a scan-coverage
+    # validation. Completion no longer requires a scan.
+    (4, "providers_connected", "Connect Providers"),
     (5, "readiness", "Activation Readiness"),
     (6, "monitoring", "Monitoring Activation"),
 ]
@@ -59,8 +61,14 @@ def _map_trusted(t: str) -> str:
     return {"active": "completed", "limited": "limited"}.get(t, "pending")
 
 
-def _map_validation(v: str) -> str:
-    return {"ready": "completed", "limited": "limited", "failed": "failed"}.get(v, "pending")
+def _map_providers(rv: dict) -> str:
+    # Every detected supported provider connected -> completed; some -> limited.
+    pc = rv["checks"].get("provider_connected")
+    if pc == "pass":
+        return "completed"
+    if pc == "warning":
+        return "limited"
+    return "pending"
 
 
 def _map_readiness(s: str) -> str:
@@ -68,7 +76,7 @@ def _map_readiness(s: str) -> str:
 
 
 def _overall(statuses: dict[str, str]) -> WizardStatus:
-    if statuses["verification"] == "failed" or statuses["validation"] == "failed":
+    if statuses["verification"] == "failed":
         return WizardStatus.FAILED
     done = [s for s in statuses.values() if _done(s)]
     if not done:
@@ -93,7 +101,7 @@ async def compute_steps(db: AsyncSession, website: Website) -> dict:
         "provider_discovery": "completed" if rv["checks"].get("provider_discovery") == "pass" else "pending",
         "verification": _map_verification(rv["verification"]),
         "trusted_access": _map_trusted(rv["trusted_access"]),
-        "validation": _map_validation(rv["validation"]),
+        "providers_connected": _map_providers(rv),
         "readiness": _map_readiness(rv["status"]),
         "monitoring": "active" if monitoring_on else "inactive",
     }
@@ -153,7 +161,8 @@ async def sync_wizard(
         "provider_discovery": "completed" if prior.provider else "pending",
         "verification": prior.verification_status,
         "trusted_access": prior.trusted_access_status,
-        "validation": prior.validation_status,
+        # validation_status column is reused to snapshot the providers-connected step.
+        "providers_connected": prior.validation_status,
         "readiness": prior.readiness_status,
         "monitoring": prior.monitoring_status,
     }
@@ -210,7 +219,7 @@ async def sync_wizard(
     prior.provider = provider
     prior.verification_status = statuses["verification"]
     prior.trusted_access_status = statuses["trusted_access"]
-    prior.validation_status = statuses["validation"]
+    prior.validation_status = statuses["providers_connected"]  # column reused for the providers step
     prior.readiness_status = statuses["readiness"]
     prior.monitoring_status = statuses["monitoring"]
     if is_complete and prior.completed_at is None:

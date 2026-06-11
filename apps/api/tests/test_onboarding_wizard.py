@@ -41,7 +41,17 @@ async def _verify_and_discover(client, monkeypatch, wid: str) -> None:
     assert (await client.post(f"/websites/{wid}/providers/discover")).status_code == 200
 
 
-async def _make_ready(client, monkeypatch, wid: str) -> None:
+async def _connect_provider(db_engine, wid: str, provider: str = "cloudflare") -> None:
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from apps.api.models.provider_connection import ProviderConnection
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        s.add(ProviderConnection(
+            website_id=uuid.UUID(wid), provider=provider, connection_status="connected"))
+        await s.commit()
+
+
+async def _make_ready(client, monkeypatch, wid: str, db_engine) -> None:
     await _verify_and_discover(client, monkeypatch, wid)
     assert (await client.post(f"/websites/{wid}/trusted-access/start")).status_code == 200
 
@@ -54,6 +64,8 @@ async def _make_ready(client, monkeypatch, wid: str) -> None:
 
     monkeypatch.setattr(av, "_latest_scan_metadata", _meta)
     assert (await client.post(f"/websites/{wid}/access-validation/run")).json()["status"] == "ready"
+    # Completion now requires the DETECTED provider (Cloudflare) to be CONNECTED.
+    await _connect_provider(db_engine, wid, "cloudflare")
 
 
 async def test_wizard_not_started_when_fresh(client):
@@ -72,9 +84,9 @@ async def test_wizard_sync_fresh(client):
     assert r.json()["current_step"] == 1
 
 
-async def test_wizard_completes_after_full_flow(client, monkeypatch):
+async def test_wizard_completes_after_full_flow(client, monkeypatch, db_engine):
     wid = await _create(client)
-    await _make_ready(client, monkeypatch, wid)
+    await _make_ready(client, monkeypatch, wid, db_engine)
     # Monitoring is already active via the auto-schedule created on verification.
     body = (await client.post(f"/websites/{wid}/onboarding/wizard/sync")).json()
     assert body["overall_status"] == "completed"

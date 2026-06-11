@@ -17,13 +17,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.models.access_validation import AccessValidationResult
 from apps.api.models.enums import (
-    AccessValidationStatus,
     OnboardingReadinessStatus,
     ReadinessCheck,
     TrustedAccessStatus,
     VerificationStatus,
 )
+from apps.api.models.enums import ProviderConnectionStatus
 from apps.api.models.onboarding_readiness import OnboardingReadiness
+from apps.api.models.provider_connection import ProviderConnection
 from apps.api.models.provider_profile import ProviderProfile
 from apps.api.models.scan_schedule import ScanSchedule
 from apps.api.models.trusted_access import TrustedAccessProfile
@@ -31,6 +32,10 @@ from apps.api.models.website import Website
 from apps.api.services.phase3_audit import record_phase3_event
 
 logger = logging.getLogger(__name__)
+
+# Supported OAuth-connectable providers. Completion = every DETECTED supported
+# provider is CONNECTED (a CF+Vercel site needs both; a CF-only site needs CF).
+_SUPPORTED_PROVIDERS = ("cloudflare", "vercel")
 
 # --- audit events (logger-backed; reuse the existing log pipeline) ----------
 ONBOARDING_STARTED = "onboarding.started"
@@ -44,7 +49,34 @@ DEEP_SCAN_ACTIVATION_ALLOWED = "deep_scan.activation.allowed"
 DEEP_SCAN_ACTIVATION_BLOCKED = "deep_scan.activation.blocked"
 
 _PASS, _WARN, _FAIL = ReadinessCheck.PASS, ReadinessCheck.WARNING, ReadinessCheck.FAIL
-_HARD_CHECKS = ("provider_discovery", "website_verified", "trusted_access", "access_validation")
+# Completion now depends on PROVIDER CONNECTIONS, not a scan. access_validation is
+# demoted to a post-completion coverage/quality signal (returned, but NOT a hard gate).
+_HARD_CHECKS = ("provider_discovery", "website_verified", "trusted_access", "provider_connected")
+
+
+def detected_supported_providers(pp: ProviderProfile | None) -> set[str]:
+    """The supported providers DETECTED in the environment (from ProviderProfile)."""
+    if pp is None:
+        return set()
+    blob = " ".join(str(x or "").lower() for x in
+                    (pp.cdn_provider, pp.waf_provider, pp.dns_provider, pp.hosting_provider))
+    return {p for p in _SUPPORTED_PROVIDERS if p in blob}
+
+
+def provider_connected_check(
+    detected: set[str], connected: set[str], *, verified: bool,
+) -> ReadinessCheck:
+    """PASS when every detected supported provider is connected. When NONE is
+    detected (unsupported provider), 'connected' falls back to ownership verified
+    (manual DNS path). Partial connect -> WARN; none -> FAIL."""
+    if not detected:
+        return _PASS if verified else _FAIL
+    missing = detected - connected
+    if not missing:
+        return _PASS
+    if connected & detected:
+        return _WARN
+    return _FAIL
 
 
 class NotReadyError(Exception):
@@ -79,7 +111,14 @@ async def evaluate(db: AsyncSession, website: Website) -> dict:
         sa.select(TrustedAccessProfile).where(TrustedAccessProfile.website_id == website.id))
     av = await db.scalar(
         sa.select(AccessValidationResult).where(AccessValidationResult.website_id == website.id))
+    conns = (await db.scalars(
+        sa.select(ProviderConnection).where(
+            ProviderConnection.website_id == website.id,
+            ProviderConnection.connection_status == ProviderConnectionStatus.CONNECTED.value))).all()
     verified = website.verification_status == VerificationStatus.VERIFIED
+
+    detected = detected_supported_providers(pp)
+    connected = {c.provider for c in conns}
 
     checks: dict[str, ReadinessCheck] = {}
     checks["provider_discovery"] = _PASS if pp is not None else _FAIL
@@ -94,18 +133,19 @@ async def evaluate(db: AsyncSession, website: Website) -> dict:
     else:  # revoked / failed / not_configured
         checks["trusted_access"] = _FAIL
 
-    if av is None:
-        checks["access_validation"] = _FAIL
-    elif av.validation_status == AccessValidationStatus.READY.value:
-        checks["access_validation"] = _PASS
-    elif av.validation_status == AccessValidationStatus.LIMITED.value:
-        checks["access_validation"] = _WARN
-    else:  # failed / pending / validating
-        checks["access_validation"] = _FAIL
+    # Completion gate: every DETECTED supported provider connected (not a scan).
+    checks["provider_connected"] = provider_connected_check(detected, connected, verified=verified)
 
-    if not verified or checks["access_validation"] is _FAIL:
+    # access_validation is a SOFT coverage/quality signal now — computed + returned,
+    # but NOT in `checks` so it never blocks completion (no scan required to finish).
+    if av is None:
+        coverage = "pending"
+    else:
+        coverage = av.validation_status
+
+    if not verified or checks["provider_connected"] is _FAIL:
         checks["monitoring_eligible"] = _FAIL
-    elif _WARN in (checks["access_validation"], checks["trusted_access"]):
+    elif checks["trusted_access"] is _WARN:
         checks["monitoring_eligible"] = _WARN
     else:
         checks["monitoring_eligible"] = _PASS
@@ -145,7 +185,14 @@ async def evaluate(db: AsyncSession, website: Website) -> dict:
         "provider": provider,
         "verification": website.verification_status.value,
         "trusted_access": ta.access_status if ta else "not_configured",
-        "validation": av.validation_status if av else "pending",
+        # Soft coverage/quality signal — not a completion gate.
+        "validation": coverage,
+        "provider_connected": checks["provider_connected"].value,
+        "providers": {
+            "detected": sorted(detected),
+            "connected": sorted(detected & connected),
+            "missing": sorted(detected - connected),
+        },
         "evidence": evidence,
     }
 
@@ -153,7 +200,7 @@ async def evaluate(db: AsyncSession, website: Website) -> dict:
 _RECOMMEND = {
     OnboardingReadinessStatus.READY.value: "Ready — monitoring and deep scans are enabled.",
     OnboardingReadinessStatus.LIMITED.value: "Monitoring may proceed, but visibility is restricted — complete trusted scanner access / re-validate to improve coverage.",
-    OnboardingReadinessStatus.NOT_READY.value: "Onboarding incomplete — complete verification, provider discovery, trusted access, and validation first.",
+    OnboardingReadinessStatus.NOT_READY.value: "Onboarding incomplete — connect your detected provider(s) (or verify ownership) to finish.",
 }
 
 

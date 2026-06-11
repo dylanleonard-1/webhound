@@ -113,6 +113,43 @@ async def vercel_status(
     return v.dashboard_view(await v.get_connection(db, website.id))
 
 
+@router.get("/websites/{website_id}/providers/vercel/scanner-access")
+async def vercel_scanner_access_status(
+    website_id: uuid.UUID, db: _DB, current_user: _CurrentUser,
+) -> dict:
+    """Honest Vercel scanner-access status (active / pending_permissions /
+    blocked_non_bypassable / failed). Read-only; never exposes tokens."""
+    website = await ws_service.get_website(db, website_id, user_id=_uid(current_user))
+    if website is None:
+        raise HTTPException(status_code=404, detail="Website not found")
+    from apps.api.services import vercel_scanner_state as v_state
+    return await v_state.scanner_access_view(db, website)
+
+
+@router.post("/websites/{website_id}/providers/vercel/scanner-access/disconnect")
+async def vercel_scanner_access_disconnect(
+    website_id: uuid.UUID, db: _DB, current_user: _CurrentUser, active_org: _ActiveOrg = None,
+) -> dict:
+    """Remove the WebHound scanner bypass rule from Vercel and revert trusted access to
+    pending. Reversible + idempotent."""
+    website = await ws_service.get_website(db, website_id, user_id=_uid(current_user))
+    if website is None:
+        raise HTTPException(status_code=404, detail="Website not found")
+    org_id = active_org if active_org is not None else website.org_id
+    from apps.api.services import vercel_rules as v_rules
+    from apps.api.services import vercel_scanner_access as v_scanner
+    try:
+        result = await v_scanner.disconnect_scanner_bypass(
+            db, website=website, user_id=current_user.id, org_id=org_id)
+    except v_rules.VercelRuleError as exc:
+        await db.rollback()
+        logger.warning("vercel scanner-rule removal failed for website %s: http_status=%s",
+                       website.id, getattr(exc, "http_status", None))
+        raise HTTPException(status_code=502, detail="Could not remove scanner rules from Vercel")
+    await db.commit()
+    return result
+
+
 @router.get("/websites/{website_id}/providers/connections")
 async def provider_connections(
     website_id: uuid.UUID, db: _DB, current_user: _CurrentUser,

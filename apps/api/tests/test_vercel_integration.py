@@ -78,6 +78,13 @@ async def test_successful_connect(db_session, monkeypatch):
         return VERIFIED
     monkeypatch.setattr(v, "_exchange_code", fake_ex)
     monkeypatch.setattr(v, "_fetch_projects", fake_p)
+    # Auto-apply of the scanner bypass rule is exercised in test_vercel_scanner_access;
+    # stub it here (no network) so this test isolates the connect/verify/token path and
+    # trusted access stays pending (the scanner flow is what promotes it to active).
+    from apps.api.services import vercel_scanner_access as _vsa
+    async def fake_apply(db, **kw):
+        return {"applied": False, "status": "pending_permissions"}
+    monkeypatch.setattr(_vsa, "apply_scanner_bypass", fake_apply)
     u, w = await _site(db_session, "v1@x.com", "www.example.com")
     res = await v.complete_connection(db_session, website=w, code="c", user_id=u.id, org_id=u.id)
     await db_session.flush()

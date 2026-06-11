@@ -72,3 +72,26 @@ def test_map_providers_partial_is_not_done():
     assert wz._map_providers({"checks": {"provider_connected": "pass"}}) == "completed"
     # 'pending' is NOT in the wizard's DONE set.
     assert "pending" not in wz._DONE
+
+
+def test_wizard_reads_100_when_providers_connected_and_bypass_active():
+    # Deliverable D: once BOTH providers are connected AND scanner-access made trusted
+    # access ACTIVE (bypass rules created+verified), the wizard must read completed/100%
+    # — not stuck at 83% with trusted_access pending.
+    from apps.api.models.enums import WizardStatus
+    from apps.api.services import onboarding_wizard as wz
+    # trusted_access ACTIVE is a DONE step (the prior 83% bug was it stuck 'pending').
+    assert wz._map_trusted("active") == "completed"
+    assert wz._map_trusted("pending") == "pending"  # honest: no bypass yet -> not done
+    statuses = {
+        "provider_discovery": "completed",
+        "verification": "completed",
+        "trusted_access": "completed",      # bypass active
+        "providers_connected": "completed",  # both providers connected
+        "readiness": "completed",
+        "monitoring": "active",
+    }
+    assert wz._overall(statuses) is WizardStatus.COMPLETED
+    # ...and a still-pending bypass keeps it IN_PROGRESS (never fake-complete).
+    statuses["trusted_access"] = "pending"
+    assert wz._overall(statuses) is WizardStatus.IN_PROGRESS

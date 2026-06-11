@@ -275,4 +275,22 @@ async def complete_connection(db: AsyncSession, *, website: Website, code: str,
     provider_oauth.audit_event(db, V_VALIDATION_QUEUED, website, provider=VERCEL_PROVIDER,
                                user_id=user_id, org_id=org_id, status="queued")
 
-    return {"matched": True, "status": "connected", "domain": matched_domain}
+    # ONE flow: the integration token already carries read-write:project (firewall
+    # write), so set up the scanner WAF bypass rule now (tightly UA-scoped + reversible)
+    # — no second authorize. If the token can't write, this is a no-op and trusted
+    # access stays pending_permissions. Never fails the connection itself; never logs
+    # the token. Deferred import avoids a circular module load.
+    scanner_result = {"applied": False, "status": "skipped"}
+    try:
+        from apps.api.services import vercel_scanner_access as _v_scanner
+        scanner_result = await _v_scanner.apply_scanner_bypass(
+            db, website=website, access_token=access_token,
+            project_id=project.get("id"), team_id=team_id, user_id=user_id, org_id=org_id)
+    except Exception:  # noqa: BLE001 — rule setup must never fail the connection itself
+        scanner_result = {"applied": False, "status": "failed", "reason": "rule_setup_error"}
+        provider_oauth.audit_event(db, "vercel.scanner.access.failed", website,
+                                   provider=VERCEL_PROVIDER, user_id=user_id, org_id=org_id,
+                                   status="failed", reason="rule_setup_error")
+
+    return {"matched": True, "status": "connected", "domain": matched_domain,
+            "scanner_access": scanner_result}

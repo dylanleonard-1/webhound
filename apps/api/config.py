@@ -117,6 +117,26 @@ class Settings(BaseSettings):
     # tuned from Railway without a redeploy. Account id is read from the zone
     # payload, so no account scope is requested.
     cloudflare_oauth_scopes: str = "zone.read"
+    # Scanner-access (elevated) OAuth scopes — a SEPARATE re-consent phase from the
+    # read-only connect above, requested only when the customer opts into automated
+    # scanner allowlisting. Least-privilege: zone read + firewall/WAF write to create
+    # the scanner skip rule, plus read-only security telemetry. IDs are the exact
+    # dot-notation identifiers from Cloudflare's OAuth scope catalog (/oauth/scopes).
+    # NOTE: Cloudflare's catalog has no dedicated zone "Rulesets"/"Rate Limiting"/
+    # "Security Events" OAuth scopes — those zone capabilities are umbrella'd under
+    # `firewall-services.*` (rules/rate-limit) and `analytics.read` (security events).
+    # Space-separated, env-configurable (CLOUDFLARE_SCANNER_OAUTH_SCOPES) so a single
+    # ID can be tuned from Railway without a redeploy. Does NOT request DNS/Workers/
+    # Billing/Account-edit/Email/admin scopes.
+    cloudflare_scanner_oauth_scopes: str = (
+        "zone.read "
+        "firewall-services.read firewall-services.write "
+        "zone-waf.read zone-waf.write "
+        "zone-security-center-insights.read "
+        "page-shield.read "
+        "trust-and-safety.read "
+        "analytics.read"
+    )
     # Phase-4.3 Vercel provider integration (read-only integration; empty = disabled).
     vercel_client_id: str = ""
     vercel_client_secret: str = ""

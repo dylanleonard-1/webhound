@@ -21,8 +21,18 @@ _PHASE = "http_request_firewall_custom"
 REF_ALLOW = "webhound:scanner-access:allow"
 REF_BYPASS = "webhound:scanner-access:bypass"
 
-# Match the scanner by its honest UA name (version-independent).
+# Match the scanner by its honest UA name (version-independent). Tightly scoped to
+# the scanner identity only — NEVER a blanket allow for all visitors.
 _EXPRESSION = f'(http.user_agent contains "{SCANNER_NAME}")'
+
+# Phases the BYPASS rule skips, in priority order. http_request_sbfm = Super Bot
+# Fight Mode (the bot-challenge phase on Pro/Business) — only bypassable via this
+# phase skip, not the legacy "products" list. On FREE plans the bot product is Bot
+# Fight Mode (no sbfm phase, unskippable): skipping a phase that doesn't run is
+# harmless, but if Cloudflare rejects the phase for the plan we degrade to the
+# fallback set (still skips managed WAF + rate-limit).
+_BYPASS_PHASES = ["http_request_firewall_managed", "http_ratelimit", "http_request_sbfm"]
+_BYPASS_PHASES_FALLBACK = ["http_request_firewall_managed", "http_ratelimit"]
 
 
 class CloudflareRuleError(RuntimeError):
@@ -34,11 +44,12 @@ class CloudflareRuleError(RuntimeError):
         self.api_errors = api_errors  # whitelisted Cloudflare error objects, never tokens
 
 
-def _desired_rules() -> list[dict]:
-    """The two WebHound scanner rules (both match the scanner UA):
+def _desired_rules(bypass_phases: list[str] | None = None) -> list[dict]:
+    """The two WebHound scanner rules (both match ONLY the scanner UA):
       1) ALLOWLIST — skip the rest of the custom firewall ruleset + legacy security
          products (UA block, browser-integrity, hotlink, security level, rate limit).
-      2) BYPASS    — skip the Managed WAF + rate-limiting phases for the scanner.
+      2) BYPASS    — skip the Managed WAF + rate-limiting + Super Bot Fight Mode
+         phases for the scanner. NEVER disables WAF for other visitors.
     Each description ends with its ref tag so we can find/verify/remove it."""
     return [
         {
@@ -57,10 +68,27 @@ def _desired_rules() -> list[dict]:
             "description": f"WebHound scanner bypass managed [{REF_BYPASS}]",
             "enabled": True,
             "action_parameters": {
-                "phases": ["http_request_firewall_managed", "http_ratelimit"],
+                "phases": list(bypass_phases or _BYPASS_PHASES),
             },
         },
     ]
+
+
+def _differs(found: dict, desired: dict) -> bool:
+    """True if an existing rule's meaningful fields differ from desired (so it needs
+    updating — e.g. an older rule missing the http_request_sbfm phase)."""
+    return (found.get("action") != desired["action"]
+            or (found.get("expression") or "") != desired["expression"]
+            or (found.get("action_parameters") or {}) != desired["action_parameters"]
+            or not found.get("enabled", True))
+
+
+def _phase_unsupported(err: "CloudflareRuleError") -> bool:
+    """Did the failure look like the plan doesn't support a skipped phase (e.g. SBFM
+    on Free)? Then we degrade to the fallback phase set instead of erroring."""
+    text = " ".join(str((e or {}).get("message") or "") for e in (err.api_errors or [])).lower()
+    return any(k in text for k in ("sbfm", "super bot", "phase", "not supported",
+                                   "not available", "invalid"))
 
 
 def _safe_errors(resp: httpx.Response) -> list:
@@ -93,15 +121,14 @@ def _find(rules: list[dict], ref: str) -> dict | None:
     return None
 
 
-async def ensure_scanner_rules(access_token: str, zone_id: str) -> dict:
-    """Idempotently ensure both scanner rules exist in the zone's custom firewall
-    ruleset. Returns {"created": [...refs], "existing": [...refs], "ruleset_id": id}.
-    Safe to re-run — never duplicates (matches on the ref tag in the description)."""
+async def _apply(access_token: str, zone_id: str, desired: list[dict]) -> dict:
+    """Create/update both scanner rules in the zone's custom firewall ruleset.
+    Returns {created, updated, existing (refs), ruleset_id, rule_ids (ref->id)}."""
     headers = {"Authorization": f"Bearer {access_token}",
                "Content-Type": "application/json", "Accept": "application/json"}
     created: list[str] = []
+    updated: list[str] = []
     existing: list[str] = []
-    desired = _desired_rules()
     async with httpx.AsyncClient(timeout=20, headers=headers) as client:
         entry = await _get_entrypoint(client, zone_id)
 
@@ -113,23 +140,59 @@ async def ensure_scanner_rules(access_token: str, zone_id: str) -> dict:
             if r.is_error:
                 raise CloudflareRuleError("ruleset create failed",
                                           http_status=r.status_code, api_errors=_safe_errors(r))
-            ruleset_id = ((r.json() or {}).get("result") or {}).get("id")
-            return {"created": [REF_ALLOW, REF_BYPASS], "existing": [], "ruleset_id": ruleset_id}
+            res = (r.json() or {}).get("result") or {}
+            ids = {ref: rule.get("id") for ref, rule in
+                   ((REF_ALLOW, _find(res.get("rules") or [], REF_ALLOW) or {}),
+                    (REF_BYPASS, _find(res.get("rules") or [], REF_BYPASS) or {}))}
+            return {"created": [REF_ALLOW, REF_BYPASS], "updated": [], "existing": [],
+                    "ruleset_id": res.get("id"), "rule_ids": ids}
 
         ruleset_id = entry.get("id")
         rules = entry.get("rules") or []
+        rule_ids: dict[str, str | None] = {}
         for desired_rule, ref in ((desired[0], REF_ALLOW), (desired[1], REF_BYPASS)):
-            if _find(rules, ref) is not None:
+            found = _find(rules, ref)
+            if found is None:
+                # Append the missing rule.
+                r = await client.post(
+                    f"{_CF_API}/zones/{zone_id}/rulesets/{ruleset_id}/rules", json=desired_rule)
+                if r.is_error:
+                    raise CloudflareRuleError("rule append failed",
+                                              http_status=r.status_code, api_errors=_safe_errors(r))
+                created.append(ref)
+                rule_ids[ref] = ((r.json() or {}).get("result") or {}).get("id")
+            elif _differs(found, desired_rule):
+                # Update the existing rule (e.g. add the sbfm phase to an old rule).
+                r = await client.patch(
+                    f"{_CF_API}/zones/{zone_id}/rulesets/{ruleset_id}/rules/{found['id']}",
+                    json=desired_rule)
+                if r.is_error:
+                    raise CloudflareRuleError("rule update failed",
+                                              http_status=r.status_code, api_errors=_safe_errors(r))
+                updated.append(ref)
+                rule_ids[ref] = found.get("id")
+            else:
                 existing.append(ref)
-                continue
-            # Append the missing rule to the existing ruleset.
-            r = await client.post(
-                f"{_CF_API}/zones/{zone_id}/rulesets/{ruleset_id}/rules", json=desired_rule)
-            if r.is_error:
-                raise CloudflareRuleError("rule append failed",
-                                          http_status=r.status_code, api_errors=_safe_errors(r))
-            created.append(ref)
-    return {"created": created, "existing": existing, "ruleset_id": ruleset_id}
+                rule_ids[ref] = found.get("id")
+    return {"created": created, "updated": updated, "existing": existing,
+            "ruleset_id": ruleset_id, "rule_ids": rule_ids}
+
+
+async def ensure_scanner_rules(access_token: str, zone_id: str) -> dict:
+    """Idempotently ensure both scanner rules exist + are current in the zone's custom
+    firewall ruleset (creates missing, UPDATES drifted — e.g. to add the SBFM phase).
+    Degrades to the fallback phase set if the plan rejects a skipped phase (Free/BFM).
+    Safe to re-run; never duplicates (matches on the ref tag in the description)."""
+    try:
+        return await _apply(access_token, zone_id, _desired_rules())
+    except CloudflareRuleError as exc:
+        if _phase_unsupported(exc):
+            # Plan doesn't support a skipped phase (e.g. SBFM on Free) — apply the
+            # fallback set so the rest of the allowlist still works.
+            result = await _apply(access_token, zone_id, _desired_rules(_BYPASS_PHASES_FALLBACK))
+            result["degraded"] = True
+            return result
+        raise
 
 
 async def verify_scanner_rules(access_token: str, zone_id: str) -> dict:

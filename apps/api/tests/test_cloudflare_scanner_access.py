@@ -95,11 +95,40 @@ class _FakeRulesAPI:
         self.state["rules"].append(rule)
         return _Resp(200, {"result": rule})
 
+    async def patch(self, url, json=None):
+        self.calls.append(("PATCH", url))
+        rid = url.rsplit("/", 1)[-1]
+        for i, r in enumerate(self.state["rules"]):
+            if r.get("id") == rid:
+                self.state["rules"][i] = {**(json or {}), "id": rid}
+        return _Resp(200, {"result": {"id": rid}})
+
     async def delete(self, url):
         self.calls.append(("DELETE", url))
         rid = url.rsplit("/", 1)[-1]
         self.state["rules"] = [r for r in self.state["rules"] if r.get("id") != rid]
         return _Resp(200, {"result": {"id": rid}})
+
+
+class _FakeFreePlanAPI(_FakeRulesAPI):
+    """Free plan: rejects any rule carrying the http_request_sbfm skip phase (SBFM
+    doesn't exist) — forces the graceful fallback path."""
+    def _rejects(self, json):
+        phases = ((json or {}).get("action_parameters") or {}).get("phases") or []
+        return "http_request_sbfm" in phases
+
+    async def put(self, url, json=None):
+        for r in (json or {}).get("rules", []):
+            if self._rejects(r):
+                return _Resp(400, {"success": False,
+                                   "errors": [{"code": 1, "message": "phase http_request_sbfm not supported on plan"}]})
+        return await super().put(url, json=json)
+
+    async def post(self, url, json=None):
+        if self._rejects(json):
+            return _Resp(400, {"success": False,
+                               "errors": [{"code": 1, "message": "phase http_request_sbfm not supported"}]})
+        return await super().post(url, json=json)
 
 
 async def test_rules_create_verify_remove_on_existing_ruleset(monkeypatch):
@@ -147,6 +176,55 @@ async def test_rule_match_targets_scanner_user_agent():
     # The rule expression must match the honest scanner UA name (single source of
     # truth), not IPs (there are none).
     assert 'http.user_agent contains "WebHoundScanner"' in cf_rules._EXPRESSION
+
+
+def test_desired_bypass_rule_skips_sbfm_phase():
+    # The bypass rule MUST skip Super Bot Fight Mode (the bot challenge layer).
+    bypass = cf_rules._desired_rules()[1]
+    assert "http_request_sbfm" in bypass["action_parameters"]["phases"]
+    assert "http_request_firewall_managed" in bypass["action_parameters"]["phases"]
+
+
+async def test_rules_update_existing_to_add_sbfm(monkeypatch):
+    # An already-deployed bypass rule WITHOUT sbfm must be UPDATED (not duplicated).
+    api = _FakeRulesAPI(entry_exists=True)
+    api.state["rules"] = [
+        {"id": "r-allow", "description": f"allow [{cf_rules.REF_ALLOW}]", "action": "skip",
+         "expression": cf_rules._EXPRESSION, "enabled": True,
+         "action_parameters": {"ruleset": "current",
+                               "products": ["uaBlock", "bic", "hot", "securityLevel", "rateLimit", "zoneLockdown"]}},
+        {"id": "r-bypass", "description": f"bypass [{cf_rules.REF_BYPASS}]", "action": "skip",
+         "expression": cf_rules._EXPRESSION, "enabled": True,
+         "action_parameters": {"phases": ["http_request_firewall_managed", "http_ratelimit"]}},  # no sbfm
+    ]
+    monkeypatch.setattr(cf_rules.httpx, "AsyncClient", api)
+    res = await cf_rules.ensure_scanner_rules("tok", "zone1")
+    assert cf_rules.REF_BYPASS in res["updated"]          # bypass got updated
+    assert cf_rules.REF_ALLOW in res["existing"]          # allow unchanged
+    assert any(m == "PATCH" for m, _ in api.calls)
+    bypass = next(r for r in api.state["rules"] if cf_rules.REF_BYPASS in r["description"])
+    assert "http_request_sbfm" in bypass["action_parameters"]["phases"]   # live rule now has it
+    assert len(api.state["rules"]) == 2                    # no duplicate
+
+
+async def test_rules_degrade_gracefully_on_free_plan(monkeypatch):
+    # Free plan rejects sbfm -> ensure must fall back (no error) and still create the
+    # rules with the fallback phase set.
+    api = _FakeFreePlanAPI(entry_exists=True)
+    monkeypatch.setattr(cf_rules.httpx, "AsyncClient", api)
+    res = await cf_rules.ensure_scanner_rules("tok", "zone1")
+    assert res.get("degraded") is True
+    bypass = next(r for r in api.state["rules"] if cf_rules.REF_BYPASS in r["description"])
+    assert "http_request_sbfm" not in bypass["action_parameters"]["phases"]
+    assert "http_request_firewall_managed" in bypass["action_parameters"]["phases"]
+
+
+async def test_ensure_returns_rule_ids(monkeypatch):
+    api = _FakeRulesAPI(entry_exists=True)
+    monkeypatch.setattr(cf_rules.httpx, "AsyncClient", api)
+    res = await cf_rules.ensure_scanner_rules("tok", "zone1")
+    assert set(res["rule_ids"].keys()) == {cf_rules.REF_ALLOW, cf_rules.REF_BYPASS}
+    assert all(res["rule_ids"].values())   # captured ids for storage/rollback
 
 
 # ── Telemetry parsing ─────────────────────────────────────────────────────────

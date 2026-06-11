@@ -148,6 +148,17 @@ class Settings(BaseSettings):
     vercel_client_id: str = ""
     vercel_client_secret: str = ""
     vercel_integration_slug: str = ""  # the <slug> in https://vercel.com/integrations/<slug>
+    # Scanner outbound (egress) IPs — comma-separated IPv4/IPv6 or CIDR. These are the
+    # WORKER's real egress IP(s) as seen by the internet, surfaced PUBLICLY on
+    # GET /scanner/identity + the trusted-access guidance so customers can allowlist the
+    # WebHound scanner by IP (not UA alone) — e.g. a Vercel System Bypass Rule or a
+    # Cloudflare IP allow rule. Default is the current Railway worker egress
+    # (AS400940 Railway, us-east), captured empirically.
+    # IMPORTANT: this MUST be updated if Railway egress changes (Railway does NOT
+    # guarantee a fixed egress IP without the static-egress feature) or when a static
+    # outbound IP is enabled. Override from Railway via WEBHOUND_SCANNER_OUTBOUND_IPS.
+    scanner_outbound_ips: str = "152.55.180.27"
+
     # Public-facing URLs (used in OAuth redirect_uri and post-auth redirects)
     # Production: api_base_url=https://api.webhoundsecurity.com  frontend_url=https://webhoundsecurity.com
     api_base_url: str = "http://localhost:8000"
@@ -346,3 +357,20 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def parse_scanner_outbound_ips(raw: str | None) -> list[str]:
+    """Parse the comma-separated WEBHOUND_SCANNER_OUTBOUND_IPS into a clean, de-duped
+    list of IP/CIDR strings (order preserved). Pure — no settings access, so it's easy
+    to test. Empty/blank entries are dropped."""
+    out: list[str] = []
+    for part in (raw or "").split(","):
+        ip = part.strip()
+        if ip and ip not in out:
+            out.append(ip)
+    return out
+
+
+def scanner_outbound_ips() -> list[str]:
+    """The scanner's public egress IP/CIDR allowlist, from settings."""
+    return parse_scanner_outbound_ips(get_settings().scanner_outbound_ips)

@@ -347,6 +347,7 @@ def dashboard_view(
         method = profile.access_method
         validated_at = profile.validated_at
     g = _PROVIDER_GUIDANCE[key]
+    from apps.api.config import scanner_outbound_ips
     return {
         "provider": provider,
         "status": status,
@@ -355,5 +356,8 @@ def dashboard_view(
         "scanner_identity_url": SCANNER_DOCS_URL,
         "verification_url": SCANNER_VERIFICATION_URL,
         "ip_ranges_url": SCANNER_IP_RANGES_URL,
+        # Concrete egress IP/CIDR the customer can allowlist (e.g. a Vercel System
+        # Bypass Rule or a Cloudflare IP allow rule) — IP-based, not UA alone.
+        "scanner_outbound_ips": scanner_outbound_ips(),
         "last_validated_at": validated_at,
     }

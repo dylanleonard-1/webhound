@@ -37,7 +37,7 @@ def encryption_ready() -> bool:
 
 # ── Signed-state CSRF (the unauthenticated callback's only identity) ──────────
 
-def sign_state(provider: str, *, website_id, user_id, org_id) -> str:
+def sign_state(provider: str, *, website_id, user_id, org_id, phase: str = "connect") -> str:
     s = get_settings()
     payload = {
         "wid": str(website_id),
@@ -45,6 +45,10 @@ def sign_state(provider: str, *, website_id, user_id, org_id) -> str:
         "oid": str(org_id) if org_id else None,
         "provider": provider,
         "purpose": f"{provider}_oauth",
+        # OAuth sub-phase: "connect" (read-only zone discovery) vs "scanner_access"
+        # (elevated re-consent that creates the scanner firewall rule). The shared
+        # callback branches on this. Older states without it default to "connect".
+        "phase": phase,
         "jti": secrets.token_urlsafe(8),
         "exp": datetime.now(timezone.utc) + timedelta(minutes=_STATE_TTL_MINUTES),
     }

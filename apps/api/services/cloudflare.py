@@ -69,6 +69,16 @@ CF_CONNECTED = "cloudflare.connected"
 CF_DISCONNECTED = "cloudflare.disconnected"
 CF_TRUSTED_ACCESS_PENDING = "cloudflare.trusted_access.pending"
 CF_VALIDATION_QUEUED = "cloudflare.validation.queued"
+# Phase 3.4 scanner-access (elevated OAuth + firewall skip rule). NEVER carry secrets.
+CF_SCANNER_ACCESS_STARTED = "cloudflare.scanner_access.started"
+CF_SCANNER_ACCESS_AUTHORIZED = "cloudflare.scanner_access.authorized"
+CF_SCANNER_RULE_CREATED = "cloudflare.scanner_access.rule_created"
+CF_SCANNER_RULE_VERIFIED = "cloudflare.scanner_access.rule_verified"
+CF_SCANNER_RULE_REMOVED = "cloudflare.scanner_access.rule_removed"
+CF_SCANNER_ACCESS_FAILED = "cloudflare.scanner_access.failed"
+CF_SCANNER_TELEMETRY_READ = "cloudflare.scanner_access.telemetry_read"
+
+SCANNER_ACCESS_PHASE = "scanner_access"
 
 
 class CloudflareNotConfiguredError(RuntimeError):
@@ -118,6 +128,33 @@ def build_authorize_url(state: str) -> str:
         "redirect_uri": _redirect_uri(),
         "response_type": "code",
         "scope": _scopes(),
+        "state": state,
+    }
+    return f"{_CF_AUTHORIZE}?{urlencode(params)}"
+
+
+# ── Scanner-access (elevated) OAuth — SEPARATE re-consent from the read-only
+# connect above. Requests CLOUDFLARE_SCANNER_OAUTH_SCOPES so we can create the
+# scanner firewall skip rule; the signed state carries phase=scanner_access so the
+# shared callback routes it to the rule-creation flow (not the zone-discovery one).
+
+def _scanner_scopes() -> str:
+    return get_settings().cloudflare_scanner_oauth_scopes
+
+
+def sign_scanner_state(*, website_id, user_id, org_id) -> str:
+    return provider_oauth.sign_state(CLOUDFLARE_PROVIDER, website_id=website_id,
+                                     user_id=user_id, org_id=org_id,
+                                     phase=SCANNER_ACCESS_PHASE)
+
+
+def build_scanner_access_authorize_url(state: str) -> str:
+    client_id, _ = _client_credentials()
+    params = {
+        "client_id": client_id,
+        "redirect_uri": _redirect_uri(),
+        "response_type": "code",
+        "scope": _scanner_scopes(),
         "state": state,
     }
     return f"{_CF_AUTHORIZE}?{urlencode(params)}"

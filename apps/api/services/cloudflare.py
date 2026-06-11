@@ -51,6 +51,15 @@ _CF_API = "https://api.cloudflare.com/client/v4"
 def _scopes() -> str:
     return get_settings().cloudflare_oauth_scopes
 
+
+def _client_credentials() -> tuple[str, str]:
+    """Return (client_id, client_secret) with surrounding whitespace/newlines
+    stripped. A stray char — e.g. a trailing newline pasted into the Railway env
+    var — never belongs in an OAuth client id/secret and makes Cloudflare reject
+    the token exchange with 401 invalid_client. Stripping is always safe."""
+    s = get_settings()
+    return (s.cloudflare_client_id or "").strip(), (s.cloudflare_client_secret or "").strip()
+
 # Audit events (admin_audit_log via record_phase3_event). NEVER carry secrets.
 CF_OAUTH_STARTED = "cloudflare.oauth.started"
 CF_CALLBACK_RECEIVED = "cloudflare.oauth.callback.received"
@@ -106,9 +115,9 @@ def verify_state(state: str) -> dict:
 
 
 def build_authorize_url(state: str) -> str:
-    s = get_settings()
+    client_id, _ = _client_credentials()
     params = {
-        "client_id": s.cloudflare_client_id,
+        "client_id": client_id,
         "redirect_uri": _redirect_uri(),
         "response_type": "code",
         "scope": _scopes(),
@@ -126,12 +135,14 @@ async def _exchange_code(code: str) -> dict:
     # token-auth method. Using Basic here yields invalid_client. `redirect_uri`
     # is the SAME `_redirect_uri()` used to build the authorize URL, and must match
     # the value registered on the Cloudflare client exactly.
-    s = get_settings()
+    # Whitespace-stripped (see _client_credentials) — a trailing newline in the
+    # env var is the classic cause of a 401 invalid_client here.
+    cid, csecret = _client_credentials()
     # TEMPORARY DEBUG: presence/length only — confirms the app actually loaded
     # non-empty creds at runtime (diagnoses invalid_client when env names match).
-    # NEVER logs the id/secret/code/token values; redirect_uri is non-secret.
-    cid = s.cloudflare_client_id or ""
-    csecret = s.cloudflare_client_secret or ""
+    # Lengths are of the STRIPPED values, so a fixed trailing-newline shows as a
+    # shorter len. NEVER logs the id/secret/code/token values; redirect_uri is
+    # non-secret.
     logger.info(
         "cf_token_exchange stage=creds client_id_present=%s client_id_len=%d "
         "client_secret_present=%s client_secret_len=%d redirect_uri=%s",
@@ -141,8 +152,8 @@ async def _exchange_code(code: str) -> dict:
         "grant_type": "authorization_code",
         "code": code,
         "redirect_uri": _redirect_uri(),
-        "client_id": s.cloudflare_client_id,
-        "client_secret": s.cloudflare_client_secret,
+        "client_id": cid,
+        "client_secret": csecret,
     }
     async with httpx.AsyncClient(timeout=15) as client:
         # No `auth=` (no Basic). httpx encodes `data=` as form-urlencoded; the

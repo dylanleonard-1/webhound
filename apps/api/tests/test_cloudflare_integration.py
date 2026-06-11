@@ -80,8 +80,10 @@ async def test_exchange_uses_client_secret_post(monkeypatch):
     # (Cloudflare client is "Client Secret POST"; Basic -> invalid_client).
     from types import SimpleNamespace
 
+    # Creds carry surrounding whitespace/newline (the classic paste-into-Railway
+    # mistake that causes 401 invalid_client) — the exchange must strip them.
     monkeypatch.setattr(cf, "get_settings", lambda: SimpleNamespace(
-        cloudflare_client_id="cid", cloudflare_client_secret="csecret",
+        cloudflare_client_id="cid\n", cloudflare_client_secret="  csecret\n",
         api_base_url="https://api.webhoundsecurity.com",
         cloudflare_oauth_scopes="zone.read"))
 
@@ -111,9 +113,12 @@ async def test_exchange_uses_client_secret_post(monkeypatch):
 
     # Endpoint is Cloudflare's OAuth token endpoint.
     assert captured["url"] == cf._CF_TOKEN == "https://dash.cloudflare.com/oauth2/token"
-    # client_secret_post: both credentials live in the form body.
+    # client_secret_post: both credentials live in the form body, STRIPPED of any
+    # surrounding whitespace/newline (no "\n" / spaces reach Cloudflare).
     assert captured["data"]["client_id"] == "cid"
     assert captured["data"]["client_secret"] == "csecret"
+    assert captured["data"]["client_id"] == captured["data"]["client_id"].strip()
+    assert captured["data"]["client_secret"] == captured["data"]["client_secret"].strip()
     assert captured["data"]["grant_type"] == "authorization_code"
     assert captured["data"]["code"] == "the-code"
     # redirect_uri matches the authorize URL's (_redirect_uri()) exactly.

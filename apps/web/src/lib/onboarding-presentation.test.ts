@@ -35,7 +35,7 @@ function wizard(currentStep: number, overrides: Partial<OnboardingWizardView> = 
     { step: 1, key: 'provider_discovery', name: 'Provider Discovery', status: 'pending' },
     { step: 2, key: 'verification', name: 'Website Verification', status: 'pending' },
     { step: 3, key: 'trusted_access', name: 'Trusted Scanner Access', status: 'pending' },
-    { step: 4, key: 'validation', name: 'Access Validation', status: 'pending' },
+    { step: 4, key: 'providers_connected', name: 'Connect Providers', status: 'pending' },
     { step: 5, key: 'readiness', name: 'Activation Readiness', status: 'pending' },
     { step: 6, key: 'monitoring', name: 'Monitoring Activation', status: 'inactive' },
   ]
@@ -111,7 +111,8 @@ describe('correct CTA for verification-pending + progression', () => {
   it('CTA changes as onboarding progresses', () => {
     expect(buildOnboardingView(wizard(2), provider, null).cta?.action).toBe('verify')
     expect(buildOnboardingView(wizard(3), provider, null).cta?.action).toBe('configure_access')
-    expect(buildOnboardingView(wizard(4), provider, null).cta?.action).toBe('run_validation')
+    // Step 4 is now "connect providers" — no single CTA (per-provider buttons handle it).
+    expect(buildOnboardingView(wizard(4), provider, null).cta).toBeNull()
     expect(buildOnboardingView(wizard(6), provider, null).cta?.action).toBe('activate_monitoring')
   })
   it('complete -> no CTA, monitoring active', () => {
@@ -270,7 +271,6 @@ describe('limited coverage is surfaced, not a clean green checkmark', () => {
   function lwizard(): OnboardingWizardView {
     const w = wizard(6, { overall_status: 'limited' })
     for (const s of w.steps) s.status = s.key === 'monitoring' ? 'active' : 'completed'
-    const val = w.steps.find((s) => s.key === 'validation'); if (val) val.status = 'limited'
     return w
   }
   const limitedVal: AccessValidationView = {
@@ -279,12 +279,10 @@ describe('limited coverage is surfaced, not a clean green checkmark', () => {
     validated_at: 't', recommendation: '',
   }
 
-  it('milestones qualify validation + monitoring when coverage is limited', () => {
+  it('milestones qualify monitoring when coverage is limited', () => {
     const v = buildOnboardingView(lwizard(), provider, limitedVal,
       { blocker: 'vercel', next_action: 'Set up Vercel scanner access' })
     expect(v.coverage.level).toBe('limited')
-    expect(v.completed).toContain('Coverage validated (limited)')
-    expect(v.completed).not.toContain('Coverage validated')   // not the clean claim
     expect(v.completed).toContain('Monitoring active (limited coverage)')
   })
 
@@ -293,6 +291,7 @@ describe('limited coverage is surfaced, not a clean green checkmark', () => {
     for (const s of w.steps) s.status = s.key === 'monitoring' ? 'active' : 'completed'
     const v = buildOnboardingView(w, provider, { ...limitedVal, status: 'ready', pages_found: 40 })
     expect(v.coverage.level).toBe('full')
-    expect(v.completed).toContain('Coverage validated')
+    expect(v.completed).toContain('Providers connected')
+    expect(v.completed).toContain('Monitoring active')
   })
 })

@@ -165,6 +165,8 @@ export interface OnboardingReadinessView {
   verification: string
   trusted_access: string
   validation: string
+  provider_connected?: string
+  providers?: { detected: string[]; connected: string[]; missing: string[] }
   evidence: string[]
   recommendation: string
   monitoring: string
@@ -625,6 +627,9 @@ export const api = {
     // callback is handled server-side and never exposes tokens to the frontend.
     cloudflareConnect: (id: string) =>
       request<CloudflareConnectResponse>('POST', `/websites/${id}/providers/cloudflare/connect`),
+    // Vercel read-only connect (existing endpoint; NOT firewall automation).
+    vercelConnect: (id: string) =>
+      request<CloudflareConnectResponse>('POST', `/websites/${id}/providers/vercel/connect`),
     cloudflareStatus: (id: string) =>
       request<ProviderConnectionView>('GET', `/websites/${id}/providers/cloudflare`),
     // Phase-3.4 scanner access: elevated OAuth re-consent that creates the

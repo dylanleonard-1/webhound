@@ -59,10 +59,10 @@ const STEP_META: Record<string, { title: string; explanation: string; cta: { lab
     explanation: 'Next, WebHound will guide you through giving the scanner access to your website.',
     cta: { label: 'Set Up Scanner Access', action: 'configure_access' },
   },
-  validation: {
-    title: 'Validate Coverage',
-    explanation: 'WebHound checks that it can fully see your website before monitoring begins.',
-    cta: { label: 'Run Validation', action: 'run_validation' },
+  providers_connected: {
+    title: 'Connect your providers',
+    explanation: 'Connect each detected provider (Cloudflare, Vercel) so WebHound can monitor safely. Use the connect buttons below.',
+    cta: null,
   },
   readiness: {
     title: 'Finalize Setup',
@@ -80,7 +80,7 @@ const DONE_LABEL: Record<string, string> = {
   provider_discovery: 'Environment detected',
   verification: 'Ownership verified',
   trusted_access: 'Scanner access configured',
-  validation: 'Coverage validated',
+  providers_connected: 'Providers connected',
   readiness: 'Ready for monitoring',
   monitoring: 'Monitoring active',
 }
@@ -261,9 +261,7 @@ export function buildOnboardingView(
     if (!DONE_STATUSES.has(s.status) || !DONE_LABEL[s.key]) continue
     // Don't claim clean "Coverage validated" / "Monitoring active" when coverage is
     // limited by a provider block — qualify the milestone so it's honest.
-    if (coverage.level === 'limited' && s.key === 'validation') {
-      completed.push('Coverage validated (limited)')
-    } else if (coverage.level === 'limited' && s.key === 'monitoring') {
+    if (coverage.level === 'limited' && s.key === 'monitoring') {
       completed.push('Monitoring active (limited coverage)')
     } else {
       completed.push(DONE_LABEL[s.key])

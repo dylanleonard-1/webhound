@@ -124,6 +124,24 @@ export interface TrustedAccessView {
   last_validated_at: string | null
 }
 
+export interface CloudflareScannerAccessView {
+  verified: boolean
+  cloudflare_connected: boolean
+  // not_needed | pending_permissions | pending_rule_setup | active | blocked_by_other_provider | failed
+  cloudflare_scanner_access: string
+  blocker: string | null          // actionable provider: cloudflare | vercel | ...
+  diagnosis: string | null        // cloudflare | vercel | both | unknown
+  next_action: string | null
+  message: string
+  rule: {
+    rule_type: string | null
+    created_by_webhound: boolean | null
+    created_at: string | null
+    last_validated_at: string | null
+    degraded: boolean
+  } | null
+}
+
 export interface AccessValidationView {
   status: string
   pages_found: number
@@ -612,6 +630,8 @@ export const api = {
     // Phase-3.4 scanner access: elevated OAuth re-consent that creates the
     // Cloudflare firewall skip rule for the scanner UA. `start` returns the
     // authorization URL; the callback creates+verifies the rules server-side.
+    cloudflareScannerAccessStatus: (id: string) =>
+      request<CloudflareScannerAccessView>('GET', `/websites/${id}/providers/cloudflare/scanner-access`),
     cloudflareScannerAccessStart: (id: string) =>
       request<CloudflareConnectResponse>('POST', `/websites/${id}/providers/cloudflare/scanner-access/start`),
     cloudflareScannerAccessDisconnect: (id: string) =>

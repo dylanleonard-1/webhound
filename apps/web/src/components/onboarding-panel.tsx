@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import {
   api,
   type AccessValidationView,
+  type CloudflareScannerAccessView,
   type OnboardingAuditView,
   type OnboardingReadinessView,
   type OnboardingWizardView,
@@ -82,6 +83,7 @@ interface PanelData {
   readiness: OnboardingReadinessView | null
   wizard: OnboardingWizardView | null
   audit: OnboardingAuditView | null
+  cfScanner: CloudflareScannerAccessView | null
 }
 
 export function OnboardingPanel({ websiteId, isAdmin = false, onRevealVerification }: {
@@ -95,15 +97,16 @@ export function OnboardingPanel({ websiteId, isAdmin = false, onRevealVerificati
   const [advancedOpen, setAdvancedOpen] = useState(advancedDefaultOpen(isAdmin))
 
   const load = useCallback(async () => {
-    const [provider, trusted, validation, readiness, wizard, audit] = await Promise.all([
+    const [provider, trusted, validation, readiness, wizard, audit, cfScanner] = await Promise.all([
       api.websites.providers(websiteId).catch(() => null),
       api.websites.trustedAccess(websiteId).catch(() => null),
       api.websites.accessValidation(websiteId).catch(() => null),
       api.websites.onboarding(websiteId).catch(() => null),
       api.websites.onboardingWizard(websiteId).catch(() => null),
       api.websites.audit(websiteId).catch(() => null),
+      api.websites.cloudflareScannerAccessStatus(websiteId).catch(() => null),
     ])
-    setData({ provider, trusted, validation, readiness, wizard, audit })
+    setData({ provider, trusted, validation, readiness, wizard, audit, cfScanner })
     setLoading(false)
   }, [websiteId])
 
@@ -120,7 +123,7 @@ export function OnboardingPanel({ websiteId, isAdmin = false, onRevealVerificati
   }
   if (!data) return null
 
-  const { provider, trusted, validation, readiness, wizard, audit } = data
+  const { provider, trusted, validation, readiness, wizard, audit, cfScanner } = data
   const view = buildOnboardingView(wizard, provider, validation)
   const percent = wizard?.completion_percent ?? 0
   const onValidationStep = view.cta?.action === 'run_validation'
@@ -321,6 +324,23 @@ export function OnboardingPanel({ websiteId, isAdmin = false, onRevealVerificati
               <Row label="Last Validation" value={fmt(trusted.last_validated_at)} />
               {trusted.status !== 'active' && (
                 <p className="text-xs text-gray-400 mt-2">{trusted.recommended_action}</p>
+              )}
+              {cfScanner?.cloudflare_connected && (
+                <div className="mt-3 pt-3 border-t border-white/5">
+                  <Row label="Cloudflare scanner access" value={humanize(cfScanner.cloudflare_scanner_access)} />
+                  {cfScanner.blocker && cfScanner.cloudflare_scanner_access === 'blocked_by_other_provider' && (
+                    <Row label="Current blocker" value={humanize(cfScanner.blocker)} />
+                  )}
+                  <p className="text-xs text-gray-400 mt-2">{cfScanner.message}</p>
+                  {cfScanner.next_action && (
+                    <p className="text-xs text-[#8BFF3E] mt-1">Next: {cfScanner.next_action}</p>
+                  )}
+                  {cfScanner.rule?.last_validated_at && (
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Rule validated {fmt(cfScanner.rule.last_validated_at)}
+                    </p>
+                  )}
+                </div>
               )}
             </Card>
           )}

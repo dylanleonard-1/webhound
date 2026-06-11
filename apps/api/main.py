@@ -44,6 +44,7 @@ from apps.api.routers import (
     scan_results,
     scan_schedules,
     scanner_identity,
+    tickets,
     trusted_access,
     vercel,
     websites,
@@ -144,6 +145,7 @@ app.include_router(baselines.router)
 app.include_router(scan_schedules.router)
 app.include_router(notifications.router)
 app.include_router(billing.router)
+app.include_router(tickets.router)
 
 # Internal /control command center (RBAC-gated staff APIs).
 from apps.api.internal.router import router as internal_router  # noqa: E402

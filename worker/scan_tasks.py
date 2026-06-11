@@ -133,6 +133,18 @@ async def _execute(
 ) -> dict:
     import apps.api.models  # noqa: F401 — registers all models with Base.metadata
 
+    # TEMP DIAGNOSTIC (egress IP) — remove after capture. Logs the worker's real
+    # outbound IP as seen by the internet, so we can determine fixed-vs-dynamic egress
+    # for a Vercel System Bypass (IP/CIDR) rule. Best-effort; never affects the scan.
+    try:
+        import httpx as _httpx_diag
+        async with _httpx_diag.AsyncClient(timeout=12) as _dc:
+            _r1 = await _dc.get("https://api.ipify.org")
+            _ip1 = _r1.text.strip() if _r1.status_code == 200 else f"err{_r1.status_code}"
+        logger.warning("WEBHOUND_EGRESS_DIAG job=%s egress_ip=%s", job_id, _ip1)
+    except Exception as _de:  # noqa: BLE001
+        logger.warning("WEBHOUND_EGRESS_DIAG job=%s probe_failed=%s", job_id, type(_de).__name__)
+
     from apps.api.models.enums import ScanStatus
     from apps.api.models.scan_job import ScanJob
     from apps.api.schemas.scan_jobs import ScanJobStatusUpdate

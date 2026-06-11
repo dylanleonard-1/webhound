@@ -64,18 +64,20 @@ def test_state_csrf():
 
 
 def test_authorize_url_requests_zone_read_only():
-    # Option B: minimal scope. The authorize URL must request zone:read and must
-    # NOT request account:read (Cloudflare rejects it as invalid_scope).
+    # Minimal scope, DOT notation. Cloudflare's self-managed OAuth clients reject
+    # colon-style `zone:read` as invalid_scope, so we request `zone.read` and must
+    # NOT request any account scope.
     url = cf.build_authorize_url("st")
-    assert "scope=zone%3Aread" in url        # urlencoded "zone:read"
-    assert "account%3Aread" not in url       # no account:read
-    assert cf._CF_SCOPES == "zone:read"
+    assert "scope=zone.read" in url          # urlencoded "zone.read" (dot, no colon)
+    assert "zone%3Aread" not in url          # not the rejected colon form
+    assert "account" not in url.split("scope=", 1)[1].split("&", 1)[0]  # no account scope
+    assert cf._scopes() == "zone.read"       # env-configurable, default zone.read
 
 
 async def test_successful_connect(db_session, monkeypatch):
     async def fake_ex(code):
-        # zone:read-only — Cloudflare echoes back the minimal granted scope.
-        return {"access_token": TOKEN, "refresh_token": "rf", "scope": "zone:read"}
+        # zone.read-only (dot notation) — Cloudflare echoes back the granted scope.
+        return {"access_token": TOKEN, "refresh_token": "rf", "scope": "zone.read"}
     async def fake_z(token):
         return ACTIVE
     monkeypatch.setattr(cf, "_exchange_code", fake_ex)
@@ -89,7 +91,7 @@ async def test_successful_connect(db_session, monkeypatch):
     # Account id is derived from the zone payload (ACTIVE[0].account.id) — no
     # account:read scope / accounts endpoint required (Option B).
     assert conn.account_id == "a1" and conn.zone_id == "z1"
-    assert conn.permissions_granted == ["zone:read"]
+    assert conn.permissions_granted == ["zone.read"]
     sec = await db_session.scalar(sa.select(EncryptedSecret).where(
         EncryptedSecret.resource_type == "cloudflare",
         EncryptedSecret.secret_type == "oauth_access_token"))

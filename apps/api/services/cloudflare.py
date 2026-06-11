@@ -42,12 +42,14 @@ CLOUDFLARE_PROVIDER = "cloudflare"
 _CF_AUTHORIZE = "https://dash.cloudflare.com/oauth2/auth"
 _CF_TOKEN = "https://dash.cloudflare.com/oauth2/token"
 _CF_API = "https://api.cloudflare.com/client/v4"
-# Minimal scope: `zone:read` ONLY. We deliberately do NOT request `account:read`
-# — Cloudflare's OAuth client rejects it (invalid_scope) and we don't need it:
+# Minimal scope: `zone.read` ONLY (DOT notation — Cloudflare's self-managed OAuth
+# clients reject colon-style `zone:read` as invalid_scope; scope identifiers mirror
+# the API-token permission names). We deliberately do NOT request an account scope:
 # the account id is derived from each zone's embedded `account` object (see
-# complete_connection, conn.account_id = zone.account.id). No accounts endpoint
-# is ever called.
-_CF_SCOPES = "zone:read"
+# complete_connection, conn.account_id = zone.account.id). No accounts endpoint is
+# ever called. Env-configurable via CLOUDFLARE_OAUTH_SCOPES (settings default below).
+def _scopes() -> str:
+    return get_settings().cloudflare_oauth_scopes
 
 # Audit events (admin_audit_log via record_phase3_event). NEVER carry secrets.
 CF_OAUTH_STARTED = "cloudflare.oauth.started"
@@ -109,7 +111,7 @@ def build_authorize_url(state: str) -> str:
         "client_id": s.cloudflare_client_id,
         "redirect_uri": _redirect_uri(),
         "response_type": "code",
-        "scope": _CF_SCOPES,
+        "scope": _scopes(),
         "state": state,
     }
     return f"{_CF_AUTHORIZE}?{urlencode(params)}"
@@ -233,7 +235,7 @@ async def complete_connection(db: AsyncSession, *, website: Website, code: str,
 
     access_token = token_data.get("access_token")
     refresh_token = token_data.get("refresh_token")
-    scope = token_data.get("scope") or _CF_SCOPES
+    scope = token_data.get("scope") or _scopes()
     if not access_token:
         conn = await _get_or_create(db, website, user_id, org_id)
         conn.connection_status = ProviderConnectionStatus.FAILED.value

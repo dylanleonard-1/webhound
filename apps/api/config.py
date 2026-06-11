@@ -111,6 +111,12 @@ class Settings(BaseSettings):
     # request firewall/WAF write access in this foundation). Empty = disabled.
     cloudflare_client_id: str = ""
     cloudflare_client_secret: str = ""
+    # Cloudflare OAuth scopes (space-separated). NOTE: Cloudflare's self-managed
+    # OAuth clients use DOT notation (e.g. "zone.read"), NOT colon — a colon is
+    # rejected as invalid_scope. Env-configurable so the exact identifier can be
+    # tuned from Railway without a redeploy. Account id is read from the zone
+    # payload, so no account scope is requested.
+    cloudflare_oauth_scopes: str = "zone.read"
     # Phase-4.3 Vercel provider integration (read-only integration; empty = disabled).
     vercel_client_id: str = ""
     vercel_client_secret: str = ""

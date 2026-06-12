@@ -962,24 +962,18 @@ class Scanner:
         result.metadata["fetch_stats"] = _http_stats
         result.metadata["crawl_duration_seconds"] = round(_crawl_duration_seconds, 3)
 
-        # Visibility report (Phase 2 — compact form; expanded in later phases
-        # with forms/api/js_routes/assets/third_party + site graph + score).
+        # Visibility report — the discovery inventory + per-surface sections
+        # (forms/api/js_routes/assets/third_party) + (later) site graph + score.
         # Only present when the visibility layer ran. Best-effort.
         if ctx.visibility is not None:
             try:
-                inv = ctx.visibility.inventory
-                result.metadata["visibility_report"] = {
-                    "domain": self._target.hostname,
-                    "crawl_mode": "visibility",
-                    "pages_found": inv.pages_found,
-                    "pages_crawled": inv.pages_crawled,
-                    "status_counts": inv.status_counts(),
-                    "source_counts": inv.source_counts(),
-                    "skip_reason_counts": inv.skip_reason_counts(),
-                    "site_graph_generated": False,
-                    "visibility_score": None,
-                    "limitations": [],
-                }
+                from webhound.core.visibility.report import (
+                    build_visibility_report,
+                )
+                result.metadata["visibility_report"] = build_visibility_report(
+                    ctx, crawl_results=crawl_results,
+                    domain=self._target.hostname,
+                )
             except Exception:  # noqa: BLE001
                 logger.debug("visibility report build failed", exc_info=True)
 

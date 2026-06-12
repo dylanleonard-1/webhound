@@ -74,3 +74,30 @@ async def get_platform_access(
     cloudflare_connected = bool(conn and getattr(conn, "zone_id", None))
     return await pa_service.get_platform_access(
         db, website, cloudflare_connected=cloudflare_connected)
+
+
+@router.post("/{website_id}/platform-access/support-ticket")
+async def create_platform_access_ticket(
+    website_id: uuid.UUID, db: _DB, current_user: _CurrentUser,
+) -> dict:
+    """Escalate a failed/blocked platform-access setup to the support queue.
+    Auto-attaches the detected provider, website, scan id, challenge type, and
+    access state via the existing ticket system. Never includes secrets/tokens."""
+    website = await ws_service.get_website(db, website_id, user_id=_uid(current_user))
+    if website is None:
+        raise HTTPException(404, "Website not found")
+    from apps.api.services import cloudflare as cf
+    from apps.api.services import platform_access as pa_service
+    from apps.api.services import support
+    conn = await cf.get_connection(db, website.id)
+    cloudflare_connected = bool(conn and getattr(conn, "zone_id", None))
+    view = await pa_service.get_platform_access(
+        db, website, cloudflare_connected=cloudflare_connected)
+    payload = pa_service.build_support_payload(
+        view, hostname=website.hostname, website_id=str(website.id))
+    ticket = await support.create_ticket(
+        db, user=current_user, subject=payload["subject"],
+        description=payload["description"], category=payload["category"],
+        priority=payload["priority"], author_email=current_user.email)
+    await db.commit()
+    return {"id": str(ticket.id), "number": ticket.number, "status": ticket.status}

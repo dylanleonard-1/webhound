@@ -114,6 +114,43 @@ def build_platform_access_view(
     }
 
 
+def build_support_payload(
+    view: dict, *, hostname: str, website_id: str, scan_id: str | None = None,
+) -> dict:
+    """Build a SAFE support-ticket payload (subject + body + category/priority)
+    from a platform-access view. Auto-attaches provider, website, scan id, the
+    challenge type, the access state, and the scanner IPs — NEVER tokens/secrets."""
+    name = view.get("provider_name") or "an unknown provider"
+    provider = view.get("provider") or "unknown"
+    subject = f"[scan_blocked] Platform access — {name} blocking {hostname}"[:200]
+    lines = [
+        f"provider: {provider}",
+        f"provider_name: {view.get('provider_name')}",
+        f"wizard_state: {view.get('state')}",
+        f"challenge_detected: {view.get('challenge_detected')}",
+        f"access_required: {view.get('access_required')}",
+        f"verification: {view.get('verification')}",
+        f"allowlist_method: {view.get('allowlist_method')}",
+        f"automation_capable: {view.get('automation_capable')}",
+        f"website_id: {website_id}",
+        f"hostname: {hostname}",
+        f"scanner_ips: {', '.join(view.get('scanner_ips') or [])}",
+    ]
+    if scan_id:
+        lines.append(f"scan_id: {scan_id}")
+        lines.append(f"logs reference: scan {scan_id} on website {website_id} "
+                     "— pull via Railway logs / scan_results")
+    else:
+        lines.append("logs reference: latest scan for this website — "
+                     "pull via Railway logs / scan_results")
+    return {
+        "subject": subject,
+        "description": "\n".join(str(line) for line in lines),
+        "category": "question",
+        "priority": "medium",
+    }
+
+
 async def get_platform_access(
     db: AsyncSession, website: Website, *, cloudflare_connected: bool = False,
 ) -> dict:

@@ -134,4 +134,22 @@ def build_visibility_report(
         logger.debug("visibility authenticated section failed", exc_info=True)
         report["authenticated"] = {"enabled": False}
 
+    # Phase 11 — visibility score + limitations (computed last, over the
+    # assembled report). Transparent breakdown so the dashboard explains WHY.
+    try:
+        from webhound.core.visibility.score import compute_visibility_score
+
+        opts = getattr(getattr(ctx, "target", None), "scan_options", None)
+        max_depth = getattr(opts, "max_depth", 0) or 0
+        browser_available = bool(getattr(browser, "available", False))
+        score, breakdown, limitations = compute_visibility_score(
+            report, inventory=inv, max_depth=max_depth,
+            browser_available=browser_available,
+        )
+        report["visibility_score"] = score
+        report["score_breakdown"] = breakdown
+        report["limitations"] = limitations
+    except Exception:  # noqa: BLE001
+        logger.debug("visibility score failed", exc_info=True)
+
     return report

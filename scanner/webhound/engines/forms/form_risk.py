@@ -500,6 +500,16 @@ def _check_missing_csrf(form: ExtractedForm, page_url: str) -> Finding | None:
 def _check_get_credentials(form: ExtractedForm, page_url: str) -> Finding | None:
     if form.method != "GET":
         return None
+    # Only a REAL GET submission leaks the password in the URL. A React/SPA login form
+    # typically has NO method attribute (HTML defaults it to GET) and NO action, and is
+    # submitted via onSubmit/fetch/server-action — it never puts the password in the URL.
+    # So require BOTH an explicit method="get" AND a real action target; otherwise this
+    # is a defaulted/JS-submitted form, not a GET-credentials leak. (FP on
+    # webhoundsecurity.com/login + /register, which are Next.js SPA forms.)
+    if not getattr(form, "method_explicit", False):
+        return None
+    if not (form.action_url or form.action):
+        return None
     if not _has_credential_input(form):
         return None
     return Finding(

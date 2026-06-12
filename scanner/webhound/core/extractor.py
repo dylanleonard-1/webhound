@@ -53,6 +53,11 @@ class ExtractedForm:
     inputs: tuple[FormInput, ...]
     has_password_field: bool
     has_csrf_token: bool     # Heuristic: hidden input whose name hints at CSRF
+    # True only when the <form> carried an EXPLICIT method="..." attribute. A missing
+    # method defaults to GET in HTML, but for React/SPA forms (no method, submitted via
+    # onSubmit/fetch/server-action) that default is meaningless — so detectors must not
+    # treat a defaulted GET as a real GET submission.
+    method_explicit: bool = False
 
 
 @dataclass(frozen=True)
@@ -341,7 +346,9 @@ class Extractor:
                 if raw_action
                 else None
             )
-            method_raw = str(form_tag.get("method") or "get").upper()
+            method_attr = form_tag.get("method")
+            method_explicit = bool(isinstance(method_attr, str) and method_attr.strip())
+            method_raw = str(method_attr or "get").upper()
             method = method_raw if method_raw in ("GET", "POST") else "GET"
 
             inputs: list[FormInput] = []
@@ -378,6 +385,7 @@ class Extractor:
                     inputs=tuple(inputs),
                     has_password_field=has_password,
                     has_csrf_token=has_csrf,
+                    method_explicit=method_explicit,
                 )
             )
 

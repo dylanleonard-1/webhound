@@ -29,6 +29,7 @@ def _form(
     inputs: list[FormInput] | None = None,
     has_password: bool = False,
     has_csrf: bool = True,
+    method_explicit: bool = True,
 ) -> ExtractedForm:
     return ExtractedForm(
         action=action,
@@ -37,6 +38,7 @@ def _form(
         inputs=tuple(inputs or []),
         has_password_field=has_password,
         has_csrf_token=has_csrf,
+        method_explicit=method_explicit,
     )
 
 
@@ -186,6 +188,31 @@ class TestFormRiskEngine:
         get_cred_findings = [f for f in findings if "get" in f.title.lower() or "credential" in f.title.lower()]
         assert get_cred_findings
         assert all(f.severity == Severity.HIGH for f in get_cred_findings)
+
+    def test_spa_form_defaulted_get_no_action_not_flagged(self):
+        # React/SPA login form: NO explicit method (HTML defaults to GET), NO action,
+        # submitted via onSubmit/fetch. Must NOT be flagged as GET-credentials leak.
+        # Real FP from webhoundsecurity.com/login + /register.
+        form = _form(
+            action=None, action_url=None, method="GET", method_explicit=False,
+            inputs=[_inp("username"), _inp("password", "password")],
+            has_password=True, has_csrf=False,
+        )
+        art = _artifacts(forms=[form])
+        findings = self.engine.analyze(art)
+        assert not any("get" in f.title.lower() and "url" in f.title.lower() for f in findings), \
+            "defaulted/JS-submitted SPA form must not be flagged as GET-credentials leak"
+
+    def test_explicit_get_with_action_still_flagged(self):
+        # A genuine explicit method="get" form WITH an action that leaks the password
+        # in the URL is still a real finding.
+        form = _form(
+            action="/login", action_url="https://example.com/login",
+            method="GET", method_explicit=True,
+            inputs=[_inp("password", "password")], has_password=True, has_csrf=False,
+        )
+        findings = self.engine.analyze(_artifacts(forms=[form]))
+        assert any("get" in f.title.lower() for f in findings)
 
     def test_file_upload_form_medium(self):
         form = _form(

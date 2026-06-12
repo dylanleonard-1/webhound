@@ -265,11 +265,21 @@ class TestCorsEngine:
         fs = self.E.analyze(_resp())
         assert fs == []
 
-    def test_wildcard_acao_is_medium(self):
-        fs = self.E.analyze(_resp(headers={"Access-Control-Allow-Origin": "*"}))
-        assert fs
-        assert fs[0].severity == Severity.MEDIUM
-        assert "any website" in fs[0].title.lower()
+    def test_wildcard_acao_on_public_resource_is_info(self):
+        # audit #4: ACAO:* without credentials on a PUBLIC path is informational, not
+        # MEDIUM (a browser won't send credentials cross-origin without ACAC:true).
+        fs = self.E.analyze(_resp(url="https://example.com/about",
+                                  headers={"Access-Control-Allow-Origin": "*"}))
+        wc = _by_title(fs, "any website")
+        assert wc and wc[0].severity == Severity.INFO
+        assert "public" in wc[0].title.lower()
+
+    def test_wildcard_acao_on_sensitive_path_is_medium(self):
+        # A sensitive/API/account path with ACAO:* IS a real leak -> MEDIUM.
+        fs = self.E.analyze(_resp(url="https://example.com/api/v1/users",
+                                  headers={"Access-Control-Allow-Origin": "*"}))
+        wc = _by_title(fs, "any website")
+        assert wc and wc[0].severity == Severity.MEDIUM
 
     def test_wildcard_acao_with_credentials_is_high(self):
         fs = self.E.analyze(_resp(headers={

@@ -9,6 +9,9 @@
 
 from __future__ import annotations
 
+import re
+from urllib.parse import urlparse
+
 from webhound.core.http_client import HttpResponse
 from webhound.models.evidence import Evidence, EvidenceType
 from webhound.models.finding import Exploitability, Finding, FindingCategory, FrameworkAlignment
@@ -18,6 +21,16 @@ _ENGINE = "cors"
 
 # Methods that indicate an overly permissive CORS policy.
 _SENSITIVE_METHODS = frozenset({"DELETE", "PUT", "PATCH"})
+
+# A path that plausibly returns PII / authenticated / API data — where ACAO:* actually
+# matters. Public marketing/content pages (/, /about, …) do NOT match, so ACAO:* there is
+# INFO, not MEDIUM. (audit #4: require credentials OR a sensitive resource to escalate.)
+_SENSITIVE_PATH_RE = re.compile(
+    r"(?:/api(?:/|$)|/graphql\b|/gql\b|/v\d+/|/rest/|/wp-json/|/account|/admin|/auth|"
+    r"/oauth|/login|/logout|/users?\b|/me\b|/session|/token|/billing|/invoice|/order|"
+    r"/cart|/checkout|/payment|/profile|/settings|/internal|/dashboard)",
+    re.I,
+)
 
 # Enterprise metadata per CORS finding kind. See security_headers.py for the
 # overall calibration approach.
@@ -75,7 +88,8 @@ class CorsEngine:
         acam = h.get("access-control-allow-methods", "")
         acah = h.get("access-control-allow-headers", "")
 
-        findings.extend(self._check_wildcard_origin(acao, acac, url))
+        sensitive = bool(_SENSITIVE_PATH_RE.search(urlparse(url).path or ""))
+        findings.extend(self._check_wildcard_origin(acao, acac, url, sensitive=sensitive))
         findings.extend(self._check_permissive_methods(acao, acam, url))
         findings.extend(self._check_wildcard_headers(acao, acah, url))
 
@@ -86,7 +100,7 @@ class CorsEngine:
     # ------------------------------------------------------------------
 
     def _check_wildcard_origin(
-        self, acao: str, acac: str, url: str
+        self, acao: str, acac: str, url: str, *, sensitive: bool = False
     ) -> list[Finding]:
         acao_clean = acao.strip()
 
@@ -117,22 +131,46 @@ class CorsEngine:
 
         if acao_clean == "*":
             ev = _header_ev("Access-Control-Allow-Origin", acao_clean, url)
+            # ACAO:* WITHOUT credentials is only a real leak when the resource carries
+            # sensitive/authenticated data. A browser won't even send credentials cross-
+            # origin without ACAC:true, so on a public resource ACAO:* is informational.
+            # Escalate to MEDIUM only when the path looks sensitive (API/account/auth/…).
+            if sensitive:
+                return [_finding(
+                    title="CORS allows any website to read this resource",
+                    description=(
+                        "`Access-Control-Allow-Origin: *` lets any site on the internet read "
+                        "responses from this endpoint via cross-origin requests, and its path looks "
+                        "sensitive (API / account / auth). That's a leak for any PII, billing, or "
+                        "authenticated content it returns."
+                    ),
+                    severity=Severity.MEDIUM,
+                    url=url,
+                    evidence=ev,
+                    remediation=(
+                        "If this resource is intentionally public, no action needed — document it. "
+                        "Otherwise replace `*` with an explicit allowlist of trusted origins."
+                    ),
+                    confidence=0.7,
+                    framework=_FA["cors_wildcard"],
+                )]
             return [_finding(
-                title="CORS allows any website to read this resource",
+                title="CORS allows any website to read this resource (public)",
                 description=(
-                    "`Access-Control-Allow-Origin: *` lets any site on the internet read responses "
-                    "from this endpoint via cross-origin requests. That's fine for genuinely public "
-                    "data (a CDN, a public API). It's a leak for anything with PII, billing, or "
-                    "authenticated content."
+                    "`Access-Control-Allow-Origin: *` lets any origin read this response. On a "
+                    "public resource that's generally fine — and because `Access-Control-Allow-"
+                    "Credentials` is not `true`, browsers won't send cookies/credentials cross-"
+                    "origin, so no authenticated data is exposed this way. Review only if this "
+                    "endpoint ever returns PII or authenticated content."
                 ),
-                severity=Severity.MEDIUM,
+                severity=Severity.INFO,
                 url=url,
                 evidence=ev,
                 remediation=(
-                    "If this resource is intentionally public, no action needed — document it. "
-                    "Otherwise, replace `*` with an explicit allowlist of trusted origins."
+                    "No action required for genuinely public data; document the intent. If the "
+                    "endpoint may return PII/auth'd data, replace `*` with an origin allowlist."
                 ),
-                confidence=0.7,
+                confidence=0.6,
                 framework=_FA["cors_wildcard"],
             )]
 

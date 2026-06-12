@@ -23,6 +23,7 @@ import { ScanIntelligence } from '@/components/results/scan-intelligence'
 import { GroupedFindingsTable } from '@/components/results/grouped-findings-table'
 import { EngineDiagnosticsTable } from '@/components/results/engine-diagnostics-table'
 import { ReportDownloads } from '@/components/results/report-downloads'
+import { SiteVisibilityMap } from '@/components/results/site-visibility-map'
 
 const PROFILE_COLOR: Record<string, string> = {
   quick:    '#22d3ee',
@@ -211,6 +212,18 @@ export default function ScanResultPage() {
               externalScriptDomainCount={result.scanner_metadata?.external_script_domain_count as number | undefined}
             />
           </div>
+        </motion.div>
+
+        {/* ============================================================ */}
+        {/* Section: Site Visibility Map — crawler discovery coverage    */}
+        {/* (renders nothing on scans that didn't run the visibility     */}
+        {/*  layer).                                                     */}
+        {/* ============================================================ */}
+        <motion.div
+          className="space-y-3"
+          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.11 }}
+        >
+          <SiteVisibilityMap scanResultId={id} />
         </motion.div>
 
         {/* ============================================================ */}

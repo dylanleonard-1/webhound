@@ -457,6 +457,57 @@ export interface ReportResponse {
   created_at: string
 }
 
+// Crawler visibility layer — GET /scan-results/{id}/visibility
+export interface VisibilityDiscoveredUrl {
+  url: string
+  normalized: string
+  discovered_via: string | null
+  sources: string[]
+  tags: string[]
+  depth: number
+  parent: string | null
+  status: string
+  skip_reason: string | null
+  in_scope: boolean
+  status_code: number | null
+  content_type: string | null
+}
+
+export interface VisibilitySurfaceCount {
+  count: number
+  [key: string]: unknown
+}
+
+export interface VisibilityPageTree {
+  roots: string[]
+  root_count: number
+  edges: Record<string, string[]>
+  node_count: number
+  edge_count: number
+}
+
+export interface VisibilityReport {
+  domain: string | null
+  crawl_mode: string
+  pages_found: number
+  pages_crawled: number
+  js_routes: number
+  visibility_score: number | null
+  site_graph_generated: boolean
+  status_counts: Record<string, number>
+  source_counts: Record<string, number>
+  skip_reason_counts: Record<string, number>
+  limitations: string[]
+  forms?: VisibilitySurfaceCount
+  api?: VisibilitySurfaceCount
+  assets?: VisibilitySurfaceCount
+  third_party?: VisibilitySurfaceCount
+  authenticated?: { enabled: boolean; mode?: string | null; pages?: number; apis?: number; routes?: number; forms?: number; third_parties?: number }
+  site_graph?: { generated: boolean; node_count: number; edge_count: number; node_types: Record<string, number>; edge_types: Record<string, number>; busiest_pages: { page: string; connections: number }[]; page_tree: VisibilityPageTree }
+  score_breakdown?: { score: number; components: Record<string, number>; weights: Record<string, number>; inputs: Record<string, unknown> }
+  discovered_urls?: VisibilityDiscoveredUrl[]
+}
+
 // ---------------------------------------------------------------------------
 // HTTP core
 // ---------------------------------------------------------------------------
@@ -724,6 +775,9 @@ export const api = {
 
     reportByFormat: (id: string, fmt: ReportFormat) =>
       request<ReportResponse>('GET', `/scan-results/${id}/reports/${fmt}`),
+
+    visibility: (id: string) =>
+      request<VisibilityReport>('GET', `/scan-results/${id}/visibility`),
   },
 
   notifications: {

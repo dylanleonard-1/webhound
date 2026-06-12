@@ -49,11 +49,17 @@ def _page_depth(frontier: VisibilityFrontier, page_url: str | None) -> int:
 def feed_browser_routes(
     frontier: VisibilityFrontier,
     telemetries: list[Any],  # list[BrowserTelemetry] — duck-typed
+    *,
+    extra_tags: set[str] | None = None,
 ) -> int:
     """Fold every browser-discovered navigable URL on *telemetries* into
     *frontier*. Returns the count of raw candidates submitted (the frontier
-    decides scope/robots/depth/budget and logs skips)."""
+    decides scope/robots/depth/budget and logs skips).
+
+    *extra_tags* are merged onto every URL — e.g. {"authenticated"} when the
+    browser pass ran with a session (Phase 9)."""
     submitted = 0
+    extra = set(extra_tags or set())
     for tel in telemetries or []:
         page_url = getattr(tel, "final_url", None) or getattr(tel, "page_url", None)
         if not page_url:
@@ -70,7 +76,7 @@ def feed_browser_routes(
                 base_url=page_url,
                 depth=child_depth,
                 parent=page_url,
-                tags={"rendered_link", "browser_explorer"},
+                tags={"rendered_link", "browser_explorer"} | extra,
             )
             submitted += 1
 
@@ -90,7 +96,7 @@ def feed_browser_routes(
                 base_url=page_url,
                 depth=child_depth,
                 parent=page_url,
-                tags={"browser_explorer", "js_route", tag},
+                tags={"browser_explorer", "js_route", tag} | extra,
             )
             submitted += 1
     return submitted

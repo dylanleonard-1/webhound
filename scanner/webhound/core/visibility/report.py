@@ -95,4 +95,29 @@ def build_visibility_report(
         logger.debug("visibility third_party section failed", exc_info=True)
         report["third_party"] = {"count": 0}
 
+    # Phase 9 — authenticated surface. Consent-gated: only meaningful when a
+    # session was supplied (auth_mode != public_only). REUSES the AuthContext
+    # the orchestrator already folded into metadata.auth from the authenticated
+    # browser pass; the authenticated routes/pages are already crawled via the
+    # Phase-4 browser follow-up (the browser pass ran with the session).
+    try:
+        meta = getattr(getattr(ctx, "scan_result", None), "metadata", None) or {}
+        auth_meta = meta.get("auth") or {}
+        report["authenticated"] = {
+            "enabled": bool(auth_meta.get("available")),
+            "mode": auth_meta.get("mode"),
+            "expired": bool(auth_meta.get("expired")),
+            "pages": auth_meta.get("authenticated_page_count", 0),
+            "apis": auth_meta.get("authenticated_api_count", 0),
+            "forms": auth_meta.get("authenticated_form_count", 0),
+            "routes": auth_meta.get("authenticated_route_count", 0),
+            "third_parties": len(
+                auth_meta.get("authenticated_third_parties", []) or []
+            ),
+            "auth_domains": auth_meta.get("auth_domains", []),
+        }
+    except Exception:  # noqa: BLE001
+        logger.debug("visibility authenticated section failed", exc_info=True)
+        report["authenticated"] = {"enabled": False}
+
     return report

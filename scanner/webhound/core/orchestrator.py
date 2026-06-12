@@ -1117,7 +1117,11 @@ class Scanner:
         telemetries = list(getattr(ctx.browser, "telemetries", None) or [])
         if not telemetries:
             return
-        feed_browser_routes(vis.frontier, telemetries)
+        # Tag routes authenticated when the browser pass ran with a session
+        # (consent-gated authenticated discovery — Phase 9).
+        auth = getattr(ctx, "auth", None)
+        extra_tags = {"authenticated"} if (auth and getattr(auth, "available", False)) else None
+        feed_browser_routes(vis.frontier, telemetries, extra_tags=extra_tags)
         if vis.frontier.queued_count == 0:
             return
 

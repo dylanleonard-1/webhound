@@ -18,7 +18,9 @@ from typing import Any
 from webhound.core.visibility.discovered_url import UrlSource
 from webhound.core.visibility.surfaces import (
     build_api_section,
+    build_assets_section,
     build_forms_section,
+    build_third_party_section,
 )
 
 logger = logging.getLogger(__name__)
@@ -70,5 +72,27 @@ def build_visibility_report(
     except Exception:  # noqa: BLE001
         logger.debug("visibility api section failed", exc_info=True)
         report["api"] = {"count": 0}
+
+    # Phase 7 — assets.
+    try:
+        report["assets"] = build_assets_section(
+            crawl_results, browser_discovery=browser, primary_host=domain,
+        )
+    except Exception:  # noqa: BLE001
+        logger.debug("visibility assets section failed", exc_info=True)
+        report["assets"] = {"count": 0}
+
+    # Phase 8 — third-party hosts (reuses the scan-wide external host inventory
+    # the orchestrator already aggregated into metadata).
+    try:
+        external_hosts = []
+        meta = getattr(getattr(ctx, "scan_result", None), "metadata", None) or {}
+        external_hosts = meta.get("external_host_inventory") or []
+        report["third_party"] = build_third_party_section(
+            external_hosts, primary_host=domain,
+        )
+    except Exception:  # noqa: BLE001
+        logger.debug("visibility third_party section failed", exc_info=True)
+        report["third_party"] = {"count": 0}
 
     return report

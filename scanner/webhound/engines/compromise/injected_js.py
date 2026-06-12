@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from urllib.parse import urlparse
 
@@ -90,6 +91,35 @@ _EVENT_HANDLER_PAYLOAD = re.compile(
 
 # A `javascript:` URL inside any href= / src= attribute value.
 _JAVASCRIPT_URI = re.compile(r"^\s*javascript:", re.I)
+
+# Framework DATA-TRANSPORT scripts serialize the page's own content (headings, copy)
+# into <script> bodies — Next.js App-Router RSC/Flight (self.__next_f.push([...])),
+# Pages-Router __NEXT_DATA__, Remix, SvelteKit, Nuxt, or a plain JSON island. The
+# malware/skimmer signatures must NOT scan these: a security/educational page whose
+# COPY says "exfiltration" lands here verbatim and is not executable attacker logic.
+# We only scan actual executable JavaScript, per the cardinal rule.
+_DATA_PAYLOAD_MARKERS = re.compile(
+    r"self\.__next_f|__next_f\.push|__NEXT_DATA__|__remixContext|"
+    r"__sveltekit_|window\.__NUXT__|__NUXT_DATA__",
+    re.I,
+)
+
+
+def _is_data_payload_script(script: str) -> bool:
+    """True if the inline script is a framework data-transport payload (serialized page
+    content) rather than executable logic. Such scripts carry the page's own copy and
+    must be excluded from malware-keyword/skimmer detection."""
+    head = script[:2000]
+    if _DATA_PAYLOAD_MARKERS.search(head):
+        return True
+    stripped = script.lstrip()
+    if stripped[:1] in "{[":  # a JSON island (e.g. <script type=application/json>)
+        try:
+            json.loads(stripped)
+            return True
+        except (ValueError, TypeError):
+            return False
+    return False
 
 _RISKY_TLDS = frozenset({
     "tk", "ml", "ga", "cf", "gq", "xyz", "top", "club", "icu",
@@ -237,6 +267,12 @@ class InjectedJsEngine:
 
         for idx, script in enumerate(scripts):
             if not script:
+                continue
+            # Skip framework data-transport scripts (RSC/Flight/__NEXT_DATA__/JSON
+            # islands): they serialize the page's own copy, so scanning them for
+            # skimmer/malware keywords flags educational/security page TEXT as malware.
+            # Only executable logic is scanned.
+            if _is_data_payload_script(script):
                 continue
             findings.extend(self._check_payment_harvest(script, idx, artifacts))
             findings.extend(self._check_dynamic_inject(script, idx, artifacts))

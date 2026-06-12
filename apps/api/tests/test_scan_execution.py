@@ -168,6 +168,23 @@ async def test_persist_scan_result_severity_breakdown(db_session, scan_job, mock
     assert record.severity_breakdown["high"] == 1
 
 
+async def test_persist_headline_is_grouped_distinct(db_session, scan_job, mock_scan_result):
+    # 21 identical per-page raw findings collapse to ONE distinct grouped issue. The
+    # headline (total_findings/severity_breakdown) must reflect the DISTINCT count (1),
+    # not the raw 21 — the raw counts are preserved in scanner_metadata for the detail.
+    one = mock_scan_result.findings[0]
+    mock_scan_result.findings = [one] * 21
+    mock_scan_result.active_findings = [one] * 21
+    record = await persist_scan_result(db_session, scan_job.id, mock_scan_result)
+    assert record.total_findings == 1            # distinct, NOT 21
+    assert record.actionable_findings == 1       # distinct non-info
+    assert record.severity_breakdown == {"critical": 0, "high": 1, "medium": 0, "low": 0, "info": 0}
+    md = record.scanner_metadata or {}
+    assert md["raw_findings_count"] == 21
+    assert md["raw_actionable_findings"] == 21
+    assert md["raw_severity_breakdown"]  # raw breakdown preserved
+
+
 async def test_persist_scan_result_scanner_metadata(db_session, scan_job, mock_scan_result):
     record = await persist_scan_result(db_session, scan_job.id, mock_scan_result)
     # risk_score/risk_level should be top-level, not duplicated in scanner_metadata

@@ -23,6 +23,17 @@ async def persist_scan_result(
     risk_score: int = int(result.metadata.get("risk_score", 0))
     risk_level: str = str(result.metadata.get("risk_level", "unknown"))
 
+    # Headline = DISTINCT issues (grouped site-wide), not the raw per-page list. The
+    # same site-wide header/CSP/CORS issue fires once per crawled page; the grouped view
+    # (one row + affected_url_count) is the honest count a security engineer expects. The
+    # raw per-URL FindingRecords are still persisted below for the expandable detail.
+    grouped = result.grouped_findings
+    grouped_breakdown = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
+    for gf in grouped:
+        sv = gf.severity.value
+        grouped_breakdown[sv] = grouped_breakdown.get(sv, 0) + 1
+    actionable_grouped = sum(1 for gf in grouped if gf.severity.value != "info")
+
     record = ScanResultRecord(
         scan_job_id=scan_job_id,
         scan_id=str(result.id),
@@ -30,13 +41,15 @@ async def persist_scan_result(
         risk_level=risk_level,
         duration_seconds=result.duration_seconds,
         pages_crawled=result.urls_crawled,
-        total_findings=len(result.findings),
-        actionable_findings=len(result.active_findings),
-        severity_breakdown=result.severity_breakdown.model_dump(),
+        total_findings=len(grouped),            # DISTINCT issues (was raw per-page count)
+        actionable_findings=actionable_grouped,  # distinct, non-info
+        severity_breakdown=grouped_breakdown,    # per distinct issue (was per-page-inflated)
         scanner_metadata={
-            k: v
-            for k, v in result.metadata.items()
-            if k not in ("risk_score", "risk_level")
+            **{k: v for k, v in result.metadata.items() if k not in ("risk_score", "risk_level")},
+            # Keep the raw per-page totals available for the expandable detail view.
+            "raw_findings_count": len(result.findings),
+            "raw_actionable_findings": len(result.active_findings),
+            "raw_severity_breakdown": result.severity_breakdown.model_dump(),
         },
     )
     db.add(record)

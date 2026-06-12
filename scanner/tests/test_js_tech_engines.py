@@ -368,6 +368,23 @@ class TestObfuscationDetectorEngine:
         findings = _OBFUSCATION.analyze(arts)
         assert any("random-looking" in f.title.lower() for f in findings)
 
+    def test_minified_framework_bundle_not_flagged(self):
+        # AUDIT #5: a Next.js RSC inline script (self.__next_f) with high entropy is a
+        # benign framework bundle — must NOT emit the standalone entropy finding.
+        import random, string
+        rng = random.Random(7)
+        blob = "self.__next_f.push([1,\"" + "".join(rng.choice(string.printable) for _ in range(600)) + "\"])"
+        findings = _OBFUSCATION.analyze(_artifacts(scripts=[_inline(blob)]))
+        assert not any("random-looking" in f.title.lower() for f in findings)
+
+    def test_single_line_minified_blob_not_flagged(self):
+        # A giant single-line minified blob (no newlines, len>=2000) is minified output.
+        import random, string
+        rng = random.Random(9)
+        blob = "".join(rng.choice(string.ascii_letters + string.digits) for _ in range(3000))
+        findings = _OBFUSCATION.analyze(_artifacts(scripts=[_inline(blob)]))
+        assert not any("random-looking" in f.title.lower() for f in findings)
+
     def test_normal_script_no_obfuscation_finding(self):
         arts = _artifacts(scripts=[_inline(
             "function greet(name) { return 'Hello, ' + name; }"

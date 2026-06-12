@@ -98,7 +98,32 @@ _SECRET_PATTERN = re.compile(
 
 # Threshold: scripts longer than this are eligible for entropy analysis.
 _ENTROPY_MIN_LEN = 500
-_ENTROPY_THRESHOLD = 5.5
+# Raised 5.5 -> 5.8 (audit #5): modern minifiers (Webpack/esbuild/Terser) routinely reach
+# ~5.5 bits/char, so 5.5 fired on benign minified bundles. 5.8 keeps the signal for
+# genuinely packed/random content while dropping ordinary minified code.
+_ENTROPY_THRESHOLD = 5.8
+
+# Markers of a framework/bundler-generated script (Next.js RSC, webpack, SystemJS …) —
+# high entropy on these is EXPECTED and benign, so they're excluded from the standalone
+# entropy finding (the strong base64/eval/packer checks still run, and correlation still
+# combines real signals). This is the lone-entropy-on-a-minified-bundle FP from the audit.
+_MINIFIED_MARKERS = re.compile(
+    r"webpackChunk|__webpack_require__|self\.__next_f|self\.webpackJsonp|__NEXT_DATA__|"
+    r"System\.register|\(self\.__next|\b__turbopack|\bparcelRequire\b",
+    re.I,
+)
+
+
+def _looks_like_minified_bundle(content: str) -> bool:
+    """True if the inline script is a framework/bundler artifact (Next.js RSC, webpack,
+    …) or a giant single-line minified blob — where high entropy is normal, not malicious."""
+    if _MINIFIED_MARKERS.search(content[:4000]):
+        return True
+    # A long script with almost no newlines is minified output (one giant statement).
+    newlines = content.count("\n")
+    if len(content) >= 2000 and (len(content) / (newlines + 1)) >= 500:
+        return True
+    return False
 
 
 class ObfuscationDetectorEngine:
@@ -328,6 +353,10 @@ class ObfuscationDetectorEngine:
 
     def _check_high_entropy(self, content: str, url: str, idx: int) -> list[Finding]:
         if len(content) < _ENTROPY_MIN_LEN:
+            return []
+        # Don't flag entropy on framework/bundler/minified scripts — that's the benign
+        # FP (Next.js RSC, webpack chunks). The base64/eval/packer checks above still run.
+        if _looks_like_minified_bundle(content):
             return []
         entropy = _shannon_entropy(content)
         if entropy <= _ENTROPY_THRESHOLD:

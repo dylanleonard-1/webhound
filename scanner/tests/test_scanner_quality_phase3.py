@@ -23,7 +23,8 @@ from webhound.models.severity import Severity
 
 
 def _f(title: str, engine: str, *, severity=Severity.MEDIUM,
-       confidence: float = 0.7, metadata: dict | None = None) -> Finding:
+       confidence: float = 0.7, metadata: dict | None = None,
+       location: str = "https://example.com/") -> Finding:
     return Finding(
         title=title,
         description=f"fixture finding for {engine}",
@@ -32,7 +33,7 @@ def _f(title: str, engine: str, *, severity=Severity.MEDIUM,
         evidence=[Evidence(
             evidence_type=EvidenceType.RAW,
             content="test",
-            location="https://example.com/",
+            location=location,
             source_engine=engine,
         )],
         confidence=confidence,
@@ -189,22 +190,27 @@ def test_credential_exfil_chain_is_critical_severity() -> None:
 
 def test_confidence_bump_only_raises_never_lowers() -> None:
     """A finding with confidence 0.9 should stay at 0.9 (or go up), never
-    drop. The bump is min(1.0, max(current, current + bump))."""
+    drop. The bump is min(1.0, max(current, current + bump)). Constituents must be
+    above the chain confidence floor (audit #3), so use ≥0.6 + a real external script
+    so the csp_external_inline chain legitimately fires and bumps them."""
     high_conf_finding = _f(
-        "Missing Content-Security-Policy header",
+        "CSP allows inline scripts",
         "security_headers", severity=Severity.MEDIUM, confidence=0.9,
     )
-    low_conf_finding = _f(
+    mid_conf_finding = _f(
         "Inline script base64 blob",
-        "obfuscation_detector", severity=Severity.LOW, confidence=0.4,
+        "obfuscation_detector", severity=Severity.LOW, confidence=0.65,
     )
-    findings = [high_conf_finding, low_conf_finding]
+    external = _f(
+        "Page loads external script from untrusted domain",
+        "third_party_domains", severity=Severity.LOW, confidence=0.7,
+    )
+    findings = [high_conf_finding, mid_conf_finding, external]
     corr = correlate_findings(findings)
     updated = apply_correlation(findings, corr)
-    # Find the original two by id
     by_id = {f.id: f for f in updated if f.scanner_engine != "correlation"}
     assert by_id[high_conf_finding.id].confidence >= 0.9
-    assert by_id[low_conf_finding.id].confidence > 0.4
+    assert by_id[mid_conf_finding.id].confidence > 0.65
 
 
 def test_apply_correlation_tags_corroborated_findings() -> None:
@@ -304,6 +310,58 @@ def test_csp_external_inline_chain_fires_on_three_signals() -> None:
     result = correlate_findings(findings)
     chain_names = [c.metadata["chain_name"] for c in result.cluster_findings]
     assert "csp_external_inline_compounding_risk" in chain_names
+
+
+def _csp_chain_present(result) -> bool:
+    return any(c.metadata["chain_name"] == "csp_external_inline_compounding_risk"
+               for c in result.cluster_findings)
+
+
+def test_csp_inline_without_external_no_chain() -> None:
+    # AUDIT #3 FP: CSP weakness + a weak inline/entropy heuristic, but NO real third-party
+    # script → no vendor to compromise → must NOT fire the threat chain.
+    findings = [
+        _f("CSP allows inline scripts", "security_headers",
+           severity=Severity.MEDIUM, confidence=0.95),
+        _f("Inline script has unusually random-looking content", "obfuscation_detector",
+           severity=Severity.LOW, confidence=0.55),
+    ]
+    assert not _csp_chain_present(correlate_findings(findings))
+
+
+def test_csp_external_low_confidence_no_chain() -> None:
+    # A below-floor external-script finding is not real attack-path evidence.
+    findings = [
+        _f("CSP allows inline scripts", "security_headers", confidence=0.95),
+        _f("Page loads external script from untrusted domain", "third_party_domains",
+           severity=Severity.LOW, confidence=0.4),
+    ]
+    assert not _csp_chain_present(correlate_findings(findings))
+
+
+def test_csp_external_cross_host_no_chain() -> None:
+    # CSP weakness and external script observed on DIFFERENT hosts are unrelated.
+    findings = [
+        _f("CSP allows inline scripts", "security_headers", confidence=0.95,
+           location="https://example.com/"),
+        _f("Page loads external script from untrusted domain", "third_party_domains",
+           confidence=0.7, location="https://unrelated.test/x"),
+    ]
+    assert not _csp_chain_present(correlate_findings(findings))
+
+
+def test_csp_chain_severity_derived_from_constituents() -> None:
+    # Severity = strongest constituent (not hard-coded MEDIUM). HIGH csp -> HIGH chain.
+    findings = [
+        _f("CSP allows inline scripts", "security_headers",
+           severity=Severity.HIGH, confidence=0.95),
+        _f("Page loads external script from untrusted domain", "third_party_domains",
+           severity=Severity.LOW, confidence=0.7),
+    ]
+    result = correlate_findings(findings)
+    chain = next(c for c in result.cluster_findings
+                 if c.metadata["chain_name"] == "csp_external_inline_compounding_risk")
+    assert chain.severity == Severity.HIGH
 
 
 def test_beaconing_third_party_chain_fires_high_severity() -> None:

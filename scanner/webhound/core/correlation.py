@@ -93,6 +93,37 @@ def _host(url: str | None) -> str | None:
         return None
 
 
+# Minimum constituent confidence for a finding to count as real attack-path evidence in
+# a correlation chain — keeps weak heuristics (e.g. a marginal entropy hit at 0.45) from
+# manufacturing a "threat chain" out of co-occurrence.
+_CHAIN_CONFIDENCE_FLOOR = 0.6
+
+_SEV_RANK = {
+    Severity.INFO: 0, Severity.LOW: 1, Severity.MEDIUM: 2,
+    Severity.HIGH: 3, Severity.CRITICAL: 4,
+}
+
+
+def _conf_ok(f: Finding) -> bool:
+    return float(getattr(f, "confidence", 0.0) or 0.0) >= _CHAIN_CONFIDENCE_FLOOR
+
+
+def _finding_loc(f: Finding) -> str | None:
+    urls = getattr(f, "affected_urls", None)
+    if urls:
+        return urls[0]
+    ev = getattr(f, "evidence", None) or []
+    if ev:
+        return getattr(ev[0], "location", None)
+    return (getattr(f, "metadata", {}) or {}).get("url")
+
+
+def _max_severity(matches: "tuple[Match, ...]") -> Severity:
+    """Cluster severity = the strongest constituent, never an escalation beyond it."""
+    return max((m.severity for m in matches),
+               key=lambda s: _SEV_RANK.get(s, 0), default=Severity.LOW)
+
+
 def _finding_to_match(f: Finding) -> Match:
     return Match(finding_id=f.id, engine=f.scanner_engine,
                  title=f.title, severity=f.severity)
@@ -395,9 +426,12 @@ def _csp_external_inline_chain(findings: list[Finding]) -> Chain | None:
     isolation in many sites; together they describe an environment where
     a compromised third-party can inject inline JS that browsers will
     happily execute."""
+    # Confidence floor on every constituent — a weak entropy/heuristic finding must not
+    # qualify as real evidence in a "threat chain".
     csp_signal = next(
         (f for f in findings
-         if _engine_matches(f, ["security_headers", "csp_engine", "headers"])
+         if _conf_ok(f)
+         and _engine_matches(f, ["security_headers", "csp_engine", "headers"])
          and _matches_keywords(f.title, ["csp", "content-security-policy",
                                           "content security policy",
                                           "unsafe-inline", "unsafe-eval"])),
@@ -405,7 +439,8 @@ def _csp_external_inline_chain(findings: list[Finding]) -> Chain | None:
     )
     external_js = next(
         (f for f in findings
-         if _engine_matches(f, ["third_party_domains", "js_analyzer",
+         if _conf_ok(f)
+         and _engine_matches(f, ["third_party_domains", "js_analyzer",
                                  "third_party"])
          and _matches_keywords(f.title, ["external script", "third-party js",
                                           "third party script", "untrusted"])),
@@ -413,17 +448,28 @@ def _csp_external_inline_chain(findings: list[Finding]) -> Chain | None:
     )
     inline_js = next(
         (f for f in findings
-         if _engine_matches(f, ["js_analyzer", "obfuscation_detector",
+         if _conf_ok(f)
+         and _engine_matches(f, ["js_analyzer", "obfuscation_detector",
                                  "injected_js"])
          and _matches_keywords(f.title, ["inline script", "inline js",
                                           "inline javascript", "eval",
                                           "function constructor"])),
         None,
     )
+    # ATTACK-PATH REQUIREMENT: the chain's premise is "a compromised THIRD-PARTY script
+    # injects inline JS the CSP fails to block". That requires BOTH the CSP weakness AND
+    # a real external/third-party-script finding — not the mere co-occurrence of a CSP
+    # config finding and an inline/entropy heuristic. Without an external script there is
+    # no vendor to compromise (FP on webhoundsecurity.com: csp + entropy only).
+    if not (csp_signal and external_js):
+        return None
+    # Same-page: the CSP weakness and the external script must be observed on the same
+    # host — otherwise they are unrelated signals, not one attack surface.
+    h_csp, h_ext = _host(_finding_loc(csp_signal)), _host(_finding_loc(external_js))
+    if h_csp and h_ext and h_csp != h_ext:
+        return None
     matches = tuple(_finding_to_match(s) for s in
                     (csp_signal, external_js, inline_js) if s)
-    if len(matches) < 2:
-        return None
     return Chain(
         name="csp_external_inline_compounding_risk",
         description=(
@@ -433,7 +479,8 @@ def _csp_external_inline_chain(findings: list[Finding]) -> Chain | None:
             "anything a compromised vendor injects via inline insertion. "
             "Tightening CSP closes both attack paths simultaneously."
         ),
-        severity=Severity.MEDIUM,
+        # Severity DERIVED from the strongest real constituent — not hard-coded MEDIUM.
+        severity=_max_severity(matches),
         confidence_bump=0.10,
         matches=matches,
         required_signals=2,

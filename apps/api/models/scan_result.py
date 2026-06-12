@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from apps.api.models.grouped_finding import GroupedFindingRecord
     from apps.api.models.report import ReportRecord
     from apps.api.models.scan_job import ScanJob
+    from apps.api.models.visibility_report import VisibilityReportRecord
 
 
 class ScanResultRecord(Base, TimestampMixin):
@@ -63,4 +64,10 @@ class ScanResultRecord(Base, TimestampMixin):
     )
     reports: Mapped[list["ReportRecord"]] = relationship(
         "ReportRecord", back_populates="scan_result", cascade="all, delete-orphan"
+    )
+    visibility_report: Mapped["VisibilityReportRecord | None"] = relationship(
+        "VisibilityReportRecord",
+        back_populates="scan_result",
+        cascade="all, delete-orphan",
+        uselist=False,
     )

@@ -25,6 +25,10 @@ from webhound.core.visibility.surfaces import (
 
 logger = logging.getLogger(__name__)
 
+# Cap on per-URL records embedded in the report JSON (keeps metadata bounded;
+# the page tree + counts still reflect the full inventory).
+_URL_CAP = 1500
+
 
 def build_visibility_report(
     ctx: Any,
@@ -51,6 +55,9 @@ def build_visibility_report(
         "site_graph_generated": False,
         "visibility_score": None,
         "limitations": [],
+        # Per-URL discovery inventory (capped) — powers the dashboard page tree,
+        # the skip-reasons panel, and the discovered_urls persistence table.
+        "discovered_urls": [d.to_dict() for d in inv.all()][:_URL_CAP],
     }
 
     browser = getattr(ctx, "browser", None)

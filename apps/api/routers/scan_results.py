@@ -249,6 +249,30 @@ async def list_engine_diagnostics(
     return [EngineDiagnosticResponse.model_validate(d) for d in items]
 
 
+@router.get("/{scan_result_id}/visibility")
+async def get_visibility_report(
+    scan_result_id: uuid.UUID, db: _DB, current_user: _CurrentUser
+) -> dict:
+    """The crawler-visibility report for a scan: pages found/crawled, forms/
+    api/js_routes/assets/third_party inventories, the site graph + page tree,
+    the visibility score, and the discovery limitations. Sourced from the
+    scan's scanner_metadata (present only when the scan ran with the visibility
+    layer enabled)."""
+    record = await sr_service.get_scan_result_detail(
+        db, scan_result_id, user_id=_uid(current_user)
+    )
+    if record is None:
+        raise HTTPException(status_code=404, detail="Scan result not found")
+    report = (record.scanner_metadata or {}).get("visibility_report")
+    if not report:
+        raise HTTPException(
+            status_code=404,
+            detail="No visibility report — this scan did not run the "
+                   "visibility layer.",
+        )
+    return report
+
+
 @router.get("/{scan_result_id}/reports", response_model=list[ReportResponse])
 async def list_reports(
     scan_result_id: uuid.UUID, db: _DB, current_user: _CurrentUser

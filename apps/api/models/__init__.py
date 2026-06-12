@@ -48,11 +48,17 @@ from apps.api.models.support_ticket import SupportTicket, SupportTicketEvent
 from apps.api.models.threat_indicator import ThreatIndicator
 from apps.api.models.trusted_access import TrustedAccessProfile
 from apps.api.models.user import User
+from apps.api.models.visibility_report import (
+    DiscoveredUrlRecord,
+    VisibilityReportRecord,
+)
 from apps.api.models.website import DomainVerification, Website
 from apps.api.models.website_group import WebsiteGroup
 
 __all__ = [
     "User",
+    "VisibilityReportRecord",
+    "DiscoveredUrlRecord",
     "WebsiteGroup",
     "AdminAuditLog",
     "AdminRole",

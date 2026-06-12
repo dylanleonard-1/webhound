@@ -54,6 +54,12 @@ class ScanProfile:
     # profiles (DEEP, ENTERPRISE); off for QUICK/STANDARD/MONITOR so
     # their reports stay surface-level.
     vuln_libs_enabled: bool = False
+    # Crawler VISIBILITY layer — unified discovery frontier + visibility
+    # report (pages/routes/forms/api/assets/third-party + site graph +
+    # coverage score). ENTERPRISE-only by default so existing tiers crawl
+    # byte-for-byte as before; the security engines just receive more
+    # in-scope pages when it is on.
+    visibility_enabled: bool = False
 
     def to_scan_options(self) -> ScanOptions:
         """Return a :class:`ScanOptions` instance configured from this profile."""
@@ -68,6 +74,7 @@ class ScanProfile:
             asm_enabled=self.asm_enabled,
             browser_enabled=self.browser_enabled,
             vuln_libs_enabled=self.vuln_libs_enabled,
+            visibility_enabled=self.visibility_enabled,
         )
 
     def summary(self) -> dict[str, Any]:
@@ -85,6 +92,7 @@ class ScanProfile:
             "asm_enabled": self.asm_enabled,
             "browser_enabled": self.browser_enabled,
             "vuln_libs_enabled": self.vuln_libs_enabled,
+            "visibility_enabled": self.visibility_enabled,
         }
 
 
@@ -176,6 +184,7 @@ ENTERPRISE = ScanProfile(
     asm_enabled=True,
     browser_enabled=True,
     vuln_libs_enabled=True,
+    visibility_enabled=True,
 )
 
 #: Registry of all built-in profiles, keyed by name.

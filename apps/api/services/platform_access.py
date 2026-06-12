@@ -173,6 +173,70 @@ def build_platform_access_view(
     }
 
 
+def build_admin_stats(
+    events: list[dict], *, providers: list[dict], scanner_ips: list[str],
+) -> dict:
+    """Aggregate platform-access admin statistics from the audit events (rows
+    from AdminAuditLog with action ∈ platform.*). Pure + testable. *events* are
+    dicts with at least ``event_type`` + ``provider``.
+
+    Returns the configured providers, the current scanner IPs, verification
+    success rate, and most-common providers / failures / blocks."""
+    from collections import Counter
+
+    detected: Counter = Counter()
+    failures: Counter = Counter()
+    blocks: Counter = Counter()
+    succ = fail = tickets = access_req = 0
+    for e in events:
+        et = e.get("event_type")
+        prov = e.get("provider") or "unknown"
+        if et == PA_PROVIDER_DETECTED:
+            detected[prov] += 1
+        elif et == PA_ACCESS_REQUIRED:
+            access_req += 1
+            blocks[prov] += 1
+        elif et == PA_VERIFICATION_SUCCESS:
+            succ += 1
+        elif et == PA_VERIFICATION_FAILED:
+            fail += 1
+            failures[prov] += 1
+        elif et == PA_TICKET_CREATED:
+            tickets += 1
+
+    total_verif = succ + fail
+    success_rate = round(100 * succ / total_verif, 1) if total_verif else None
+
+    def _top(c: Counter) -> list[dict]:
+        return [{"provider": p, "count": n} for p, n in c.most_common(10)]
+
+    return {
+        "providers": providers,
+        "provider_count": len(providers),
+        "scanner_ips": list(scanner_ips),
+        "verification": {
+            "success": succ, "failed": fail, "total": total_verif,
+            "success_rate": success_rate,
+        },
+        "access_required_count": access_req,
+        "tickets_created": tickets,
+        "most_common_providers": _top(detected),
+        "most_common_failures": _top(failures),
+        "most_common_blocks": _top(blocks),
+    }
+
+
+def registry_provider_summaries() -> list[dict]:
+    """The configured providers (registry) as admin-safe summaries."""
+    from apps.api.services.provider_access_registry import all_providers
+    return [{
+        "key": p.key, "name": p.name,
+        "automation_capable": p.automation_capable,
+        "allowlist_method": p.allowlist_method,
+        "capabilities": list(p.capabilities),
+    } for p in all_providers()]
+
+
 def build_support_payload(
     view: dict, *, hostname: str, website_id: str, scan_id: str | None = None,
 ) -> dict:

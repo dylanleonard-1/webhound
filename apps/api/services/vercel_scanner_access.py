@@ -247,7 +247,12 @@ async def apply_ip_scanner_access(
         # Registry-driven structured remediation (numbered steps + copy metadata)
         # for the PlatformAccessWizard, alongside the legacy single-string action.
         from apps.api.services.provider_access_registry import render_remediation
+        from apps.api.services import platform_access as _pa
         remediation = render_remediation("vercel", ips)
+        # Audit: the customer was shown the Vercel manual instructions (no secrets).
+        _pa.pa_audit(db, _pa.PA_VERCEL_INSTRUCTIONS_SHOWN, website,
+                     user_id=user_id, org_id=org_id, status="shown",
+                     reason="vercel", provider="vercel")
         return {"applied": False, "status": ST_PENDING_MANUAL_SETUP, "scanner_ips": ips,
                 "ticketable": True, "customer_action": manual_setup_action(ips),
                 "remediation": remediation}

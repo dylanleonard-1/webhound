@@ -99,5 +99,9 @@ async def create_platform_access_ticket(
         db, user=current_user, subject=payload["subject"],
         description=payload["description"], category=payload["category"],
         priority=payload["priority"], author_email=current_user.email)
+    pa_service.pa_audit(
+        db, pa_service.PA_TICKET_CREATED, website,
+        user_id=current_user.id, org_id=website.org_id, status="created",
+        reason=view.get("provider"), provider=view.get("provider"))
     await db.commit()
     return {"id": str(ticket.id), "number": ticket.number, "status": ticket.status}

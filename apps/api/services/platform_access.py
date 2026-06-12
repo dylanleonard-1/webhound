@@ -24,6 +24,65 @@ from apps.api.services import trusted_access as ta_service
 from apps.api.services.provider_access_registry import render_remediation
 from apps.api.services.scanner_block_detection import detect_blocking_provider
 
+# --- Audit event catalog (Phase I). Emitted via the existing provider audit
+#     trail (provider_oauth.audit_event → record_phase3_event). NEVER secrets.
+#     cloudflare.connected / .rule.created / .rule.removed already exist as the
+#     CF_* events in cloudflare_scanner_access; the platform.* events below are
+#     the framework-wide additions. ---
+PA_PROVIDER_DETECTED = "platform.provider.detected"
+PA_ACCESS_REQUIRED = "platform.access.required"
+PA_VERIFICATION_STARTED = "platform.verification.started"
+PA_VERIFICATION_SUCCESS = "platform.verification.success"
+PA_VERIFICATION_FAILED = "platform.verification.failed"
+PA_TICKET_CREATED = "platform.ticket.created"
+PA_VERCEL_INSTRUCTIONS_SHOWN = "platform.vercel.instructions.shown"
+
+AUDIT_EVENTS = (
+    PA_PROVIDER_DETECTED, PA_ACCESS_REQUIRED, PA_VERIFICATION_STARTED,
+    PA_VERIFICATION_SUCCESS, PA_VERIFICATION_FAILED, PA_TICKET_CREATED,
+    PA_VERCEL_INSTRUCTIONS_SHOWN,
+)
+
+
+def pa_audit(db, event, website, *, user_id, org_id, status, reason=None,
+             provider=None):
+    """Append a platform-access audit event to the existing provider trail.
+    Reuses provider_oauth.audit_event — NEVER carries tokens/secrets (only the
+    event, provider name, status, and a safe reason string)."""
+    from apps.api.services import provider_oauth
+    provider_oauth.audit_event(
+        db, event, website, provider=(provider or "platform"),
+        user_id=user_id, org_id=org_id, status=status, reason=reason)
+
+
+def record_access_events(db, website, view: dict, *, user_id, org_id) -> list[str]:
+    """Record provider.detected + access.required for a freshly-classified view
+    (called from explicit triggers — e.g. a completed scan — NOT on every read,
+    to avoid trail spam). Returns the event names emitted. Safe: only the
+    provider name + state, never secrets. + verification.success/failed when the
+    view carries a terminal verification result."""
+    emitted: list[str] = []
+    provider = view.get("provider")
+    if provider:
+        pa_audit(db, PA_PROVIDER_DETECTED, website, user_id=user_id, org_id=org_id,
+                 status="detected", reason=provider, provider=provider)
+        emitted.append(PA_PROVIDER_DETECTED)
+    if view.get("access_required"):
+        pa_audit(db, PA_ACCESS_REQUIRED, website, user_id=user_id, org_id=org_id,
+                 status="access_required", reason=provider, provider=provider)
+        emitted.append(PA_ACCESS_REQUIRED)
+    vr = view.get("verification")
+    if vr in ("success", "partial"):
+        pa_audit(db, PA_VERIFICATION_SUCCESS, website, user_id=user_id, org_id=org_id,
+                 status="verified", reason=vr, provider=provider)
+        emitted.append(PA_VERIFICATION_SUCCESS)
+    elif vr in ("failed", "blocked"):
+        pa_audit(db, PA_VERIFICATION_FAILED, website, user_id=user_id, org_id=org_id,
+                 status="failed", reason=vr, provider=provider)
+        emitted.append(PA_VERIFICATION_FAILED)
+    return emitted
+
+
 # --- The 9 wizard states (the component switches on these strings only) ---
 STATE_NOT_REQUIRED = "not_required"
 STATE_DETECTED = "detected"

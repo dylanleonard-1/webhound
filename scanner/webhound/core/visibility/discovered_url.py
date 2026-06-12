@@ -103,6 +103,11 @@ class DiscoveredUrl:
     # First source seen wins for the human-facing "discovered via" headline;
     # the full set lives in ``sources``.
     discovered_via: UrlSource | None = None
+    # Fine-grained provenance tags layered on top of the coarse UrlSource
+    # bucket (e.g. "nextjs", "react_router", "inline_script", "build_manifest",
+    # "data_href"). Free-form so new discovery mechanisms can annotate without
+    # an enum change. Unioned on re-discovery.
+    tags: set[str] = field(default_factory=set)
 
     # ------------------------------------------------------------------
     # Construction
@@ -118,6 +123,7 @@ class DiscoveredUrl:
         depth: int = 0,
         parent: str | None = None,
         in_scope: bool = True,
+        tags: set[str] | None = None,
     ) -> "DiscoveredUrl | None":
         """Build a DiscoveredUrl from a raw (possibly relative) URL.
 
@@ -136,6 +142,7 @@ class DiscoveredUrl:
             parent=parent,
             in_scope=in_scope,
             discovered_via=source,
+            tags=set(tags) if tags else set(),
         )
 
     # ------------------------------------------------------------------
@@ -147,6 +154,11 @@ class DiscoveredUrl:
         self.sources.add(source)
         if self.discovered_via is None:
             self.discovered_via = source
+
+    def add_tags(self, tags: set[str] | None) -> None:
+        """Union fine-grained provenance tags onto this record."""
+        if tags:
+            self.tags.update(tags)
 
     def mark_crawled(
         self, *, status_code: int | None = None, content_type: str | None = None
@@ -184,6 +196,7 @@ class DiscoveredUrl:
             "discovered_via": self.discovered_via.value
             if self.discovered_via
             else None,
+            "tags": sorted(self.tags),
             "depth": self.depth,
             "parent": self.parent,
             "status": self.status.value,

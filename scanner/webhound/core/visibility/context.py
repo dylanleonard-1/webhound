@@ -14,6 +14,7 @@ from webhound.core.visibility.discovered_url import UrlSource
 from webhound.core.visibility.frontier import VisibilityFrontier
 from webhound.core.visibility.harvester import harvest_artifacts
 from webhound.core.visibility.inventory import DiscoveredUrlInventory
+from webhound.core.visibility.route_harvester import harvest_js_routes
 from webhound.core.visibility.robots_policy import ALLOW_ALL, RobotsRules
 from webhound.core.visibility.seeder import SeedSources
 
@@ -62,8 +63,13 @@ class VisibilityContext:
     # ------------------------------------------------------------------
 
     def harvest(self, artifacts, *, depth: int, parent: str | None) -> int:
-        """Feed a crawled page's navigable links into the frontier."""
-        return harvest_artifacts(self.frontier, artifacts, depth=depth, parent=parent)
+        """Feed a crawled page's navigable links into the frontier.
+
+        Covers static navigable sources (anchors/canonical/iframe/GET-form) and
+        JS-discovered same-host client routes from inline scripts (Phase 3)."""
+        n = harvest_artifacts(self.frontier, artifacts, depth=depth, parent=parent)
+        n += harvest_js_routes(self.frontier, artifacts, depth=depth, parent=parent)
+        return n
 
     # ------------------------------------------------------------------
     # Report

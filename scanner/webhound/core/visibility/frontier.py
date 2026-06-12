@@ -102,6 +102,7 @@ class VisibilityFrontier:
         base_url: str | None = None,
         depth: int = 0,
         parent: str | None = None,
+        tags: set[str] | None = None,
     ) -> DiscoveredUrl | None:
         """Canonicalize, dedupe, and decide *raw_url*.
 
@@ -110,7 +111,8 @@ class VisibilityFrontier:
         skip-robots — exactly once per canonical URL; re-discovery only unions
         provenance. Returns the canonical record (``None`` if uncrawlable)."""
         du = self.inventory.add_raw(
-            raw_url, source=source, base_url=base_url, depth=depth, parent=parent,
+            raw_url, source=source, base_url=base_url, depth=depth,
+            parent=parent, tags=tags,
         )
         if du is None:
             return None

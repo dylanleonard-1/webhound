@@ -49,6 +49,7 @@ class DiscoveredUrlInventory:
 
         for s in du.sources:
             existing.add_source(s)
+        existing.add_tags(du.tags)
         if du.depth < existing.depth:
             existing.depth = du.depth
         if existing.parent is None and du.parent is not None:
@@ -64,6 +65,7 @@ class DiscoveredUrlInventory:
         depth: int = 0,
         parent: str | None = None,
         in_scope: bool = True,
+        tags: set[str] | None = None,
     ) -> DiscoveredUrl | None:
         """Canonicalize *raw_url* and add it. Returns the canonical record, or
         ``None`` when the URL is not crawlable (non-http(s), empty host, …)."""
@@ -74,6 +76,7 @@ class DiscoveredUrlInventory:
             depth=depth,
             parent=parent,
             in_scope=in_scope,
+            tags=tags,
         )
         if du is None:
             return None

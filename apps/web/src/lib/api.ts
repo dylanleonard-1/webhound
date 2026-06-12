@@ -171,6 +171,45 @@ export interface AccessValidationView {
   recommendation: string
 }
 
+// Platform Access Framework — GET /websites/{id}/platform-access. The wizard
+// renders this data only; all provider logic lives server-side in the registry.
+export interface RemediationStepView {
+  n: number
+  text: string
+  copyable: boolean
+  copy_value: string | null
+}
+export interface RemediationView {
+  provider: string
+  provider_name: string
+  automation_capable: boolean
+  allowlist_method: string
+  title: string
+  problem: string
+  impact: string
+  steps: RemediationStepView[]
+  verification: string
+  support_url: string
+  scanner_ips: string[]
+  copy_all: string
+}
+export interface PlatformAccessView {
+  state: string
+  provider: string | null
+  provider_name: string | null
+  automation_capable: boolean
+  allowlist_method: string | null
+  challenge_detected: boolean
+  access_required: boolean
+  confidence: number | null
+  scanner_ips: string[]
+  remediation: RemediationView | null
+  verification: string | null
+  trusted_status: string | null
+  can_automate: boolean
+  support_url: string | null
+}
+
 export interface OnboardingReadinessView {
   status: string
   checks: Record<string, string>
@@ -632,6 +671,11 @@ export const api = {
       request<TrustedAccessView>('GET', `/websites/${id}/trusted-access`),
     accessValidation: (id: string) =>
       request<AccessValidationView>('GET', `/websites/${id}/access-validation`),
+    platformAccess: (id: string) =>
+      request<PlatformAccessView>('GET', `/websites/${id}/platform-access`),
+    platformAccessSupportTicket: (id: string) =>
+      request<{ id: string; number: string | number; status: string }>(
+        'POST', `/websites/${id}/platform-access/support-ticket`),
     onboarding: (id: string) =>
       request<OnboardingReadinessView>('GET', `/websites/${id}/onboarding`),
     onboardingWizard: (id: string) =>

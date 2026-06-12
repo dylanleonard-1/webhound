@@ -583,6 +583,25 @@ class Scanner:
                         "intact", exc_info=True,
                     )
 
+            # 3b-i. Visibility browser follow-up (Phase 4). Feed the
+            # browser-discovered navigable URLs (rendered-DOM anchors +
+            # SPA client routes from route_extractor) into the unified
+            # frontier, then run a bounded supplementary crawl + per-page
+            # engines over the newly in-scope pages so SPA routes the static
+            # crawl missed become first-class (counted + analysed). Gated by
+            # visibility_enabled; budget-bounded via the shared frontier;
+            # best-effort. No new clicks — reuses what the browser pass saw.
+            if ctx.visibility is not None and self._target.scan_options.browser_enabled:
+                try:
+                    await self._run_visibility_browser_followup(
+                        ctx, crawl_results, external_domains,
+                        external_script_domains, host_contributions,
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.warning(
+                        "visibility browser follow-up failed; static + "
+                        "browser results intact", exc_info=True)
+
             # 3b-ii. Phase-10 authenticated discovery. When a session was
             # loaded, classify the pages the (authenticated) browser saw
             # and record the surface behind login. Always writes
@@ -1085,6 +1104,47 @@ class Scanner:
             "robots_allow_paths_seeded": len(seeds.robots_allow_paths),
             "robots_rules_present": seeds.robots_rules.has_rules,
         }
+
+    async def _run_visibility_browser_followup(
+        self,
+        ctx: ScanContext,
+        crawl_results: list,
+        external_domains: set[str],
+        external_script_domains: set[str],
+        host_contributions: list,
+    ) -> None:
+        """Phase 4: feed browser-discovered navigable URLs into the frontier and
+        crawl the newly in-scope ones. Reuses the existing browser telemetry +
+        per-page engine loop; the shared frontier enforces the page budget so
+        this can never exceed max_pages overall."""
+        from webhound.core.visibility.browser_routes import feed_browser_routes
+
+        vis = ctx.visibility
+        telemetries = list(getattr(ctx.browser, "telemetries", None) or [])
+        if not telemetries:
+            return
+        feed_browser_routes(vis.frontier, telemetries)
+        if vis.frontier.queued_count == 0:
+            return
+
+        # Supplementary crawl over the freshly-queued URLs. A fresh client —
+        # the primary crawl's client has already closed.
+        async with SafeHttpClient(
+            self._target.scan_options,
+            transport=self._transport,
+            session_context=self._session_context,
+        ) as client:
+            supplementary = await Crawler(ctx, client).crawl()
+
+        for r in supplementary:
+            crawl_results.append(r)
+            await self._run_page_engines(
+                r, ctx, external_domains,
+                external_script_domains, host_contributions,
+            )
+        ctx.scan_result.metadata["visibility_browser_followup_pages"] = len(
+            supplementary
+        )
 
     # ------------------------------------------------------------------
     # Per-page engines

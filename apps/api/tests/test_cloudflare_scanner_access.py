@@ -182,7 +182,7 @@ async def test_rules_create_verify_remove_on_existing_ruleset(monkeypatch):
     assert sum(1 for m, _ in api.calls if m == "POST") == 2  # appended both
 
     verify = await cf_rules.verify_scanner_rules("tok", "zone1")
-    assert verify == {"allow": True, "bypass": True, "verified": True}
+    assert verify == {"allow": True, "bypass": True, "ip_allow": False, "verified": True}
 
     removed = await cf_rules.remove_scanner_rules("tok", "zone1")
     assert set(removed["removed"]) == {cf_rules.REF_ALLOW, cf_rules.REF_BYPASS}

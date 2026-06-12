@@ -20,10 +20,33 @@ _PHASE = "http_request_firewall_custom"
 # Stable refs embedded in each rule's description — our idempotency + cleanup key.
 REF_ALLOW = "webhound:scanner-access:allow"
 REF_BYPASS = "webhound:scanner-access:bypass"
+REF_IP_ALLOW = "webhound:scanner-access:ip-allow"
+
+# Order of the known refs (used by the generic apply/verify/remove loops).
+_ALL_REFS = (REF_ALLOW, REF_BYPASS, REF_IP_ALLOW)
+
+# Customer-visible description on the IP-allow rule.
+IP_ALLOW_DESCRIPTION = "WebHound Authorized Security Scanner"
 
 # Match the scanner by its honest UA name (version-independent). Tightly scoped to
 # the scanner identity only — NEVER a blanket allow for all visitors.
 _EXPRESSION = f'(http.user_agent contains "{SCANNER_NAME}")'
+
+
+def _ip_allow_expression(ips: list[str]) -> str:
+    """Cloudflare set-syntax expression matching ONLY the WebHound scanner egress
+    IPs (from config.scanner_outbound_ips()). `ip.src in {a b c}` — space-
+    separated, CIDRs allowed. Never a blanket allow."""
+    clean = [ip.strip() for ip in (ips or []) if ip and ip.strip()]
+    return "(ip.src in {" + " ".join(clean) + "})"
+
+
+def _ref_of(rule: dict) -> str | None:
+    desc = rule.get("description") or ""
+    for ref in _ALL_REFS:
+        if ref in desc:
+            return ref
+    return None
 
 # Phases the BYPASS rule skips, in priority order. http_request_sbfm = Super Bot
 # Fight Mode (the bot-challenge phase on Pro/Business) — only bypassable via this
@@ -44,14 +67,26 @@ class CloudflareRuleError(RuntimeError):
         self.api_errors = api_errors  # whitelisted Cloudflare error objects, never tokens
 
 
-def _desired_rules(bypass_phases: list[str] | None = None) -> list[dict]:
-    """The two WebHound scanner rules (both match ONLY the scanner UA):
+_PRODUCTS = ["uaBlock", "bic", "hot", "securityLevel", "rateLimit", "zoneLockdown"]
+
+
+def _desired_rules(
+    bypass_phases: list[str] | None = None,
+    scanner_ips: list[str] | None = None,
+) -> list[dict]:
+    """The WebHound scanner rules. The first two match ONLY the scanner UA:
       1) ALLOWLIST — skip the rest of the custom firewall ruleset + legacy security
          products (UA block, browser-integrity, hotlink, security level, rate limit).
       2) BYPASS    — skip the Managed WAF + rate-limiting + Super Bot Fight Mode
          phases for the scanner. NEVER disables WAF for other visitors.
-    Each description ends with its ref tag so we can find/verify/remove it."""
-    return [
+    When *scanner_ips* is given (now that the worker has static egress IPs), a third
+    IP-ALLOW rule matching ONLY those source IPs is appended — a complete skip
+    (products + phases) for the authorized scanner. The expression embeds the IP
+    set, so changing the IP list and re-running auto-updates the rule.
+    Each description ends with its ref tag so we can find/verify/remove it.
+
+    No-arg call returns the legacy two-rule set (back-compat)."""
+    rules = [
         {
             "action": "skip",
             "expression": _EXPRESSION,
@@ -59,7 +94,7 @@ def _desired_rules(bypass_phases: list[str] | None = None) -> list[dict]:
             "enabled": True,
             "action_parameters": {
                 "ruleset": "current",
-                "products": ["uaBlock", "bic", "hot", "securityLevel", "rateLimit", "zoneLockdown"],
+                "products": list(_PRODUCTS),
             },
         },
         {
@@ -72,6 +107,20 @@ def _desired_rules(bypass_phases: list[str] | None = None) -> list[dict]:
             },
         },
     ]
+    ips = [ip.strip() for ip in (scanner_ips or []) if ip and ip.strip()]
+    if ips:
+        rules.append({
+            "action": "skip",
+            "expression": _ip_allow_expression(ips),
+            "description": f"{IP_ALLOW_DESCRIPTION} [{REF_IP_ALLOW}]",
+            "enabled": True,
+            "action_parameters": {
+                "ruleset": "current",
+                "products": list(_PRODUCTS),
+                "phases": list(bypass_phases or _BYPASS_PHASES),
+            },
+        })
+    return rules
 
 
 def _differs(found: dict, desired: dict) -> bool:
@@ -132,8 +181,11 @@ async def _apply(access_token: str, zone_id: str, desired: list[dict]) -> dict:
     async with httpx.AsyncClient(timeout=20, headers=headers) as client:
         entry = await _get_entrypoint(client, zone_id)
 
+        # Refs we're applying this run (2 legacy, or 3 when IP-allow is included).
+        desired_refs = [_ref_of(d) for d in desired]
+
         if entry is None:
-            # No custom ruleset yet — create the entrypoint with both rules at once.
+            # No custom ruleset yet — create the entrypoint with all rules at once.
             r = await client.put(
                 f"{_CF_API}/zones/{zone_id}/rulesets/phases/{_PHASE}/entrypoint",
                 json={"rules": desired})
@@ -141,16 +193,15 @@ async def _apply(access_token: str, zone_id: str, desired: list[dict]) -> dict:
                 raise CloudflareRuleError("ruleset create failed",
                                           http_status=r.status_code, api_errors=_safe_errors(r))
             res = (r.json() or {}).get("result") or {}
-            ids = {ref: rule.get("id") for ref, rule in
-                   ((REF_ALLOW, _find(res.get("rules") or [], REF_ALLOW) or {}),
-                    (REF_BYPASS, _find(res.get("rules") or [], REF_BYPASS) or {}))}
-            return {"created": [REF_ALLOW, REF_BYPASS], "updated": [], "existing": [],
-                    "ruleset_id": res.get("id"), "rule_ids": ids}
+            ids = {ref: (_find(res.get("rules") or [], ref) or {}).get("id")
+                   for ref in desired_refs if ref}
+            return {"created": [r for r in desired_refs if r], "updated": [],
+                    "existing": [], "ruleset_id": res.get("id"), "rule_ids": ids}
 
         ruleset_id = entry.get("id")
         rules = entry.get("rules") or []
         rule_ids: dict[str, str | None] = {}
-        for desired_rule, ref in ((desired[0], REF_ALLOW), (desired[1], REF_BYPASS)):
+        for desired_rule, ref in zip(desired, desired_refs):
             found = _find(rules, ref)
             if found is None:
                 # Append the missing rule.
@@ -178,40 +229,64 @@ async def _apply(access_token: str, zone_id: str, desired: list[dict]) -> dict:
             "ruleset_id": ruleset_id, "rule_ids": rule_ids}
 
 
-async def ensure_scanner_rules(access_token: str, zone_id: str) -> dict:
-    """Idempotently ensure both scanner rules exist + are current in the zone's custom
-    firewall ruleset (creates missing, UPDATES drifted — e.g. to add the SBFM phase).
+async def ensure_scanner_rules(
+    access_token: str, zone_id: str, scanner_ips: list[str] | None = None,
+) -> dict:
+    """Idempotently ensure the scanner rules exist + are current in the zone's custom
+    firewall ruleset (creates missing, UPDATES drifted — e.g. to add the SBFM phase,
+    OR when the scanner IP list changed → the IP-allow expression auto-updates).
     Degrades to the fallback phase set if the plan rejects a skipped phase (Free/BFM).
-    Safe to re-run; never duplicates (matches on the ref tag in the description)."""
+    Safe to re-run; never duplicates (matches on the ref tag in the description).
+
+    Pass *scanner_ips* (from config.scanner_outbound_ips()) to also create/maintain
+    the IP-allow rule; omit it for the legacy UA-only two-rule behaviour."""
     try:
-        return await _apply(access_token, zone_id, _desired_rules())
+        return await _apply(access_token, zone_id, _desired_rules(scanner_ips=scanner_ips))
     except CloudflareRuleError as exc:
         if _phase_unsupported(exc):
             # Plan doesn't support a skipped phase (e.g. SBFM on Free) — apply the
             # fallback set so the rest of the allowlist still works.
-            result = await _apply(access_token, zone_id, _desired_rules(_BYPASS_PHASES_FALLBACK))
+            result = await _apply(
+                access_token, zone_id,
+                _desired_rules(_BYPASS_PHASES_FALLBACK, scanner_ips=scanner_ips))
             result["degraded"] = True
             return result
         raise
 
 
-async def verify_scanner_rules(access_token: str, zone_id: str) -> dict:
+async def verify_scanner_rules(
+    access_token: str, zone_id: str, scanner_ips: list[str] | None = None,
+) -> dict:
     """Read the ruleset back and report which WebHound rules are present + enabled.
-    Returns {"allow": bool, "bypass": bool, "verified": bool}."""
+    Returns {"allow", "bypass", "ip_allow", "verified"}. When *scanner_ips* is given
+    the IP-allow rule is REQUIRED for ``verified`` (and its expression must match the
+    current IP set); otherwise ``verified`` is the legacy allow+bypass check."""
     headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
     async with httpx.AsyncClient(timeout=20, headers=headers) as client:
         entry = await _get_entrypoint(client, zone_id)
     rules = (entry or {}).get("rules") or []
     allow = _find(rules, REF_ALLOW)
     bypass = _find(rules, REF_BYPASS)
+    ip_allow = _find(rules, REF_IP_ALLOW)
     allow_ok = bool(allow and allow.get("enabled", True))
     bypass_ok = bool(bypass and bypass.get("enabled", True))
-    return {"allow": allow_ok, "bypass": bypass_ok, "verified": allow_ok and bypass_ok}
+    ips = [ip.strip() for ip in (scanner_ips or []) if ip and ip.strip()]
+    if ips:
+        want_expr = _ip_allow_expression(ips)
+        ip_ok = bool(ip_allow and ip_allow.get("enabled", True)
+                     and (ip_allow.get("expression") or "") == want_expr)
+        verified = allow_ok and bypass_ok and ip_ok
+    else:
+        ip_ok = bool(ip_allow and ip_allow.get("enabled", True))
+        verified = allow_ok and bypass_ok
+    return {"allow": allow_ok, "bypass": bypass_ok, "ip_allow": ip_ok,
+            "verified": verified}
 
 
 async def remove_scanner_rules(access_token: str, zone_id: str) -> dict:
-    """Delete every WebHound scanner rule from the zone (clean disconnect). Returns
-    {"removed": [...refs]}. Idempotent — a missing rule is simply not counted."""
+    """Delete every WebHound scanner rule from the zone (clean disconnect), including
+    the IP-allow rule. Returns {"removed": [...refs]}. Idempotent — a missing rule is
+    simply not counted."""
     headers = {"Authorization": f"Bearer {access_token}",
                "Content-Type": "application/json", "Accept": "application/json"}
     removed: list[str] = []
@@ -221,7 +296,7 @@ async def remove_scanner_rules(access_token: str, zone_id: str) -> dict:
             return {"removed": removed}
         ruleset_id = entry.get("id")
         rules = entry.get("rules") or []
-        for ref in (REF_ALLOW, REF_BYPASS):
+        for ref in _ALL_REFS:
             rule = _find(rules, ref)
             if rule is None or not rule.get("id"):
                 continue

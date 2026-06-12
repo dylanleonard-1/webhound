@@ -68,10 +68,15 @@ async def apply_scanner_rules(
 
     cf._audit(db, cf.CF_SCANNER_ACCESS_AUTHORIZED, website, user_id=user_id, org_id=org_id,
               status="connecting")
-    # Create the skip rules, then read them back to verify.
+    # Scanner egress IPs (dynamic from config — never hardcoded). Now that the
+    # worker has static outbound IPs, we create an IP-allow rule in addition to
+    # the UA-skip rules; the IP-allow expression auto-updates if the list changes.
+    from apps.api.config import scanner_outbound_ips as _scanner_ips
+    ips = _scanner_ips()
+    # Create the skip + IP-allow rules, then read them back to verify.
     try:
-        created = await cf_rules.ensure_scanner_rules(access_token, zone_id)
-        verify = await cf_rules.verify_scanner_rules(access_token, zone_id)
+        created = await cf_rules.ensure_scanner_rules(access_token, zone_id, scanner_ips=ips)
+        verify = await cf_rules.verify_scanner_rules(access_token, zone_id, scanner_ips=ips)
     except cf_rules.CloudflareRuleError:
         await _fail(db, website, user_id=user_id, org_id=org_id, reason="rule_create_failed")
         raise
@@ -100,7 +105,11 @@ async def apply_scanner_rules(
         md = dict(conn.connection_metadata or {})
         md[SCANNER_ACCESS_META_KEY] = {
             "rule_ids": created.get("rule_ids"), "ruleset_id": created.get("ruleset_id"),
-            "zone_id": zone_id, "rule_type": "skip", "created_by_webhound": True,
+            "zone_id": zone_id,
+            # Now includes the IP-allow rule when scanner IPs are configured.
+            "rule_type": "skip+ip-allow" if ips else "skip",
+            "scanner_ips": ips,
+            "created_by_webhound": True,
             "created_at": now_iso, "last_validated_at": now_iso,
             "degraded": created.get("degraded", False),
         }

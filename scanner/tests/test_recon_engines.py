@@ -176,6 +176,31 @@ class TestSensitivePathsEngine:
         assert any("admin" in f.title.lower() for f in findings)
 
     @pytest.mark.anyio
+    async def test_admin_login_gate_not_flagged(self):
+        # /admin returns a 200 login / "unauthorized" page (or an SPA shell that renders
+        # that state) — it is PROTECTED, not exposed. Real FP from
+        # webhoundsecurity.com/admin (200 Next.js shell containing "unauthorized").
+        transport = _route_transport({
+            "/admin": (200,
+                       "<html><body><h1>Admin</h1><p>Unauthorized — please sign in</p>"
+                       "<form><input type='password' name='password'></form></body></html>",
+                       {"content-type": "text/html"}),
+        })
+        target = _target()
+        async with SafeHttpClient(transport=transport) as client:
+            findings = await SensitivePathsEngine().probe(target, client)
+        assert not any("/admin" in (f.metadata.get("url") or "") for f in findings), \
+            "an admin path that renders a login/unauthorized gate must not be flagged as exposed"
+
+    def test_looks_like_auth_gate(self):
+        from webhound.engines.recon.sensitive_paths import _looks_like_auth_gate
+        assert _looks_like_auth_gate("Please sign in to continue") is True
+        assert _looks_like_auth_gate("401 Unauthorized") is True
+        assert _looks_like_auth_gate("<input type=\"password\">") is True
+        assert _looks_like_auth_gate("<title>Admin Panel</title> users, settings, logs") is False
+        assert _looks_like_auth_gate("") is False
+
+    @pytest.mark.anyio
     async def test_404_not_reported(self):
         transport = _route_transport({
             "/.env": (404, "Not Found", None),

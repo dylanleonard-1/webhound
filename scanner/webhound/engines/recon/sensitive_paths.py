@@ -439,6 +439,27 @@ def _is_substantive_200(
     return bool(path_token) and path_token.lower() in body.lower()
 
 
+# An admin/login path that RENDERS a login form / "unauthorized" / access-gate is NOT
+# exposed — it's protected (server- or client-side gated). These markers identify such
+# gate pages so we don't claim "Exposed Admin panel" on a page that's actually asking
+# the visitor to authenticate (incl. SPA shells that render an "Unauthorized" state).
+_AUTH_GATE_MARKERS = re.compile(
+    r"sign[\s-]?in|log[\s-]?in|please log in|unauthor(?:i[sz]ed|ised)|"
+    r"access denied|authentication required|not authoriz|forbidden|"
+    r"you (?:must|need) to (?:be )?(?:sign|log)|session expired|redirecting to login|"
+    r'name=["\']password["\']|type=["\']password["\']',
+    re.I,
+)
+
+
+def _looks_like_auth_gate(body: str) -> bool:
+    """True if a 200 body is a login / unauthorized / access-gate page rather than
+    actually-exposed privileged functionality."""
+    if not body:
+        return False
+    return bool(_AUTH_GATE_MARKERS.search(body[:8000]))
+
+
 class SensitivePathsEngine:
     """Active probing for commonly exposed sensitive paths.
 
@@ -499,6 +520,14 @@ class SensitivePathsEngine:
 
                 get = await client.get(url)
                 if get.failed or get.status_code != 200:
+                    continue
+
+                # An admin/login path that returns a login form / "unauthorized" /
+                # access-gate page is PROTECTED, not exposed — don't flag it. This also
+                # covers SPA shells (Next.js/React) that return 200 for every path and
+                # render an "Unauthorized"/login state client-side. Gates the FP on
+                # webhoundsecurity.com/admin (200 shell containing "unauthorized").
+                if _category(spec) == "admin" and _looks_like_auth_gate(get.body):
                     continue
 
                 if _body_confirms_exposure(get.body, spec):

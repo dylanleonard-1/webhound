@@ -104,6 +104,15 @@ class ScanOptions(BaseModel):
     # session (cookies / storageState / recording) supplied via the
     # SessionContext / orchestrator — and a browser pass to use it.
     auth_mode: str = Field(default="public_only")
+    # Crawler VISIBILITY layer opt-in. When True the orchestrator builds a
+    # unified discovery frontier that feeds EVERY discovery source (sitemap,
+    # robots, canonical/hreflang, iframe/script src, form actions, JS routes,
+    # ASM subdomains) back into the crawl — not just <a href> links — and
+    # emits a visibility report (pages_found/crawled, forms/api/js_routes/
+    # assets/third_party counts, site_graph_generated, visibility_score).
+    # Default OFF → crawl behaviour is byte-for-byte identical to today; the
+    # security engines simply receive more in-scope pages when it is ON.
+    visibility_enabled: bool = Field(default=False)
 
 
 class Target(BaseModel):

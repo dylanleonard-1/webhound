@@ -516,6 +516,23 @@ class Scanner:
                 # 1. Target-level engines that use the HTTP client
                 await self._run_target_engines(ctx, client)
 
+                # 1b. Visibility layer (opt-in via ScanOptions.visibility_
+                # enabled). Build the unified discovery frontier + seed it
+                # from robots.txt / sitemap BEFORE the crawl, so the crawler
+                # feeds EVERY discovery source (sitemap/robots/canonical/
+                # iframe/form/JS/ASM) into the queue rather than just
+                # <a href>. Default off → ctx.visibility stays None and the
+                # crawl behaves byte-for-byte as today. Best-effort: a build
+                # failure falls back to the legacy anchor crawl.
+                if self._target.scan_options.visibility_enabled:
+                    try:
+                        await self._build_visibility_context(ctx, client)
+                    except Exception:  # noqa: BLE001
+                        logger.warning(
+                            "visibility frontier build failed; falling back "
+                            "to legacy anchor crawl", exc_info=True)
+                        ctx.visibility = None
+
                 await self._raise_if_cancelled()  # FIX 10 — phase boundary
                 # 2. BFS crawl (timed separately for throughput metrics)
                 crawler = Crawler(ctx, client)
@@ -926,6 +943,27 @@ class Scanner:
         result.metadata["fetch_stats"] = _http_stats
         result.metadata["crawl_duration_seconds"] = round(_crawl_duration_seconds, 3)
 
+        # Visibility report (Phase 2 — compact form; expanded in later phases
+        # with forms/api/js_routes/assets/third_party + site graph + score).
+        # Only present when the visibility layer ran. Best-effort.
+        if ctx.visibility is not None:
+            try:
+                inv = ctx.visibility.inventory
+                result.metadata["visibility_report"] = {
+                    "domain": self._target.hostname,
+                    "crawl_mode": "visibility",
+                    "pages_found": inv.pages_found,
+                    "pages_crawled": inv.pages_crawled,
+                    "status_counts": inv.status_counts(),
+                    "source_counts": inv.source_counts(),
+                    "skip_reason_counts": inv.skip_reason_counts(),
+                    "site_graph_generated": False,
+                    "visibility_score": None,
+                    "limitations": [],
+                }
+            except Exception:  # noqa: BLE001
+                logger.debug("visibility report build failed", exc_info=True)
+
         # Propagate scan-wide retry/skip counters to top-level fields
         result.retry_count = _http_stats.get("retried", 0)
         result.skip_count = _http_stats.get("skipped", 0)
@@ -1014,6 +1052,39 @@ class Scanner:
             ctx, self._robots_sitemap.NAME,
             self._robots_sitemap.analyze, target, client,
         ))
+
+    # ------------------------------------------------------------------
+    # Visibility layer (Phase 2) — unified discovery frontier
+    # ------------------------------------------------------------------
+
+    async def _build_visibility_context(
+        self, ctx: ScanContext, client: SafeHttpClient
+    ) -> None:
+        """Construct ctx.visibility: the discovery inventory + frontier, seeded
+        from robots.txt / sitemap. REUSES the robots_sitemap parsers via the
+        seeder. Attaches to the ScanContext so the crawler drives off it."""
+        from webhound.core.visibility.context import VisibilityContext
+        from webhound.core.visibility.seeder import fetch_seed_sources
+
+        opts = self._target.scan_options
+        seeds = await fetch_seed_sources(self._target, client)
+        vis = VisibilityContext(
+            ctx.scope,
+            max_pages=opts.max_pages,
+            max_depth=opts.max_depth,
+            respect_robots=opts.respect_robots_txt,
+            robots_rules=seeds.robots_rules,
+        )
+        # Seed the root first, then the sitemap/robots-allow surface.
+        vis.seed_root(self._target.url)
+        vis.apply_seed_sources(seeds, base_url=self._target.base_url)
+        ctx.visibility = vis
+        ctx.scan_result.metadata["visibility_seed"] = {
+            "sitemap_urls_seeded": len(seeds.sitemap_urls),
+            "fetched_sitemaps": list(seeds.fetched_sitemaps),
+            "robots_allow_paths_seeded": len(seeds.robots_allow_paths),
+            "robots_rules_present": seeds.robots_rules.has_rules,
+        }
 
     # ------------------------------------------------------------------
     # Per-page engines

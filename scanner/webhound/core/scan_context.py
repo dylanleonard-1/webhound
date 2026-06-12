@@ -90,6 +90,13 @@ class ScanContext:
         # session. Secret-free — safe for metadata/reports.
         self.auth: Any = None
 
+        # Crawler VISIBILITY layer context (VisibilityContext). None unless
+        # ScanOptions.visibility_enabled — when set, the crawler routes URL
+        # discovery through the unified frontier (sitemap/robots/canonical/
+        # iframe/form/JS/ASM) instead of the legacy anchor-only path. Absent
+        # → behaviour identical to today. Typed Any to avoid an import cycle.
+        self.visibility: Any = None
+
     # ------------------------------------------------------------------
     # Browser discovery access (Phase-6C)
     # ------------------------------------------------------------------

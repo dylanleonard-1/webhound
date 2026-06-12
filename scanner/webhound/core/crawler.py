@@ -68,7 +68,16 @@ class Crawler:
 
         Seeds the queue with the target root URL on first call.
         Returns all :class:`CrawlResult` objects produced during the run.
+
+        When ``ctx.visibility`` is present (ScanOptions.visibility_enabled) the
+        crawl is driven by the unified discovery frontier, which feeds every
+        discovery source — sitemap/robots/canonical/iframe/form/JS/ASM — back
+        into the queue rather than just ``<a href>`` links. Absent → the legacy
+        anchor-only path below, byte-for-byte unchanged.
         """
+        if self._ctx.visibility is not None:
+            return await self._crawl_with_frontier()
+
         # Seed only once — idempotent if called again after partial crawl.
         if not self._ctx.has_work and self._ctx.pages_crawled == 0:
             self._ctx.seed(self._ctx.target.url)
@@ -87,6 +96,46 @@ class Crawler:
                 child_depth = item.depth + 1
                 for link in result.artifacts.all_links:
                     self._ctx.enqueue(link, child_depth)
+
+        return results
+
+    async def _crawl_with_frontier(self) -> list[CrawlResult]:
+        """Visibility-layer crawl: the frontier is the single enqueue authority.
+
+        The per-page security engines downstream are unchanged — they simply
+        receive more in-scope pages. Every crawled page's status is recorded on
+        its DiscoveredUrl and bridged to ScanContext for the legacy page-count.
+        """
+        vis = self._ctx.visibility
+        frontier = vis.frontier
+
+        # Seed the root if the frontier is empty (idempotent across partial runs).
+        if frontier.crawled_count == 0 and frontier.queued_count == 0:
+            vis.seed_root(self._ctx.target.url)
+
+        results: list[CrawlResult] = []
+
+        while True:
+            du = frontier.next()
+            if du is None:
+                break
+            item = QueueItem(url=du.url, depth=du.depth)
+            result = await self._crawl_one(item)
+            results.append(result)
+
+            resp = result.response
+            if resp.failed:
+                frontier.mark_failed(du, resp.error or "request failed")
+            else:
+                frontier.mark_crawled(
+                    du,
+                    status_code=resp.status_code,
+                    content_type=resp.content_type,
+                )
+
+            # Feed this page's navigable discovery sources back in.
+            if result.artifacts is not None:
+                vis.harvest(result.artifacts, depth=du.depth, parent=du.url)
 
         return results
 

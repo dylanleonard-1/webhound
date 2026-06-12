@@ -58,9 +58,11 @@ def compute_state(
         return STATE_SUPPORT_REQUIRED
     if verifying:
         return STATE_VERIFICATION_RUNNING
-    if verification_result == "failed" or trusted_status == "failed":
+    if verification_result in ("failed", "blocked") or trusted_status == "failed":
         return STATE_FAILED
-    if verification_result == "success":
+    # "partial" = access works but coverage is restricted (LIMITED) — still
+    # verified (the scanner got through), surfaced with the partial flag.
+    if verification_result in ("success", "partial"):
         return STATE_VERIFIED
     if trusted_status == "active":
         return STATE_COMPLETE
@@ -131,14 +133,18 @@ async def get_platform_access(
     ta = await ta_service.get_trusted_access(db, website)
     trusted_status = getattr(ta, "status", None)
 
-    # Map the validation status into a verification_result for the wizard.
+    # Map the access-validation status into the wizard's verification result:
+    #   ready → success (Verified) · limited → partial (Partially-Verified) ·
+    #   failed → blocked when a challenge is still up, else failed · validating → running.
     vstatus = vview.get("status")
     verifying = vstatus == "validating"
     verification_result = None
     if vstatus == "ready":
         verification_result = "success"
-    elif vstatus in ("failed",):
-        verification_result = "failed"
+    elif vstatus == "limited":
+        verification_result = "partial"
+    elif vstatus == "failed":
+        verification_result = "blocked" if ya["challenge_detected"] else "failed"
 
     return build_platform_access_view(
         detection=detection, trusted_status=trusted_status,

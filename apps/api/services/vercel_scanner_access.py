@@ -244,8 +244,13 @@ async def apply_ip_scanner_access(
         _store_ip_metadata(conn, project_id=project_id, team_id=team_id, ips=ips,
                            method="manual_ip_bypass", created_by_webhound=False)
         await db.flush()
+        # Registry-driven structured remediation (numbered steps + copy metadata)
+        # for the PlatformAccessWizard, alongside the legacy single-string action.
+        from apps.api.services.provider_access_registry import render_remediation
+        remediation = render_remediation("vercel", ips)
         return {"applied": False, "status": ST_PENDING_MANUAL_SETUP, "scanner_ips": ips,
-                "ticketable": True, "customer_action": manual_setup_action(ips)}
+                "ticketable": True, "customer_action": manual_setup_action(ips),
+                "remediation": remediation}
     except v_rules.VercelRuleError:
         await _fail(db, website, user_id=user_id, org_id=org_id, reason="ip_bypass_failed")
         return {"applied": False, "status": ST_FAILED, "reason": "ip_bypass_failed"}

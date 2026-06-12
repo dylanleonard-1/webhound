@@ -56,3 +56,21 @@ async def get_access_validation(
     if website is None:
         raise HTTPException(404, "Website not found")
     return av_service.dashboard_view(await av_service.get_validation(db, website))
+
+
+@router.get("/{website_id}/platform-access")
+async def get_platform_access(
+    website_id: uuid.UUID, db: _DB, current_user: _CurrentUser,
+) -> dict:
+    """PlatformAccessWizard view: detected CDN/WAF provider, wizard state,
+    registry-driven remediation (with the dynamic scanner IPs), and the
+    verification status. Pure data — the UI renders it with no provider logic."""
+    website = await ws_service.get_website(db, website_id, user_id=_uid(current_user))
+    if website is None:
+        raise HTTPException(404, "Website not found")
+    from apps.api.services import cloudflare as cf
+    from apps.api.services import platform_access as pa_service
+    conn = await cf.get_connection(db, website.id)
+    cloudflare_connected = bool(conn and getattr(conn, "zone_id", None))
+    return await pa_service.get_platform_access(
+        db, website, cloudflare_connected=cloudflare_connected)

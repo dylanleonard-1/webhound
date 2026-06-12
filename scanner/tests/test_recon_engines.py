@@ -199,6 +199,9 @@ class TestSensitivePathsEngine:
         assert _looks_like_auth_gate("<input type=\"password\">") is True
         assert _looks_like_auth_gate("<title>Admin Panel</title> users, settings, logs") is False
         assert _looks_like_auth_gate("") is False
+        # Marker deep in the body (SPA shell): /admin had "unauthorized" at index ~14.5k.
+        deep = ("<html>" + ("x" * 14000) + "Unauthorized — please sign in" + ("y" * 5000) + "</html>")
+        assert _looks_like_auth_gate(deep) is True
 
     @pytest.mark.anyio
     async def test_404_not_reported(self):

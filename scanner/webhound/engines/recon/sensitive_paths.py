@@ -454,10 +454,13 @@ _AUTH_GATE_MARKERS = re.compile(
 
 def _looks_like_auth_gate(body: str) -> bool:
     """True if a 200 body is a login / unauthorized / access-gate page rather than
-    actually-exposed privileged functionality."""
+    actually-exposed privileged functionality. Scans the WHOLE body (capped): SPA
+    shells (Next.js/RSC) often render the "Unauthorized"/login text deep in the
+    document (e.g. index ~14.5k on webhoundsecurity.com/admin), well past a small
+    prefix window."""
     if not body:
         return False
-    return bool(_AUTH_GATE_MARKERS.search(body[:8000]))
+    return bool(_AUTH_GATE_MARKERS.search(body[:200000]))
 
 
 class SensitivePathsEngine:

@@ -71,11 +71,26 @@ def build_visibility_report(
         logger.debug("visibility forms section failed", exc_info=True)
         report["forms"] = {"count": 0}
 
-    # Phase 6 — API endpoints.
+    # Phase 6 — API endpoints. The canonical ApiInventory (ctx.api_inventory)
+    # is the single source of truth — count == the graph headline == the UI
+    # stat. Falls back to the legacy per-section builder only if the inventory
+    # didn't build.
     try:
-        report["api"] = build_api_section(
-            crawl_results, browser_discovery=browser, primary_host=domain,
-        )
+        inv = getattr(ctx, "api_inventory", None)
+        if inv is not None:
+            report["api"] = {
+                "count": inv.headline_count,       # headline = first/graphql/auth
+                "total": inv.total_count,          # all classes (details)
+                "by_class": inv.by_class(),
+                "headline_classes": sorted(c for c in inv.by_class()
+                                           if c in ("first_party_api", "graphql",
+                                                    "auth_api")),
+                "samples": [e.to_dict() for e in inv.headline_endpoints()[:60]],
+            }
+        else:
+            report["api"] = build_api_section(
+                crawl_results, browser_discovery=browser, primary_host=domain,
+            )
     except Exception:  # noqa: BLE001
         logger.debug("visibility api section failed", exc_info=True)
         report["api"] = {"count": 0}

@@ -97,6 +97,11 @@ class ScanContext:
         # → behaviour identical to today. Typed Any to avoid an import cycle.
         self.visibility: Any = None
 
+        # Canonical API inventory (ApiInventory) — the single source of truth
+        # for the API count, built post-browser-pass. None until built; every
+        # surface that reports "APIs" reads this so they never diverge.
+        self.api_inventory: Any = None
+
     # ------------------------------------------------------------------
     # Browser discovery access (Phase-6C)
     # ------------------------------------------------------------------

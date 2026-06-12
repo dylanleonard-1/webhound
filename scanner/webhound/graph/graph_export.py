@@ -25,6 +25,21 @@ def export_summary(graph: SecurityGraph) -> dict[str, Any]:
     edge_types = Counter(e.type.value for e in graph.edges())
     q = GraphQuery(graph)
 
+    # Headline API count = API_ENDPOINT nodes whose canonical class is in the
+    # headline set (first-party / graphql / auth). When the canonical inventory
+    # tagged the nodes, count those; otherwise fall back to the raw node count
+    # (legacy graphs built without an inventory). This is the SINGLE number the
+    # UI ("APIs") + every other surface report.
+    _HEADLINE = {"first_party_api", "graphql", "auth_api"}
+    api_nodes = graph.nodes_of_type(NodeType.API_ENDPOINT)
+    tagged = [n for n in api_nodes if (n.metadata or {}).get("endpoint_class")]
+    if tagged:
+        headline_api_count = sum(
+            1 for n in tagged
+            if (n.metadata or {}).get("endpoint_class") in _HEADLINE)
+    else:
+        headline_api_count = node_types.get("api_endpoint", 0)
+
     third_parties = q.get_third_party_domains()
     unknown = q.get_unknown_vendors()
     vendors = graph.nodes_of_type(NodeType.VENDOR)
@@ -48,7 +63,11 @@ def export_summary(graph: SecurityGraph) -> dict[str, Any]:
         "unknown_vendor_count": len(unknown),
         "vendor_count": len(vendors),
         "form_count": node_types.get("form", 0),
-        "api_endpoint_count": node_types.get("api_endpoint", 0),
+        # Headline (deduped, canonical) API count — the SAME number shown by the
+        # UI, coverage_summary, and the visibility map. api_node_count is the
+        # raw graph total (incl. third-party) for graph accounting only.
+        "api_endpoint_count": headline_api_count,
+        "api_node_count": node_types.get("api_endpoint", 0),
         "finding_count": node_types.get("finding", 0),
         "wade_change_count": node_types.get("wade_change", 0),
         "threat_indicator_count": node_types.get("threat_indicator", 0),

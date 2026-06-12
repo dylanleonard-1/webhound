@@ -41,12 +41,18 @@ class GraphBuilder:
         crawl_results: list | None = None,
         browser: Any = None,
         primary_host: str | None = None,
+        api_inventory: Any = None,
     ) -> SecurityGraph:
         g = self.graph
         meta = getattr(scan_result, "metadata", {}) or {}
         primary = (primary_host
                    or hostname(getattr(getattr(scan_result, "target", None),
                                        "base_url", "")) or "").lower()
+        # When a canonical API inventory is supplied, the browser pass stops
+        # minting one API_ENDPOINT node per network request (the 1099-node
+        # query-variant explosion); API nodes come from the deduped inventory
+        # instead (one per METHOD+host+path, framework/analytics excluded).
+        self._use_api_inventory = api_inventory is not None
 
         site = g.node(NodeType.SITE, primary or "site", label=primary or "site")
         self._site_id = site.id
@@ -61,6 +67,15 @@ class GraphBuilder:
                 self._add_browser(g, site, browser, primary)
             except Exception:  # noqa: BLE001
                 logger.debug("graph browser pass failed", exc_info=True)
+
+        # 2c. Canonical API endpoints (single source of truth). One node per
+        # deduped endpoint; framework/analytics classes are excluded so node +
+        # connection counts deflate.
+        if self._use_api_inventory:
+            try:
+                self._add_api_inventory(g, site, api_inventory, primary)
+            except Exception:  # noqa: BLE001
+                logger.debug("graph api-inventory pass failed", exc_info=True)
 
         # 2b. Scan-wide external-host inventory (script/stylesheet/img/link/iframe/
         # form-action/js-request/css-import + CSP-declared + redirect hosts). The
@@ -216,7 +231,12 @@ class GraphBuilder:
                         g, hostname(s.src), primary)
                     if dom is not None:
                         g.edge(node, dom, EdgeType.LOADS_FROM, source="browser")
-            # Observed API calls.
+            # Observed API calls. Legacy path (one node per request, keyed on
+            # the query-bearing URL) ONLY when no canonical inventory was
+            # supplied — that path caused the 1099-node explosion. With an
+            # inventory, _add_api_inventory mints the deduped nodes instead.
+            if self._use_api_inventory:
+                continue
             for art in getattr(tel, "artifacts", []) or []:
                 kind = (getattr(art, "initiator_kind", "") or "").lower()
                 if kind in ("fetch", "xhr", "eventsource", "websocket"):
@@ -227,6 +247,29 @@ class GraphBuilder:
                         g, hostname(art.url), primary)
                     if dom is not None:
                         g.edge(api, dom, EdgeType.LOADS_FROM, source="browser")
+
+    def _add_api_inventory(self, g, site, inv, primary) -> None:
+        """Materialize ONE API_ENDPOINT node per canonical endpoint (deduped by
+        METHOD+host+path; framework internals + analytics excluded). The node
+        carries its endpoint_class so the export can count only the headline
+        classes. Connections deflate: one CALLS edge per endpoint, not per
+        request."""
+        for ep in inv.graph_endpoints():
+            node = g.node(NodeType.API_ENDPOINT, ep.url, label=ep.url,
+                          source="api_inventory",
+                          metadata={
+                              "endpoint_class": ep.endpoint_class.value,
+                              "in_headline": ep.in_headline,
+                              "party": ep.party,
+                              "method": ep.method,
+                              "observed_count": ep.observed_count,
+                              "tags": sorted(ep.tags),
+                          })
+            g.edge(site, node, EdgeType.CALLS, source="api_inventory")
+            if ep.party == "third":
+                dom = self._ensure_domain_and_vendor(g, ep.host, primary)
+                if dom is not None:
+                    g.edge(node, dom, EdgeType.LOADS_FROM, source="api_inventory")
 
     def _add_finding(self, g, gf) -> None:
         fid = str(getattr(gf, "finding_ids", [None])[0]

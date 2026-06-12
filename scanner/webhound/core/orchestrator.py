@@ -641,6 +641,24 @@ class Scanner:
                     exc_info=True,
                 )
 
+            # 3d. Canonical API inventory — THE single source of truth for
+            # the API count. Built once from static crawl artifacts + the
+            # browser's observed traffic; deduped by METHOD+host+path (query
+            # ignored) and classified. Every downstream surface (graph,
+            # coverage_summary, visibility report, WADE, UI) reads this one
+            # inventory so they can never disagree. Best-effort.
+            try:
+                from webhound.core.api_inventory import ApiInventory
+                ctx.api_inventory = ApiInventory.build(
+                    crawl_results, browser=ctx.browser,
+                    primary_host=(self._target.hostname or "").lower(),
+                )
+                ctx.scan_result.metadata["api_inventory"] = (
+                    ctx.api_inventory.to_dict()
+                )
+            except Exception:  # noqa: BLE001
+                logger.debug("api inventory build failed", exc_info=True)
+
             await self._raise_if_cancelled()  # FIX 10 — phase boundary
             # 4. TLS / DNS — blocking I/O, run in thread pool
             await self._run_tls_dns(ctx)
@@ -950,7 +968,8 @@ class Scanner:
             from webhound.graph import build_graph, export_summary
             graph = build_graph(
                 result, crawl_results=crawl_results, browser=ctx.browser,
-                primary_host=self._target.hostname)
+                primary_host=self._target.hostname,
+                api_inventory=ctx.api_inventory)
             result.metadata["security_graph_summary"] = export_summary(graph)
         except Exception:  # noqa: BLE001
             logger.debug("security graph build failed", exc_info=True)
@@ -1002,8 +1021,14 @@ class Scanner:
                 "browser_scripts_collected": bstats["browser_scripts_found"],
                 "static_forms_discovered": static_forms,
                 "rendered_forms_discovered": bstats["rendered_forms_found"],
-                "api_endpoints_observed": len(
-                    ctx.browser.get_all_api_endpoints()
+                # Canonical headline API count (deduped METHOD+host+path,
+                # framework/analytics excluded) — the SAME number every other
+                # surface shows. Falls back to the legacy raw request count
+                # only if the inventory failed to build.
+                "api_endpoints_observed": (
+                    ctx.api_inventory.headline_count
+                    if ctx.api_inventory is not None
+                    else len(ctx.browser.get_all_api_endpoints())
                 ),
                 "third_party_domains_observed": len(set(
                     list(external_domains)
@@ -2097,6 +2122,19 @@ class Scanner:
         WADE baseline (no-op when the visibility layer didn't run). Runs at WADE
         time — before the visibility_report metadata is assembled — so it reads
         the live inventory directly."""
+        # Seed WADE's scan-wide API set from the canonical inventory (deduped,
+        # query-free, framework/analytics excluded) so "new API endpoint" diffs
+        # fire on real endpoint changes, not query-token churn. Independent of
+        # the visibility layer.
+        api_inv = getattr(ctx, "api_inventory", None)
+        if api_inv is not None:
+            try:
+                baseline.all_api_endpoints = sorted({
+                    f"{e.host}{e.path}" for e in api_inv.graph_endpoints()
+                })
+            except Exception:  # noqa: BLE001
+                pass
+
         vis = getattr(ctx, "visibility", None)
         if vis is None:
             return

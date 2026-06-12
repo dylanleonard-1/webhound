@@ -95,6 +95,20 @@ def build_visibility_report(
         logger.debug("visibility third_party section failed", exc_info=True)
         report["third_party"] = {"count": 0}
 
+    # Phase 10 — site graph + page tree. Reuses the Security Graph summary the
+    # orchestrator already built (metadata.security_graph_summary) and derives
+    # the navigation page tree from the inventory's parent pointers.
+    try:
+        from webhound.core.visibility.site_graph import build_site_graph_section
+
+        meta = getattr(getattr(ctx, "scan_result", None), "metadata", None) or {}
+        report["site_graph"] = build_site_graph_section(
+            inv, security_graph_summary=meta.get("security_graph_summary"),
+        )
+        report["site_graph_generated"] = True
+    except Exception:  # noqa: BLE001
+        logger.debug("visibility site graph section failed", exc_info=True)
+
     # Phase 9 — authenticated surface. Consent-gated: only meaningful when a
     # session was supplied (auth_mode != public_only). REUSES the AuthContext
     # the orchestrator already folded into metadata.auth from the authenticated

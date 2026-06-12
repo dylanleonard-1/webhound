@@ -17,6 +17,7 @@ import { ScanLaunchForm } from '@/components/scan-launch-form'
 import { ScheduleList } from '@/components/monitoring/schedule-list'
 import { OnboardingPanel } from '@/components/onboarding-panel'
 import { ScanBlockedBanner } from '@/components/scan-blocked-banner'
+import { PlatformAccessWizard } from '@/components/access/platform-access-wizard'
 import { LoadingState } from '@/components/loading-state'
 import { ErrorState } from '@/components/error-state'
 import { EmptyState } from '@/components/empty-state'
@@ -588,6 +589,13 @@ export default function WebsiteDetailPage() {
           )
         }}
       />
+
+      {/* Scanner platform-access wizard (CDN/WAF allowlisting). Fully data-driven
+          off the platform-access endpoint / provider_access_registry — it mounts
+          unconditionally and self-gates: visible only when access is required or
+          verification failed; hidden when not required, and collapsed once the
+          scanner is verified. No provider-specific logic lives here. */}
+      <PlatformAccessWizard websiteId={id} />
 
       {/* Manual ownership verification (DNS TXT / meta / .well-known) — fallback
           only, revealed when the customer chooses it (not shown by default). */}

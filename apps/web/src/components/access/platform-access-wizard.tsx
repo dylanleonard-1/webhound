@@ -6,6 +6,7 @@ import {
   ExternalLink, LifeBuoy, Zap,
 } from 'lucide-react'
 import { api, type PlatformAccessView } from '@/lib/api'
+import { platformAccessVisibility } from '@/lib/platform-access'
 
 const ACCENT = '#8BFF3E'
 
@@ -52,9 +53,14 @@ export function PlatformAccessWizard({ websiteId }: { websiteId: string }) {
     setVerifying(false)
   }
 
-  if (!loaded || !view) return null
-  // Nothing to show the customer when access isn't required and nothing's configured.
-  if (view.state === 'not_required') return null
+  if (!loaded) return null
+  // Data-driven gate (single source of truth, provider-agnostic):
+  //   hidden    → not_required / detected (provider present but not blocking)
+  //   collapsed → verified / complete (success confirmation, no steps/CTAs)
+  //   expanded  → access_required / failed / support_required / configuring / verifying
+  const visibility = platformAccessVisibility(view)
+  if (visibility === 'hidden' || !view) return null
+  const collapsed = visibility === 'collapsed'
 
   const meta = STATE_META[view.state] ?? STATE_META.access_required
   const Icon = meta.icon
@@ -114,7 +120,9 @@ export function PlatformAccessWizard({ websiteId }: { websiteId: string }) {
         </div>
       )}
 
-      {/* Actions */}
+      {/* Actions — only in the expanded (actionable) form; collapsed success
+          states (verified / complete) show the confirmation line above only. */}
+      {!collapsed && (
       <div className="flex flex-wrap items-center gap-2 pt-1">
         {view.can_automate && view.state === 'access_required' && (
           <a href={rem?.support_url ?? '#'} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[12px] font-semibold" style={{ background: ACCENT, color: '#0a0a0a' }}>
@@ -135,6 +143,7 @@ export function PlatformAccessWizard({ websiteId }: { websiteId: string }) {
           </a>
         )}
       </div>
+      )}
     </div>
   )
 }

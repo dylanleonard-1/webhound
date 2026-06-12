@@ -139,13 +139,21 @@ class TestSecurityHeadersMissing:
 class TestCSPChecks:
     E = SecurityHeadersEngine()
 
-    def test_csp_with_unsafe_inline_is_high(self):
+    def test_csp_with_unsafe_inline_is_medium(self):
+        # audit #6: 'unsafe-inline' in script-src is a config weakness -> MEDIUM (was HIGH).
         fs = self.E.analyze(_resp(headers={
             "Content-Security-Policy": "default-src 'self'; script-src 'unsafe-inline'"
         }))
         unsafe = _by_title(fs, "inline scripts")
         assert unsafe
-        assert unsafe[0].severity == Severity.HIGH
+        assert unsafe[0].severity == Severity.MEDIUM
+
+    def test_csp_unsafe_inline_only_in_style_src_not_flagged(self):
+        # audit #6: 'unsafe-inline' in STYLE-src is not a script-XSS risk -> no script finding.
+        fs = self.E.analyze(_resp(headers={
+            "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'"
+        }))
+        assert not _by_title(fs, "inline scripts")
 
     def test_csp_with_unsafe_eval_is_medium(self):
         fs = self.E.analyze(_resp(headers={

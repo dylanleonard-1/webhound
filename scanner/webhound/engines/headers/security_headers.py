@@ -30,6 +30,27 @@ _CSP_WILDCARD_SRC = re.compile(r"(?:^|\s)\*(?:\s|;|$)")
 # avoid flagging policies that are actually well-designed.
 _CSP_STRICT_DYNAMIC = re.compile(r"'strict-dynamic'", re.I)
 
+
+def _csp_directive(csp: str, name: str) -> str | None:
+    """Return the lowercased source list of a CSP directive, or None if absent."""
+    for part in (csp or "").split(";"):
+        toks = part.strip().split()
+        if toks and toks[0].lower() == name:
+            return " ".join(toks[1:]).lower()
+    return None
+
+
+def _effective_script_src(csp: str) -> str:
+    """The source list that governs SCRIPT execution — script-src, else script-src-elem,
+    else the default-src fallback. Used to scope 'unsafe-inline'/'unsafe-eval' findings to
+    SCRIPTS only: 'unsafe-inline' in style-src is not a script-XSS risk."""
+    for name in ("script-src", "script-src-elem"):
+        v = _csp_directive(csp, name)
+        if v is not None:
+            return v
+    return _csp_directive(csp, "default-src") or ""
+
+
 # Referrer-Policy values that leak full URLs to third parties.
 _UNSAFE_REFERRER = frozenset({"unsafe-url", "no-referrer-when-downgrade"})
 
@@ -268,6 +289,9 @@ class SecurityHeadersEngine:
         # Don't flag those when the policy is using the modern nonce/hash
         # pattern.
         has_strict_dynamic = bool(_CSP_STRICT_DYNAMIC.search(csp))
+        # Scope 'unsafe-inline'/'unsafe-eval' to the directive that governs SCRIPTS, so a
+        # style-src-only 'unsafe-inline' (common + low-risk) doesn't fire a script finding.
+        script_src = _effective_script_src(csp)
 
         if _CSP_WILDCARD_SRC.search(csp) and not has_strict_dynamic:
             findings.append(_finding(
@@ -287,31 +311,34 @@ class SecurityHeadersEngine:
                 framework=_FA["csp_wildcard"],
             ))
 
-        if _CSP_UNSAFE_INLINE.search(csp) and not has_strict_dynamic:
+        if _CSP_UNSAFE_INLINE.search(script_src) and not has_strict_dynamic:
             findings.append(_finding(
                 title="CSP allows inline scripts",
                 description=(
-                    "Your CSP permits inline `<script>` and `<style>` tags. An attacker who injects "
-                    "even one tag can run code on your visitors' browsers."
+                    "Your CSP's script-src permits inline `<script>` via `'unsafe-inline'`. An "
+                    "attacker who injects even one inline script tag can run code on your visitors' "
+                    "browsers — `'unsafe-inline'` is the main thing CSP is meant to stop."
                 ),
-                severity=Severity.HIGH,
+                # MEDIUM (audit #6): aligns the label to the CVSS 6.1 band; a missing-nonce
+                # config weakness common to SSR frameworks, not an active exploit.
+                severity=Severity.MEDIUM,
                 url=url,
                 evidence=ev,
                 remediation=(
-                    "Remove `'unsafe-inline'`. For inline scripts you control, use a nonce or hash:\n"
-                    "  script-src 'self' 'nonce-{random-per-response}'\n"
+                    "Remove `'unsafe-inline'` from script-src. For inline scripts you control, use a "
+                    "nonce or hash:\n  script-src 'self' 'nonce-{random-per-response}'\n"
                     "Modern frameworks (Next.js, Rails, Django) generate nonces automatically."
                 ),
                 confidence=0.95,
                 framework=_FA["csp_unsafe_inline"],
             ))
 
-        if _CSP_UNSAFE_EVAL.search(csp):
+        if _CSP_UNSAFE_EVAL.search(script_src):
             findings.append(_finding(
                 title="CSP allows eval()",
                 description=(
-                    "Your CSP allows JavaScript `eval()` and related functions. If any user-supplied "
-                    "string reaches eval(), it runs as code."
+                    "Your CSP's script-src allows JavaScript `eval()` and related functions via "
+                    "`'unsafe-eval'`. If any user-supplied string reaches eval(), it runs as code."
                 ),
                 severity=Severity.MEDIUM,
                 url=url,

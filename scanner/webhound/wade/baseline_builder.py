@@ -70,6 +70,13 @@ class SiteBaseline:
     all_api_endpoints: list[str] = field(default_factory=list)
     all_technologies: list[str] = field(default_factory=list)
 
+    # --- Visibility-layer discovery surface (populated by the orchestrator from
+    #     ctx.visibility when the visibility layer ran; defaults keep older
+    #     baselines loadable). Lets WADE diff SPA routes + admin endpoints — the
+    #     discovery dimensions the static per-page snapshot doesn't capture. -
+    all_js_routes: list[str] = field(default_factory=list)
+    all_admin_paths: list[str] = field(default_factory=list)
+
 
 class BaselineBuilder:
     """Build a :class:`SiteBaseline` from a completed crawl (no I/O)."""
@@ -175,6 +182,8 @@ class BaselineBuilder:
             all_third_party_domains=data.get("all_third_party_domains", []),
             all_api_endpoints=data.get("all_api_endpoints", []),
             all_technologies=data.get("all_technologies", []),
+            all_js_routes=data.get("all_js_routes", []),
+            all_admin_paths=data.get("all_admin_paths", []),
         )
 
 

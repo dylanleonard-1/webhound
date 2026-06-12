@@ -69,6 +69,11 @@ _TYPE_MAP: dict[DiffType, tuple[FindingCategory, Severity]] = {
     DiffType.REDIRECT_CHANGE:            (FindingCategory.INFORMATIONAL,   Severity.MEDIUM),
     DiffType.TECHNOLOGY_CHANGE:          (FindingCategory.TECHNOLOGY,      Severity.INFO),
     DiffType.DOM_STRUCTURE_CHANGE:       (FindingCategory.INFORMATIONAL,   Severity.INFO),
+    # Visibility-layer discovery deltas. Kept off the _V2_DIFF_TYPES band path
+    # so severity comes straight from here: a new route is inventory (INFO);
+    # a newly-reachable admin endpoint warrants a heads-up (MEDIUM).
+    DiffType.NEW_JS_ROUTE:               (FindingCategory.INFORMATIONAL,   Severity.INFO),
+    DiffType.NEW_ADMIN_ENDPOINT:         (FindingCategory.API,             Severity.MEDIUM),
 }
 
 # WADE 2.0 diff types whose severity comes from the change-intelligence band.
@@ -103,6 +108,8 @@ _TITLES: dict[DiffType, str] = {
     DiffType.REDIRECT_CHANGE:            "Redirect behaviour changed since last scan",
     DiffType.TECHNOLOGY_CHANGE:          "Detected technology stack changed",
     DiffType.DOM_STRUCTURE_CHANGE:       "Page structure changed since last scan",
+    DiffType.NEW_JS_ROUTE:               "New client-side route discovered since last scan",
+    DiffType.NEW_ADMIN_ENDPOINT:         "New admin/internal endpoint reachable since last scan",
 }
 
 _DESCRIPTIONS: dict[DiffType, str] = {

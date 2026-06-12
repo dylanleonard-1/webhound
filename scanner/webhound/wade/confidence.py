@@ -35,6 +35,8 @@ EVIDENCE_WEIGHTS: dict[DiffType, float] = {
     DiffType.REDIRECT_CHANGE:            0.90,  # redirect chain observed
     DiffType.TECHNOLOGY_CHANGE:          0.50,  # fingerprint heuristic
     DiffType.DOM_STRUCTURE_CHANGE:       0.85,  # structural hash is exact
+    DiffType.NEW_JS_ROUTE:               0.55,  # route inferred from JS/SPA
+    DiffType.NEW_ADMIN_ENDPOINT:         0.70,  # admin path matched in surface
 }
 
 # Detection-method confidence *level* per diff type (Task 7). Distinct from
@@ -62,6 +64,8 @@ _CONFIDENCE_LEVELS: dict[DiffType, WadeConfidence] = {
     DiffType.TECHNOLOGY_CHANGE:     WadeConfidence.HEURISTIC,
     DiffType.STATUS_CODE_CHANGE:    WadeConfidence.CONFIRMED,
     DiffType.DOM_STRUCTURE_CHANGE:  WadeConfidence.HIGH,
+    DiffType.NEW_JS_ROUTE:          WadeConfidence.LOW,        # inferred from JS
+    DiffType.NEW_ADMIN_ENDPOINT:    WadeConfidence.MEDIUM,     # path-matched
 }
 
 _MIN_CONFIDENCE: float = 0.30

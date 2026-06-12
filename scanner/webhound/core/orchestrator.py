@@ -2090,6 +2090,35 @@ class Scanner:
                 "errors": [err],
             }
 
+    def _populate_baseline_discovery_surface(
+        self, ctx: ScanContext, baseline: SiteBaseline
+    ) -> None:
+        """Fold the visibility inventory's SPA routes + admin endpoints onto the
+        WADE baseline (no-op when the visibility layer didn't run). Runs at WADE
+        time — before the visibility_report metadata is assembled — so it reads
+        the live inventory directly."""
+        vis = getattr(ctx, "visibility", None)
+        if vis is None:
+            return
+        import re as _re
+        from urllib.parse import urlparse as _urlparse
+        from webhound.core.visibility.discovered_url import UrlSource
+
+        _admin_re = _re.compile(
+            r"/(?:admin|wp-admin|administrator|dashboard|internal|backend|"
+            r"manage(?:ment)?|console|staff|superuser|sysadmin)(?:/|$)", _re.I)
+
+        inventory = vis.inventory
+        js_routes = sorted({
+            d.normalized for d in inventory.by_source(UrlSource.JS_ROUTE)
+        })
+        admin_paths = sorted({
+            d.normalized for d in inventory.all()
+            if d.in_scope and _admin_re.search(_urlparse(d.normalized).path or "")
+        })
+        baseline.all_js_routes = js_routes
+        baseline.all_admin_paths = admin_paths
+
     def _run_wade(self, ctx: ScanContext, crawl_results: list) -> None:
         """Build a WADE baseline and, if a previous baseline is available, compare."""
         wade_start = datetime.now(timezone.utc)
@@ -2104,6 +2133,14 @@ class Scanner:
             return
 
         baseline = BaselineBuilder().build(crawl_results, ctx.scan_result)
+        # Fold the visibility-layer discovery surface (SPA routes + admin
+        # endpoints) onto the baseline so WADE can diff those dimensions. The
+        # static per-page snapshot can't see them; the visibility inventory can.
+        # Best-effort — absent visibility leaves the new fields empty (no-op).
+        try:
+            self._populate_baseline_discovery_surface(ctx, baseline)
+        except Exception:  # noqa: BLE001
+            logger.debug("WADE discovery-surface population failed", exc_info=True)
         self._current_baseline = baseline
         ctx.scan_result.metadata["wade_baseline_generated"] = True
         ctx.scan_result.metadata["wade_baseline_version"] = baseline.scan_id
@@ -2116,6 +2153,22 @@ class Scanner:
 
         try:
             diff_items = DiffEngine().diff_site(baseline.pages, self._previous_baseline)
+            # Append visibility-layer discovery deltas (new SPA routes + admin
+            # endpoints) so they flow through the SAME scorer/classifier/timeline
+            # as every other WADE change. Best-effort.
+            try:
+                vis_deltas = DiffEngine().diff_visibility_surface(
+                    baseline, self._previous_baseline)
+                diff_items.extend(vis_deltas)
+                if vis_deltas:
+                    ctx.scan_result.metadata["wade_discovery_delta"] = {
+                        "new_js_routes": [d.current_value for d in vis_deltas
+                                          if d.diff_type.value == "new_js_route"],
+                        "new_admin_endpoints": [d.current_value for d in vis_deltas
+                                                if d.diff_type.value == "new_admin_endpoint"],
+                    }
+            except Exception:  # noqa: BLE001
+                logger.debug("WADE visibility-delta diff failed", exc_info=True)
             anomalies = AnomalyScorer().score(diff_items)
             findings = Classifier().classify(anomalies)
             adjust_findings_confidence(findings, anomalies)

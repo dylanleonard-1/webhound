@@ -37,6 +37,10 @@ class DiffType(str, Enum):
     TECHNOLOGY_CHANGE         = "technology_change"
     DOM_STRUCTURE_CHANGE      = "dom_structure_change"
 
+    # --- Visibility-layer discovery deltas ---------------------------------
+    NEW_JS_ROUTE              = "new_js_route"
+    NEW_ADMIN_ENDPOINT        = "new_admin_endpoint"
+
 
 # Default severity hint per diff type
 DIFF_SEVERITY: dict[DiffType, str] = {
@@ -60,6 +64,8 @@ DIFF_SEVERITY: dict[DiffType, str] = {
     DiffType.REDIRECT_CHANGE:            "medium",
     DiffType.TECHNOLOGY_CHANGE:          "low",
     DiffType.DOM_STRUCTURE_CHANGE:       "info",
+    DiffType.NEW_JS_ROUTE:               "info",
+    DiffType.NEW_ADMIN_ENDPOINT:         "medium",
 }
 
 # Security headers tracked for regression detection
@@ -129,6 +135,43 @@ class DiffEngine:
         items.extend(self._technologies(current, baseline))
         items.extend(self._status_code(current, baseline))
         items.extend(self._dom_structure(current, baseline))
+        return items
+
+    def diff_visibility_surface(
+        self, current: SiteBaseline, previous: SiteBaseline
+    ) -> list[DiffItem]:
+        """Site-level discovery deltas the per-page snapshot can't see: newly
+        appeared SPA client routes (js_routes) and newly appeared admin
+        endpoints. Reuses the same DiffItem shape so these flow through the
+        existing WADE scorer / classifier / timeline. New third-party / API /
+        form deltas are already covered by the per-page diff."""
+        items: list[DiffItem] = []
+        target = current.target_url
+
+        prev_routes = set(getattr(previous, "all_js_routes", None) or [])
+        for route in sorted(set(getattr(current, "all_js_routes", None) or []) - prev_routes):
+            items.append(DiffItem(
+                diff_type=DiffType.NEW_JS_ROUTE,
+                url=target,
+                detail=f"New client-side route discovered since last scan: {route}",
+                baseline_value=None,
+                current_value=route,
+                severity_hint=DIFF_SEVERITY[DiffType.NEW_JS_ROUTE],
+            ))
+
+        prev_admin = set(getattr(previous, "all_admin_paths", None) or [])
+        for ep in sorted(set(getattr(current, "all_admin_paths", None) or []) - prev_admin):
+            items.append(DiffItem(
+                diff_type=DiffType.NEW_ADMIN_ENDPOINT,
+                url=target,
+                detail=(
+                    "New admin/internal endpoint now reachable in the public "
+                    f"surface since last scan: {ep}"
+                ),
+                baseline_value=None,
+                current_value=ep,
+                severity_hint=DIFF_SEVERITY[DiffType.NEW_ADMIN_ENDPOINT],
+            ))
         return items
 
     # ------------------------------------------------------------------

@@ -16,7 +16,10 @@ import logging
 from typing import Any
 
 from webhound.core.visibility.discovered_url import UrlSource
-from webhound.core.visibility.surfaces import build_forms_section
+from webhound.core.visibility.surfaces import (
+    build_api_section,
+    build_forms_section,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,5 +61,14 @@ def build_visibility_report(
     except Exception:  # noqa: BLE001
         logger.debug("visibility forms section failed", exc_info=True)
         report["forms"] = {"count": 0}
+
+    # Phase 6 — API endpoints.
+    try:
+        report["api"] = build_api_section(
+            crawl_results, browser_discovery=browser, primary_host=domain,
+        )
+    except Exception:  # noqa: BLE001
+        logger.debug("visibility api section failed", exc_info=True)
+        report["api"] = {"count": 0}
 
     return report

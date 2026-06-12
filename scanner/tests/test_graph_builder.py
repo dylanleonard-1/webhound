@@ -112,6 +112,33 @@ def test_unknown_vendor_not_escalated() -> None:
     assert dom.metadata.get("vendor") == "unknown"
 
 
+def test_inventory_hosts_become_third_party_domains() -> None:
+    # P4 fix: the scan-wide external-host inventory (incl. CSP-declared hosts a
+    # same-origin SPA never loads as a <script src> or cross-origin fetch) must
+    # materialize THIRD_PARTY_DOMAIN nodes — so third_parties != 0.
+    g = build_graph(
+        _result(metadata={"external_host_inventory": [
+            "fonts.gstatic.com", "js.stripe.com", "random-unknown-xyz.test", "t.test"]}),
+        primary_host="t.test")
+    hosts = {n.label for n in g.nodes_of_type(NodeType.THIRD_PARTY_DOMAIN)}
+    assert {"fonts.gstatic.com", "js.stripe.com", "random-unknown-xyz.test"} <= hosts
+    assert "t.test" not in hosts  # first-party host is never a third-party node
+    # The Stripe host resolves to a known vendor node (payment category).
+    assert g.find_node(NodeType.THIRD_PARTY_DOMAIN, "js.stripe.com") is not None
+    assert any(v.metadata.get("category") == "payment" for v in g.nodes_of_type(NodeType.VENDOR))
+
+
+def test_inventory_hosts_no_duplicate_with_static_scripts() -> None:
+    # A host present BOTH as a static <script src> and in the inventory is a single node.
+    g = build_graph(
+        _result(metadata={"external_host_inventory": ["js.stripe.com"]}),
+        crawl_results=[_crawl("https://t.test/",
+                              scripts=[_script(src="https://js.stripe.com/v3/")])],
+        primary_host="t.test")
+    nodes = [n for n in g.nodes_of_type(NodeType.THIRD_PARTY_DOMAIN) if n.label == "js.stripe.com"]
+    assert len(nodes) == 1
+
+
 # ---------------------------------------------------------------------------
 # Findings (Task 6)
 # ---------------------------------------------------------------------------

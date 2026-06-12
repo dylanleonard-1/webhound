@@ -62,6 +62,14 @@ class GraphBuilder:
             except Exception:  # noqa: BLE001
                 logger.debug("graph browser pass failed", exc_info=True)
 
+        # 2b. Scan-wide external-host inventory (script/stylesheet/img/link/iframe/
+        # form-action/js-request/css-import + CSP-declared + redirect hosts). The
+        # static + browser passes above only graph <script src>/<iframe src> + cross-
+        # origin fetch hosts; a same-origin SPA (Next.js/Vercel) therefore yielded 0
+        # third-parties even with a populated inventory. Ingest the full inventory so
+        # every discovered external domain becomes a THIRD_PARTY_DOMAIN (+ vendor) node.
+        self._add_inventory_hosts(g, site, meta, primary)
+
         # 3. Frameworks → technology nodes.
         for det in (meta.get("frameworks") or {}).get("detected", []):
             name = det.get("framework")
@@ -105,6 +113,17 @@ class GraphBuilder:
         else:
             dom.metadata.setdefault("vendor", "unknown")
         return dom
+
+    def _add_inventory_hosts(self, g, site, meta, primary) -> None:
+        """Materialize a THIRD_PARTY_DOMAIN (+ vendor) node for every external host in
+        the scan-wide inventory (metadata['external_host_inventory']). Idempotent —
+        _ensure_domain_and_vendor skips first-party hosts and g.node de-dupes, so hosts
+        already added by the static/browser passes are not duplicated."""
+        for host in (meta.get("external_host_inventory") or []):
+            h = (hostname(host) or host or "").lower()
+            dom = self._ensure_domain_and_vendor(g, h, primary)
+            if dom is not None:
+                g.edge(site, dom, EdgeType.CONTAINS, source="host_inventory")
 
     def _add_page(self, g, site, r, primary) -> None:
         resp = getattr(r, "response", None)

@@ -630,6 +630,13 @@ class Scanner:
                 for finding in inv_findings:
                     ctx.scan_result.findings.append(finding)
                 ctx.scan_result.metadata["scan_wide_host_count"] = len(inventory)
+                # Expose the discovered external-host LIST (not just the count) so the
+                # Security Graph can materialize THIRD_PARTY_DOMAIN nodes for EVERY
+                # external host found — incl. CSP-declared / connect hosts that a
+                # same-origin SPA (Next.js/Vercel) never loads as a static <script src>
+                # or a cross-origin fetch. Without this the graph showed third_parties=0
+                # despite a populated host inventory.
+                ctx.scan_result.metadata["external_host_inventory"] = sorted(inventory.keys())
                 ctx.scan_result.metadata["scan_wide_threat_intel_findings"] = (
                     len(inv_findings)
                 )

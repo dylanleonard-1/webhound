@@ -280,8 +280,15 @@ async def activate_monitoring(
             reason="not_ready", resource_type="onboarding_readiness")
         raise NotReadyError()
 
-    # Enable (do not create) the website's monitoring schedule(s). Additive —
-    # the auto-create-on-verify behaviour is untouched.
+    # Ensure the monitoring schedule EXISTS, then enable it. Activation is the
+    # point onboarding actually needs monitoring on, so we get-or-create here
+    # rather than assuming verification already created the schedule. This makes
+    # completion deterministic and independent of any race between verification
+    # and background automation: even if the schedule is somehow missing, this
+    # creates it idempotently (no duplicate — see verification.ensure_default_schedule).
+    from apps.api.services.verification import ensure_default_schedule
+
+    await ensure_default_schedule(db, website)
     await db.execute(
         sa.update(ScanSchedule).where(ScanSchedule.website_id == website.id)
         .values(is_enabled=True))

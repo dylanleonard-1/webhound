@@ -77,6 +77,29 @@ def _fake_redis():
 
 @pytest.fixture
 async def db_engine():
+    # Default: hermetic in-memory SQLite (fast, no external service).
+    # Opt-in real-DB mode: set TEST_DATABASE_URL to a Postgres async URL to run
+    # the SAME suite against real Postgres. When that URL also matches the app's
+    # settings.database_url, the request path AND the background onboarding
+    # automation task (which opens its own AsyncSessionLocal) share one database,
+    # so race-prone real-DB paths are genuinely exercised (drop+create gives a
+    # clean slate per test for isolation).
+    import os
+
+    test_db_url = os.environ.get("TEST_DATABASE_URL")
+    if test_db_url:
+        engine = create_async_engine(test_db_url, echo=False)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+            await conn.run_sync(Base.metadata.create_all)
+        try:
+            yield engine
+        finally:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.drop_all)
+            await engine.dispose()
+        return
+
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

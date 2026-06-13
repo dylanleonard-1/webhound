@@ -171,3 +171,32 @@ the console.
 | `NEXT_PUBLIC_SITE_URL` | web | `http://localhost:3000` | Canonical URL (SEO/OG/sitemap) |
 | `NEXT_PUBLIC_SENTRY_DSN` | web | – | Browser error reporting |
 | `SNAP_BASE_URL` / `SNAP_OUT_DIR` / `SNAP_REDUCED_MOTION` | web scripts | – | Screenshot tooling only |
+
+## AI Knowledge Layer — MCP tooling (NOT app config)
+
+These keys are consumed **only** by local Claude Code MCP servers used to build the
+AI knowledge/evidence layer (see [`docs/ai/`](ai/README.md)). They are **not** read
+by `apps/api`, `worker`, or the scanner, and `apps/api/config.py` does not define
+them — leaving them blank has **zero** effect on WebHound runtime. Phase 1
+**documents** these MCPs; it does **not** install or connect any MCP server.
+
+| Var | Used in | Secret | Default | Notes |
+|-----|---------|:-:|---------|-------|
+| `GITHUB_TOKEN` | Claude Code GitHub MCP (local) | ✓ | – | **NEW, read-only fine-grained PAT.** Distinct from `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` (OAuth login). Blank = MCP disabled. |
+| `FIRECRAWL_API_KEY` | Claude Code Firecrawl MCP (local) | ✓ | – | Doc-crawl MCP. Blank = MCP disabled. |
+| `PERPLEXITY_API_KEY` | Claude Code Perplexity MCP (local) | ✓ | – | Research MCP. Blank = MCP disabled. |
+| `OTX_API_KEY` *(Phase 5)* | future TI ingestion | ✓ | – | AlienVault OTX — **client not built yet**; documented for Phase 5. |
+| `ABUSEIPDB_API_KEY` *(Phase 5)* | future TI ingestion | ✓ | – | AbuseIPDB — normalizer exists, **fetch client not built yet** (Phase 5). |
+| `THREATFOX_AUTH` *(Phase 5)* | future TI ingestion | ✓ | – | ThreatFox — **TOS/auth UNVERIFIED**; documented for Phase 5. |
+
+> **Generator caveat (important).** `scripts/_gen_env_example.py` is a **stale
+> one-shot bootstrap** ("safe to delete after running") and has **drifted** from
+> the committed `.env.example` — it is missing `CLOUDFLARE_OAUTH_SCOPES`,
+> `CLOUDFLARE_SCANNER_OAUTH_SCOPES`, and `WEBHOUND_SCANNER_OUTBOUND_IPS`, and still
+> carries the old single egress IP. Running it would **corrupt** `.env.example`.
+> Because of this, Phase 1 did **not** add these keys to `.env.example` (to avoid
+> dropping real config). To add them safely, first **re-sync the generator's
+> `ROOT` template to the current `.env.example`**, then append these keys and
+> regenerate — or add them directly to `.env.example` (it is the de-facto source
+> of truth now; the harness protects `.env*` from the editing tools, so a human or
+> the generator must write it).

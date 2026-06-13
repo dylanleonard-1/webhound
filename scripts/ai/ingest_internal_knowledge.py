@@ -55,6 +55,21 @@ STOP = set("a an the is are of to and or in on for with not no this that it as b
 # ---------------------------------------------------------------------------
 # Inventory
 # ---------------------------------------------------------------------------
+def _git_tracked() -> set[str] | None:
+    """Repo-relative POSIX paths of git-TRACKED files, or None if git is
+    unavailable. Used so the manifest only references committed files (the corpus
+    must be reproducible from a clean checkout — e.g. in CI)."""
+    import subprocess
+    try:
+        out = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT,
+                             capture_output=True, text=True, timeout=30)
+        if out.returncode != 0:
+            return None
+        return {p for p in out.stdout.split("\0") if p}
+    except Exception:  # noqa: BLE001 — git missing / not a repo
+        return None
+
+
 def discover() -> list[str]:
     paths: list[str] = []
     for top in SOURCE_DIRS:
@@ -65,7 +80,13 @@ def discover() -> list[str]:
             continue
         if fn.startswith(ROOT_WHITELIST_PREFIXES) or fn in ROOT_WHITELIST_EXACT:
             paths.append(os.path.join(ROOT, fn))
-    return sorted(set(paths))
+    paths = sorted(set(paths))
+    # Index only git-TRACKED files so the manifest is reproducible from a clean
+    # checkout (untracked local docs must not appear as "missing" pointers in CI).
+    tracked = _git_tracked()
+    if tracked is not None:
+        paths = [p for p in paths if _rel(p) in tracked]
+    return paths
 
 
 def _rel(path: str) -> str:

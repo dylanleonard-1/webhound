@@ -162,9 +162,18 @@ def test_manifest_jsonl_doc_ids_unique_and_pointers_local():
         "official_repo": os.path.join(ROOT, "corpus", "normalized", "repos"),
         "detection_repo": os.path.join(ROOT, "corpus", "normalized", "detection-repos"),
         "planning_reference": os.path.join(ROOT, "corpus", "normalized", "planning"),
+        # Phase 6D: provider docs normalized into per-provider subdirs
+        "official_provider_doc": os.path.join(ROOT, "corpus", "normalized", "provider-docs"),
     }
     missing = []
     for r in rows:
+        # Use normalized_path field when present (most reliable anchor)
+        norm_p = r.get("normalized_path")
+        if norm_p:
+            anchor = os.path.join(ROOT, norm_p.replace("/", os.sep))
+            if not os.path.exists(anchor):
+                missing.append(r["doc_id"])
+            continue
         src = r["source_url"]
         if src.startswith("http://") or src.startswith("https://"):
             base = external_anchor_dirs.get(

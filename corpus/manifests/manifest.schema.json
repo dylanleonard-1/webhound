@@ -50,6 +50,7 @@
       "enum": [
         "official_doc",
         "official_repo",
+        "official_provider_doc",
         "detection_repo",
         "planning_reference",
         "paper",
@@ -182,6 +183,10 @@
     "trust_label": {
       "type": ["string", "null"],
       "description": "Optional trust label: trusted_local | official_verified | community_untrusted | feed_untrusted | needs_review | deprecated."
+    },
+    "normalized_path": {
+      "type": ["string", "null"],
+      "description": "Repo-relative path to the committed normalized artifact for this record. Added Phase 6D."
     }
   }
 }

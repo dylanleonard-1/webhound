@@ -1,0 +1,387 @@
+{
+  "stamp": "2026-06-13",
+  "providers": [
+    {
+      "provider": "cloudflare",
+      "url": "https://developers.cloudflare.com/llms.txt",
+      "doc_id": "pd-cloudflare--llms-txt",
+      "chunks": 5,
+      "chars": 6001
+    },
+    {
+      "provider": "cloudflare",
+      "url": "https://developers.cloudflare.com/waf/",
+      "doc_id": "pd-cloudflare--waf",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "cloudflare",
+      "url": "https://developers.cloudflare.com/waf/custom-rules/",
+      "doc_id": "pd-cloudflare--waf-custom-rules",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "cloudflare",
+      "url": "https://developers.cloudflare.com/waf/rate-limiting-rules/",
+      "doc_id": "pd-cloudflare--waf-rate-limiting-rules",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "cloudflare",
+      "url": "https://developers.cloudflare.com/bots/",
+      "doc_id": "pd-cloudflare--bots",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "cloudflare",
+      "url": "https://developers.cloudflare.com/turnstile/",
+      "doc_id": "pd-cloudflare--turnstile",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "cloudflare",
+      "url": "https://developers.cloudflare.com/cache/",
+      "doc_id": "pd-cloudflare--cache",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "cloudflare",
+      "url": "https://developers.cloudflare.com/dns/",
+      "doc_id": "pd-cloudflare--dns",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "cloudflare",
+      "url": "https://developers.cloudflare.com/ssl/",
+      "doc_id": "pd-cloudflare--ssl",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "railway",
+      "url": "https://docs.railway.com/",
+      "doc_id": "pd-railway--root",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "railway",
+      "url": "https://docs.railway.com/guides/public-networking",
+      "doc_id": "pd-railway--guides-public-networking",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "railway",
+      "url": "https://docs.railway.com/guides/healthchecks",
+      "doc_id": "pd-railway--guides-healthchecks",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "railway",
+      "url": "https://docs.railway.com/guides/variables",
+      "doc_id": "pd-railway--guides-variables",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "railway",
+      "url": "https://docs.railway.com/guides/deployments",
+      "doc_id": "pd-railway--guides-deployments",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "netlify",
+      "url": "https://docs.netlify.com/",
+      "doc_id": "pd-netlify--root",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "netlify",
+      "url": "https://docs.netlify.com/domains-https/custom-domains/",
+      "doc_id": "pd-netlify--domains-https-custom-domains",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "netlify",
+      "url": "https://docs.netlify.com/routing/headers/",
+      "doc_id": "pd-netlify--routing-headers",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "netlify",
+      "url": "https://docs.netlify.com/routing/redirects/",
+      "doc_id": "pd-netlify--routing-redirects",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "netlify",
+      "url": "https://docs.netlify.com/site-deploys/deploy-previews/",
+      "doc_id": "pd-netlify--site-deploys-deploy-previews",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "flyio",
+      "url": "https://fly.io/docs/",
+      "doc_id": "pd-flyio--docs",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "flyio",
+      "url": "https://fly.io/docs/networking/",
+      "doc_id": "pd-flyio--docs-networking",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "flyio",
+      "url": "https://fly.io/docs/networking/custom-domain/",
+      "doc_id": "pd-flyio--docs-networking-custom-domain",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "aws-cloudfront",
+      "url": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/Introduction.html",
+      "doc_id": "pd-aws-cloudfront--amazoncloudfront-latest-developerguide-introduction-html",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "aws-cloudfront",
+      "url": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/add-origin-custom-headers.html",
+      "doc_id": "pd-aws-cloudfront--amazoncloudfront-latest-developerguide-add-origin-custom-hea",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "aws-cloudfront",
+      "url": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/ServingCompressedFiles.html",
+      "doc_id": "pd-aws-cloudfront--amazoncloudfront-latest-developerguide-servingcompressedfile",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "aws-waf",
+      "url": "https://docs.aws.amazon.com/waf/latest/developerguide/what-is-aws-waf.html",
+      "doc_id": "pd-aws-waf--waf-latest-developerguide-what-is-aws-waf-html",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "aws-waf",
+      "url": "https://docs.aws.amazon.com/waf/latest/developerguide/waf-managed-rule-groups.html",
+      "doc_id": "pd-aws-waf--waf-latest-developerguide-waf-managed-rule-groups-html",
+      "chunks": 1,
+      "chars": 3959
+    },
+    {
+      "provider": "aws-waf",
+      "url": "https://docs.aws.amazon.com/waf/latest/developerguide/waf-rule-statement-type-rate-based.html",
+      "doc_id": "pd-aws-waf--waf-latest-developerguide-waf-rule-statement-type-rate-based",
+      "chunks": 1,
+      "chars": 3781
+    },
+    {
+      "provider": "azure-front-door",
+      "url": "https://learn.microsoft.com/en-us/azure/frontdoor/front-door-overview",
+      "doc_id": "pd-azure-front-door--en-us-azure-frontdoor-front-door-overview",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "azure-front-door",
+      "url": "https://learn.microsoft.com/en-us/azure/web-application-firewall/afds/afds-overview",
+      "doc_id": "pd-azure-front-door--en-us-azure-web-application-firewall-afds-afds-overview",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "google-cloud-armor",
+      "url": "https://cloud.google.com/armor/docs/cloud-armor-overview",
+      "doc_id": "pd-google-cloud-armor--armor-docs-cloud-armor-overview",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "google-cloud-armor",
+      "url": "https://cloud.google.com/cdn/docs/overview",
+      "doc_id": "pd-google-cloud-armor--cdn-docs-overview",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "imperva",
+      "url": "https://docs.imperva.com/bundle/cloud-application-security/page/introducing-incapsula.htm",
+      "doc_id": "pd-imperva--bundle-cloud-application-security-page-introducing-incapsula",
+      "chunks": 1,
+      "chars": 454
+    },
+    {
+      "provider": "github",
+      "url": "https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app",
+      "doc_id": "pd-github--en-apps-oauth-apps-building-oauth-apps-creating-an-oauth-app",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "github",
+      "url": "https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps",
+      "doc_id": "pd-github--en-apps-oauth-apps-building-oauth-apps-authorizing-oauth-app",
+      "chunks": 1,
+      "chars": 6001
+    },
+    {
+      "provider": "google-oauth",
+      "url": "https://developers.google.com/identity/protocols/oauth2",
+      "doc_id": "pd-google-oauth--identity-protocols-oauth2",
+      "chunks": 1,
+      "chars": 6001
+    }
+  ],
+  "failed": [
+    [
+      "vercel",
+      "https://vercel.com/docs/security",
+      "Vercel security overview"
+    ],
+    [
+      "vercel",
+      "https://vercel.com/docs/security/vercel-firewall",
+      "Vercel firewall"
+    ],
+    [
+      "vercel",
+      "https://vercel.com/docs/deployment-protection",
+      "Vercel deployment protection"
+    ],
+    [
+      "vercel",
+      "https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/protection-bypass-automation",
+      "Vercel protection bypass automation"
+    ],
+    [
+      "vercel",
+      "https://vercel.com/docs/deployments/preview-deployments",
+      "Vercel preview deployments"
+    ],
+    [
+      "vercel",
+      "https://vercel.com/docs/headers",
+      "Vercel response headers"
+    ],
+    [
+      "vercel",
+      "https://vercel.com/docs/edge-network",
+      "Vercel edge network / caching"
+    ],
+    [
+      "render",
+      "https://docs.render.com/",
+      "Render docs overview"
+    ],
+    [
+      "render",
+      "https://docs.render.com/web-services",
+      "Render web services"
+    ],
+    [
+      "render",
+      "https://docs.render.com/custom-domains",
+      "Render custom domains"
+    ],
+    [
+      "render",
+      "https://docs.render.com/deploys",
+      "Render deploys and health checks"
+    ],
+    [
+      "flyio",
+      "https://fly.io/docs/reference/configuration/",
+      "Fly.io app configuration (health checks, services)"
+    ],
+    [
+      "fastly",
+      "https://docs.fastly.com/en/guides/about-fastlys-cdn-service",
+      "Fastly CDN basics"
+    ],
+    [
+      "fastly",
+      "https://docs.fastly.com/en/ngwaf/",
+      "Fastly Next-Gen WAF overview"
+    ],
+    [
+      "akamai",
+      "https://techdocs.akamai.com/app-api-protector/docs/welcome-app-api-protector",
+      "Akamai App & API Protector (WAF) overview"
+    ],
+    [
+      "sucuri",
+      "https://docs.sucuri.net/website-firewall/",
+      "Sucuri firewall overview"
+    ],
+    [
+      "sucuri",
+      "https://docs.sucuri.net/website-firewall/firewall-settings/ip-whitelisting/",
+      "Sucuri IP allowlisting"
+    ],
+    [
+      "stripe",
+      "https://docs.stripe.com/webhooks",
+      "Stripe webhooks overview"
+    ],
+    [
+      "stripe",
+      "https://docs.stripe.com/webhooks/signatures",
+      "Stripe webhook signature validation"
+    ],
+    [
+      "stripe",
+      "https://docs.stripe.com/security",
+      "Stripe security overview"
+    ],
+    [
+      "resend",
+      "https://resend.com/docs/introduction",
+      "Resend introduction"
+    ],
+    [
+      "resend",
+      "https://resend.com/docs/dashboard/domains/introduction",
+      "Resend domain setup"
+    ],
+    [
+      "github",
+      "https://docs.github.com/en/code-security/secret-scanning/introduction/about-secret-scanning",
+      "GitHub secret scanning overview"
+    ],
+    [
+      "google-oauth",
+      "https://developers.google.com/identity/protocols/oauth2/web-server",
+      "Google OAuth 2.0 web server flow"
+    ],
+    [
+      "google-oauth",
+      "https://developers.google.com/identity/protocols/oauth2/scopes",
+      "Google OAuth 2.0 scopes"
+    ]
+  ],
+  "skipped": [],
+  "new_records": 36,
+  "chunks": 40
+}

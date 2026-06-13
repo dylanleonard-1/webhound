@@ -66,6 +66,67 @@ def _stem(t: str) -> str:
     return t
 
 
+# --------------------------------------------------------------------------- #
+# Synonym / alias query expansion (zero-dep, generalizing). Improves paraphrase
+# recall by expanding the QUERY only (never the docs). Keys + values are STEMMED
+# at use time. This is a small DOMAIN map (security / retrieval / WebHound terms),
+# NOT per-question hardcoding.
+#
+# HOW TO EXTEND: add a `concept: [synonyms...]` entry below. Use lowercase domain
+# words (not phrases tied to a specific test question). Expansion is bidirectional
+# (a hit on any member pulls in the rest of its group). Keep it small + reviewed.
+# --------------------------------------------------------------------------- #
+_ALIAS_GROUPS = [
+    ["ip", "address", "egress", "outbound", "allowlist", "allowlisting"],
+    ["scanner", "scan", "crawler"],
+    ["provider", "cdn", "waf", "cloudflare", "vercel"],
+    ["wade", "drift", "anomaly", "baseline"],
+    ["memory", "summary", "summaries", "recall"],
+    ["corpus", "evidence", "ingestion", "ingest"],
+    ["knowledge", "curated", "note"],
+    ["threat", "intel", "feed", "indicator", "reputation"],
+    ["false", "positive", "fp"],
+    ["mcp", "tool", "server"],
+    ["retrieval", "search", "rag", "rank", "ranking"],
+    ["policy", "rule", "governance"],
+    ["security", "safety", "injection"],
+    ["graph", "node", "edge", "bridge"],
+    ["architecture", "design", "overview", "system"],
+]
+
+
+def _build_alias_index():
+    idx: dict[str, set[str]] = {}
+    for group in _ALIAS_GROUPS:
+        gs = {_stem(w) for w in group}
+        for w in gs:
+            idx.setdefault(w, set()).update(gs - {w})
+    return idx
+
+
+_ALIAS_INDEX = _build_alias_index()
+
+
+ALIAS_WEIGHT = 0.25  # alias/synonym terms count for less than exact query terms
+
+
+def expand_terms(terms: list[str]) -> list[str]:
+    """Query-side expansion: add domain synonyms (stemmed, deduped)."""
+    return list(expand_terms_weighted(terms).keys())
+
+
+def expand_terms_weighted(terms: list[str]) -> dict[str, float]:
+    """Return {term: weight}: original query terms at 1.0, added synonyms at
+    ALIAS_WEIGHT, so exact matches dominate and aliases only add paraphrase recall
+    (preserves precision)."""
+    weights = {t: 1.0 for t in terms}
+    for t in terms:
+        for syn in _ALIAS_INDEX.get(t, ()):  # already stemmed
+            if syn not in weights:
+                weights[syn] = ALIAS_WEIGHT
+    return weights
+
+
 def detect_intent(query: str) -> str:
     q = query.lower()
     if any(w in q for w in ("audit", "review", "history", "historical",
@@ -119,8 +180,8 @@ class KeywordBackend:
         self.chunks = chunks
         self._toks = [_tok(c["text"]) for c in chunks]
 
-    def rank(self, query, authority=False):
-        qt = _tok(query)
+    def rank(self, query, authority=False, expand=False):
+        qt = _tok(query)  # baseline: raw terms, no expansion
         out = []
         for c, toks in zip(self.chunks, self._toks):
             tf = {}
@@ -159,23 +220,25 @@ class BM25Backend:
                 tf[t] = tf.get(t, 0) + 1
             self._tf.append(tf)
 
-    def rank(self, query, authority=True):
+    def rank(self, query, authority=True, expand=False):
         """authority=True applies the full Phase-5C weighting (tier + role +
-        path-match), intent-aware. authority=False is the raw BM25 score."""
-        qt = _tok(query)
+        path-match), intent-aware. authority=False is the raw BM25 score.
+        expand=True adds Phase-5D synonym/alias query expansion (query side only)."""
+        base = _tok(query)
+        qweights = expand_terms_weighted(base) if expand else {t: 1.0 for t in base}
         intent = detect_intent(query)
         role_w = ROLE_WEIGHT_AUDIT if intent == "audit" else ROLE_WEIGHT_DEFINITIONAL
         out = []
         for i, c in enumerate(self.chunks):
             tf, dl = self._tf[i], self._len[i]
             s = 0.0
-            for t in qt:
+            for t, w in qweights.items():
                 if t not in tf:
                     continue
                 idf = self.idf.get(t, 0.0)
                 num = tf[t] * (self.k1 + 1)
                 den = tf[t] + self.k1 * (1 - self.b + self.b * (dl / (self.avgdl or 1)))
-                s += idf * num / den
+                s += w * idf * num / den
             if s <= 0:
                 continue
             if authority:
@@ -246,10 +309,10 @@ def _hit(path, accepted):
     return False
 
 
-def evaluate(backend, authority):
+def evaluate(backend, authority, expand=False):
     rows = []
     for idx, (q, accepted) in enumerate(EVAL):
-        docs = best_docs(backend.rank(q, authority=authority), k=3)
+        docs = best_docs(backend.rank(q, authority=authority, expand=expand), k=3)
         paths = [c["source_path"] for _s, c in docs]
         tiers = [c["authority_tier"] for _s, c in docs]
         roles = [c.get("doc_role", "?") for _s, c in docs]
@@ -289,7 +352,8 @@ def cmd_compare(_args) -> int:
     bm = BM25Backend(chunks)
     print(f"[index] {len(chunks)} chunks (internal corpus only; offline BM25, no model download)")
     _print_eval("KEYWORD (5A baseline, raw counts)", evaluate(kw, authority=False))
-    _print_eval("BM25 + tier + ROLE + path-match (Phase 5C)", evaluate(bm, authority=True))
+    _print_eval("BM25 + tier + ROLE + path (Phase 5C)", evaluate(bm, authority=True, expand=False))
+    _print_eval("BM25 + tier + ROLE + path + SYNONYMS (Phase 5D-B)", evaluate(bm, authority=True, expand=True))
     return 0
 
 
@@ -297,8 +361,10 @@ def cmd_query(args) -> int:
     chunks = _ingest_chunks()
     backend = BM25Backend(chunks) if args.backend == "bm25" else KeywordBackend(chunks)
     auth = (args.backend == "bm25")
-    for score, c in best_docs(backend.rank(args.text, authority=auth), k=5):
-        print(f"  [{score:6.2f}] ({c['authority_tier']}) {c['source_path']}  «{c['heading'][:54]}»")
+    expand = auth and not getattr(args, "no_expand", False)  # synonym expansion on by default for bm25
+    for score, c in best_docs(backend.rank(args.text, authority=auth, expand=expand), k=5):
+        print(f"  [{score:6.2f}] ({c['authority_tier']}/{c.get('doc_role','?')}) "
+              f"{c['source_path']}  «{c['heading'][:50]}»")
     return 0
 
 
@@ -318,7 +384,9 @@ def main(argv) -> int:
     ap = argparse.ArgumentParser(description="Phase 5B semantic-foundation retrieval (offline BM25 + authority)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     q = sub.add_parser("query"); q.add_argument("text")
-    q.add_argument("--backend", choices=["bm25", "keyword"], default="bm25"); q.set_defaults(fn=cmd_query)
+    q.add_argument("--backend", choices=["bm25", "keyword"], default="bm25")
+    q.add_argument("--no-expand", action="store_true", help="disable synonym/alias query expansion")
+    q.set_defaults(fn=cmd_query)
     c = sub.add_parser("compare"); c.set_defaults(fn=cmd_compare)
     args = ap.parse_args(argv)
     return args.fn(args)

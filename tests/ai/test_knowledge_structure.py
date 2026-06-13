@@ -185,16 +185,21 @@ def test_manifest_records_have_valid_doc_role():
     assert bad == [], f"records with missing/invalid doc_role: {bad[:5]}"
 
 
-def test_empty_stub_docs_marked_deprecated_and_produce_no_chunks():
+def test_empty_stub_mechanism_classifies_and_skips():
+    """The 6 original empty stubs were RETIRED in 5D-B; verify the mechanism still
+    works on synthetic input so future empty docs are handled."""
     ing = _load_script("ingest_internal_knowledge")
+    assert ing.classify_role("docs/x.md", "") == "empty_stub"
+    assert ing.classify_role("docs/x.md", "   \n\t ") == "empty_stub"
+    assert ing.classify_role("knowledge/x.md", "# Real heading with plenty of content here.") != "empty_stub"
+    rec = {"doc_id": "x", "title": "x", "source_url": "docs/x.md",
+           "authority_tier": "C", "doc_role": "empty_stub"}
+    assert ing.chunk_doc(rec, "") == [], "empty_stub docs must produce 0 chunks"
+    # and any empty_stub records that DO exist must be deprecated
     recs, _ = ing.build_records()
-    stubs = [r for r in recs if r["doc_role"] == "empty_stub"]
-    assert stubs, "expected the known empty 0-byte stub docs"
-    for r in stubs:
-        assert r["verification_status"] == "deprecated"
-    chunks = ing.build_chunks(recs)
-    stub_ids = {r["doc_id"] for r in stubs}
-    assert not [c for c in chunks if c["doc_id"] in stub_ids], "empty stubs must produce 0 chunks"
+    for r in recs:
+        if r["doc_role"] == "empty_stub":
+            assert r["verification_status"] == "deprecated"
 
 
 def test_chunks_have_source_attribution():
@@ -211,11 +216,25 @@ def test_chunk_filters_dedup_and_minlength_report():
     recs, stats = ing.build_records()
     ing.build_chunks(recs, stats)
     cf = stats.get("chunk_filter")
-    assert cf is not None and cf["docs_skipped_empty"] >= 6
+    assert cf is not None and {"docs_skipped_empty", "chunks_short_dropped",
+                               "chunks_dup_dropped"} <= set(cf)
     # identical chunk text is deduped: feeding the same doc twice drops the repeats
     dup = ing.build_chunks(recs + recs, {})
     once = ing.build_chunks(recs, {})
     assert len(dup) == len(once), "duplicate chunks must be deduped by normalized content"
+
+
+def test_synonym_expansion_weighted_and_non_regressing():
+    sr = _load_script("semantic_retrieval")
+    w = sr.expand_terms_weighted(["ip"])  # 'ip' has aliases (address/egress/outbound/...)
+    assert w["ip"] == 1.0
+    assert any(v == sr.ALIAS_WEIGHT for k, v in w.items() if k != "ip"), "aliases must be down-weighted"
+    chunks = sr._ingest_chunks()
+    bm = sr.BM25Backend(chunks)
+    base = sr._metrics(sr.evaluate(bm, authority=True, expand=False))
+    exp = sr._metrics(sr.evaluate(bm, authority=True, expand=True))
+    # expansion must NOT regress the eval set (tuned net-neutral; adds paraphrase recall)
+    assert exp["top1"] >= base["top1"] and exp["top3"] >= base["top3"], (base, exp)
 
 
 def test_retrieval_boosts_canonical_over_reports():

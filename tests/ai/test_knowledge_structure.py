@@ -13,6 +13,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import subprocess
 
 import pytest
 
@@ -82,12 +83,25 @@ def test_every_knowledge_dir_has_readme():
 
 
 def test_every_vault_dir_has_readme_or_index():
-    base = os.path.join(ROOT, "vault")
-    missing = [
-        os.path.relpath(dp, ROOT)
-        for dp, _d, files in os.walk(base)
-        if "README.md" not in files and "index.md" not in files
-    ]
+    # Only check git-tracked vault directories so untracked local folders
+    # (e.g. a user's personal Obsidian vault) never break CI.
+    result = subprocess.run(
+        ["git", "ls-files", "vault/"],
+        cwd=ROOT, capture_output=True, text=True, check=True,
+    )
+    tracked_files = [f for f in result.stdout.splitlines() if f]
+    # Collect every directory that has at least one tracked file
+    tracked_dirs: set[str] = set()
+    for f in tracked_files:
+        parts = f.replace("\\", "/").split("/")
+        for depth in range(1, len(parts)):
+            tracked_dirs.add("/".join(parts[:depth]))
+    missing = []
+    for rel_dir in sorted(tracked_dirs):
+        abs_dir = os.path.join(ROOT, rel_dir.replace("/", os.sep))
+        files = os.listdir(abs_dir)
+        if "README.md" not in files and "index.md" not in files:
+            missing.append(rel_dir)
     assert missing == [], f"vault dirs without README/index: {missing}"
 
 

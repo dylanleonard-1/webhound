@@ -73,11 +73,24 @@ Both files exist as committed normalized extracts under `corpus/normalized/plann
 | `plan-executive-summary` | Executive Summary — Detection Engineering Survey (planning reference) | Tier B | 1 |
 | `plan-master-tooling-roadmap` | WebHound Master Tooling + WADE Roadmap (planning reference) | Tier B | 1 |
 
-**Executive Summary PDF:** Found on disk as a committed normalized extract at
-`corpus/normalized/planning/executive-summary.md`. The original PDF was processed in
-a prior session and the normalized extract was committed before Phase 6C began. The
-extract covers: high-priority repos survey, detection techniques by project, hybrid engine
-recommendation, and scanner audit priorities.
+**Executive Summary PDF:** Ingested from orchestrator-supplied full text extract.
+The PDF binary is intentionally NOT committed (binaries disallowed per project policy).
+Full extracted text was normalized into `corpus/normalized/planning/executive-summary.md`
+covering all 9 sections: high-priority repos (with exact URLs, languages, key files),
+detection techniques per project, static-vs-dynamic-vs-hybrid comparison with FP/FN
+analysis (incl. direct quote: "Dynamic scanners generate far fewer false positives than
+static tools"), recommended layered engine architecture (crawler→static→dynamic→manifest
+→knowledge graph→reports), implementation guidance with candidate libs and per-class
+detection pipelines, practical short/medium/long-term action timelines, test queries and
+metrics (Juice Shop / DVWA), and recommended next steps. The PDF also references Semgrep,
+Gitleaks, Playwright-MCP, and LightRAG — those belong to Phase 6B and are referenced
+architecturally here but NOT re-ingested in 6C.
+
+The 4 PDF-derived notes were fully enriched with the complete PDF content:
+- `scanner-audit-prep/repo-priority-summary.md` — full repo list with URLs, languages, key files, Phase 6B vs 6C table, detection spectrum
+- `modern-scanner-design/static-vs-dynamic-comparison.md` — all 7 analysis categories (SAST/DAST/hybrid/signature/heuristic/ML/sandbox), FP/FN comparison table, exact PDF quote
+- `modern-scanner-design/hybrid-engine-architecture.md` — full layered pipeline diagram, multi-pass flow detail, per-class pipelines, candidate libs, test queries/metrics
+- `scanner-audit-prep/scanner-audit-recommendations.md` — Phase-9 audit checklist, short/medium/long-term implementation timeline, candidate libs, per-class detection pipelines, test queries, next-steps sequence
 
 ---
 
@@ -196,7 +209,7 @@ All 12 retrieval tests pass (`top3=12/12`; `top1=9/12`).
 
 | Check | Result |
 |---|---|
-| pytest tests/ai/ | 28 passed, 6 skipped, 1 pre-existing failure (vault dirs) |
+| pytest tests/ai/ | 28 passed, 6 skipped, 1 pre-existing failure (vault dirs) — confirmed after PDF enrichment |
 | Manifest byte-stability (records 1–278) | PASS — SHA-256 prefix `7f6cb752a26d91d7…` |
 | Manifest doc_ids unique | PASS |
 | Chunk source attribution | PASS |
@@ -207,7 +220,8 @@ All 12 retrieval tests pass (`top3=12/12`; `top1=9/12`).
 | `.mcp.json` unchanged | PASS |
 | Scanner/WADE/provider code unchanged | PASS |
 | No binaries/node_modules/vendor committed | PASS |
-| Retrieval selftest | PASS — top3=12/12, top1=9/12 |
+| Retrieval selftest | PASS — top3=12/12, top1=9/12 (tests 11+12 pass with PDF-derived content) |
+| Chunks after PDF enrichment | 285 (was 271; 14 new chunks from enriched planning extract + notes) |
 
 **Pre-existing failure:** `test_every_vault_dir_has_readme_or_index` — vault dirs
 (`vault/WEBHOUND KNOWLEGE VAULT/`, `.obsidian/`, `Untitled/`, `Untitled 1/`) are

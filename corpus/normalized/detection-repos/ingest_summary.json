@@ -1,0 +1,105 @@
+{
+  "stamp": "2026-06-13",
+  "repos": [
+    {
+      "repo": "zaproxy/zaproxy",
+      "slug": "zap",
+      "pin": "e1f945470794",
+      "license": "Apache-2.0",
+      "new_records": 9,
+      "candidates": 11,
+      "kept": 10,
+      "skipped_over_cap": 1,
+      "skipped_too_big": 0,
+      "skipped_excluded": 2
+    },
+    {
+      "repo": "sqlmapproject/sqlmap",
+      "slug": "sqlmap",
+      "pin": "63b1b597aa34",
+      "license": "manual_required",
+      "new_records": 2,
+      "candidates": 2,
+      "kept": 2,
+      "skipped_over_cap": 0,
+      "skipped_too_big": 0,
+      "skipped_excluded": 32
+    },
+    {
+      "repo": "s0md3v/XSStrike",
+      "slug": "xsstrike",
+      "pin": "ab27955d3674",
+      "license": "GPL-3.0",
+      "new_records": 1,
+      "candidates": 1,
+      "kept": 1,
+      "skipped_over_cap": 0,
+      "skipped_too_big": 0,
+      "skipped_excluded": 4
+    },
+    {
+      "repo": "hahwul/dalfox",
+      "slug": "dalfox",
+      "pin": "8b3341aa9065",
+      "license": "MIT",
+      "new_records": 6,
+      "candidates": 42,
+      "kept": 10,
+      "skipped_over_cap": 32,
+      "skipped_too_big": 0,
+      "skipped_excluded": 7
+    },
+    {
+      "repo": "projectdiscovery/nuclei-templates",
+      "slug": "nuclei-templates",
+      "pin": "a165bbb8fd49",
+      "license": "MIT",
+      "new_records": 8,
+      "candidates": 12,
+      "kept": 8,
+      "skipped_over_cap": 4,
+      "skipped_too_big": 1,
+      "skipped_excluded": 6
+    },
+    {
+      "repo": "libinjection/libinjection",
+      "slug": "libinjection",
+      "pin": "f4a80e4310ca",
+      "license": "manual_required",
+      "new_records": 4,
+      "candidates": 4,
+      "kept": 4,
+      "skipped_over_cap": 0,
+      "skipped_too_big": 0,
+      "skipped_excluded": 2
+    },
+    {
+      "repo": "firecrawl/firecrawl",
+      "slug": "firecrawl",
+      "pin": "eeb72c5c2852",
+      "license": "AGPL-3.0",
+      "new_records": 9,
+      "candidates": 74,
+      "kept": 10,
+      "skipped_over_cap": 64,
+      "skipped_too_big": 0,
+      "skipped_excluded": 7
+    },
+    {
+      "repo": "firecrawl/firecrawl-mcp-server",
+      "slug": "firecrawl-mcp",
+      "pin": "8b629047f094",
+      "license": "MIT",
+      "new_records": 3,
+      "candidates": 3,
+      "kept": 3,
+      "skipped_over_cap": 0,
+      "skipped_too_big": 0,
+      "skipped_excluded": 1
+    }
+  ],
+  "planning": 2,
+  "notes": 36,
+  "new_records": 80,
+  "chunks": 271
+}

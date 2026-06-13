@@ -160,6 +160,8 @@ def test_manifest_jsonl_doc_ids_unique_and_pointers_local():
     external_anchor_dirs = {
         "official_doc": os.path.join(ROOT, "corpus", "normalized", "docs", "official"),
         "official_repo": os.path.join(ROOT, "corpus", "normalized", "repos"),
+        "detection_repo": os.path.join(ROOT, "corpus", "normalized", "detection-repos"),
+        "planning_reference": os.path.join(ROOT, "corpus", "normalized", "planning"),
     }
     missing = []
     for r in rows:

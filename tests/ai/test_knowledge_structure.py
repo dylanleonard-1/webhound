@@ -118,6 +118,59 @@ def test_mcp_json_only_expected_servers():
     assert servers == {"claude-flow"}, f"unexpected MCP servers in .mcp.json: {sorted(servers)}"
 
 
+def _manifest_records():
+    p = os.path.join(ROOT, "corpus", "manifests", "manifest.jsonl")
+    if not os.path.exists(p):
+        return None
+    rows = []
+    for line in _read("corpus", "manifests", "manifest.jsonl").splitlines():
+        line = line.strip()
+        if line:
+            rows.append(json.loads(line))
+    return rows
+
+
+def test_manifest_jsonl_every_record_validates():
+    """Phase 5A: every internal-ingestion manifest record validates against the schema."""
+    rows = _manifest_records()
+    if rows is None:
+        pytest.skip("manifest.jsonl not present")
+    jsonschema = pytest.importorskip("jsonschema")
+    schema = _schema()
+    v = jsonschema.Draft202012Validator(schema)
+    errors = []
+    for r in rows:
+        for e in v.iter_errors(r):
+            errors.append(f"{r.get('doc_id','?')}: {e.message}")
+    assert errors == [], f"manifest.jsonl schema errors: {errors[:5]}"
+
+
+def test_manifest_jsonl_doc_ids_unique_and_pointers_local():
+    rows = _manifest_records()
+    if rows is None:
+        pytest.skip("manifest.jsonl not present")
+    ids = [r["doc_id"] for r in rows]
+    assert len(ids) == len(set(ids)), "duplicate doc_id in manifest.jsonl"
+    # source_url is a repo-relative local pointer that exists (no external/orphan refs)
+    missing = [r["doc_id"] for r in rows if not os.path.exists(os.path.join(ROOT, r["source_url"]))]
+    assert missing == [], f"manifest records pointing to missing local files: {missing[:5]}"
+
+
+def test_memory_summaries_pointers_exist_and_no_secrets():
+    p = os.path.join(ROOT, "corpus", "manifests", "memory_summaries.jsonl")
+    if not os.path.exists(p):
+        pytest.skip("memory_summaries.jsonl not present")
+    forbidden = ("sk-", "ghp_", "gho_", "password", "api_key=")
+    for line in _read("corpus", "manifests", "memory_summaries.jsonl").splitlines():
+        if not line.strip():
+            continue
+        rec = json.loads(line)
+        blob = json.dumps(rec).lower()
+        assert not any(f in blob for f in forbidden), f"forbidden token in memory {rec.get('memory_id')}"
+        for path in rec.get("related_paths", []):
+            assert os.path.exists(os.path.join(ROOT, path.rstrip("/"))), f"memory pointer missing: {path}"
+
+
 if __name__ == "__main__":
     # Standalone runner (no pytest): run the non-jsonschema checks + best-effort schema.
     failures = []

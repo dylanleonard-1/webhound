@@ -1,0 +1,38 @@
+name: AI Knowledge Layer Tests
+
+# Minimal, safe CI for the AI Knowledge Layer ONLY.
+# Runs on every pull request and on pushes to main. It installs just
+# pytest + jsonschema (NOT the production requirements), runs the structure +
+# manifest/schema validators (which also assert the env-generator invariants:
+# dead scanner IP absent, the 3 current IPs present, required vars retained) and
+# tests/ai. It touches NO app/scanner/provider-access/integration code, no
+# database, no secrets, and performs NO deploy.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read   # least privilege; no write, no secrets, no deploy
+
+jobs:
+  ai-knowledge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install minimal test deps (NO production deps)
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest jsonschema
+
+      - name: Validate knowledge structure + manifest schema + env-generator invariants
+        run: python scripts/ai/validate_knowledge_structure.py
+
+      - name: Run AI knowledge tests (tests/ai only)
+        run: python -m pytest tests/ai -q

@@ -50,6 +50,8 @@
       "enum": [
         "official_doc",
         "official_repo",
+        "detection_repo",
+        "planning_reference",
         "paper",
         "repo",
         "release_note",

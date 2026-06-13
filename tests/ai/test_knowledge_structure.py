@@ -156,6 +156,85 @@ def test_manifest_jsonl_doc_ids_unique_and_pointers_local():
     assert missing == [], f"manifest records pointing to missing local files: {missing[:5]}"
 
 
+def _load_script(modname):
+    spec = importlib.util.spec_from_file_location(
+        modname, os.path.join(ROOT, "scripts", "ai", f"{modname}.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+# ---- Phase 5C: roles, chunk quality, retrieval ranking ---------------------
+def test_doc_role_in_schema_enum():
+    s = _schema()
+    assert "doc_role" in s["properties"]
+    roles = set(s["properties"]["doc_role"]["enum"])
+    expected = {"canonical_note", "architecture_summary", "decision_log",
+                "false_positive_note", "provider_note", "engine_note", "policy_doc",
+                "phase_result_report", "audit_report", "historical_reference",
+                "empty_stub", "generated_summary"}
+    assert expected.issubset(roles)
+
+
+def test_manifest_records_have_valid_doc_role():
+    rows = _manifest_records()
+    if rows is None:
+        pytest.skip("manifest.jsonl not present")
+    allowed = set(_schema()["properties"]["doc_role"]["enum"])
+    bad = [r["doc_id"] for r in rows if r.get("doc_role") not in allowed]
+    assert bad == [], f"records with missing/invalid doc_role: {bad[:5]}"
+
+
+def test_empty_stub_docs_marked_deprecated_and_produce_no_chunks():
+    ing = _load_script("ingest_internal_knowledge")
+    recs, _ = ing.build_records()
+    stubs = [r for r in recs if r["doc_role"] == "empty_stub"]
+    assert stubs, "expected the known empty 0-byte stub docs"
+    for r in stubs:
+        assert r["verification_status"] == "deprecated"
+    chunks = ing.build_chunks(recs)
+    stub_ids = {r["doc_id"] for r in stubs}
+    assert not [c for c in chunks if c["doc_id"] in stub_ids], "empty stubs must produce 0 chunks"
+
+
+def test_chunks_have_source_attribution():
+    ing = _load_script("ingest_internal_knowledge")
+    recs, _ = ing.build_records()
+    chunks = ing.build_chunks(recs)
+    ids = {r["doc_id"] for r in recs}
+    for c in chunks[:200]:
+        assert c["doc_id"] in ids and c["source_path"] and "authority_tier" in c and "doc_role" in c
+
+
+def test_chunk_filters_dedup_and_minlength_report():
+    ing = _load_script("ingest_internal_knowledge")
+    recs, stats = ing.build_records()
+    ing.build_chunks(recs, stats)
+    cf = stats.get("chunk_filter")
+    assert cf is not None and cf["docs_skipped_empty"] >= 6
+    # identical chunk text is deduped: feeding the same doc twice drops the repeats
+    dup = ing.build_chunks(recs + recs, {})
+    once = ing.build_chunks(recs, {})
+    assert len(dup) == len(once), "duplicate chunks must be deduped by normalized content"
+
+
+def test_retrieval_boosts_canonical_over_reports():
+    sr = _load_script("semantic_retrieval")
+    chunks = sr._ingest_chunks()
+    bm = sr.BM25Backend(chunks)
+    # definitional queries must surface the canonical note at #1, not a phase report/audit
+    cases = {
+        "What is WADE?": "knowledge/webhound/wade/WADE_FOUNDATION.md",
+        "What is the Security Graph bridge?": "docs/ai/SECURITY_GRAPH_BRIDGE.md",
+        "What is the MCP security model?": "docs/ai/mcp/MCP_SECURITY_MODEL.md",
+    }
+    for q, expected in cases.items():
+        top = sr.best_docs(bm.rank(q, authority=True), k=1)[0][1]
+        assert top["source_path"] == expected, f"{q!r} -> {top['source_path']} (want {expected})"
+        assert top["doc_role"] not in ("phase_result_report", "audit_report"), \
+            f"{q!r} top result is a {top['doc_role']} (should be a canonical note)"
+
+
 def test_memory_summaries_pointers_exist_and_no_secrets():
     p = os.path.join(ROOT, "corpus", "manifests", "memory_summaries.jsonl")
     if not os.path.exists(p):

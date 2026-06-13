@@ -63,6 +63,24 @@
         "prompt_template"
       ]
     },
+    "doc_role": {
+      "type": "string",
+      "description": "Optional finer-grained document role (Phase 5C) used for retrieval weighting. Distinct from source_type/authority_tier.",
+      "enum": [
+        "canonical_note",
+        "architecture_summary",
+        "decision_log",
+        "false_positive_note",
+        "provider_note",
+        "engine_note",
+        "policy_doc",
+        "phase_result_report",
+        "audit_report",
+        "historical_reference",
+        "empty_stub",
+        "generated_summary"
+      ]
+    },
     "authority_tier": {
       "type": "string",
       "description": "A=official docs/standards, B=research papers, C=official repos/release notes, D=threat feeds/provider KBs, E=community.",

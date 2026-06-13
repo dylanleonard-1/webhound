@@ -128,6 +128,50 @@ def classify(rel: str) -> dict:
 
 _CONF = {"A": 0.95, "B": 0.85, "C": 0.7}
 
+# Phase 5C — document ROLE (finer than authority tier; drives retrieval weighting).
+ROLES = (
+    "canonical_note", "architecture_summary", "decision_log", "false_positive_note",
+    "provider_note", "engine_note", "policy_doc", "phase_result_report",
+    "audit_report", "historical_reference", "empty_stub", "generated_summary",
+)
+EMPTY_STUB_MAX_CHARS = 30  # docs with fewer non-space chars are treated as empty stubs
+
+
+def classify_role(rel: str, raw: str) -> str:
+    """Classify a document's ROLE (generalizes by path/name + emptiness, not by
+    any single topic). Used to boost canonical notes and demote generated reports /
+    audits for definitional queries."""
+    low = rel.lower()
+    base = os.path.basename(low)
+    if len(raw.strip()) < EMPTY_STUB_MAX_CHARS:
+        return "empty_stub"
+    if base.startswith("phase") and base.endswith("_results.md"):
+        return "phase_result_report"
+    if base.startswith("webhound_") and any(k in base for k in ("audit", "review", "benchmark")):
+        return "audit_report"
+    if any(k in low for k in ("known_alpha", "alpha_workflow", "alpha_testing",
+                              "tester_setup", "known_limitations")):
+        return "historical_reference"
+    if "decision" in low:
+        return "decision_log"
+    if low.startswith("knowledge/false-positive-catalog/") and base != "readme.md":
+        return "false_positive_note"
+    if low.startswith("knowledge/provider-docs/"):
+        return "provider_note"
+    if (low.startswith("knowledge/scanner-engines/")
+            or low.startswith("knowledge/javascript-malware-library/")
+            or low.startswith("knowledge/third-party-domain-risk/")
+            or low.startswith("knowledge/threat-intel-library/")):
+        return "engine_note"
+    if "policy" in base or base == "security_notice.md":
+        return "policy_doc"
+    if "architecture" in base or "master_plan" in base or low.startswith("knowledge/webhound/architecture/"):
+        return "architecture_summary"
+    if (low.startswith("knowledge/") or low.startswith("docs/ai/")
+            or low.startswith("corpus/") or low.startswith("vault/")):
+        return "canonical_note"
+    return "policy_doc"  # other internal operational/reference docs (neutral weight)
+
 
 def build_records() -> tuple[list[dict], dict]:
     paths = discover()
@@ -139,12 +183,17 @@ def build_records() -> tuple[list[dict], dict]:
         raw = _read(p)
         h = _sha256(raw.encode("utf-8"))
         cls = classify(rel)
+        role = classify_role(rel, raw)
+        # Empty stubs: keep the record (do NOT delete) but mark deprecated; they
+        # produce zero chunks (see build_chunks).
+        verification = "deprecated" if role == "empty_stub" else cls["verification"]
         rec = {
             "doc_id": _doc_id(rel),
             "title": _title(raw, rel),
             "source_name": "WebHound internal",
             "source_url": rel,                      # local pointer (no secrets)
             "source_type": cls["stype"],
+            "doc_role": role,                       # Phase 5C
             "authority_tier": cls["tier"],
             "language": "en",
             "product_or_provider": None,
@@ -154,7 +203,7 @@ def build_records() -> tuple[list[dict], dict]:
             "first_ingested": INGEST_STAMP,
             "content_hash": h,
             "confidence_score": _CONF[cls["tier"]],
-            "verification_status": cls["verification"],
+            "verification_status": verification,
             "license_terms": "internal",
             "citability": "internal_only",
             "pii_risk_class": "none",
@@ -178,20 +227,34 @@ def build_records() -> tuple[list[dict], dict]:
         "documents": len(records),
         "by_tier": {t: sum(1 for r in records if r["authority_tier"] == t) for t in "ABC"},
         "by_type": {},
+        "by_role": {},
         "duplicate_groups": len(duplicates),
         "duplicates": duplicates,
     }
     for r in records:
         stats["by_type"][r["source_type"]] = stats["by_type"].get(r["source_type"], 0) + 1
+        stats["by_role"][r["doc_role"]] = stats["by_role"].get(r["doc_role"], 0) + 1
     return records, stats
 
 
 # ---------------------------------------------------------------------------
 # Chunking
 # ---------------------------------------------------------------------------
+MIN_CHUNK_CHARS = 40  # chunks shorter than this are dropped (but every non-stub
+                      # doc keeps at least its single largest chunk, so it stays
+                      # retrievable — no document is silently dropped).
+
+
+def _norm(s: str) -> str:
+    return re.sub(r"\s+", " ", s.strip().lower())
+
+
 def chunk_doc(rec: dict, text: str) -> list[dict]:
     """Split a markdown doc by H2/H3 headings, preserving context. Each chunk maps
-    back to its manifest doc_id, source path, authority tier, and a chunk hash."""
+    back to its manifest doc_id, source path, authority tier, role, and a chunk
+    hash. Empty stubs produce ZERO chunks."""
+    if rec.get("doc_role") == "empty_stub":
+        return []
     parts: list[tuple[str, str]] = []
     cur_head, buf = rec["title"], []
     for line in text.splitlines():
@@ -204,7 +267,6 @@ def chunk_doc(rec: dict, text: str) -> list[dict]:
             buf.append(line)
     if buf:
         parts.append((cur_head, "\n".join(buf).strip()))
-    # merge tiny chunks; cap very large ones
     chunks = []
     for i, (head, body) in enumerate([p for p in parts if p[1]]):
         body = body[:4000]
@@ -213,6 +275,7 @@ def chunk_doc(rec: dict, text: str) -> list[dict]:
             "doc_id": rec["doc_id"],
             "source_path": rec["source_url"],
             "authority_tier": rec["authority_tier"],
+            "doc_role": rec.get("doc_role", "canonical_note"),
             "heading": head,
             "text": f"{head}\n{body}".strip(),
             "chunk_hash": _sha256((head + body).encode("utf-8")),
@@ -220,12 +283,43 @@ def chunk_doc(rec: dict, text: str) -> list[dict]:
     return chunks
 
 
-def build_chunks(records: list[dict]) -> list[dict]:
-    chunks: list[dict] = []
+def build_chunks(records: list[dict], stats: dict | None = None) -> list[dict]:
+    """Build chunks with quality filters + dedup. Records reasons in `stats`
+    (if provided). Filters: empty-stub docs -> 0 chunks; chunks below
+    MIN_CHUNK_CHARS dropped (but each non-stub doc keeps its largest chunk);
+    identical normalized chunks deduped."""
+    counts = {"docs_skipped_empty": 0, "chunks_short_dropped": 0, "chunks_dup_dropped": 0}
+    seen_norm: set[str] = set()
+    out: list[dict] = []
     for rec in records:
+        if rec.get("doc_role") == "empty_stub":
+            counts["docs_skipped_empty"] += 1
+            continue
         text = _read(os.path.join(ROOT, rec["source_url"]))
-        chunks += chunk_doc(rec, text)
-    return chunks
+        raw_chunks = chunk_doc(rec, text)
+        kept: list[dict] = []
+        for c in raw_chunks:
+            if len(c["text"]) < MIN_CHUNK_CHARS:
+                counts["chunks_short_dropped"] += 1
+                continue
+            n = _norm(c["text"])
+            if n in seen_norm:
+                counts["chunks_dup_dropped"] += 1
+                continue
+            seen_norm.add(n)
+            kept.append(c)
+        # never drop a non-empty doc entirely: keep its largest chunk if all filtered
+        if not kept and raw_chunks:
+            biggest = max(raw_chunks, key=lambda c: len(c["text"]))
+            n = _norm(biggest["text"])
+            if n not in seen_norm:
+                seen_norm.add(n)
+                kept.append(biggest)
+                counts["chunks_short_dropped"] = max(0, counts["chunks_short_dropped"] - 1)
+        out += kept
+    if stats is not None:
+        stats["chunk_filter"] = counts
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -346,7 +440,7 @@ def _write_jsonl(path, rows):
 def cmd_run(args) -> int:
     records, stats = build_records()
     errs = validate_records(records)
-    chunks = build_chunks(records)
+    chunks = build_chunks(records, stats)
     memory = build_memory(records)
     # chunk integrity: every chunk maps to a known doc_id
     ids = {r["doc_id"] for r in records}
@@ -357,8 +451,10 @@ def cmd_run(args) -> int:
 
     print(f"[inventory] documents={stats['documents']} by_tier={stats['by_tier']} "
           f"duplicate_groups={stats['duplicate_groups']}")
+    print(f"[roles]     {stats['by_role']}")
     print(f"[manifest]  records={len(records)} schema_errors={len(errs)}")
-    print(f"[chunks]    chunks={len(chunks)} orphan_chunks={len(orphan_chunks)}")
+    print(f"[chunks]    chunks={len(chunks)} orphan_chunks={len(orphan_chunks)} "
+          f"filters={stats.get('chunk_filter')}")
     print(f"[memory]    entries={len(memory)} bad_pointers={len(bad_ptr)}")
     if errs:
         print("  SCHEMA ERRORS:")

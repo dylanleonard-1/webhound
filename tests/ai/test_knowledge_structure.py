@@ -155,12 +155,20 @@ def test_manifest_jsonl_doc_ids_unique_and_pointers_local():
     #   * internal docs: source_url IS the repo-relative path and must exist.
     #   * external official docs (Phase 6A): source_url is an upstream URL, so the
     #     anchor is the committed normalized artifact under corpus/normalized/docs/official/.
+    #   * external official repos (Phase 6B): same idea, but the committed normalized
+    #     artifact lives under corpus/normalized/repos/.
+    external_anchor_dirs = {
+        "official_doc": os.path.join(ROOT, "corpus", "normalized", "docs", "official"),
+        "official_repo": os.path.join(ROOT, "corpus", "normalized", "repos"),
+    }
     missing = []
     for r in rows:
         src = r["source_url"]
         if src.startswith("http://") or src.startswith("https://"):
-            anchor = os.path.join(ROOT, "corpus", "normalized", "docs", "official",
-                                  f"{r['doc_id']}.md")
+            base = external_anchor_dirs.get(
+                r["source_type"],
+                os.path.join(ROOT, "corpus", "normalized", "docs", "official"))
+            anchor = os.path.join(base, f"{r['doc_id']}.md")
         else:
             anchor = os.path.join(ROOT, src)
         if not os.path.exists(anchor):

@@ -81,6 +81,12 @@ def discover() -> list[str]:
         if fn.startswith(ROOT_WHITELIST_PREFIXES) or fn in ROOT_WHITELIST_EXACT:
             paths.append(os.path.join(ROOT, fn))
     paths = sorted(set(paths))
+    # External, normalized repo evidence (Phase 6B, Tier-C `official_repo`) lives
+    # under corpus/normalized/repos/. It is ingested by ingest_official_repos.py
+    # and must NOT be swept into the INTERNAL knowledge index (otherwise a tool
+    # README would be mis-ranked as Tier-A internal canonical_note). Exclude it.
+    paths = [p for p in paths
+             if not _rel(p).replace("\\", "/").startswith("corpus/normalized/repos/")]
     # Index only git-TRACKED files so the manifest is reproducible from a clean
     # checkout (untracked local docs must not appear as "missing" pointers in CI).
     tracked = _git_tracked()

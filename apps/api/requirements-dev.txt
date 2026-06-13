@@ -5,3 +5,6 @@ anyio>=4
 httpx>=0.27
 aiosqlite>=0.20
 fakeredis>=2.20
+# Dev-only: validate the AI knowledge-layer corpus manifest schema
+# (corpus/manifests/manifest.schema.json). Not used by production code.
+jsonschema>=4

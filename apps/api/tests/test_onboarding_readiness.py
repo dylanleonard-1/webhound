@@ -84,7 +84,12 @@ async def test_activate_blocked_when_not_ready(client):
     wid = await _create(client)
     r = await client.post(f"/websites/{wid}/onboarding/activate-monitoring")
     assert r.status_code == 409
-    assert r.json()["detail"]["error"] == "not_ready"
+    # Real API contract: the app's errors.http_exception_handler wraps every
+    # HTTPException as {"error": {"code", "message", "details"}}. A 409 maps to
+    # code "conflict"; the endpoint's not_ready signal is carried in the message.
+    body = r.json()
+    assert body["error"]["code"] == "conflict"
+    assert "not_ready" in body["error"]["message"]
 
 
 async def test_full_ready_path_activates_monitoring(client, monkeypatch, db_engine):

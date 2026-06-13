@@ -36,6 +36,18 @@ def _mock_discover(monkeypatch) -> None:
     monkeypatch.setattr(ProviderDiscoveryService, "discover", _fake)
 
 
+async def _connect_provider(db_engine, wid: str, provider: str = "cloudflare") -> None:
+    """Onboarding completion now requires every DETECTED provider to be CONNECTED
+    (Phase 4.2). _mock_discover detects Cloudflare, so the flow must connect it."""
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from apps.api.models.provider_connection import ProviderConnection
+    factory = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with factory() as s:
+        s.add(ProviderConnection(
+            website_id=uuid.UUID(wid), provider=provider, connection_status="connected"))
+        await s.commit()
+
+
 async def test_automate_fresh_pauses_at_verification(client, monkeypatch):
     _mock_discover(monkeypatch)
     wid = await _create(client)
@@ -47,7 +59,7 @@ async def test_automate_fresh_pauses_at_verification(client, monkeypatch):
     assert body["next_action"]
 
 
-async def test_automate_full_flow_completes(client, monkeypatch):
+async def test_automate_full_flow_completes(client, monkeypatch, db_engine):
     wid = await _create(client)
     # Verify ownership first so the automation clears the verification gate.
     monkeypatch.setattr(vs, "_check_dns", _t)
@@ -62,6 +74,10 @@ async def test_automate_full_flow_completes(client, monkeypatch):
                                      "api_requests_count": 4, "evidence": []}}}, 10
 
     monkeypatch.setattr(av, "_latest_scan_metadata", _meta)
+    # Connect the DETECTED provider (Cloudflare) — completion now requires it.
+    # Without this the flow correctly stays NOT_READY; we satisfy the real gate
+    # rather than bypass it.
+    await _connect_provider(db_engine, wid, "cloudflare")
     body = (await client.post(f"/websites/{wid}/onboarding/automate")).json()
     assert body["status"] == "completed"
     assert "verification" in body["completed_stages"]

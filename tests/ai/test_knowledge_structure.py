@@ -151,9 +151,21 @@ def test_manifest_jsonl_doc_ids_unique_and_pointers_local():
         pytest.skip("manifest.jsonl not present")
     ids = [r["doc_id"] for r in rows]
     assert len(ids) == len(set(ids)), "duplicate doc_id in manifest.jsonl"
-    # source_url is a repo-relative local pointer that exists (no external/orphan refs)
-    missing = [r["doc_id"] for r in rows if not os.path.exists(os.path.join(ROOT, r["source_url"]))]
-    assert missing == [], f"manifest records pointing to missing local files: {missing[:5]}"
+    # Every record must anchor to a committed local file (no orphan refs):
+    #   * internal docs: source_url IS the repo-relative path and must exist.
+    #   * external official docs (Phase 6A): source_url is an upstream URL, so the
+    #     anchor is the committed normalized artifact under corpus/normalized/docs/official/.
+    missing = []
+    for r in rows:
+        src = r["source_url"]
+        if src.startswith("http://") or src.startswith("https://"):
+            anchor = os.path.join(ROOT, "corpus", "normalized", "docs", "official",
+                                  f"{r['doc_id']}.md")
+        else:
+            anchor = os.path.join(ROOT, src)
+        if not os.path.exists(anchor):
+            missing.append(r["doc_id"])
+    assert missing == [], f"manifest records without a local anchor file: {missing[:5]}"
 
 
 def _load_script(modname):

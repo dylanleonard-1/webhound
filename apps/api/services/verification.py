@@ -108,6 +108,12 @@ async def check_verification(
             website.hostname,
         )
         _mark_verified(website, dv)
+        # Same side effect as the real-proof path below: ownership is now
+        # VERIFIED, so the default monitoring schedule must exist. Without this
+        # the dev-skip path left the site verified but with NO schedule, so the
+        # onboarding monitoring step never activated and onboarding never
+        # completed (see test_wizard_completes_after_full_flow).
+        await ensure_default_schedule(db, website)
         emit_verification_event(
             VERIFICATION_COMPLETED, website,
             method=dv.method.value, reason="dev_skip",
@@ -166,7 +172,7 @@ async def check_verification(
                 "This domain is already verified under a different account."
             )
         _mark_verified(website, dv)
-        await _ensure_default_schedule(db, website)
+        await ensure_default_schedule(db, website)
         emit_verification_event(VERIFICATION_COMPLETED, website, method=method.value)
         record_phase3_event(
             db, event_type=VERIFICATION_COMPLETED, website=website,
@@ -200,25 +206,36 @@ def _mark_verified(website: Website, dv: DomainVerification) -> None:
     website.verification_status = VerificationStatus.VERIFIED
 
 
-async def _ensure_default_schedule(db: AsyncSession, website: Website) -> None:
-    """Auto-create a daily continuous-monitoring schedule on first verification.
+async def ensure_default_schedule(db: AsyncSession, website: Website) -> ScanSchedule:
+    """Get-or-create the default daily continuous-monitoring schedule.
 
-    Every user gets one scheduled scan per day per verified website,
-    regardless of plan tier. The user can change frequency or disable it
-    later from the dashboard's monitoring view.
+    The SINGLE deterministic, idempotent seam for the auto-monitoring schedule.
+    Every user gets one scheduled scan per day per verified website, regardless
+    of plan tier; the user can change frequency or disable it later from the
+    dashboard's monitoring view.
 
-    No-op if any ScanSchedule already exists for this website (handles the
-    re-verification path).
+    Get-or-create semantics: returns the existing schedule if ANY ScanSchedule
+    already exists for this website (re-verification path, or a row another
+    caller created), otherwise creates one ENABLED and returns it. Never creates
+    a duplicate, and never flips an existing schedule's enabled flag (so it
+    respects a user who disabled monitoring). Callers that need the schedule
+    *enabled* (e.g. activation) do that explicitly after calling this.
+
+    Called synchronously at every point onboarding needs the schedule to exist
+    (ownership verification — including the dev-skip path — and monitoring
+    activation), so completion never depends on a race with background
+    automation.
     """
     from datetime import timedelta
 
     existing = await db.scalar(
-        sa.select(ScanSchedule.id)
+        sa.select(ScanSchedule)
         .where(ScanSchedule.website_id == website.id)
+        .order_by(ScanSchedule.created_at.asc())
         .limit(1)
     )
     if existing is not None:
-        return
+        return existing
 
     # First run tomorrow at the same wall-clock time the site was verified
     # — keeps it predictable for the user, avoids stacking scans on the
@@ -236,6 +253,8 @@ async def _ensure_default_schedule(db: AsyncSession, website: Website) -> None:
     )
     db.add(schedule)
     await db.flush()
+    await db.refresh(schedule)
+    return schedule
 
 
 async def mark_verified_via_provider(
@@ -271,7 +290,7 @@ async def mark_verified_via_provider(
             "This domain is already verified under a different account.")
     dv = await get_or_create_verification(db, website, VerificationMethod.PROVIDER_CONNECTION)
     _mark_verified(website, dv)
-    await _ensure_default_schedule(db, website)
+    await ensure_default_schedule(db, website)
     emit_verification_event(
         VERIFICATION_COMPLETED, website,
         method=VerificationMethod.PROVIDER_CONNECTION.value, reason=f"provider:{provider}")

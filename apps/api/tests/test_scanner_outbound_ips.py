@@ -26,3 +26,15 @@ def test_blank_and_none():
 
 def test_cidr_preserved():
     assert parse_scanner_outbound_ips("152.55.0.0/16") == ["152.55.0.0/16"]
+
+
+def test_default_is_three_static_egress_ips():
+    """Railway Static Outbound IPs: the config default must be all three fixed
+    egress IPs (the old single dynamic IP 152.55.180.27 is stale)."""
+    from apps.api.config import Settings
+
+    ips = parse_scanner_outbound_ips(Settings().scanner_outbound_ips)
+    assert ips == [
+        "162.220.234.240", "152.55.180.240", "152.55.180.241",
+    ]
+    assert "152.55.180.27" not in ips

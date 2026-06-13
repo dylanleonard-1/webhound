@@ -107,3 +107,69 @@ def classify_scan_blocker(
         "next_action": "Review scanner access — challenge source is unrecognized",
         "confidence": confidence,
     }
+
+
+def detect_blocking_provider(
+    yield_assessment: dict | None,
+    *,
+    headers: dict | None = None,
+    cloudflare_connected: bool = False,
+) -> dict:
+    """Phase-2 multi-provider blocker detection — consumes the provider registry
+    so all 10 CDN/WAF providers are attributed (not just Cloudflare/Vercel).
+
+    Reuses the legacy ``classify_scan_blocker`` for the back-compatible
+    blocker/diagnosis fields, then layers registry attribution on top:
+      1. trust the scan's own ``challenge_provider`` when it's a registry provider
+         (it comes from challenge_detection, which already fingerprints 6),
+      2. else run the registry's signal detector over the response
+         headers + the yield-assessment text.
+
+    Output (superset of the legacy shape): ``provider``, ``name``, ``confidence``,
+    ``reason``, ``challenge_detected``, ``access_required``, ``automation_capable``,
+    ``allowlist_method`` + the legacy ``blocker``/``diagnosis``/``next_action``."""
+    from apps.api.services import provider_access_registry as _reg
+
+    legacy = classify_scan_blocker(
+        yield_assessment, cloudflare_connected=cloudflare_connected)
+    ya = yield_assessment or {}
+    challenge = ya.get("challenge_detected") is True
+    cp = str(ya.get("challenge_provider") or "").strip().lower()
+    text = _haystack(ya)
+    conf = ya.get("confidence")
+    scan_conf = int(conf) if isinstance(conf, (int, float)) else None
+
+    detected: dict | None = None
+    # 1. The scan already named a provider that's in the registry.
+    if cp:
+        p = _reg.get_provider(cp)
+        if p is not None:
+            detected = {
+                "provider": p.key, "name": p.name,
+                "confidence": scan_conf if scan_conf is not None else 85,
+                "reason": f"scan challenge_provider={cp}",
+                "automation_capable": p.automation_capable,
+                "allowlist_method": p.allowlist_method,
+            }
+    # 2. Registry signal detection over headers + the yield-assessment text.
+    if detected is None:
+        detected = _reg.detect_provider(headers=headers, body=text, url_chain=text)
+
+    return {
+        "provider": detected["provider"] if detected else None,
+        "name": detected.get("name") if detected else None,
+        "confidence": (detected.get("confidence")
+                       if detected else legacy.get("confidence")),
+        "reason": (detected.get("reason") if detected
+                   else legacy.get("next_action")),
+        "challenge_detected": challenge,
+        # A challenge means the scanner needs access regardless of attribution.
+        "access_required": bool(challenge),
+        "automation_capable": bool(detected.get("automation_capable")) if detected else False,
+        "allowlist_method": detected.get("allowlist_method") if detected else "manual",
+        # --- legacy fields (unchanged behaviour) ---
+        "blocker": legacy["blocker"],
+        "diagnosis": legacy["diagnosis"],
+        "active_blocker_provider": legacy["active_blocker_provider"],
+        "next_action": legacy["next_action"],
+    }

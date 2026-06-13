@@ -152,12 +152,14 @@ class Settings(BaseSettings):
     # WORKER's real egress IP(s) as seen by the internet, surfaced PUBLICLY on
     # GET /scanner/identity + the trusted-access guidance so customers can allowlist the
     # WebHound scanner by IP (not UA alone) — e.g. a Vercel System Bypass Rule or a
-    # Cloudflare IP allow rule. Default is the current Railway worker egress
-    # (AS400940 Railway, us-east), captured empirically.
-    # IMPORTANT: this MUST be updated if Railway egress changes (Railway does NOT
-    # guarantee a fixed egress IP without the static-egress feature) or when a static
-    # outbound IP is enabled. Override from Railway via WEBHOUND_SCANNER_OUTBOUND_IPS.
-    scanner_outbound_ips: str = "152.55.180.27"
+    # Scanner egress IPs — the fixed set the worker egresses from with Railway
+    # Static Outbound IPs ENABLED (us-east). These replace the old dynamic
+    # single IP (152.55.180.27), which is now stale. Customer allowlists /
+    # firewall bypass rules MUST include ALL of these.
+    # Override from Railway via WEBHOUND_SCANNER_OUTBOUND_IPS (comma-separated).
+    scanner_outbound_ips: str = (
+        "162.220.234.240,152.55.180.240,152.55.180.241"
+    )
 
     # Public-facing URLs (used in OAuth redirect_uri and post-auth redirects)
     # Production: api_base_url=https://api.webhoundsecurity.com  frontend_url=https://webhoundsecurity.com

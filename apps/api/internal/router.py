@@ -37,6 +37,26 @@ _DB = Annotated[AsyncSession, Depends(get_db)]
 _ACTIVE_SUB = (SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING)
 
 
+@router.get("/platform-access")
+async def internal_platform_access(admin: _AnyAdmin, db: _DB) -> dict:
+    """Platform Access Framework admin view: configured providers, the current
+    scanner egress IPs, verification success rate, and the most-common detected
+    providers / failures / blocks — aggregated from the platform.* audit trail."""
+    from apps.api.config import scanner_outbound_ips
+    from apps.api.services import platform_access as pa
+    rows = (await db.execute(
+        select(AdminAuditLog)
+        .where(AdminAuditLog.action.like("platform.%"))
+        .order_by(AdminAuditLog.created_at.desc())
+        .limit(5000)
+    )).scalars().all()
+    events = [{"event_type": r.action, "provider": (r.detail or {}).get("provider")}
+              for r in rows]
+    return pa.build_admin_stats(
+        events, providers=pa.registry_provider_summaries(),
+        scanner_ips=scanner_outbound_ips())
+
+
 @router.get("/me")
 async def internal_me(admin: _AnyAdmin) -> dict:
     """Identity + role for the authenticated staff member (gates the UI)."""

@@ -49,6 +49,7 @@
       "type": "string",
       "enum": [
         "official_doc",
+        "official_repo",
         "paper",
         "repo",
         "release_note",

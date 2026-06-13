@@ -171,3 +171,36 @@ the console.
 | `NEXT_PUBLIC_SITE_URL` | web | `http://localhost:3000` | Canonical URL (SEO/OG/sitemap) |
 | `NEXT_PUBLIC_SENTRY_DSN` | web | – | Browser error reporting |
 | `SNAP_BASE_URL` / `SNAP_OUT_DIR` / `SNAP_REDUCED_MOTION` | web scripts | – | Screenshot tooling only |
+
+## AI Knowledge Layer — MCP tooling (NOT app config)
+
+These keys are consumed **only** by local Claude Code MCP servers used to build the
+AI knowledge/evidence layer (see [`docs/ai/`](ai/README.md)). They are **not** read
+by `apps/api`, `worker`, or the scanner, and `apps/api/config.py` does not define
+them — leaving them blank has **zero** effect on WebHound runtime. Phase 1
+**documents** these MCPs; it does **not** install or connect any MCP server.
+
+| Var | Used in | Secret | Default | Notes |
+|-----|---------|:-:|---------|-------|
+| `GITHUB_TOKEN` | Claude Code GitHub MCP (local) | ✓ | – | **NEW, read-only fine-grained PAT.** Distinct from `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` (OAuth login). Blank = MCP disabled. |
+| `FIRECRAWL_API_KEY` | Claude Code Firecrawl MCP (local) | ✓ | – | Doc-crawl MCP. Blank = MCP disabled. |
+| `PERPLEXITY_API_KEY` | Claude Code Perplexity MCP (local) | ✓ | – | Research MCP. Blank = MCP disabled. |
+| `OTX_API_KEY` *(Phase 5)* | future TI ingestion | ✓ | – | AlienVault OTX — **client not built yet**; documented for Phase 5. |
+| `ABUSEIPDB_API_KEY` *(Phase 5)* | future TI ingestion | ✓ | – | AbuseIPDB — normalizer exists, **fetch client not built yet** (Phase 5). |
+| `THREATFOX_API_KEY` *(Phase 5)* | future TI ingestion | ✓ | – | ThreatFox — **auth/naming UNVERIFIED**; commented-out in `.env.example`; documented for Phase 5. |
+
+The three **active** MCP keys (`GITHUB_TOKEN`, `FIRECRAWL_API_KEY`,
+`PERPLEXITY_API_KEY`) are present in `.env.example` (blank). The three **Phase-5**
+keys are **commented-out** placeholders (their clients do not exist yet) and are
+NOT active env vars.
+
+> **Generator status.** `scripts/_gen_env_example.py` (the `.env.example` source of
+> truth) has been **re-synced** to the committed `.env.example` and now carries
+> drift guards: it **refuses to write** if `CLOUDFLARE_OAUTH_SCOPES`,
+> `CLOUDFLARE_SCANNER_OAUTH_SCOPES`, or `WEBHOUND_SCANNER_OUTBOUND_IPS` would be
+> dropped, if the dead egress IP `152.55.180.27` would reappear, or if any of the
+> three current static scanner IPs (`162.220.234.240`, `152.55.180.240`,
+> `152.55.180.241`) would go missing. Regenerating is **idempotent** — running
+> `python scripts/_gen_env_example.py` twice yields no further diff. (`.env*` is
+> protected from the editing tools, so the generator is how these files are
+> written.)

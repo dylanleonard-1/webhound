@@ -173,7 +173,7 @@ GITHUB_CLIENT_SECRET=                    # [secret]
 # ---------------------------------------------------------------------------
 # Provider connections  (Phase 4.2+ - empty string = provider disabled)
 # ---------------------------------------------------------------------------
-# Cloudflare OAuth (read-only scopes: account:read zone:read). Used by the
+# Cloudflare OAuth (read-only scope: zone.read - DOT notation). Used by the
 # dashboard "Connect Cloudflare" flow to verify domain ownership via an active
 # zone and prepare trusted scanner access. Requires ENCRYPTION_KEYS (above) -
 # the connect/callback fail closed without it.
@@ -183,6 +183,17 @@ GITHUB_CLIENT_SECRET=                    # [secret]
 #       prod -> https://api.webhoundsecurity.com/integrations/cloudflare/callback
 CLOUDFLARE_CLIENT_ID=
 CLOUDFLARE_CLIENT_SECRET=                # [secret]
+# OAuth scopes (space-separated). Cloudflare's self-managed OAuth clients use
+# DOT notation (e.g. zone.read) - a colon (zone:read) is rejected as
+# invalid_scope. Scope names mirror the API-token permission names. The account
+# id is read from the zone payload, so NO account scope is requested.
+CLOUDFLARE_OAUTH_SCOPES=zone.read
+# Scanner-access (elevated) OAuth scopes — SEPARATE re-consent phase for automated
+# scanner allowlisting (creates a Cloudflare firewall skip rule for the scanner UA).
+# Least-privilege; exact IDs from Cloudflare's /oauth/scopes catalog. No dedicated
+# zone Rulesets/Rate-Limiting/Security-Events scopes exist — those are umbrella'd
+# under firewall-services.* and analytics.read. No DNS/Workers/Billing/admin scopes.
+CLOUDFLARE_SCANNER_OAUTH_SCOPES=zone.read firewall-services.read firewall-services.write zone-waf.read zone-waf.write zone-security-center-insights.read page-shield.read trust-and-safety.read analytics.read
 # Vercel OAuth (Phase 4.3, read-only integration). Empty = disabled.
 VERCEL_CLIENT_ID=
 VERCEL_CLIENT_SECRET=                    # [secret]
@@ -227,6 +238,33 @@ SENTRY_DSN=                              # empty disables Sentry
 SENTRY_TRACES_SAMPLE_RATE=0.0
 # Set automatically by Railway; surfaced on the health endpoint.
 # RAILWAY_GIT_COMMIT_SHA / GIT_COMMIT_SHA
+
+# Scanner outbound (egress) IP/CIDR allowlist (comma-separated). The worker's real
+# egress IP(s), surfaced publicly on GET /scanner/identity so customers can allowlist
+# the WebHound scanner by IP (e.g. a Vercel System Bypass Rule). Update if Railway
+# egress changes or when a static outbound IP is enabled.
+WEBHOUND_SCANNER_OUTBOUND_IPS=162.220.234.240,152.55.180.240,152.55.180.241
+
+# ---------------------------------------------------------------------------
+# AI Knowledge Layer - MCP tooling  [NOT app config; local Claude Code only]
+# ---------------------------------------------------------------------------
+# These keys are consumed ONLY by local Claude Code MCP servers used to build
+# the AI knowledge/evidence layer (see docs/ai/). They are NOT read by apps/api,
+# worker, or the scanner - leaving them blank does not affect WebHound runtime.
+# Phase 1 DOCUMENTS these MCPs; it does NOT install or connect any MCP server.
+#
+# GITHUB_TOKEN is a NEW, read-only fine-grained PAT for the GitHub MCP. It is
+# DISTINCT from GITHUB_CLIENT_ID/SECRET above (those are OAuth login creds, a
+# different purpose). Least-privilege guidance: docs/ai/mcp/.
+GITHUB_TOKEN=                            # [secret] read-only PAT for GitHub MCP (repo:read)
+FIRECRAWL_API_KEY=                       # [secret] Firecrawl MCP (doc crawl); blank = disabled
+PERPLEXITY_API_KEY=                      # [secret] Perplexity MCP (research); blank = disabled
+#
+# Future (Phase 5 threat-feed ingestion - documented now, NOT yet wired; the
+# clients do not exist yet, so keep these COMMENTED until that phase is approved):
+# OTX_API_KEY=                           # [secret] AlienVault OTX (Phase 5; client TBD)
+# ABUSEIPDB_API_KEY=                     # [secret] AbuseIPDB (Phase 5; normalizer exists, client TBD)
+# THREATFOX_API_KEY=                     # [secret] ThreatFox (Phase 5; auth/naming UNVERIFIED)
 '''
 
 WEB = r'''# ============================================================================
@@ -259,8 +297,48 @@ NEXT_PUBLIC_SENTRY_DSN=
 '''
 
 
+# --- Drift guards --------------------------------------------------------------
+# These invariants protect against the generator silently dropping required
+# config or regressing the scanner egress IPs. The generator REFUSES to write if
+# any invariant is violated (so a broken template can never corrupt .env.example).
+REQUIRED_VARS = (
+    "CLOUDFLARE_OAUTH_SCOPES",
+    "CLOUDFLARE_SCANNER_OAUTH_SCOPES",
+    "WEBHOUND_SCANNER_OUTBOUND_IPS",
+)
+# The old, dead single egress IP. It must NOT reappear in generated output.
+FORBIDDEN_STRINGS = ("152.55.180.27",)
+# The current static scanner egress IPs (must all be present).
+EXPECTED_SCANNER_IPS = ("162.220.234.240", "152.55.180.240", "152.55.180.241")
+
+
+def check_invariants() -> list[str]:
+    """Return a list of invariant violations (empty == OK). Checks the generated
+    template content (ROOT + WEB) before anything is written to disk."""
+    problems: list[str] = []
+    for var in REQUIRED_VARS:
+        if f"{var}=" not in ROOT:
+            problems.append(f"required var missing: {var}")
+    for bad in FORBIDDEN_STRINGS:
+        if bad in ROOT or bad in WEB:
+            problems.append(f"forbidden (dead) value present: {bad}")
+    for ip in EXPECTED_SCANNER_IPS:
+        if ip not in ROOT:
+            problems.append(f"expected scanner IP missing: {ip}")
+    return problems
+
+
 def main() -> None:
     import os
+
+    problems = check_invariants()
+    if problems:
+        raise SystemExit(
+            "env generator invariant check FAILED (refusing to write):\n  - "
+            + "\n  - ".join(problems)
+        )
+    print("invariant check OK:",
+          "required vars present, 3 scanner IPs present, dead IP absent")
 
     with open(".env.example", "w", encoding="utf-8", newline="\n") as fh:
         fh.write(ROOT)

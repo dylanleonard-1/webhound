@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://webhound/ai/corpus/manifest.schema.json",
+  "title": "WebHound Corpus Manifest Record",
+  "description": "One record per corpus document (raw or normalized). The index of record for provenance, authority, freshness, license, PII/retention class, and lineage. Phase 2 schema; the corpus is empty until ingestion (Phase 5).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "doc_id",
+    "title",
+    "source_name",
+    "source_url",
+    "source_type",
+    "authority_tier",
+    "language",
+    "topic_tags",
+    "version",
+    "last_updated",
+    "first_ingested",
+    "content_hash",
+    "confidence_score",
+    "verification_status",
+    "license_terms",
+    "pii_risk_class",
+    "retention_class",
+    "related_docs"
+  ],
+  "properties": {
+    "doc_id": {
+      "type": "string",
+      "description": "Stable unique id for this document (e.g. content-hash- or slug-based).",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_name": {
+      "type": "string",
+      "description": "Human name of the source (e.g. 'OWASP WSTG', 'Cloudflare Docs', 'URLHaus').",
+      "minLength": 1
+    },
+    "source_url": {
+      "type": "string",
+      "description": "Canonical source URL or local pointer. MUST NOT embed secrets/tokens.",
+      "minLength": 1
+    },
+    "source_type": {
+      "type": "string",
+      "enum": [
+        "official_doc",
+        "paper",
+        "repo",
+        "release_note",
+        "threat_feed",
+        "community_skill",
+        "playbook",
+        "internal_doc",
+        "scan_report",
+        "decision_log",
+        "benchmark",
+        "dataset",
+        "prompt_template"
+      ]
+    },
+    "authority_tier": {
+      "type": "string",
+      "description": "A=official docs/standards, B=research papers, C=official repos/release notes, D=threat feeds/provider KBs, E=community.",
+      "enum": ["A", "B", "C", "D", "E"]
+    },
+    "language": {
+      "type": "string",
+      "description": "BCP-47-ish language tag (e.g. 'en').",
+      "minLength": 1
+    },
+    "product_or_provider": {
+      "type": ["string", "null"],
+      "description": "Optional: product/provider this doc concerns (e.g. 'cloudflare', 'playwright')."
+    },
+    "topic_tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Topic tags (e.g. ['csp','headers','detection'])."
+    },
+    "version": {
+      "type": ["string", "null"],
+      "description": "Source version / release / commit, if any."
+    },
+    "last_updated": {
+      "type": ["string", "null"],
+      "description": "Last-updated timestamp AT THE SOURCE (ISO-8601), if known."
+    },
+    "first_ingested": {
+      "type": "string",
+      "description": "When WebHound first ingested this doc (ISO-8601).",
+      "minLength": 1
+    },
+    "content_hash": {
+      "type": "string",
+      "description": "Hash of the stored content (e.g. 'sha256:...') for integrity + dedupe.",
+      "minLength": 1
+    },
+    "confidence_score": {
+      "type": "number",
+      "description": "0.0-1.0 confidence in this source/extraction.",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "verification_status": {
+      "type": "string",
+      "enum": [
+        "verified",
+        "needs_review",
+        "deprecated",
+        "unverified",
+        "blocked",
+        "manual_required"
+      ]
+    },
+    "license_terms": {
+      "type": "string",
+      "description": "License / ToS governing storage + use (or 'unknown' / 'manual_required').",
+      "minLength": 1
+    },
+    "citability": {
+      "type": ["string", "null"],
+      "description": "Optional: how this may be cited (e.g. 'internal_only', 'customer_safe', 'cite_with_source')."
+    },
+    "pii_risk_class": {
+      "type": "string",
+      "enum": ["none", "possible", "high"]
+    },
+    "retention_class": {
+      "type": "string",
+      "enum": ["permanent", "long", "short", "ttl"]
+    },
+    "ttl_expires_at": {
+      "type": ["string", "null"],
+      "description": "Required-by-convention when retention_class == 'ttl' (ISO-8601 expiry)."
+    },
+    "entities": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Optional extracted entities (providers, CWEs, malware families, tools)."
+    },
+    "related_docs": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "doc_ids of related corpus docs (graph edges)."
+    },
+    "lineage": {
+      "type": ["object", "null"],
+      "description": "For normalized items: pointer back to the raw source.",
+      "additionalProperties": false,
+      "properties": {
+        "raw_doc_id": { "type": "string" },
+        "derivation": { "type": "string", "description": "e.g. 'cleaned+chunked'" },
+        "chunk_index": { "type": ["integer", "null"] }
+      }
+    },
+    "trust_label": {
+      "type": ["string", "null"],
+      "description": "Optional trust label: trusted_local | official_verified | community_untrusted | feed_untrusted | needs_review | deprecated."
+    }
+  }
+}

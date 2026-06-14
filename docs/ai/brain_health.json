@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-06-14T06:25:52.647709Z",
+  "checked_at": "2026-06-14T07:04:11.734301Z",
   "corpus": {
     "status": "healthy",
     "manifest_records": 487,
@@ -11,7 +11,7 @@
   },
   "vault": {
     "status": "healthy",
-    "note_count": 58,
+    "note_count": 59,
     "section_count": 13,
     "sections": [
       "00-Maps",
@@ -33,7 +33,7 @@
     "status": "live",
     "mode": "lexical_only",
     "test_hits": 3,
-    "elapsed_s": 0.226,
+    "elapsed_s": 0.225,
     "top_title": "MDN — Content Security Policy (CSP)"
   },
   "lightrag": {
@@ -75,5 +75,16 @@
     "finding_types": 22,
     "retrieval_confidence": 1.0,
     "taxonomy_cwe": "CWE-693"
+  },
+  "docker": {
+    "status": "offline",
+    "error": "failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path ",
+    "compose_brain": true,
+    "compose_neo4j": true
+  },
+  "ollama": {
+    "status": "offline",
+    "models": [],
+    "model_count": 0
   }
 }

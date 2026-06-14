@@ -1,0 +1,27 @@
+{
+  "checked_at": "2026-06-14T07:02:02.963521Z",
+  "status": "CONFIGURED_PENDING",
+  "graphiti": {
+    "installed": true,
+    "version": "?"
+  },
+  "neo4j_live": false,
+  "ollama": {
+    "reachable": false,
+    "models": []
+  },
+  "episode_schema": {
+    "exists": true,
+    "episode_count": 13,
+    "memory_types": [
+      "engineering_decision",
+      "scanner_behavior",
+      "provider_behavior",
+      "threat_intel_rule",
+      "taxonomy_rule",
+      "false_positive_rule",
+      "retrieval_rule",
+      "phase_status"
+    ]
+  }
+}

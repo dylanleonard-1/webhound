@@ -76,6 +76,7 @@ class ReasoningResult:
     graph_nodes_used: int = 0
     memory_episodes_used: int = 0
     production_unchanged: bool = True  # always True — advisory only
+    advisory_only: bool = True         # always True — never wired to production
 
     @property
     def is_high_confidence(self) -> bool:

@@ -535,3 +535,106 @@ def test_production_scoring_unchanged():
         assert chain.advisory_only is True
     for rc in pkg.root_causes:
         assert rc.advisory_only is True
+
+
+# ── Criterion 3: shadow mode cannot alter input Finding objects ───────────────
+
+def test_shadow_mode_does_not_mutate_input_findings():
+    """Shadow mode must NOT mutate input Finding objects in any way.
+
+    Criterion 3 enforcement: WADEShadowReasoner reads findings and emits an
+    advisory package — it must never write to, mutate, or persist the inputs.
+    """
+    from scripts.wade.reasoning.shadow_mode import WADEShadowReasoner
+    from scripts.wade.reasoning.models import Finding
+
+    findings = [
+        Finding(finding_type="missing_csp", provider="cloudflare", detail="test-detail-1"),
+        Finding(finding_type="third_party_script_risk", provider=None, detail="test-detail-2"),
+        Finding(finding_type="exposed_env", provider="vercel", detail="test-detail-3"),
+    ]
+    # Snapshot identity and values BEFORE analysis
+    original_ids = [id(f) for f in findings]
+    original_types = [f.finding_type for f in findings]
+    original_providers = [f.provider for f in findings]
+    original_details = [f.detail for f in findings]
+
+    WADEShadowReasoner().analyze(findings, scan_id="mutation-test")
+
+    # Verify the same objects (identity preserved — not replaced)
+    assert [id(f) for f in findings] == original_ids, "Finding list must not be replaced"
+    # Verify attributes are unchanged
+    assert [f.finding_type for f in findings] == original_types
+    assert [f.provider for f in findings] == original_providers
+    assert [f.detail for f in findings] == original_details
+
+
+def test_shadow_mode_no_write_path_to_db():
+    """Shadow mode package carries no DB session or persistence handle.
+
+    Criterion 3: ShadowReasoningPackage must be a pure in-memory value object
+    with no path to write findings to any store.
+    """
+    from scripts.wade.reasoning.shadow_mode import WADEShadowReasoner, ShadowReasoningPackage
+    pkg = WADEShadowReasoner().analyze(_supply_chain_set(), scan_id="no-db-test")
+    assert isinstance(pkg, ShadowReasoningPackage)
+    # No DB handle or session attribute exists on the package
+    assert not hasattr(pkg, "db")
+    assert not hasattr(pkg, "session")
+    assert not hasattr(pkg, "_session")
+    assert not hasattr(pkg, "conn")
+    assert pkg.production_unchanged is True
+
+
+# ── Criterion 5: advisory_only enforced on ReasoningResult (analyze_single) ──
+
+def test_reasoning_result_advisory_only_flag():
+    """ReasoningResult from analyze_single must carry advisory_only=True.
+
+    Criterion 5: advisory_only flag must be tested, not just set as an attribute.
+    """
+    from scripts.wade.reasoning.shadow_mode import WADEShadowReasoner
+    result = WADEShadowReasoner().analyze_single(_make_finding("missing_csp"))
+    assert result.advisory_only is True, "ReasoningResult.advisory_only must be True"
+    assert result.production_unchanged is True, "ReasoningResult.production_unchanged must be True"
+
+
+def test_all_output_types_carry_advisory_flags():
+    """ALL reasoning output types must carry advisory_only=True and/or production_unchanged=True.
+
+    Criterion 5 comprehensive enforcement: covers every output type from the
+    full pipeline — correlation, attack chain, root cause, priority, shadow pkg,
+    and single-finding result.
+    """
+    from scripts.wade.reasoning.shadow_mode import WADEShadowReasoner
+    from scripts.wade.reasoning.correlation import correlate_findings
+    from scripts.wade.reasoning.attack_chain import identify_attack_chains
+    from scripts.wade.reasoning.root_cause import RootCauseReasoner
+    from scripts.wade.reasoning.priority import PriorityReasoner
+
+    findings = _supply_chain_set() + _session_weakness_set() + [_make_finding("exposed_env")]
+
+    # ShadowReasoningPackage
+    pkg = WADEShadowReasoner().analyze(findings)
+    assert pkg.production_unchanged is True
+
+    # CorrelationContext
+    for c in correlate_findings(findings):
+        assert c.advisory_only is True, f"CorrelationContext {c.pattern_name} advisory_only must be True"
+
+    # AttackChainCandidate
+    for a in identify_attack_chains(findings):
+        assert a.advisory_only is True, f"AttackChainCandidate {a.chain_name} advisory_only must be True"
+
+    # RootCauseResult
+    for r in RootCauseReasoner().analyse(findings):
+        assert r.advisory_only is True, f"RootCauseResult {r.summary.category} advisory_only must be True"
+
+    # PriorityRecommendation
+    for p in PriorityReasoner().prioritize_set(findings):
+        assert p.advisory_only is True, f"PriorityRecommendation {p.finding_type} advisory_only must be True"
+
+    # ReasoningResult (single finding)
+    single = WADEShadowReasoner().analyze_single(_make_finding("exposed_env"))
+    assert single.production_unchanged is True
+    assert single.advisory_only is True

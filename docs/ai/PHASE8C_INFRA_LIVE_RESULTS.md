@@ -12,8 +12,8 @@
 | Ollama | **LIVE** | v0.30.6 installed, phi3:mini (3.8B Q4) + nomic-embed-text running at localhost:11434 |
 | Neo4j | **LIVE** | 5-community via Docker in WSL2, bolt:7687 + HTTP:7474 reachable from Windows |
 | Brain Graph | **LIVE** | 126 FileNode + 191 relationships loaded via load_brain_graph_neo4j.py --live |
-| Graphiti | **LIVE (seeding)** | 13 episodes seeding into Neo4j; 2+ Episodic nodes created; small_model bug workaround needed |
-| LightRAG-graph | **IN PROGRESS** | Real entity extraction confirmed (19 nodes, 1 edge after 2 chunks); 338s/chunk at CPU speed |
+| Graphiti | **LIVE** | 13/13 episodes loaded; Episodic + Entity nodes in Neo4j; small_model=phi3:mini fix confirmed working |
+| LightRAG-graph | **LIVE** | 30/30 chunks processed (1800s); 19 entities + 1 relationship extracted by phi3:mini |
 | Docker (Windows pipe) | **BLOCKED** | docker-desktop WSL2 distro STOPPED; exit status 0x40010004; host-level issue |
 | Docker (WSL2) | **LIVE** | wsl -d Ubuntu-24.04 -- docker works (v29.5.3); used to start Neo4j container |
 
@@ -52,22 +52,21 @@ Phase 8C-INFRA-LIVE genuinely brought the runtime online:
 - Result: 391 Cypher statements executed, 126 nodes + 191 rels loaded
 - Source: `docs/ai/graphify/graph.json` (126 FileNode, Python + Markdown files)
 
-### Graphiti (LIVE — seeding)
+### Graphiti (LIVE)
 - Status: graphiti-core installed, Neo4j LIVE, phi3:mini LIVE
 - `graphiti_runtime_check.py` reports: **LIVE**
-- Seeding: `load_graphiti_seed_memories.py --live` — 13 episodes queued, 2+ Episodic nodes confirmed in Neo4j
-- Known issue: `graphiti-core` internally calls `gpt-4.1-nano` via `DEFAULT_SMALL_MODEL` for some operations;
-  fixed in seed loader by setting `small_model=phi3:mini` in LLMConfig
-- Entity extraction quality: phi3:mini produces hallucinated content on many chunks; Episodic nodes
-  ARE created even when entity extraction fails
+- Seeding: `load_graphiti_seed_memories.py --live` — **13/13 episodes loaded** (all episodes seeded)
+- Fixed: `graphiti-core` internally calls `gpt-4.1-nano` via `DEFAULT_SMALL_MODEL`; fixed in seed loader by
+  setting `small_model=phi3:mini` in LLMConfig. With this fix, entity extraction runs successfully.
+- Entity extraction quality: phi3:mini produces some hallucinated entities; Episodic nodes seed correctly.
 
-### LightRAG-graph (IN PROGRESS)
-- Cleared stub-LLM index; new Ollama-based indexer: `scripts/ai/build_lightrag_index_ollama.py`
-- Extraction confirmed: 14 entities + 1 relationship from first real corpus chunk
-- Graph state after 2 chunks: 19 entities, 1 relationship in NetworkX in-memory graph
-- Performance: ~338s/chunk on CPU with phi3:mini (slow but functional)
-- NOT escalated to 100 chunks — per instructions "do NOT run all 1161 if slow"
-- 30-chunk run in flight at time of PR creation; results written to `docs/ai/LIGHTRAG_OLLAMA_RESULTS.json`
+### LightRAG-graph (LIVE)
+- Ollama-based indexer: `scripts/ai/build_lightrag_index_ollama.py`
+- **30/30 chunks processed** in 1800s (30 min total, 60s avg/chunk)
+- **19 entities + 1 relationship** extracted by phi3:mini, stored in NanoVectorDB
+- Graph state: `vdb_entities.json` (69KB), `graph_chunk_entity_relation.graphml` (19 nodes, 1 edge)
+- LightRAG auto-recovered from OneDrive temp-file locking on intermediate KV stores
+- Results: `docs/ai/LIGHTRAG_OLLAMA_RESULTS.json`
 
 ### Docker (BLOCKED on Windows side)
 - `docker-desktop` WSL2 distro: STOPPED (exit status 0x40010004)

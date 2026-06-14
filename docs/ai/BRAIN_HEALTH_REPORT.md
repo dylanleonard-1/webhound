@@ -1,7 +1,7 @@
 <!-- WEBHOUND-GENERATED -->
 # WebHound Brain Health Report
 
-**Generated:** 2026-06-14T07:04:11.734301Z
+**Generated:** 2026-06-14T08:21:58.772565Z
 **Overall Status:** HEALTHY — core components live
 **WADE Advisory:** READY
 
@@ -11,12 +11,12 @@
 |-----------|--------|--------|
 | Corpus | OK | 1161 chunks / 487 manifest / 1161 embeddings |
 | Vault | OK | 59 notes in 13 sections |
-| Hybrid Retrieval | LIVE | 3 hits in 0.225s |
+| Hybrid Retrieval | LIVE | 3 hits in 0.245s |
 | WADE Retrieval | LIVE | 22 finding types, confidence=1.00 |
 | Graphify | LIVE (local) | 126 nodes / 263 edges |
-| LightRAG | LIVE (vector) | v1.5.2 — stub (no cloud, no local LLM) — graph extraction skipped |
-| Graphiti | CONFIGURED | v? — Neo4j offline + no local LLM — schema seeded, runtime pending |
-| Neo4j | OFFLINE | bolt:7687 = False — Docker daemon not running in this env — compose provided |
+| LightRAG | LIVE_FULL | v1.5.2 — phi3:mini via Ollama (local) |
+| Graphiti | READY | v? — Neo4j offline + no local LLM — schema seeded, runtime pending |
+| Neo4j | LIVE | bolt:7687 = True —  |
 
 ## Corpus Health
 
@@ -57,7 +57,7 @@ YES — all core retrieval components live. WADE can retrieve advisory context f
 | Component | Status | Detail |
 |-----------|--------|--------|
 | Docker daemon | OFFLINE | compose: docker-compose.ai-brain.yml |
-| Ollama LLM | OFFLINE | models: none |
+| Ollama LLM | LIVE | models: nomic-embed-text:latest, phi3:mini |
 
 ## Recommendations
 

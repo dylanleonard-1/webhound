@@ -1,0 +1,54 @@
+{
+  "corpus_version": "phase-8a",
+  "built_at": "2026-06-14T05:08:46.847295Z",
+  "source_file": "corpus/normalized/unified_chunks.jsonl",
+  "total_documents": 1161,
+  "total_source_chunks": 1161,
+  "avg_content_length_chars": 1545,
+  "cloud_api_used": false,
+  "local_only": true,
+  "lightrag_format_version": "1.0",
+  "field_mapping": {
+    "id": "chunk_id — unique chunk identifier",
+    "doc_id": "parent document id from manifest",
+    "content": "full chunk text (300–1200 chars target)",
+    "metadata.title": "document title",
+    "metadata.source_type": "official_doc | internal_doc | reference",
+    "metadata.authority_tier": "A (official) | B (curated) | C (reference)",
+    "metadata.source_url": "canonical URL or file path",
+    "metadata.file_path": "relative repo path for fragment matching",
+    "metadata.phase": "ingestion phase (6A–8A)",
+    "metadata.topic_tags": "list of classification tags"
+  },
+  "phase_distribution": {
+    "Other": 229,
+    "6B": 576,
+    "6A": 65,
+    "6C": 67,
+    "6D": 52,
+    "6E": 118,
+    "6F": 54
+  },
+  "source_type_distribution": {
+    "internal_doc": 362,
+    "detection_repo": 193,
+    "official_doc": 65,
+    "planning_reference": 13,
+    "official_provider_doc": 77,
+    "official_repo": 383,
+    "official_threat_intel_doc": 39,
+    "official_taxonomy_doc": 25,
+    "decision_log": 4
+  },
+  "authority_tier_distribution": {
+    "A": 350,
+    "C": 611,
+    "B": 200
+  },
+  "ingestion_notes": [
+    "Content is pre-chunked at ## / ### section boundaries.",
+    "Embeddings are NOT included here — use hybrid_retrieval.py for dense search.",
+    "LightRAG should use this corpus for graph-enhanced retrieval over WebHound knowledge.",
+    "Do NOT send to cloud LightRAG APIs without review — content may include internal docs."
+  ]
+}

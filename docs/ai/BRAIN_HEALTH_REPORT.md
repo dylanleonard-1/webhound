@@ -1,7 +1,7 @@
 <!-- WEBHOUND-GENERATED -->
 # WebHound Brain Health Report
 
-**Generated:** 2026-06-14T06:25:52.647709Z
+**Generated:** 2026-06-14T07:04:11.734301Z
 **Overall Status:** HEALTHY — core components live
 **WADE Advisory:** READY
 
@@ -10,8 +10,8 @@
 | Component | Status | Detail |
 |-----------|--------|--------|
 | Corpus | OK | 1161 chunks / 487 manifest / 1161 embeddings |
-| Vault | OK | 58 notes in 13 sections |
-| Hybrid Retrieval | LIVE | 3 hits in 0.226s |
+| Vault | OK | 59 notes in 13 sections |
+| Hybrid Retrieval | LIVE | 3 hits in 0.225s |
 | WADE Retrieval | LIVE | 22 finding types, confidence=1.00 |
 | Graphify | LIVE (local) | 126 nodes / 263 edges |
 | LightRAG | LIVE (vector) | v1.5.2 — stub (no cloud, no local LLM) — graph extraction skipped |
@@ -32,7 +32,7 @@ Graphiti seeds   : OK
 ## Vault Health
 
 ```
-Notes    : 58
+Notes    : 59
 Sections : 13
 Sections : 00-Maps, 01-Architecture, 02-Scanner Engines, 03-WADE, 04-Knowledge Corpus, 05-Provider Intelligence, 06-Threat Intelligence, 07-Vulnerability Taxonomy, 08-External Tools, 09-Reports, 10-Decisions, 99-Graphify, WebHound AI Brain
 ```
@@ -52,9 +52,17 @@ Sections : 00-Maps, 01-Architecture, 02-Scanner Engines, 03-WADE, 04-Knowledge C
 
 YES — all core retrieval components live. WADE can retrieve advisory context for all 22 finding types.
 
+## Infrastructure Status (Phase 8C-INFRA)
+
+| Component | Status | Detail |
+|-----------|--------|--------|
+| Docker daemon | OFFLINE | compose: docker-compose.ai-brain.yml |
+| Ollama LLM | OFFLINE | models: none |
+
 ## Recommendations
 
 1. Run `build_graphify.py` if graph.json not present
-2. Run `build_lightrag_index.py --sample 200` to build LightRAG vector index
-3. Start Docker + Neo4j: `docker compose -f docker-compose-neo4j.yml up -d`
-4. Install Ollama for local LLM to activate Graphiti + LightRAG graph layers
+2. Run `build_lightrag_index.py` to build LightRAG vector index
+3. Start Docker + Neo4j + Ollama: `docker compose -f docker-compose.ai-brain.yml up -d`
+4. Pull Ollama models: `docker exec webhound-ollama-dev ollama pull llama3.2`
+5. See `docs/ai/OLLAMA_SETUP.md` for local LLM activation guide

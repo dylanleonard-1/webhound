@@ -1,4 +1,4 @@
-"""Phase 8C: WebHound Brain health check.
+"""Phase 8C / 8C-INFRA: WebHound Brain health check.
 
 Checks all brain components and reports live vs documented status.
 Writes BRAIN_HEALTH_REPORT.md and brain_health.json.
@@ -9,8 +9,10 @@ from __future__ import annotations
 import json
 import os
 import socket
+import subprocess
 import sys
 import time
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -177,6 +179,49 @@ def check_graphify() -> dict:
     }
 
 
+def check_docker() -> dict:
+    compose_brain = ROOT / "docker-compose.ai-brain.yml"
+    compose_neo4j = ROOT / "docker-compose-neo4j.yml"
+    try:
+        r = subprocess.run(
+            ["docker", "info", "--format", "{{.ServerVersion}}"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if r.returncode == 0:
+            return {
+                "status": "live",
+                "server_version": r.stdout.strip(),
+                "compose_brain": compose_brain.exists(),
+                "compose_neo4j": compose_neo4j.exists(),
+            }
+        return {
+            "status": "offline",
+            "error": r.stderr.strip()[:100],
+            "compose_brain": compose_brain.exists(),
+            "compose_neo4j": compose_neo4j.exists(),
+        }
+    except FileNotFoundError:
+        return {"status": "not_installed", "compose_brain": compose_brain.exists()}
+    except Exception as e:
+        return {"status": "offline", "error": str(e)[:100], "compose_brain": compose_brain.exists()}
+
+
+def check_ollama() -> dict:
+    try:
+        s = socket.create_connection(("localhost", 11434), timeout=1)
+        s.close()
+    except OSError:
+        return {"status": "offline", "models": [], "model_count": 0}
+
+    try:
+        resp = urllib.request.urlopen("http://localhost:11434/api/tags", timeout=2)
+        data = json.loads(resp.read())
+        models = [m["name"] for m in data.get("models", [])]
+        return {"status": "live", "models": models, "model_count": len(models)}
+    except Exception:
+        return {"status": "live_no_models", "models": [], "model_count": 0}
+
+
 def check_wade_retrieval() -> dict:
     try:
         from scripts.wade.context_builder import build_reasoning_context
@@ -197,10 +242,11 @@ def check_wade_retrieval() -> dict:
 def status_icon(s: str) -> str:
     icons = {
         "healthy": "OK", "live": "LIVE", "live_local_equivalent": "LIVE (local)",
-        "live_vector_only": "LIVE (vector)", "installed_not_indexed": "INSTALLED",
-        "schema_seeded": "CONFIGURED", "ready_to_seed": "READY",
-        "offline": "OFFLINE", "degraded": "DEGRADED", "error": "ERROR",
-        "missing": "MISSING", "not_installed": "NOT INSTALLED", "not_built": "NOT BUILT",
+        "live_vector_only": "LIVE (vector)", "live_no_models": "LIVE (no models)",
+        "installed_not_indexed": "INSTALLED", "schema_seeded": "CONFIGURED",
+        "ready_to_seed": "READY", "offline": "OFFLINE", "degraded": "DEGRADED",
+        "error": "ERROR", "missing": "MISSING", "not_installed": "NOT INSTALLED",
+        "not_built": "NOT BUILT",
     }
     return icons.get(s, s.upper())
 
@@ -214,6 +260,8 @@ def write_report(health: dict) -> None:
     n4 = health["neo4j"]
     gf = health["graphify"]
     wr = health["wade_retrieval"]
+    dk = health.get("docker", {})
+    ol = health.get("ollama", {})
 
     overall = all(
         h.get("status") not in ("error", "missing", "degraded")
@@ -274,12 +322,20 @@ Sections : {', '.join(v.get('sections', []))}
 
 {"YES — all core retrieval components live. WADE can retrieve advisory context for all 22 finding types." if overall else "PARTIAL — hybrid retrieval live; graph components pending local infra."}
 
+## Infrastructure Status (Phase 8C-INFRA)
+
+| Component | Status | Detail |
+|-----------|--------|--------|
+| Docker daemon | {status_icon(dk.get("status", "unknown"))} | compose: docker-compose.ai-brain.yml |
+| Ollama LLM | {status_icon(ol.get("status", "offline"))} | models: {", ".join(ol.get("models", [])) or "none"} |
+
 ## Recommendations
 
 1. Run `build_graphify.py` if graph.json not present
-2. Run `build_lightrag_index.py --sample 200` to build LightRAG vector index
-3. Start Docker + Neo4j: `docker compose -f docker-compose-neo4j.yml up -d`
-4. Install Ollama for local LLM to activate Graphiti + LightRAG graph layers
+2. Run `build_lightrag_index.py` to build LightRAG vector index
+3. Start Docker + Neo4j + Ollama: `docker compose -f docker-compose.ai-brain.yml up -d`
+4. Pull Ollama models: `docker exec webhound-ollama-dev ollama pull llama3.2`
+5. See `docs/ai/OLLAMA_SETUP.md` for local LLM activation guide
 """
     REPORT_MD.write_text(report, encoding="utf-8")
     print(f"Wrote {REPORT_MD.relative_to(ROOT)}")
@@ -297,6 +353,8 @@ def main() -> None:
         "neo4j": check_neo4j(),
         "graphify": check_graphify(),
         "wade_retrieval": check_wade_retrieval(),
+        "docker": check_docker(),
+        "ollama": check_ollama(),
     }
 
     HEALTH_JSON.write_text(json.dumps(health, indent=2, ensure_ascii=False), encoding="utf-8")

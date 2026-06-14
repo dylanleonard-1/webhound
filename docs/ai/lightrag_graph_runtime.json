@@ -1,0 +1,33 @@
+{
+  "checked_at": "2026-06-14T07:03:34.855518Z",
+  "status": "LIVE_VECTOR_ONLY",
+  "lightrag": {
+    "installed": true,
+    "version": "1.5.2"
+  },
+  "vector_storage": {
+    "exists": true,
+    "storage_dir": "lightrag_storage",
+    "json_file_count": 7,
+    "vector_db_files": [
+      "vdb_chunks.json",
+      "vdb_entities.json",
+      "vdb_relationships.json"
+    ]
+  },
+  "embedding_model": {
+    "installed": true,
+    "model": "all-MiniLM-L6-v2",
+    "dim": 384
+  },
+  "ollama": {
+    "reachable": false,
+    "models": []
+  },
+  "graph_entities": {
+    "entity_count": 0,
+    "relationship_count": 0,
+    "graph_populated": false,
+    "note": "No entities \u2014 stub LLM was used (returns empty JSON). Re-index with Ollama."
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "checked_at": "2026-06-14T07:01:54.708617Z",
+  "status": "OFFLINE",
+  "bolt_7687": false,
+  "http_7474": false,
+  "cypher_check": {},
+  "compose_file": "docker-compose.ai-brain.yml",
+  "load_script": "scripts/ai/load_neo4j.py",
+  "brain_graph_script": "scripts/ai/load_brain_graph_neo4j.py"
+}

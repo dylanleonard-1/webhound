@@ -1,0 +1,198 @@
+"""One-shot script: write per-source knowledge notes for Phase 6E."""
+import os
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+NOTES = {
+    "knowledge/threat-intelligence/urlhaus/urlhaus.md": (
+        "# URLHaus — Source Note\n\n"
+        "Provider: abuse.ch URLHaus | Focus: Active malware distribution URLs\n"
+        "Auth: Free API key (auth.abuse.ch) | Existing client: scanner/webhound/threat_intel/urlhaus.py\n\n"
+        "## Key Detection Facts\n"
+        "- Tracks URLs actively distributing malware (drive-by downloads, payload delivery)\n"
+        "- URL status: online=active, offline=inactive, unknown=unchecked\n"
+        "- Spamhaus DBL integration: flags phishing_domain, botnet_cc_domain, abused_legit_*\n"
+        "- Hash lookup: MD5, SHA256, IMPHASH, SSDEEP, TLSH for payload identification\n"
+        "- Batch downloads available hourly and daily (ZIP, password: infected)\n\n"
+        "## WebHound Use\n"
+        "- Check all third-party URLs from customer pages against URLHaus\n"
+        "- online status + URL-level match = high-confidence malware delivery finding\n"
+        "- abused_legit_* tag = legitimate domain compromised; scope finding to URL, not domain\n"
+        "- Existing client already implemented; no new auth setup needed\n"
+    ),
+    "knowledge/threat-intelligence/threatfox/threatfox.md": (
+        "# ThreatFox — Source Note\n\n"
+        "Provider: abuse.ch ThreatFox | Focus: Malware IOCs (C2, skimming, payload delivery)\n"
+        "Auth: Free API key (same as URLHaus) | Existing client: NOT implemented\n\n"
+        "## Key Detection Facts\n"
+        "- IOC types: URL, domain, IP:port, MD5/SHA256\n"
+        "- Threat types: botnet_cc, payload_delivery, cc_skimming (Magecart)\n"
+        "- Confidence: 0-100 self-reported by submitter; treat <50 with caution\n"
+        "- IOCs expire after 6 months (automatic cleanup for cloud infra FP reduction)\n"
+        "- Malware families from Malpedia\n\n"
+        "## WebHound Use\n"
+        "- cc_skimming IOC on checkout-page script URL = CRITICAL (Magecart detection)\n"
+        "- botnet_cc ip:port match = C2 infrastructure finding (high severity if specific)\n"
+        "- Same API key as URLHaus — easy to add second client\n"
+    ),
+    "knowledge/threat-intelligence/openphish/openphish.md": (
+        "# OpenPhish — Source Note\n\n"
+        "Provider: OpenPhish | Focus: Phishing URLs (automated discovery)\n"
+        "Auth: Org account for paid; community feed free | Existing client: Normalizer only\n\n"
+        "## Key Detection Facts\n"
+        "- Community feed: openphish.com/feed.txt -- plain URL list, no auth required\n"
+        "- Paid feed: SQLite DB with brand, SSL, IP/ASN metadata; 15-minute updates\n"
+        "- Automated (not community-voted) -- different coverage profile than PhishTank\n\n"
+        "## WebHound Use\n"
+        "- Community feed accessible without auth for baseline phishing URL matching\n"
+        "- Check customer-page URLs against community feed\n"
+        "- Paid feed would provide brand context for customer reporting\n"
+    ),
+    "knowledge/threat-intelligence/phishtank/phishtank.md": (
+        "# PhishTank — Source Note\n\n"
+        "Provider: PhishTank (Cisco Talos) | Focus: Community-verified phishing URLs\n"
+        "Auth: Free API key | Existing client: NOT implemented\n\n"
+        "## Key Detection Facts\n"
+        "- Community-verified: human voters confirm phishing; verified=yes in dataset\n"
+        "- Dataset: only currently online, verified phishing URLs\n"
+        "- Target field: identifies impersonated brand (PayPal, Apple, bank, etc.)\n"
+        "- Updated hourly; check ETag for efficient polling\n"
+        "- Dataset includes IP/network info per phish\n\n"
+        "## WebHound Use\n"
+        "- Check third-party URLs from customer pages\n"
+        "- target field useful for brand impersonation context in customer reports\n"
+        "- High precision (community-verified) -- low FP rate\n"
+    ),
+    "knowledge/threat-intelligence/virustotal/virustotal.md": (
+        "# VirusTotal — Source Note\n\n"
+        "Provider: VirusTotal (Google) | Focus: Multi-engine malware/URL analysis\n"
+        "Auth: Free API key (4/min, 500/day) | Existing client: scanner/webhound/threat_intel/virustotal.py\n\n"
+        "## Key Detection Facts\n"
+        "- 70+ AV engines + 10+ sandboxes\n"
+        "- last_analysis_stats: {malicious, suspicious, harmless, undetected}\n"
+        "- reputation: community score (positive=trusted, negative=malicious)\n"
+        "- Relationship API: domain->IPs, file->URLs, URL->files (infrastructure pivoting)\n"
+        "- Indicator types: URL, domain, IPv4, file hash\n\n"
+        "## WebHound Use\n"
+        "- Multi-engine threshold: 5+ malicious detections for high confidence\n"
+        "- 1-4 detections: ambiguous; check which engines (experimental vs established)\n"
+        "- last_analysis_date: re-scan if >7 days old for active investigation\n"
+        "- Existing client already implemented\n"
+    ),
+    "knowledge/threat-intelligence/abuseipdb/abuseipdb.md": (
+        "# AbuseIPDB — Source Note\n\n"
+        "Provider: AbuseIPDB | Focus: Community-reported IP abuse\n"
+        "Auth: Free API key (1000/check/day std tier) | Existing client: Normalizer only\n\n"
+        "## Key Detection Facts\n"
+        "- abuseConfidenceScore: 0-100; hard minimum 25 (prevents single-report severity)\n"
+        "- numDistinctUsers: key FP signal -- 1 reporter = low confidence\n"
+        "- usageType: Data Center/Web Hosting = shared hosting FP risk\n"
+        "- isWhitelisted: non-binary; not a safe-harbor guarantee\n"
+        "- Test IP: 127.0.0.2 (simulates 15-min rate limit)\n\n"
+        "## WebHound Use\n"
+        "- Require numDistinctUsers >= 3 before including in findings\n"
+        "- Cross-reference with GreyNoise for shared-infra resolution\n"
+        "- Never use abuseConfidenceScore alone as a finding trigger\n"
+        "- Implement API client (normalizer exists but no client)\n"
+    ),
+    "knowledge/threat-intelligence/greynoise/greynoise.md": (
+        "# GreyNoise — Source Note\n\n"
+        "Provider: GreyNoise Intelligence | Focus: Internet background noise classification\n"
+        "Auth: Optional (free community: 50 searches/week) | Existing client: NOT implemented\n\n"
+        "## Key Detection Facts\n"
+        "- noise: true = IP observed scanning internet (last 90 days)\n"
+        "- riot: true = known legitimate business service IP (CDN, cloud, security tools)\n"
+        "- classification: benign/malicious/unknown\n"
+        "- 404 = IP never observed scanning (not in GreyNoise dataset)\n\n"
+        "## WebHound Use\n"
+        "- Use to resolve AbuseIPDB ambiguity: riot=true overrides abuse score\n"
+        "- malicious classification + not-riot = corroborating signal for IP findings\n"
+        "- Community API sufficient for basic resolution (50/week = adequate for most scans)\n"
+    ),
+    "knowledge/threat-intelligence/google-safe-browsing/gsb.md": (
+        "# Google Safe Browsing — Source Note\n\n"
+        "Provider: Google | Focus: Malware and phishing URLs at scale\n"
+        "Auth: Free API key (Google Cloud Console) | Existing client: NOT implemented\n\n"
+        "## Key Detection Facts\n"
+        "- Threat types: MALWARE, SOCIAL_ENGINEERING, UNWANTED_SOFTWARE, POTENTIALLY_HARMFUL_APPLICATION\n"
+        "- Up to 500 URLs per request (batch-friendly)\n"
+        "- cacheDuration: result valid for this period; re-query after expiry\n"
+        "- URL-level specificity: path-sensitive matching\n"
+        "- Match = URL on one or more Google threat lists\n\n"
+        "## WebHound Use\n"
+        "- Highest priority TI source: precision, scale, continuous updates\n"
+        "- Check all third-party script URLs, redirect destinations, iframe srcs\n"
+        "- GSB match = strong finding (no additional source corroboration required)\n"
+        "- Must display Google Safe Browsing attribution in customer-facing outputs\n"
+    ),
+    "knowledge/threat-intelligence/shodan/shodan.md": (
+        "# Shodan — Source Note\n\n"
+        "Provider: Shodan | Focus: Internet-wide exposure assessment\n"
+        "Auth: Paid API key useful | Existing client: NOT implemented\n\n"
+        "## Key Detection Facts\n"
+        "- /shodan/host/{ip}: free, no credits -- all services on an IP\n"
+        "- tags: compromised, malware, scanner, ics, tor, vpn\n"
+        "- Data represents exposure, NOT malice (critical distinction)\n"
+        "- cpe fields: cross-reference with CVEs for vulnerability context\n"
+        "- Banners may be weeks/months old -- always check timestamp\n\n"
+        "## WebHound Use\n"
+        "- Unexpected open ports on customer IP = exposure finding (not threat)\n"
+        "- tags: compromised/malware = elevated concern; verify with current behavior\n"
+        "- Categorize as EXPOSURE findings, not THREAT findings\n"
+    ),
+    "knowledge/threat-intelligence/censys/censys.md": (
+        "# Censys — Source Note\n\n"
+        "Provider: Censys | Focus: Internet-wide scan + TLS certificate analysis\n"
+        "Auth: Free researcher (~250/month) | Existing client: NOT implemented\n\n"
+        "## Key Detection Facts\n"
+        "- Strong TLS/certificate focus (vs Shodan which is broader)\n"
+        "- /hosts/{ip}: services array with port, transport_protocol, service_name, software, tls\n"
+        "- autonomous_system.asn, autonomous_system.name for ASN context\n"
+        "- Certificate transparency: find all IPs for a cert, SANs for subdomain discovery\n"
+        "- Exposure data only -- no malice classification\n\n"
+        "## WebHound Use\n"
+        "- Certificate-based subdomain discovery for customer domain scope\n"
+        "- TLS certificate details: recently issued certs on lookalike domains (phishing infra)\n"
+        "- Like Shodan: categorize as EXPOSURE, not THREAT\n"
+    ),
+    "knowledge/threat-intelligence/otx/otx.md": (
+        "# AlienVault OTX — Source Note\n\n"
+        "Provider: LevelBlue (formerly AlienVault) | Focus: Community threat intelligence pulses\n"
+        "Auth: Free API key | Existing client: NOT implemented\n"
+        "Note: Site is JS-heavy SPA; docs not machine-readable\n\n"
+        "## Key Detection Facts\n"
+        "- Pulse = grouped IOC collection around a threat campaign\n"
+        "- Indicator types: domain, hostname, IPv4, IPv6, URL, hash, CVE, email, mutex, CIDR\n"
+        "- No formal confidence score -- assess by: author reputation, reference quality, TLP level\n"
+        "- expiration field on indicators: respect for freshness filtering\n"
+        "- TLP markings: WHITE/GREEN/AMBER/RED\n\n"
+        "## WebHound Use\n"
+        "- Use for campaign context after high-confidence IOC match\n"
+        "- Do NOT use OTX single-pulse match alone as a customer-facing finding\n"
+        "- Cross-reference pulses with URLHaus/VT/GSB before reporting\n"
+    ),
+    "knowledge/threat-intelligence/misp/misp.md": (
+        "# MISP — Source Note\n\n"
+        "Provider: MISP Project (open source) | Focus: Federated threat intelligence sharing\n"
+        "Auth: Instance invite required | Existing client: NOT implemented\n\n"
+        "## Key Detection Facts\n"
+        "- to_ids flag: ONLY attributes with to_ids=true should trigger automated action\n"
+        "- distribution levels: 0=org only to 3=all communities\n"
+        "- Event threat_level_id: 1=High, 2=Medium, 3=Low\n"
+        "- Attribute types: 100+ (domain, ip-src/dst, url, md5, sha256, filename, mutex, CVE...)\n"
+        "- Galaxy: pre-built threat actor / malware family / ATT&CK TTP context\n\n"
+        "## WebHound Use\n"
+        "- Requires invitation to a MISP instance (not a public SaaS API)\n"
+        "- If accessible: use as high-context TI source for campaign attribution\n"
+        "- Always filter: only to_ids=true + distribution >= 1 + recent first_seen\n"
+        "- Quality varies widely by contributing organization\n"
+    ),
+}
+
+for rel_path, content in NOTES.items():
+    abs_path = os.path.join(ROOT, rel_path.replace("/", os.sep))
+    os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+    with open(abs_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+print(f"Wrote {len(NOTES)} source knowledge notes")

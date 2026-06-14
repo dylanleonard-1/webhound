@@ -67,5 +67,14 @@ scanner/.claude-flow/
 # WebHound Scan Outputs
 # =========================
 scanner/scan_output.json
+
+# =========================
+# Phase 8C Brain Runtime
+# =========================
+# LightRAG local vector/graph index (rebuild with build_lightrag_index.py)
+lightrag_storage/
+# Neo4j Docker volumes (started via docker-compose-neo4j.yml)
+neo4j_data/
+neo4j_logs/
 scanner/reports/
 *.webhound_baseline

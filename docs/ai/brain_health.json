@@ -1,0 +1,79 @@
+{
+  "checked_at": "2026-06-14T06:25:52.647709Z",
+  "corpus": {
+    "status": "healthy",
+    "manifest_records": 487,
+    "chunk_count": 1161,
+    "lightrag_docs": 1161,
+    "graphiti_seeds": true,
+    "embedding_count": 1161,
+    "embedding_size_kb": 1741
+  },
+  "vault": {
+    "status": "healthy",
+    "note_count": 58,
+    "section_count": 13,
+    "sections": [
+      "00-Maps",
+      "01-Architecture",
+      "02-Scanner Engines",
+      "03-WADE",
+      "04-Knowledge Corpus",
+      "05-Provider Intelligence",
+      "06-Threat Intelligence",
+      "07-Vulnerability Taxonomy",
+      "08-External Tools",
+      "09-Reports",
+      "10-Decisions",
+      "99-Graphify",
+      "WebHound AI Brain"
+    ]
+  },
+  "hybrid_retrieval": {
+    "status": "live",
+    "mode": "lexical_only",
+    "test_hits": 3,
+    "elapsed_s": 0.226,
+    "top_title": "MDN — Content Security Policy (CSP)"
+  },
+  "lightrag": {
+    "status": "live_vector_only",
+    "installed": true,
+    "version": "1.5.2",
+    "storage_exists": true,
+    "vector_storage_built": true,
+    "graph_storage": "NetworkX (in-memory)",
+    "llm_status": "stub (no cloud, no local LLM) — graph extraction skipped",
+    "embedding": "all-MiniLM-L6-v2 (local)"
+  },
+  "graphiti": {
+    "status": "schema_seeded",
+    "installed": true,
+    "version": "?",
+    "neo4j_live": false,
+    "llm_available": false,
+    "episodes_defined": 13,
+    "gap": "Neo4j offline + no local LLM — schema seeded, runtime pending"
+  },
+  "neo4j": {
+    "status": "offline",
+    "bolt_port_7687": false,
+    "docker_compose": true,
+    "load_script": true,
+    "gap": "Docker daemon not running in this env — compose provided"
+  },
+  "graphify": {
+    "status": "live_local_equivalent",
+    "note": "Graphify binary not installed — local AST+wikilink scanner used",
+    "node_count": 126,
+    "edge_count": 263,
+    "html_generated": true
+  },
+  "wade_retrieval": {
+    "status": "live",
+    "brain_version": "8B",
+    "finding_types": 22,
+    "retrieval_confidence": 1.0,
+    "taxonomy_cwe": "CWE-693"
+  }
+}

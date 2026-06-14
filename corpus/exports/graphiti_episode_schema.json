@@ -1,0 +1,228 @@
+{
+  "generated_at": "2026-06-14T06:15:27.099031Z",
+  "cloud_api_used": false,
+  "local_only": true,
+  "memory_types": [
+    "engineering_decision",
+    "scanner_behavior",
+    "provider_behavior",
+    "threat_intel_rule",
+    "taxonomy_rule",
+    "false_positive_rule",
+    "retrieval_rule",
+    "phase_status"
+  ],
+  "neo4j_required": true,
+  "llm_required": true,
+  "runtime_status": "schema_seeded_pending_neo4j_llm",
+  "episodes": [
+    {
+      "episode_id": "dec-local-embeddings",
+      "type": "engineering_decision",
+      "name": "Local-only embedding decision",
+      "content": "WebHound uses all-MiniLM-L6-v2 (local) for dense embeddings. Cloud embedding APIs are explicitly prohibited to protect potentially sensitive page content and eliminate API costs.",
+      "valid_at": "2026-06-14T06:15:27.099031Z",
+      "source": "phase-7a",
+      "graphiti_schema": {
+        "name": "Local-only embedding decision",
+        "episode_body": "WebHound uses all-MiniLM-L6-v2 (local) for dense embeddings. Cloud embedding APIs are explicitly prohibited to protect potentially sensitive page content and eliminate API costs.",
+        "source": "text",
+        "source_description": "WebHound Phase 8C — engineering_decision",
+        "reference_time": "2026-06-14T06:15:27.099031Z",
+        "group_id": "webhound-brain"
+      }
+    },
+    {
+      "episode_id": "scan-dalfox-confirm-xss",
+      "type": "scanner_behavior",
+      "name": "DalFox confirms XSS active",
+      "content": "DalFox is used as the active XSS confirmation engine. When DalFox fires, WADE increases confidence score by +0.4 (active confirmation weight). False positive rate is low for reflected XSS.",
+      "valid_at": "2026-06-14T06:15:27.099031Z",
+      "source": "phase-6b",
+      "graphiti_schema": {
+        "name": "DalFox confirms XSS active",
+        "episode_body": "DalFox is used as the active XSS confirmation engine. When DalFox fires, WADE increases confidence score by +0.4 (active confirmation weight). False positive rate is low for reflected XSS.",
+        "source": "text",
+        "source_description": "WebHound Phase 8C — scanner_behavior",
+        "reference_time": "2026-06-14T06:15:27.099031Z",
+        "group_id": "webhound-brain"
+      }
+    },
+    {
+      "episode_id": "fp-cloudflare-challenge",
+      "type": "false_positive_pattern",
+      "name": "Cloudflare 1020 is not a finding",
+      "content": "HTTP 1020 from Cloudflare is an access denied / WAF block page, not a vulnerability. WADE suppresses findings on 1020 responses to prevent false XSS/injection alerts on WAF-managed error pages.",
+      "valid_at": "2026-06-14T06:15:27.099031Z",
+      "source": "phase-6c",
+      "graphiti_schema": {
+        "name": "Cloudflare 1020 is not a finding",
+        "episode_body": "HTTP 1020 from Cloudflare is an access denied / WAF block page, not a vulnerability. WADE suppresses findings on 1020 responses to prevent false XSS/injection alerts on WAF-managed error pages.",
+        "source": "text",
+        "source_description": "WebHound Phase 8C — false_positive_pattern",
+        "reference_time": "2026-06-14T06:15:27.099031Z",
+        "group_id": "webhound-brain"
+      }
+    },
+    {
+      "episode_id": "prov-vercel-deployment-protection",
+      "type": "provider_behavior",
+      "name": "Vercel deployment protection gate",
+      "content": "Vercel preview deployments may have deployment protection enabled. Scanners receive 401 or redirect to auth gate instead of the actual app. WADE should not flag auth-gated responses as vulnerabilities.",
+      "valid_at": "2026-06-14T06:15:27.099031Z",
+      "source": "phase-6c",
+      "graphiti_schema": {
+        "name": "Vercel deployment protection gate",
+        "episode_body": "Vercel preview deployments may have deployment protection enabled. Scanners receive 401 or redirect to auth gate instead of the actual app. WADE should not flag auth-gated responses as vulnerabilities.",
+        "source": "text",
+        "source_description": "WebHound Phase 8C — provider_behavior",
+        "reference_time": "2026-06-14T06:15:27.099031Z",
+        "group_id": "webhound-brain"
+      }
+    },
+    {
+      "episode_id": "ti-greynoise-shared-cdn",
+      "type": "threat_intel_rule",
+      "name": "GreyNoise classifies CDN IPs as benign",
+      "content": "Shared CDN IP addresses (Cloudflare, Fastly, Akamai) appear in GreyNoise as scanners or benign mass-event IPs. WADE should not flag a CDN IP as malicious based solely on GreyNoise classification.",
+      "valid_at": "2026-06-14T06:15:27.099031Z",
+      "source": "phase-6e",
+      "graphiti_schema": {
+        "name": "GreyNoise classifies CDN IPs as benign",
+        "episode_body": "Shared CDN IP addresses (Cloudflare, Fastly, Akamai) appear in GreyNoise as scanners or benign mass-event IPs. WADE should not flag a CDN IP as malicious based solely on GreyNoise classification.",
+        "source": "text",
+        "source_description": "WebHound Phase 8C — threat_intel_rule",
+        "reference_time": "2026-06-14T06:15:27.099031Z",
+        "group_id": "webhound-brain"
+      }
+    },
+    {
+      "episode_id": "tax-cwe79-xss",
+      "type": "taxonomy_rule",
+      "name": "XSS maps to CWE-79",
+      "content": "All cross-site scripting findings (reflected, stored, DOM-based) are classified as CWE-79. Severity is assigned per CVSS v3.1 based on exploitability and impact subscores.",
+      "valid_at": "2026-06-14T06:15:27.099031Z",
+      "source": "phase-6a",
+      "graphiti_schema": {
+        "name": "XSS maps to CWE-79",
+        "episode_body": "All cross-site scripting findings (reflected, stored, DOM-based) are classified as CWE-79. Severity is assigned per CVSS v3.1 based on exploitability and impact subscores.",
+        "source": "text",
+        "source_description": "WebHound Phase 8C — taxonomy_rule",
+        "reference_time": "2026-06-14T06:15:27.099031Z",
+        "group_id": "webhound-brain"
+      }
+    },
+    {
+      "episode_id": "wade-confidence-threshold",
+      "type": "WADE_policy",
+      "name": "WADE confidence threshold for reporting",
+      "content": "WADE only reports findings with confidence >= 0.4. Findings below this threshold are suppressed as likely false positives. Active confirmation (DalFox) raises confidence above threshold in most cases.",
+      "valid_at": "2026-06-14T06:15:27.099031Z",
+      "source": "phase-6a",
+      "graphiti_schema": {
+        "name": "WADE confidence threshold for reporting",
+        "episode_body": "WADE only reports findings with confidence >= 0.4. Findings below this threshold are suppressed as likely false positives. Active confirmation (DalFox) raises confidence above threshold in most cases.",
+        "source": "text",
+        "source_description": "WebHound Phase 8C — WADE_policy",
+        "reference_time": "2026-06-14T06:15:27.099031Z",
+        "group_id": "webhound-brain"
+      }
+    },
+    {
+      "episode_id": "ret-hybrid-weights",
+      "type": "retrieval_decision",
+      "name": "Hybrid retrieval weight choice (0.35/0.65)",
+      "content": "Hybrid retrieval uses 0.35 lexical + 0.65 dense weight. Phase 7A evaluation: dense_only 71%/84%/92% vs hybrid 76%/88%/90% top-1/3/5. Dense weight higher because semantic similarity outperforms keyword on 120-Q benchmark.",
+      "valid_at": "2026-06-14T06:15:27.099031Z",
+      "source": "phase-7a",
+      "graphiti_schema": {
+        "name": "Hybrid retrieval weight choice (0.35/0.65)",
+        "episode_body": "Hybrid retrieval uses 0.35 lexical + 0.65 dense weight. Phase 7A evaluation: dense_only 71%/84%/92% vs hybrid 76%/88%/90% top-1/3/5. Dense weight higher because semantic similarity outperforms keyword on 120-Q benchmark.",
+        "source": "text",
+        "source_description": "WebHound Phase 8C — retrieval_decision",
+        "reference_time": "2026-06-14T06:15:27.099031Z",
+        "group_id": "webhound-brain"
+      }
+    },
+    {
+      "episode_id": "phase-8a-status",
+      "type": "phase_status",
+      "name": "Phase 8A AI Brain Foundation",
+      "content": "Phase 8A (AI Brain Foundation) completed 2026-06-14. Deliverables: Obsidian vault, export_brain_vault.py, LightRAG corpus export, Graphiti seeds, Neo4j schema plan, WADE brain interface, 10 brain query tests.",
+      "valid_at": "2026-06-14T06:15:27.099031Z",
+      "source": "phase-8a",
+      "graphiti_schema": {
+        "name": "Phase 8A AI Brain Foundation",
+        "episode_body": "Phase 8A (AI Brain Foundation) completed 2026-06-14. Deliverables: Obsidian vault, export_brain_vault.py, LightRAG corpus export, Graphiti seeds, Neo4j schema plan, WADE brain interface, 10 brain query tests.",
+        "source": "text",
+        "source_description": "WebHound Phase 8C — phase_status",
+        "reference_time": "2026-06-14T06:15:27.099031Z",
+        "group_id": "webhound-brain"
+      }
+    },
+    {
+      "episode_id": "bench-phase7a-hybrid",
+      "type": "benchmark_result",
+      "name": "Phase 7A hybrid retrieval benchmark",
+      "content": "120-question benchmark (Phase 7A): lexical_only 12%/38%/52%, dense_only 71%/84%/92%, hybrid 76%/88%/90% at top-1/top-3/top-5. Evaluated against path-fragment style queries on 1161 chunks from 487 docs.",
+      "valid_at": "2026-06-14T06:15:27.099031Z",
+      "source": "phase-7a",
+      "graphiti_schema": {
+        "name": "Phase 7A hybrid retrieval benchmark",
+        "episode_body": "120-question benchmark (Phase 7A): lexical_only 12%/38%/52%, dense_only 71%/84%/92%, hybrid 76%/88%/90% at top-1/top-3/top-5. Evaluated against path-fragment style queries on 1161 chunks from 487 docs.",
+        "source": "text",
+        "source_description": "WebHound Phase 8C — benchmark_result",
+        "reference_time": "2026-06-14T06:15:27.099031Z",
+        "group_id": "webhound-brain"
+      }
+    },
+    {
+      "episode_id": "false-pos-cdn-ip",
+      "type": "false_positive_rule",
+      "name": "CDN shared IPs suppress TI alerts",
+      "content": "Cloudflare, Fastly, Akamai IPs appear in AbuseIPDB/GreyNoise as benign mass-event scanners. WADE suppresses threat_intel_match for well-known CDN CIDR ranges to prevent customer-facing false positives on shared infrastructure.",
+      "valid_at": "2026-06-14T06:15:27.099031Z",
+      "source": "phase-8c",
+      "graphiti_schema": {
+        "name": "CDN shared IPs suppress TI alerts",
+        "episode_body": "Cloudflare, Fastly, Akamai IPs appear in AbuseIPDB/GreyNoise as benign mass-event scanners. WADE suppresses threat_intel_match for well-known CDN CIDR ranges to prevent customer-facing false positives on shared infrastructure.",
+        "source": "text",
+        "source_description": "WebHound Phase 8C — false_positive_rule",
+        "reference_time": "2026-06-14T06:15:27.099031Z",
+        "group_id": "webhound-brain"
+      }
+    },
+    {
+      "episode_id": "ret-rule-lexical-fallback",
+      "type": "retrieval_rule",
+      "name": "Lexical fallback when dense unavailable",
+      "content": "WADE retrieval falls back to lexical_only mode when sentence_transformers or numpy is absent (CI environment). Hybrid mode (0.35 lexical + 0.65 dense) is used when the 384-dim MiniLM index is available.",
+      "valid_at": "2026-06-14T06:15:27.099031Z",
+      "source": "phase-8c",
+      "graphiti_schema": {
+        "name": "Lexical fallback when dense unavailable",
+        "episode_body": "WADE retrieval falls back to lexical_only mode when sentence_transformers or numpy is absent (CI environment). Hybrid mode (0.35 lexical + 0.65 dense) is used when the 384-dim MiniLM index is available.",
+        "source": "text",
+        "source_description": "WebHound Phase 8C — retrieval_rule",
+        "reference_time": "2026-06-14T06:15:27.099031Z",
+        "group_id": "webhound-brain"
+      }
+    },
+    {
+      "episode_id": "phase-8c-status",
+      "type": "phase_status",
+      "name": "Phase 8C Brain Runtime Activation",
+      "content": "Phase 8C (Brain Runtime Activation) started 2026-06-14. LightRAG: vector layer live (local MiniLM), graph layer pending local LLM. Graphiti: schema seeded, runtime pending Neo4j + local LLM. Neo4j: Docker daemon offline in current env — compose provided. Brain health check script and 25+ query validation tests added.",
+      "valid_at": "2026-06-14T06:15:27.099031Z",
+      "source": "phase-8c",
+      "graphiti_schema": {
+        "name": "Phase 8C Brain Runtime Activation",
+        "episode_body": "Phase 8C (Brain Runtime Activation) started 2026-06-14. LightRAG: vector layer live (local MiniLM), graph layer pending local LLM. Graphiti: schema seeded, runtime pending Neo4j + local LLM. Neo4j: Docker daemon offline in current env — compose provided. Brain health check script and 25+ query validation tests added.",
+        "source": "text",
+        "source_description": "WebHound Phase 8C — phase_status",
+        "reference_time": "2026-06-14T06:15:27.099031Z",
+        "group_id": "webhound-brain"
+      }
+    }
+  ]
+}

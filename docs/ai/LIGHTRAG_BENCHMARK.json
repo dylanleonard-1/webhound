@@ -1,0 +1,137 @@
+{
+  "hybrid_results": [
+    {
+      "id": "csp",
+      "system": "hybrid_retrieval",
+      "mode": "lexical_only",
+      "elapsed_s": 0.003,
+      "hit_count": 5,
+      "top_score": 1.0,
+      "top_title": "microsoft/playwright-mcp \u2014 README.md",
+      "top_authority_tier": "C",
+      "keyword_hits": [
+        "csp"
+      ],
+      "keyword_recall": 0.33
+    },
+    {
+      "id": "cloudflare",
+      "system": "hybrid_retrieval",
+      "mode": "lexical_only",
+      "elapsed_s": 0.0022,
+      "hit_count": 5,
+      "top_score": 1.0,
+      "top_title": "Cloudflare bot management",
+      "top_authority_tier": "A",
+      "keyword_hits": [
+        "cloudflare",
+        "waf"
+      ],
+      "keyword_recall": 0.67
+    },
+    {
+      "id": "threat_intel",
+      "system": "hybrid_retrieval",
+      "mode": "lexical_only",
+      "elapsed_s": 0.0016,
+      "hit_count": 5,
+      "top_score": 1.0,
+      "top_title": "GreyNoise Community API \u2014 Technical Reference",
+      "top_authority_tier": "A",
+      "keyword_hits": [
+        "threat",
+        "greynoise",
+        "ip"
+      ],
+      "keyword_recall": 0.75
+    },
+    {
+      "id": "exposed_env",
+      "system": "hybrid_retrieval",
+      "mode": "lexical_only",
+      "elapsed_s": 0.0016,
+      "hit_count": 5,
+      "top_score": 1.0,
+      "top_title": "HKUDS/LightRAG \u2014 docs/FileProcessingPipeline.md",
+      "top_authority_tier": "C",
+      "keyword_hits": [
+        "credential"
+      ],
+      "keyword_recall": 0.25
+    },
+    {
+      "id": "provider_blocked",
+      "system": "hybrid_retrieval",
+      "mode": "lexical_only",
+      "elapsed_s": 0.0019,
+      "hit_count": 5,
+      "top_score": 1.0,
+      "top_title": "HKUDS/LightRAG \u2014 docs/FileProcessingPipeline.md",
+      "top_authority_tier": "C",
+      "keyword_hits": [
+        "waf",
+        "cdn"
+      ],
+      "keyword_recall": 0.5
+    }
+  ],
+  "lightrag_results": [
+    {
+      "id": "csp",
+      "system": "lightrag",
+      "mode": "naive",
+      "elapsed_s": 0.1401,
+      "result_len": 34,
+      "keyword_hits": [],
+      "keyword_recall": 0.0,
+      "error": null
+    },
+    {
+      "id": "cloudflare",
+      "system": "lightrag",
+      "mode": "naive",
+      "elapsed_s": 0.0696,
+      "result_len": 34,
+      "keyword_hits": [],
+      "keyword_recall": 0.0,
+      "error": null
+    },
+    {
+      "id": "threat_intel",
+      "system": "lightrag",
+      "mode": "naive",
+      "elapsed_s": 0.0882,
+      "result_len": 34,
+      "keyword_hits": [
+        "ip"
+      ],
+      "keyword_recall": 0.25,
+      "error": null
+    },
+    {
+      "id": "exposed_env",
+      "system": "lightrag",
+      "mode": "naive",
+      "elapsed_s": 0.1137,
+      "result_len": 34,
+      "keyword_hits": [],
+      "keyword_recall": 0.0,
+      "error": null
+    },
+    {
+      "id": "provider_blocked",
+      "system": "lightrag",
+      "mode": "naive",
+      "elapsed_s": 0.1105,
+      "result_len": 34,
+      "keyword_hits": [],
+      "keyword_recall": 0.0,
+      "error": null
+    }
+  ],
+  "lightrag_available": true,
+  "lightrag_mode": "naive (vector-only, graph extraction skipped \u2014 no LLM)",
+  "embedding_model": "all-MiniLM-L6-v2 (local)",
+  "cloud_api_used": false,
+  "note": "LightRAG graph/entity extraction skipped due to no local LLM. Naive mode = pure vector retrieval. Hybrid Retrieval uses lexical_only mode for reproducibility."
+}

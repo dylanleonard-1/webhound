@@ -331,6 +331,7 @@ def test_build_lightrag_ollama_script_importable():
 
 
 def test_graphiti_seed_loader_has_null_cross_encoder():
+    pytest.importorskip("graphiti_core", reason="graphiti_core not installed — skip in minimal CI")
     import importlib.util
     spec = importlib.util.spec_from_file_location(
         "load_graphiti_seed_memories",

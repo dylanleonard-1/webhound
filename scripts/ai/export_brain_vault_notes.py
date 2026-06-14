@@ -410,3 +410,30 @@ def gen_graphify(d: dict) -> dict[str, str]:
             now, mk, ["External Tools Overview"], ["graphify"],
         ),
     }
+
+
+def gen_indexes(d: dict) -> dict[str, str]:
+    """index.md for every vault dir — required by validate_knowledge_structure.py."""
+    now, mk = d["now"], d["marker"]
+    def idx(title, desc, link=None):
+        links = [link] if link else ["WebHound Master Map"]
+        return _n(title, desc, now, mk, links, ["webhound", "index"])
+    return {
+        "index.md": idx(
+            "WebHound AI Brain",
+            "Generated Obsidian vault for the WebHound AI Knowledge Layer. "
+            f"{d['total_docs']} docs · {d['total_chunks']} chunks · Phase 8A.",
+        ),
+        "00-Maps/index.md": idx("Maps Index", "Map-of-content notes for all knowledge domains.", "WebHound Master Map"),
+        "01-Architecture/index.md": idx("Architecture Index", "System design, phases, and component inventory.", "WebHound Architecture Overview"),
+        "02-Scanner Engines/index.md": idx("Scanner Engines Index", "Nuclei, ZAP, and DalFox engine notes.", "Scanner Engines Overview"),
+        "03-WADE/index.md": idx("WADE Index", "WADE confidence, FP rules, and retrieval interface.", "WADE Overview"),
+        "04-Knowledge Corpus/index.md": idx("Knowledge Corpus Index", "Manifest schema, chunk index, and retrieval modes.", "Corpus Overview"),
+        "05-Provider Intelligence/index.md": idx("Provider Intelligence Index", "CDN, WAF, and cloud provider notes.", "Provider Intelligence Overview"),
+        "06-Threat Intelligence/index.md": idx("Threat Intelligence Index", "TI sources, GreyNoise, AbuseIPDB, VirusTotal.", "Threat Intelligence Overview"),
+        "07-Vulnerability Taxonomy/index.md": idx("Vulnerability Taxonomy Index", "CWE mapping, OWASP categories, severity framework.", "Taxonomy Overview"),
+        "08-External Tools/index.md": idx("External Tools Index", "LightRAG, Graphiti, Neo4j, Graphify plans.", "External Tools Overview"),
+        "09-Reports/index.md": idx("Reports Index", "Links to phase result documents (6H, 7A, 8A).", "Phase Results Overview"),
+        "10-Decisions/index.md": idx("Decisions Index", "Architecture decisions: embeddings, retrieval weights, pipeline.", "Architecture Decisions"),
+        "99-Graphify/index.md": idx("Graphify Index", "Graphify output placeholder. Not yet installed.", "Graphify Status"),
+    }

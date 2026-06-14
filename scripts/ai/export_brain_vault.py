@@ -23,6 +23,7 @@ from scripts.ai.export_brain_vault_notes import (
     gen_maps, gen_architecture, gen_scanners, gen_wade,
     gen_corpus, gen_providers, gen_ti, gen_taxonomy,
     gen_external, gen_reports, gen_decisions, gen_graphify,
+    gen_indexes,
 )
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -93,6 +94,7 @@ def main() -> None:
         gen_maps(d), gen_architecture(d), gen_scanners(d), gen_wade(d),
         gen_corpus(d), gen_providers(d), gen_ti(d), gen_taxonomy(d),
         gen_external(d), gen_reports(d), gen_decisions(d), gen_graphify(d),
+        gen_indexes(d),
     ]
 
     written = skipped = 0

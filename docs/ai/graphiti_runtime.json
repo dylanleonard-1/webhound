@@ -1,14 +1,17 @@
 {
-  "checked_at": "2026-06-14T07:02:02.963521Z",
-  "status": "CONFIGURED_PENDING",
+  "checked_at": "2026-06-14T07:59:08.973828Z",
+  "status": "LIVE",
   "graphiti": {
     "installed": true,
     "version": "?"
   },
-  "neo4j_live": false,
+  "neo4j_live": true,
   "ollama": {
-    "reachable": false,
-    "models": []
+    "reachable": true,
+    "models": [
+      "nomic-embed-text:latest",
+      "phi3:mini"
+    ]
   },
   "episode_schema": {
     "exists": true,

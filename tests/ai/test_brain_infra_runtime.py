@@ -308,3 +308,38 @@ def test_ollama_live_model_list():
     resp = urllib.request.urlopen("http://localhost:11434/api/tags", timeout=3)
     data = _json.loads(resp.read())
     assert "models" in data
+
+
+# ── 9. Phase 8C-INFRA-LIVE scripts ───────────────────────────────────────────
+
+def test_build_lightrag_ollama_script_exists():
+    path = os.path.join(ROOT, "scripts", "ai", "build_lightrag_index_ollama.py")
+    assert os.path.isfile(path), "build_lightrag_index_ollama.py must exist"
+
+
+def test_build_lightrag_ollama_script_importable():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "build_lightrag_index_ollama",
+        os.path.join(ROOT, "scripts", "ai", "build_lightrag_index_ollama.py"),
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert hasattr(mod, "build_index")
+    assert hasattr(mod, "load_corpus_sample")
+    assert mod.OLLAMA_MODEL == "phi3:mini"
+
+
+def test_graphiti_seed_loader_has_null_cross_encoder():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "load_graphiti_seed_memories",
+        os.path.join(ROOT, "scripts", "ai", "load_graphiti_seed_memories.py"),
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert hasattr(mod, "_make_null_cross_encoder")
+    encoder = mod._make_null_cross_encoder()
+    result = encoder.rank("test query", ["passage a", "passage b"])
+    assert len(result) == 2
+    assert result[0][0] == "passage a"

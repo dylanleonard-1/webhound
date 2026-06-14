@@ -31,7 +31,7 @@ NEO4J_URI = "bolt://localhost:7687"
 NEO4J_USER = "neo4j"
 NEO4J_PASS = "webhound-brain-local-dev"
 OLLAMA_BASE_URL = "http://localhost:11434/v1"
-OLLAMA_LLM_MODEL = "llama3.2"
+OLLAMA_LLM_MODEL = "phi3:mini"
 OLLAMA_EMBED_MODEL = "nomic-embed-text"
 OLLAMA_EMBED_DIM = 768
 NOW = datetime.now(timezone.utc)
@@ -78,6 +78,21 @@ def load_episodes() -> list[dict]:
     return data.get("episodes", [])
 
 
+def _make_null_cross_encoder():
+    """Return a passthrough CrossEncoderClient subclass with no-op ranking.
+
+    Must be a proper subclass to pass Graphiti's Pydantic validation.
+    Prevents auto-creation of OpenAIRerankerClient (which requires OPENAI_API_KEY).
+    """
+    from graphiti_core.cross_encoder.client import CrossEncoderClient
+
+    class _NullCrossEncoder(CrossEncoderClient):
+        def rank(self, query: str, passages: list[str]) -> list[tuple[str, float]]:
+            return [(p, 1.0) for p in passages]
+
+    return _NullCrossEncoder()
+
+
 async def seed_graphiti(episodes: list[dict]) -> dict:
     from graphiti_core import Graphiti
     from graphiti_core.llm_client import OpenAIClient
@@ -87,6 +102,7 @@ async def seed_graphiti(episodes: list[dict]) -> dict:
     llm_config = LLMConfig(
         api_key="ollama",
         model=OLLAMA_LLM_MODEL,
+        small_model=OLLAMA_LLM_MODEL,
         base_url=OLLAMA_BASE_URL,
     )
     llm_client = OpenAIClient(config=llm_config)
@@ -105,6 +121,7 @@ async def seed_graphiti(episodes: list[dict]) -> dict:
         password=NEO4J_PASS,
         llm_client=llm_client,
         embedder=embedder,
+        cross_encoder=_make_null_cross_encoder(),
     )
     await graphiti.build_indices_and_constraints()
 

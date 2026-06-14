@@ -87,6 +87,7 @@ def check_hybrid_retrieval() -> dict:
 
 
 def check_lightrag() -> dict:
+    import json as _json
     lightrag_dir = ROOT / "lightrag_storage"
     try:
         import lightrag  # noqa: F401
@@ -96,17 +97,44 @@ def check_lightrag() -> dict:
         return {"status": "not_installed", "installed": False}
 
     storage_exists = lightrag_dir.exists()
-    vector_db = (lightrag_dir / "vdb_entities.json").exists() or \
-                any(lightrag_dir.glob("*.json")) if storage_exists else False
-    status = "live_vector_only" if storage_exists else "installed_not_indexed"
+    entity_count = 0
+    rel_count = 0
+    if storage_exists:
+        ef = lightrag_dir / "vdb_entities.json"
+        rf = lightrag_dir / "vdb_relationships.json"
+        if ef.exists():
+            d = _json.loads(ef.read_text(encoding="utf-8"))
+            inner = d.get("data", d) if isinstance(d, dict) else d
+            entity_count = len(inner) if isinstance(inner, list) else 0
+        if rf.exists():
+            d = _json.loads(rf.read_text(encoding="utf-8"))
+            inner = d.get("data", d) if isinstance(d, dict) else d
+            rel_count = len(inner) if isinstance(inner, list) else 0
+
+    if not storage_exists:
+        status = "installed_not_indexed"
+    elif entity_count > 0:
+        status = "live_full"
+    else:
+        status = "live_vector_only"
+
+    ollama_live = False
+    try:
+        s = socket.create_connection(("localhost", 11434), timeout=1)
+        s.close()
+        ollama_live = True
+    except OSError:
+        pass
+
     return {
         "status": status,
         "installed": installed,
         "version": version,
         "storage_exists": storage_exists,
-        "vector_storage_built": vector_db,
+        "entities_extracted": entity_count,
+        "relationships_extracted": rel_count,
         "graph_storage": "NetworkX (in-memory)",
-        "llm_status": "stub (no cloud, no local LLM) — graph extraction skipped",
+        "llm_status": "phi3:mini via Ollama (local)" if ollama_live else "offline — run build_lightrag_index_ollama.py",
         "embedding": "all-MiniLM-L6-v2 (local)",
     }
 
@@ -152,14 +180,26 @@ def check_neo4j() -> dict:
     except OSError:
         pass
 
-    compose_path = ROOT / "docker-compose-neo4j.yml"
-    load_script = ROOT / "scripts" / "ai" / "load_neo4j.py"
+    compose_path = ROOT / "docker-compose.ai-brain.yml"
+    load_script = ROOT / "scripts" / "ai" / "load_brain_graph_neo4j.py"
+    node_count = 0
+    if neo4j_live:
+        try:
+            from neo4j import GraphDatabase
+            driver = GraphDatabase.driver("bolt://localhost:7687", auth=("neo4j", "webhound-brain-local-dev"))
+            with driver.session() as s:
+                node_count = s.run("MATCH (n) RETURN count(n) AS c").single()["c"]
+            driver.close()
+        except Exception:
+            pass
+
     return {
         "status": "live" if neo4j_live else "offline",
         "bolt_port_7687": neo4j_live,
+        "node_count": node_count,
         "docker_compose": compose_path.exists(),
         "load_script": load_script.exists(),
-        "gap": "" if neo4j_live else "Docker daemon not running in this env — compose provided",
+        "gap": "" if neo4j_live else "Start: wsl -d Ubuntu-24.04 -- docker run -d --name neo4j-brain -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/webhound-brain-local-dev neo4j:5-community",
     }
 
 

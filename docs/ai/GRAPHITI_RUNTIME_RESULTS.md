@@ -1,27 +1,26 @@
 <!-- WEBHOUND-GENERATED -->
 # Graphiti Runtime Results — Phase 8C-INFRA
 
-**Date:** 2026-06-14T07:02:02.963521Z
-**Status:** CONFIGURED_PENDING
+**Date:** 2026-06-14T07:59:08.973828Z
+**Status:** LIVE
 
 ## Prerequisites
 
 | Component | Status | Detail |
 |-----------|--------|--------|
 | graphiti-core | INSTALLED v? | pip install graphiti-core |
-| Neo4j (bolt:7687) | OFFLINE | docker-compose.ai-brain.yml |
-| Ollama (port:11434) | OFFLINE | docs/ai/OLLAMA_SETUP.md |
-| Ollama models | none pulled | ollama pull llama3.2 |
+| Neo4j (bolt:7687) | LIVE | docker-compose.ai-brain.yml |
+| Ollama (port:11434) | LIVE | docs/ai/OLLAMA_SETUP.md |
+| Ollama models | nomic-embed-text:latest, phi3:mini | ollama pull llama3.2 |
 | Episode schema | 13 episodes | corpus/exports/graphiti_episode_schema.json |
 
-## Status: CONFIGURED_PENDING
+## Status: LIVE
 
-graphiti-core installed, episode schema seeded. Waiting for Neo4j + Ollama LLM to activate.
+All prerequisites met — ready to seed memories.
 
 ## Blockers
 
-1. **Neo4j**: Start with `docker compose -f docker-compose.ai-brain.yml up -d`
-2. **Ollama**: Install and start — see `docs/ai/OLLAMA_SETUP.md`
+None — ready to seed memories.
 
 ## Activation
 

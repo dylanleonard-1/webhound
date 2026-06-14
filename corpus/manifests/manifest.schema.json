@@ -51,6 +51,7 @@
         "official_doc",
         "official_repo",
         "official_provider_doc",
+        "official_threat_intel_doc",
         "detection_repo",
         "planning_reference",
         "paper",

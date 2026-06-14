@@ -178,6 +178,8 @@ def test_manifest_jsonl_doc_ids_unique_and_pointers_local():
         "planning_reference": os.path.join(ROOT, "corpus", "normalized", "planning"),
         # Phase 6D: provider docs normalized into per-provider subdirs
         "official_provider_doc": os.path.join(ROOT, "corpus", "normalized", "provider-docs"),
+        # Phase 6E: threat intelligence source docs
+        "official_threat_intel_doc": os.path.join(ROOT, "corpus", "normalized", "threat-intel"),
     }
     missing = []
     for r in rows:
@@ -312,6 +314,204 @@ def test_memory_summaries_pointers_exist_and_no_secrets():
         assert not any(f in blob for f in forbidden), f"forbidden token in memory {rec.get('memory_id')}"
         for path in rec.get("related_paths", []):
             assert os.path.exists(os.path.join(ROOT, path.rstrip("/"))), f"memory pointer missing: {path}"
+
+
+# ---- Phase 6E: Threat Intelligence retrieval self-tests ---------------------
+
+def _ti_note(source: str) -> str:
+    """Read a per-source threat-intel knowledge note."""
+    return _read("knowledge", "threat-intelligence", source, f"{source}.md")
+
+
+def _ti_synthesis(filename: str) -> str:
+    return _read("knowledge", "threat-intelligence", filename)
+
+
+def _ti_normalized(source: str, basename: str) -> str:
+    return _read("corpus", "normalized", "threat-intel", source, basename)
+
+
+def test_ti_urlhaus_malware_url_confidence():
+    txt = _ti_note("urlhaus")
+    assert "online" in txt and "malware" in txt.lower()
+    norm = _ti_normalized("urlhaus", "pd-ti-urlhaus--api.md")
+    assert "urlhaus" in norm.lower() and "url" in norm.lower()
+
+
+def test_ti_threatfox_ioc_types():
+    txt = _ti_note("threatfox")
+    assert "cc_skimming" in txt or "skimming" in txt.lower()
+    assert "botnet_cc" in txt or "botnet" in txt.lower()
+    norm = _ti_normalized("threatfox", "pd-ti-threatfox--api.md")
+    assert "ioc" in norm.lower() or "indicator" in norm.lower()
+
+
+def test_ti_openphish_phishing_url_source():
+    txt = _ti_note("openphish")
+    assert "phish" in txt.lower()
+    assert "feed.txt" in txt or "community" in txt.lower()
+    norm = _ti_normalized("openphish", "pd-ti-openphish--feed.md")
+    assert "openphish" in norm.lower()
+
+
+def test_ti_phishtank_community_verification():
+    txt = _ti_note("phishtank")
+    assert "verified" in txt.lower() or "community" in txt.lower()
+    assert "target" in txt.lower()
+    norm = _ti_normalized("phishtank", "pd-ti-phishtank--api.md")
+    assert "phishtank" in norm.lower()
+
+
+def test_ti_otx_pulse_source_model():
+    txt = _ti_note("otx")
+    assert "pulse" in txt.lower()
+    assert "tlp" in txt.lower()
+    norm = _ti_normalized("otx", "pd-ti-otx--api.md")
+    assert "otx" in norm.lower() or "alienvault" in norm.lower()
+
+
+def test_ti_abuseipdb_shared_ip_false_positives():
+    txt = _ti_note("abuseipdb")
+    assert "numdistinctusers" in txt.lower() or "distinct" in txt.lower()
+    assert "shared" in txt.lower() or "false positive" in txt.lower() or "fp" in txt.lower()
+    norm = _ti_normalized("abuseipdb", "pd-ti-abuseipdb--api.md")
+    assert "abuseipdb" in norm.lower() or "confidence" in norm.lower()
+
+
+def test_ti_virustotal_lookup_semantics():
+    txt = _ti_note("virustotal")
+    assert "malicious" in txt.lower() and "engine" in txt.lower()
+    assert "last_analysis" in txt or "detection" in txt.lower()
+    norm = _ti_normalized("virustotal", "pd-ti-virustotal--api.md")
+    assert "virustotal" in norm.lower()
+
+
+def test_ti_gsb_unsafe_url_lookup():
+    # Knowledge note is gsb.md (short slug) under the google-safe-browsing dir
+    txt = _read("knowledge", "threat-intelligence", "google-safe-browsing", "gsb.md")
+    assert "social_engineering" in txt or "malware" in txt.lower()
+    assert "attribution" in txt.lower() or "google" in txt.lower()
+    norm = _ti_normalized("google-safe-browsing", "pd-ti-gsb--lookup-api.md")
+    assert "safe browsing" in norm.lower() or "safebrowsing" in norm.lower()
+
+
+def test_ti_greynoise_internet_noise_context():
+    txt = _ti_note("greynoise")
+    assert "riot" in txt.lower()
+    assert "noise" in txt.lower() and "classification" in txt.lower()
+    norm = _ti_normalized("greynoise", "pd-ti-greynoise--community-api.md")
+    assert "greynoise" in norm.lower()
+
+
+def test_ti_shodan_exposure_not_malice():
+    txt = _ti_note("shodan")
+    assert "exposure" in txt.lower()
+    assert "malice" in txt.lower() or "malicious" in txt.lower() or "threat" in txt.lower()
+    norm = _ti_normalized("shodan", "pd-ti-shodan--api.md")
+    assert "shodan" in norm.lower()
+
+
+def test_ti_censys_exposure_not_malice():
+    txt = _ti_note("censys")
+    assert "exposure" in txt.lower()
+    assert "tls" in txt.lower() or "certificate" in txt.lower()
+    norm = _ti_normalized("censys", "pd-ti-censys--api.md")
+    assert "censys" in norm.lower()
+
+
+def test_ti_misp_threat_sharing_structure():
+    txt = _ti_note("misp")
+    assert "to_ids" in txt
+    assert "distribution" in txt.lower() or "sharing" in txt.lower()
+    norm = _ti_normalized("misp", "pd-ti-misp--overview.md")
+    assert "misp" in norm.lower()
+
+
+def test_ti_url_vs_domain_vs_ip_confidence():
+    txt = _ti_synthesis("url-vs-domain-vs-ip-confidence.md")
+    assert "url" in txt.lower() and "domain" in txt.lower() and "ip" in txt.lower()
+    assert "specificity" in txt.lower() or "confidence" in txt.lower()
+
+
+def test_ti_shared_hosting_cdn_fp_risk():
+    txt = _ti_synthesis("threat-intel-false-positive-model.md")
+    assert "shared" in txt.lower() and ("hosting" in txt.lower() or "cdn" in txt.lower())
+    extra = _ti_synthesis("shared-infrastructure-risk.md")
+    assert "cdn" in extra.lower() or "cloud" in extra.lower()
+
+
+def test_ti_multiple_source_confirmation():
+    txt = _ti_synthesis("threat-intel-confidence-model.md")
+    assert "confirm" in txt.lower() or "corrobor" in txt.lower() or "multiple" in txt.lower()
+    assert "source" in txt.lower()
+
+
+def test_ti_stale_ioc_handling():
+    txt = _ti_note("threatfox")
+    assert "expir" in txt.lower() or "stale" in txt.lower() or "6 months" in txt.lower()
+    fp = _ti_synthesis("threat-intel-false-positive-model.md")
+    assert "stale" in fp.lower() or "expir" in fp.lower()
+
+
+def test_ti_third_party_script_domain():
+    txt = _ti_synthesis("threat-intel-for-third-party-scripts.md")
+    assert "script" in txt.lower() and "skimm" in txt.lower()
+    assert "magecart" in txt.lower() or "cc_skimming" in txt.lower()
+
+
+def test_ti_malicious_redirect():
+    txt = _ti_synthesis("threat-intel-for-malicious-redirects.md")
+    assert "redirect" in txt.lower()
+    assert "final" in txt.lower() or "destination" in txt.lower()
+
+
+def test_ti_phishing_landing_page():
+    txt = _ti_synthesis("threat-intel-for-phishing-detection.md")
+    assert "phish" in txt.lower()
+    assert "openphish" in txt.lower() or "phishtank" in txt.lower() or "gsb" in txt.lower()
+
+
+def test_ti_wade_threat_intel_reasoning():
+    txt = _ti_synthesis("threat-intel-for-wade.md")
+    assert "wade" in txt.lower() or "must not" in txt.lower()
+    assert "false positive" in txt.lower() or "fp" in txt.lower()
+
+
+def test_ti_customer_safe_reporting():
+    txt = _ti_synthesis("threat-intel-for-customer-reporting.md")
+    assert "customer" in txt.lower() and "report" in txt.lower()
+    assert "severity" in txt.lower() or "finding" in txt.lower()
+
+
+def test_ti_source_terms_rate_limits():
+    txt = _ti_synthesis("threat-intel-source-terms-and-limits.md")
+    assert "rate limit" in txt.lower() or "rate_limit" in txt.lower() or "rate" in txt.lower()
+    assert "urlhaus" in txt.lower() and "virustotal" in txt.lower()
+
+
+def test_ti_manifest_records_present_and_count():
+    rows = _manifest_records()
+    if rows is None:
+        pytest.skip("manifest.jsonl not present")
+    ti_rows = [r for r in rows if r.get("source_type") in (
+        "official_threat_intel_doc", "internal_doc"
+    ) and "ti" in r.get("doc_id", "")]
+    # At minimum the 9 official + 3 internal source docs
+    assert len(ti_rows) >= 12, f"Expected >=12 threat-intel manifest records, got {len(ti_rows)}"
+
+
+def test_ti_chunks_file_present_and_non_empty():
+    p = os.path.join(ROOT, "corpus", "normalized", "threat-intel", "threat_intel_chunks.jsonl")
+    assert os.path.exists(p), "threat_intel_chunks.jsonl must exist after Phase 6E ingest"
+    rows = []
+    with open(p, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    assert len(rows) >= 50, f"Expected >=50 TI chunks, got {len(rows)}"
+    for c in rows[:10]:
+        assert "chunk_id" in c and "doc_id" in c and "text" in c
 
 
 if __name__ == "__main__":

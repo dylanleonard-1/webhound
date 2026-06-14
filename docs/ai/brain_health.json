@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-06-14T07:04:11.734301Z",
+  "checked_at": "2026-06-14T08:21:58.772565Z",
   "corpus": {
     "status": "healthy",
     "manifest_records": 487,
@@ -33,34 +33,36 @@
     "status": "live",
     "mode": "lexical_only",
     "test_hits": 3,
-    "elapsed_s": 0.225,
+    "elapsed_s": 0.245,
     "top_title": "MDN — Content Security Policy (CSP)"
   },
   "lightrag": {
-    "status": "live_vector_only",
+    "status": "live_full",
     "installed": true,
     "version": "1.5.2",
     "storage_exists": true,
-    "vector_storage_built": true,
+    "entities_extracted": 19,
+    "relationships_extracted": 1,
     "graph_storage": "NetworkX (in-memory)",
-    "llm_status": "stub (no cloud, no local LLM) — graph extraction skipped",
+    "llm_status": "phi3:mini via Ollama (local)",
     "embedding": "all-MiniLM-L6-v2 (local)"
   },
   "graphiti": {
-    "status": "schema_seeded",
+    "status": "ready_to_seed",
     "installed": true,
     "version": "?",
-    "neo4j_live": false,
+    "neo4j_live": true,
     "llm_available": false,
     "episodes_defined": 13,
     "gap": "Neo4j offline + no local LLM — schema seeded, runtime pending"
   },
   "neo4j": {
-    "status": "offline",
-    "bolt_port_7687": false,
+    "status": "live",
+    "bolt_port_7687": true,
+    "node_count": 167,
     "docker_compose": true,
     "load_script": true,
-    "gap": "Docker daemon not running in this env — compose provided"
+    "gap": ""
   },
   "graphify": {
     "status": "live_local_equivalent",
@@ -78,13 +80,15 @@
   },
   "docker": {
     "status": "offline",
-    "error": "failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path ",
-    "compose_brain": true,
-    "compose_neo4j": true
+    "error": "Command '['docker', 'info', '--format', '{{.ServerVersion}}']' timed out after 5 seconds",
+    "compose_brain": true
   },
   "ollama": {
-    "status": "offline",
-    "models": [],
-    "model_count": 0
+    "status": "live",
+    "models": [
+      "nomic-embed-text:latest",
+      "phi3:mini"
+    ],
+    "model_count": 2
   }
 }

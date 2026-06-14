@@ -1,8 +1,8 @@
 <!-- WEBHOUND-GENERATED -->
 # LightRAG Graph Runtime Results — Phase 8C-INFRA
 
-**Date:** 2026-06-14T07:03:34.855518Z
-**Status:** LIVE_VECTOR_ONLY
+**Date:** 2026-06-14T08:22:45.094765Z
+**Status:** LIVE_FULL
 **Version:** lightrag-hku v1.5.2
 
 ## Layer Status
@@ -10,17 +10,17 @@
 | Layer | Status | Detail |
 |-------|--------|--------|
 | lightrag-hku | INSTALLED v1.5.2 | pip install lightrag-hku |
-| Vector storage | LIVE | 7 files in lightrag_storage/ |
+| Vector storage | LIVE | 11 files in lightrag_storage/ |
 | Vector DB files | LIVE | vdb_chunks.json, vdb_entities.json, vdb_relationships.json |
 | Embedding model | LIVE | all-MiniLM-L6-v2 dim=384 |
-| Graph entities | CONFIGURED_PENDING | 0 entities, 0 relationships |
-| Ollama LLM | OFFLINE | models: none pulled |
+| Graph entities | LIVE | 19 entities, 1 relationships |
+| Ollama LLM | LIVE | models: nomic-embed-text:latest, phi3:mini |
 
 ## Layer Summary
 
 - **Vector retrieval**: LIVE — 30 chunks indexed, naive mode queries work
-- **Graph extraction**: CONFIGURED_PENDING — requires Ollama LLM
-- **Entity note**: No entities — stub LLM was used (returns empty JSON). Re-index with Ollama.
+- **Graph extraction**: LIVE
+- **Entity note**: Graph entities extracted (LLM was used during indexing)
 
 ## Activating Full Graph Mode
 

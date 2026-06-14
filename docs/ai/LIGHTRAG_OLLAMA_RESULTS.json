@@ -1,0 +1,14 @@
+{
+  "chunks_attempted": 30,
+  "chunks_inserted": 30,
+  "errors": 0,
+  "elapsed_s": 1800.14,
+  "avg_s_per_chunk": 60.0,
+  "entities_extracted": 19,
+  "relationships_extracted": 1,
+  "llm_model": "phi3:mini",
+  "llm_host": "http://localhost:11434",
+  "embedding_model": "all-MiniLM-L6-v2 (local)",
+  "graph_live": true,
+  "cloud_api_used": false
+}

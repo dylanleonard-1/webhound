@@ -1,19 +1,19 @@
 <!-- WEBHOUND-GENERATED -->
 # Neo4j Runtime Results — Phase 8C-INFRA
 
-**Date:** 2026-06-14T07:01:54.708617Z
-**Status:** OFFLINE
+**Date:** 2026-06-14T07:55:29.962660Z
+**Status:** LIVE
 
 ## Port Status
 
 | Port | Service | Status |
 |------|---------|--------|
-| 7687 | Neo4j Bolt | OFFLINE |
-| 7474 | Neo4j HTTP browser | OFFLINE |
+| 7687 | Neo4j Bolt | LIVE |
+| 7474 | Neo4j HTTP browser | LIVE |
 
-## Gap
+## Connected
 
-Docker daemon not running in this environment. See `docker-compose.ai-brain.yml` to start Neo4j locally.
+Neo4j is running.
 
 ## Setup (when Docker is available)
 
@@ -26,6 +26,18 @@ docker compose -f docker-compose.ai-brain.yml up -d
 .venv-api/Scripts/python scripts/ai/load_brain_graph_neo4j.py
 .venv-api/Scripts/python scripts/ai/load_graphiti_seed_memories.py --live
 ```
+
+## Node Counts
+
+| Label | Count |
+|-------|-------|
+| KnowledgeSource | 0 |
+| Chunk | 0 |
+| Provider | 0 |
+| TaxonomyEntry | 0 |
+| ScannerEngine | 0 |
+| ThreatSource | 0 |
+| FileNode | 126 |
 
 ## Auth (LOCAL DEV ONLY)
 

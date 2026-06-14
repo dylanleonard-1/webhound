@@ -10,7 +10,6 @@ import json
 import os
 import sys
 
-import numpy as np
 import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -22,6 +21,13 @@ EMB_PATH = os.path.join(INDEX_DIR, "chunk_embeddings.npy")
 META_PATH = os.path.join(INDEX_DIR, "chunk_embedding_meta.json")
 CFG_PATH = os.path.join(INDEX_DIR, "dense_index_config.json")
 CHUNKS_PATH = os.path.join(ROOT, "corpus", "normalized", "unified_chunks.jsonl")
+
+try:
+    import numpy as np
+    _HAS_NP = True
+except ImportError:  # CI: only pytest + jsonschema installed
+    np = None  # type: ignore[assignment]
+    _HAS_NP = False
 
 try:
     import sentence_transformers as _st  # noqa: F401
@@ -76,8 +82,9 @@ def test_config_chunk_count_matches_actual():
     )
 
 
-# ── Embedding integrity ────────────────────────────────────────────────────────
+# ── Embedding integrity (needs numpy — skip gracefully in CI) ─────────────────
 
+@pytest.mark.skipif(not _HAS_NP, reason="numpy not installed — CI skip")
 def test_embedding_shape():
     emb = np.load(EMB_PATH)
     assert emb.ndim == 2, "Embeddings must be 2D array"
@@ -85,6 +92,7 @@ def test_embedding_shape():
     assert emb.shape[0] > 0, "Embedding array must not be empty"
 
 
+@pytest.mark.skipif(not _HAS_NP, reason="numpy not installed — CI skip")
 def test_embedding_count_matches_chunks():
     with open(CHUNKS_PATH, encoding="utf-8") as f:
         chunk_n = sum(1 for l in f if l.strip())
@@ -94,6 +102,7 @@ def test_embedding_count_matches_chunks():
     )
 
 
+@pytest.mark.skipif(not _HAS_NP, reason="numpy not installed — CI skip")
 def test_embedding_count_matches_meta():
     with open(META_PATH, encoding="utf-8") as f:
         meta = json.load(f)
@@ -122,6 +131,7 @@ def test_meta_provenance_fields():
             assert field in m, f"Meta entry missing field {field!r}"
 
 
+@pytest.mark.skipif(not _HAS_NP, reason="numpy not installed — CI skip")
 def test_embeddings_l2_normalized():
     emb = np.load(EMB_PATH)
     norms = np.linalg.norm(emb[:100], axis=1)  # check first 100 rows

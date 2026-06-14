@@ -16,7 +16,13 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-import numpy as np
+# numpy is optional at import time; only required for dense modes
+try:
+    import numpy as np
+    _HAS_NP = True
+except ImportError:  # CI environment (pytest + jsonschema only)
+    np = None  # type: ignore[assignment]
+    _HAS_NP = False
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 CHUNKS_PATH = ROOT / "corpus" / "normalized" / "unified_chunks.jsonl"
@@ -90,7 +96,7 @@ class HybridRetriever:
             return False
 
     def _dense_score(self, query: str, k: int) -> list[tuple[int, float]]:
-        if self.embeddings is None or not self._load_model():
+        if self.embeddings is None or not _HAS_NP or not self._load_model():
             return []
         q_emb = self._model.encode(
             [query], normalize_embeddings=True, convert_to_numpy=True
@@ -193,8 +199,8 @@ def load_retriever(
     meta: list[dict] = []
     model_name = "all-MiniLM-L6-v2"
 
-    if EMB_PATH.exists() and META_PATH.exists():
-        embeddings = np.load(str(EMB_PATH))
+    if _HAS_NP and EMB_PATH.exists() and META_PATH.exists():
+        embeddings = np.load(str(EMB_PATH))  # type: ignore[union-attr]
         with open(META_PATH, encoding="utf-8") as f:
             meta = json.load(f)
 

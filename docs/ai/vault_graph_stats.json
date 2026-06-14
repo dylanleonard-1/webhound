@@ -1,0 +1,151 @@
+{
+  "note_count": 45,
+  "link_count": 141,
+  "unique_links": 141,
+  "sections": {
+    "00-Maps": 9,
+    "WebHound AI Brain": 1,
+    "01-Architecture": 3,
+    "02-Scanner Engines": 4,
+    "03-WADE": 4,
+    "04-Knowledge Corpus": 4,
+    "05-Provider Intelligence": 4,
+    "06-Threat Intelligence": 3,
+    "07-Vulnerability Taxonomy": 4,
+    "08-External Tools": 4,
+    "99-Graphify": 1,
+    "09-Reports": 1,
+    "10-Decisions": 3
+  },
+  "orphan_count": 0,
+  "orphans": [],
+  "dangling_count": 6,
+  "dangling": [
+    [
+      "AI Brain Map",
+      "WADE Brain Interface"
+    ],
+    [
+      "WADE Intelligence Map",
+      "WADE Brain Interface"
+    ],
+    [
+      "Nuclei Engine",
+      "Vulnerability Taxonomy Overview"
+    ],
+    [
+      "WADE Overview",
+      "WADE Brain Interface"
+    ],
+    [
+      "WADE Retrieval Interface",
+      "WADE Brain Interface"
+    ],
+    [
+      "Retrieval Modes",
+      "WADE Brain Interface"
+    ]
+  ],
+  "cluster_count": 13,
+  "top_linked": [
+    {
+      "note": "WADE Overview",
+      "in": 12,
+      "out": 5
+    },
+    {
+      "note": "Corpus Overview",
+      "in": 10,
+      "out": 4
+    },
+    {
+      "note": "Retrieval Modes",
+      "in": 9,
+      "out": 3
+    },
+    {
+      "note": "WADE FP Rules",
+      "in": 7,
+      "out": 3
+    },
+    {
+      "note": "Scanner Engines Overview",
+      "in": 6,
+      "out": 4
+    },
+    {
+      "note": "Provider Intelligence Overview",
+      "in": 6,
+      "out": 4
+    },
+    {
+      "note": "WADE Confidence Model",
+      "in": 5,
+      "out": 3
+    },
+    {
+      "note": "External Tools Overview",
+      "in": 5,
+      "out": 4
+    },
+    {
+      "note": "Phase History",
+      "in": 4,
+      "out": 2
+    },
+    {
+      "note": "WebHound Architecture Overview",
+      "in": 4,
+      "out": 4
+    }
+  ],
+  "all_tags": [
+    "/",
+    "architecture",
+    "cdn",
+    "chunking",
+    "cloud",
+    "confidence",
+    "corpus",
+    "cvss",
+    "cwe",
+    "dalfox",
+    "decisions",
+    "embeddings",
+    "external-tools",
+    "false-positive",
+    "graph",
+    "graph-rag",
+    "graphify",
+    "graphiti",
+    "index",
+    "intelligence",
+    "inventory",
+    "knowledge",
+    "lightrag",
+    "map-of-content",
+    "memory",
+    "neo4j",
+    "nuclei",
+    "owasp",
+    "phase-8a",
+    "phase-history",
+    "phase-results",
+    "provider",
+    "reports",
+    "retrieval",
+    "scanner",
+    "schema",
+    "severity",
+    "sources",
+    "taxonomy",
+    "threat-intel",
+    "virustotal",
+    "wade",
+    "waf",
+    "webhound",
+    "xss",
+    "zap"
+  ],
+  "graph_density": 0.0712
+}

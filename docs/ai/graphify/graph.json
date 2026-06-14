@@ -1,0 +1,2335 @@
+{
+  "nodes": [
+    {
+      "id": "scripts/ai/check_brain_health.py",
+      "label": "check_brain_health.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "scripts/ai/hybrid_retrieval.py",
+      "label": "hybrid_retrieval.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 26,
+      "out_degree": 0
+    },
+    {
+      "id": "scripts/wade/context_builder.py",
+      "label": "context_builder.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 16,
+      "out_degree": 5
+    },
+    {
+      "id": "scripts/ai/evaluate_hybrid_retrieval.py",
+      "label": "evaluate_hybrid_retrieval.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "scripts/ai/export_brain_vault.py",
+      "label": "export_brain_vault.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "scripts/ai/export_brain_vault_notes.py",
+      "label": "export_brain_vault_notes.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 1,
+      "out_degree": 0
+    },
+    {
+      "id": "scripts/ai/test_lightrag_queries.py",
+      "label": "test_lightrag_queries.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "scripts/ai/test_wade_reasoning.py",
+      "label": "test_wade_reasoning.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "scripts/wade/__init__.py",
+      "label": "__init__.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 6
+    },
+    {
+      "id": "scripts/wade/retrieval_service.py",
+      "label": "retrieval_service.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 17,
+      "out_degree": 4
+    },
+    {
+      "id": "scripts/wade/taxonomy_resolver.py",
+      "label": "taxonomy_resolver.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 11,
+      "out_degree": 0
+    },
+    {
+      "id": "scripts/wade/provider_resolver.py",
+      "label": "provider_resolver.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 12,
+      "out_degree": 0
+    },
+    {
+      "id": "scripts/wade/false_positive_resolver.py",
+      "label": "false_positive_resolver.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 11,
+      "out_degree": 0
+    },
+    {
+      "id": "scripts/wade/language_resolver.py",
+      "label": "language_resolver.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 9,
+      "out_degree": 0
+    },
+    {
+      "id": "tests/ai/test_ai_brain_foundation.py",
+      "label": "test_ai_brain_foundation.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 3
+    },
+    {
+      "id": "tests/ai/test_brain_runtime.py",
+      "label": "test_brain_runtime.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 5
+    },
+    {
+      "id": "tests/ai/test_dense_retrieval.py",
+      "label": "test_dense_retrieval.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "tests/ai/test_hybrid_retrieval.py",
+      "label": "test_hybrid_retrieval.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 12
+    },
+    {
+      "id": "tests/ai/test_wade_retrieval.py",
+      "label": "test_wade_retrieval.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 62
+    },
+    {
+      "id": "scripts/wade.py",
+      "label": "wade.py",
+      "kind": "python",
+      "tags": [],
+      "in_degree": 2,
+      "out_degree": 0
+    },
+    {
+      "id": "vault/WebHound AI Brain/00-Maps/AI Brain Map.md",
+      "label": "AI Brain Map.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 6
+    },
+    {
+      "id": "WebHound Architecture Overview.md",
+      "label": "WebHound Architecture Overview.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 5,
+      "out_degree": 0
+    },
+    {
+      "id": "Phase History.md",
+      "label": "Phase History.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 4,
+      "out_degree": 0
+    },
+    {
+      "id": "WADE Overview.md",
+      "label": "WADE Overview.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 13,
+      "out_degree": 0
+    },
+    {
+      "id": "Corpus Overview.md",
+      "label": "Corpus Overview.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 11,
+      "out_degree": 0
+    },
+    {
+      "id": "Retrieval Modes.md",
+      "label": "Retrieval Modes.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 9,
+      "out_degree": 0
+    },
+    {
+      "id": "WADE Brain Interface.md",
+      "label": "WADE Brain Interface.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 5,
+      "out_degree": 0
+    },
+    {
+      "id": "vault/WebHound AI Brain/00-Maps/External Tool Map.md",
+      "label": "External Tool Map.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 5
+    },
+    {
+      "id": "External Tools Overview.md",
+      "label": "External Tools Overview.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 7,
+      "out_degree": 0
+    },
+    {
+      "id": "LightRAG Plan.md",
+      "label": "LightRAG Plan.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 2,
+      "out_degree": 0
+    },
+    {
+      "id": "Graphiti Plan.md",
+      "label": "Graphiti Plan.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 2,
+      "out_degree": 0
+    },
+    {
+      "id": "Neo4j Graph Schema Plan.md",
+      "label": "Neo4j Graph Schema Plan.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 2,
+      "out_degree": 0
+    },
+    {
+      "id": "Graphify Status.md",
+      "label": "Graphify Status.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 3,
+      "out_degree": 0
+    },
+    {
+      "id": "vault/WebHound AI Brain/00-Maps/index.md",
+      "label": "index.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "WebHound Master Map.md",
+      "label": "WebHound Master Map.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 2,
+      "out_degree": 0
+    },
+    {
+      "id": "vault/WebHound AI Brain/00-Maps/Knowledge Corpus Map.md",
+      "label": "Knowledge Corpus Map.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 5
+    },
+    {
+      "id": "Manifest Schema.md",
+      "label": "Manifest Schema.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 3,
+      "out_degree": 0
+    },
+    {
+      "id": "Chunk Index.md",
+      "label": "Chunk Index.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 4,
+      "out_degree": 0
+    },
+    {
+      "id": "vault/WebHound AI Brain/00-Maps/Provider Intelligence Map.md",
+      "label": "Provider Intelligence Map.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 4
+    },
+    {
+      "id": "Provider Intelligence Overview.md",
+      "label": "Provider Intelligence Overview.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 7,
+      "out_degree": 0
+    },
+    {
+      "id": "CDN Providers.md",
+      "label": "CDN Providers.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 2,
+      "out_degree": 0
+    },
+    {
+      "id": "WAF Providers.md",
+      "label": "WAF Providers.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 2,
+      "out_degree": 0
+    },
+    {
+      "id": "Cloud Providers.md",
+      "label": "Cloud Providers.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 2,
+      "out_degree": 0
+    },
+    {
+      "id": "vault/WebHound AI Brain/00-Maps/Scanner Engine Map.md",
+      "label": "Scanner Engine Map.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 4
+    },
+    {
+      "id": "Scanner Engines Overview.md",
+      "label": "Scanner Engines Overview.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 7,
+      "out_degree": 0
+    },
+    {
+      "id": "Nuclei Engine.md",
+      "label": "Nuclei Engine.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 2,
+      "out_degree": 0
+    },
+    {
+      "id": "ZAP Engine.md",
+      "label": "ZAP Engine.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 2,
+      "out_degree": 0
+    },
+    {
+      "id": "DalFox Engine.md",
+      "label": "DalFox Engine.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 2,
+      "out_degree": 0
+    },
+    {
+      "id": "vault/WebHound AI Brain/00-Maps/Threat Intelligence Map.md",
+      "label": "Threat Intelligence Map.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 3
+    },
+    {
+      "id": "Threat Intelligence Overview.md",
+      "label": "Threat Intelligence Overview.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 4,
+      "out_degree": 0
+    },
+    {
+      "id": "TI Sources.md",
+      "label": "TI Sources.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 3,
+      "out_degree": 0
+    },
+    {
+      "id": "VirusTotal Integration.md",
+      "label": "VirusTotal Integration.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 3,
+      "out_degree": 0
+    },
+    {
+      "id": "vault/WebHound AI Brain/00-Maps/Vulnerability Taxonomy Map.md",
+      "label": "Vulnerability Taxonomy Map.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 4
+    },
+    {
+      "id": "Taxonomy Overview.md",
+      "label": "Taxonomy Overview.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 5,
+      "out_degree": 0
+    },
+    {
+      "id": "CWE Mapping.md",
+      "label": "CWE Mapping.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 4,
+      "out_degree": 0
+    },
+    {
+      "id": "OWASP Categories.md",
+      "label": "OWASP Categories.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 3,
+      "out_degree": 0
+    },
+    {
+      "id": "Severity Framework.md",
+      "label": "Severity Framework.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 4,
+      "out_degree": 0
+    },
+    {
+      "id": "vault/WebHound AI Brain/00-Maps/WADE Intelligence Map.md",
+      "label": "WADE Intelligence Map.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 5
+    },
+    {
+      "id": "WADE Confidence Model.md",
+      "label": "WADE Confidence Model.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 5,
+      "out_degree": 0
+    },
+    {
+      "id": "WADE FP Rules.md",
+      "label": "WADE FP Rules.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 7,
+      "out_degree": 0
+    },
+    {
+      "id": "WADE Retrieval Interface.md",
+      "label": "WADE Retrieval Interface.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 3,
+      "out_degree": 0
+    },
+    {
+      "id": "vault/WebHound AI Brain/00-Maps/WebHound Master Map.md",
+      "label": "WebHound Master Map.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 8
+    },
+    {
+      "id": "AI Brain Map.md",
+      "label": "AI Brain Map.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 3,
+      "out_degree": 0
+    },
+    {
+      "id": "Knowledge Corpus Map.md",
+      "label": "Knowledge Corpus Map.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 1,
+      "out_degree": 0
+    },
+    {
+      "id": "WADE Intelligence Map.md",
+      "label": "WADE Intelligence Map.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 1,
+      "out_degree": 0
+    },
+    {
+      "id": "Scanner Engine Map.md",
+      "label": "Scanner Engine Map.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 1,
+      "out_degree": 0
+    },
+    {
+      "id": "Provider Intelligence Map.md",
+      "label": "Provider Intelligence Map.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 1,
+      "out_degree": 0
+    },
+    {
+      "id": "Threat Intelligence Map.md",
+      "label": "Threat Intelligence Map.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 1,
+      "out_degree": 0
+    },
+    {
+      "id": "Vulnerability Taxonomy Map.md",
+      "label": "Vulnerability Taxonomy Map.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 1,
+      "out_degree": 0
+    },
+    {
+      "id": "External Tool Map.md",
+      "label": "External Tool Map.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 1,
+      "out_degree": 0
+    },
+    {
+      "id": "vault/WebHound AI Brain/01-Architecture/Component Inventory.md",
+      "label": "Component Inventory.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "vault/WebHound AI Brain/01-Architecture/index.md",
+      "label": "index.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "vault/WebHound AI Brain/01-Architecture/Phase History.md",
+      "label": "Phase History.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "vault/WebHound AI Brain/01-Architecture/WebHound Architecture Overview.md",
+      "label": "WebHound Architecture Overview.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 4
+    },
+    {
+      "id": "vault/WebHound AI Brain/02-Scanner Engines/DalFox Engine.md",
+      "label": "DalFox Engine.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 3
+    },
+    {
+      "id": "vault/WebHound AI Brain/02-Scanner Engines/index.md",
+      "label": "index.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "vault/WebHound AI Brain/02-Scanner Engines/Nuclei Engine.md",
+      "label": "Nuclei Engine.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 3
+    },
+    {
+      "id": "Vulnerability Taxonomy Overview.md",
+      "label": "Vulnerability Taxonomy Overview.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 1,
+      "out_degree": 0
+    },
+    {
+      "id": "vault/WebHound AI Brain/02-Scanner Engines/Scanner Engines Overview.md",
+      "label": "Scanner Engines Overview.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 4
+    },
+    {
+      "id": "vault/WebHound AI Brain/02-Scanner Engines/ZAP Engine.md",
+      "label": "ZAP Engine.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "vault/WebHound AI Brain/03-WADE/index.md",
+      "label": "index.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "vault/WebHound AI Brain/03-WADE/WADE Confidence Model.md",
+      "label": "WADE Confidence Model.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 3
+    },
+    {
+      "id": "vault/WebHound AI Brain/03-WADE/WADE FP Rules.md",
+      "label": "WADE FP Rules.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 3
+    },
+    {
+      "id": "vault/WebHound AI Brain/03-WADE/WADE Overview.md",
+      "label": "WADE Overview.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 5
+    },
+    {
+      "id": "vault/WebHound AI Brain/03-WADE/WADE Retrieval Interface.md",
+      "label": "WADE Retrieval Interface.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 4
+    },
+    {
+      "id": "vault/WebHound AI Brain/04-Knowledge Corpus/Chunk Index.md",
+      "label": "Chunk Index.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 3
+    },
+    {
+      "id": "vault/WebHound AI Brain/04-Knowledge Corpus/Corpus Overview.md",
+      "label": "Corpus Overview.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 4
+    },
+    {
+      "id": "vault/WebHound AI Brain/04-Knowledge Corpus/index.md",
+      "label": "index.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "vault/WebHound AI Brain/04-Knowledge Corpus/Manifest Schema.md",
+      "label": "Manifest Schema.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "vault/WebHound AI Brain/04-Knowledge Corpus/Retrieval Modes.md",
+      "label": "Retrieval Modes.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 3
+    },
+    {
+      "id": "vault/WebHound AI Brain/05-Provider Intelligence/CDN Providers.md",
+      "label": "CDN Providers.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "vault/WebHound AI Brain/05-Provider Intelligence/Cloud Providers.md",
+      "label": "Cloud Providers.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "vault/WebHound AI Brain/05-Provider Intelligence/index.md",
+      "label": "index.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "vault/WebHound AI Brain/05-Provider Intelligence/Provider Intelligence Overview.md",
+      "label": "Provider Intelligence Overview.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 4
+    },
+    {
+      "id": "vault/WebHound AI Brain/05-Provider Intelligence/WAF Providers.md",
+      "label": "WAF Providers.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "vault/WebHound AI Brain/06-Threat Intelligence/index.md",
+      "label": "index.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "vault/WebHound AI Brain/06-Threat Intelligence/Threat Intelligence Overview.md",
+      "label": "Threat Intelligence Overview.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 3
+    },
+    {
+      "id": "vault/WebHound AI Brain/06-Threat Intelligence/TI Sources.md",
+      "label": "TI Sources.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "vault/WebHound AI Brain/06-Threat Intelligence/VirusTotal Integration.md",
+      "label": "VirusTotal Integration.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "vault/WebHound AI Brain/07-Vulnerability Taxonomy/CWE Mapping.md",
+      "label": "CWE Mapping.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "vault/WebHound AI Brain/07-Vulnerability Taxonomy/index.md",
+      "label": "index.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "vault/WebHound AI Brain/07-Vulnerability Taxonomy/OWASP Categories.md",
+      "label": "OWASP Categories.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 3
+    },
+    {
+      "id": "vault/WebHound AI Brain/07-Vulnerability Taxonomy/Severity Framework.md",
+      "label": "Severity Framework.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "vault/WebHound AI Brain/07-Vulnerability Taxonomy/Taxonomy Overview.md",
+      "label": "Taxonomy Overview.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 4
+    },
+    {
+      "id": "vault/WebHound AI Brain/08-External Tools/External Tools Overview.md",
+      "label": "External Tools Overview.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 4
+    },
+    {
+      "id": "vault/WebHound AI Brain/08-External Tools/Graphify Status.md",
+      "label": "Graphify Status.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "vault/WebHound AI Brain/08-External Tools/Graphiti Plan.md",
+      "label": "Graphiti Plan.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "vault/WebHound AI Brain/08-External Tools/index.md",
+      "label": "index.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "vault/WebHound AI Brain/08-External Tools/LightRAG Plan.md",
+      "label": "LightRAG Plan.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 3
+    },
+    {
+      "id": "vault/WebHound AI Brain/08-External Tools/Neo4j Graph Schema Plan.md",
+      "label": "Neo4j Graph Schema Plan.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 3
+    },
+    {
+      "id": "vault/WebHound AI Brain/09-Reports/index.md",
+      "label": "index.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "Phase Results Overview.md",
+      "label": "Phase Results Overview.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 1,
+      "out_degree": 0
+    },
+    {
+      "id": "vault/WebHound AI Brain/09-Reports/Phase Results Overview.md",
+      "label": "Phase Results Overview.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "vault/WebHound AI Brain/10-Decisions/Architecture Decisions.md",
+      "label": "Architecture Decisions.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "vault/WebHound AI Brain/10-Decisions/Hybrid Retrieval Weights.md",
+      "label": "Hybrid Retrieval Weights.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "Architecture Decisions.md",
+      "label": "Architecture Decisions.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 3,
+      "out_degree": 0
+    },
+    {
+      "id": "vault/WebHound AI Brain/10-Decisions/index.md",
+      "label": "index.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "vault/WebHound AI Brain/10-Decisions/Local Only Embedding Decision.md",
+      "label": "Local Only Embedding Decision.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "vault/WebHound AI Brain/99-Graphify/Graphify Status.md",
+      "label": "Graphify Status.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "vault/WebHound AI Brain/99-Graphify/index.md",
+      "label": "index.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "vault/WebHound AI Brain/index.md",
+      "label": "index.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "docs/ai/graphify/graph_report.md",
+      "label": "graph_report.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "note.md",
+      "label": "note.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 2,
+      "out_degree": 0
+    },
+    {
+      "id": "docs/ai/OBSIDIAN_VAULT_PLAN.md",
+      "label": "OBSIDIAN_VAULT_PLAN.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 1
+    },
+    {
+      "id": "docs/ai/PHASE8A_RESULTS.md",
+      "label": "PHASE8A_RESULTS.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 0,
+      "out_degree": 2
+    },
+    {
+      "id": "wikilinks.md",
+      "label": "wikilinks.md",
+      "kind": "markdown",
+      "tags": [],
+      "in_degree": 2,
+      "out_degree": 0
+    }
+  ],
+  "edges": [
+    {
+      "source": "scripts/ai/check_brain_health.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/ai/check_brain_health.py",
+      "target": "scripts/wade/context_builder.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/ai/evaluate_hybrid_retrieval.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/ai/export_brain_vault.py",
+      "target": "scripts/ai/export_brain_vault_notes.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/ai/test_lightrag_queries.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/ai/test_wade_reasoning.py",
+      "target": "scripts/wade/context_builder.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/wade/__init__.py",
+      "target": "scripts/wade/retrieval_service.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/wade/__init__.py",
+      "target": "scripts/wade/context_builder.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/wade/__init__.py",
+      "target": "scripts/wade/taxonomy_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/wade/__init__.py",
+      "target": "scripts/wade/provider_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/wade/__init__.py",
+      "target": "scripts/wade/false_positive_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/wade/__init__.py",
+      "target": "scripts/wade/language_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/wade/context_builder.py",
+      "target": "scripts/wade/taxonomy_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/wade/context_builder.py",
+      "target": "scripts/wade/false_positive_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/wade/context_builder.py",
+      "target": "scripts/wade/language_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/wade/context_builder.py",
+      "target": "scripts/wade/retrieval_service.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/wade/context_builder.py",
+      "target": "scripts/wade/provider_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/wade/retrieval_service.py",
+      "target": "scripts/wade/taxonomy_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/wade/retrieval_service.py",
+      "target": "scripts/wade/provider_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/wade/retrieval_service.py",
+      "target": "scripts/wade/false_positive_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "scripts/wade/retrieval_service.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_ai_brain_foundation.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_ai_brain_foundation.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_ai_brain_foundation.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_brain_runtime.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_brain_runtime.py",
+      "target": "scripts/wade/context_builder.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_brain_runtime.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_brain_runtime.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_brain_runtime.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_dense_retrieval.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_dense_retrieval.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_hybrid_retrieval.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_hybrid_retrieval.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_hybrid_retrieval.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_hybrid_retrieval.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_hybrid_retrieval.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_hybrid_retrieval.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_hybrid_retrieval.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_hybrid_retrieval.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_hybrid_retrieval.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_hybrid_retrieval.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_hybrid_retrieval.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_hybrid_retrieval.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/taxonomy_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/provider_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/false_positive_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/language_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/retrieval_service.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/context_builder.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/taxonomy_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/taxonomy_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/taxonomy_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/taxonomy_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/taxonomy_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/taxonomy_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/taxonomy_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/provider_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/provider_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/provider_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/provider_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/provider_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/provider_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/provider_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/provider_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/false_positive_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/false_positive_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/false_positive_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/false_positive_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/false_positive_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/false_positive_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/false_positive_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/language_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/language_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/language_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/language_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/language_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/language_resolver.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/retrieval_service.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/retrieval_service.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/retrieval_service.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/retrieval_service.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/retrieval_service.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/retrieval_service.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/retrieval_service.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/retrieval_service.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/retrieval_service.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/context_builder.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/context_builder.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/context_builder.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/context_builder.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/context_builder.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/context_builder.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/context_builder.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/context_builder.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/context_builder.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/context_builder.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/retrieval_service.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/retrieval_service.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/retrieval_service.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/retrieval_service.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/retrieval_service.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/ai/hybrid_retrieval.py",
+      "type": "import"
+    },
+    {
+      "source": "tests/ai/test_wade_retrieval.py",
+      "target": "scripts/wade/context_builder.py",
+      "type": "import"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/AI Brain Map.md",
+      "target": "WebHound Architecture Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/AI Brain Map.md",
+      "target": "Phase History.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/AI Brain Map.md",
+      "target": "WADE Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/AI Brain Map.md",
+      "target": "Corpus Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/AI Brain Map.md",
+      "target": "Retrieval Modes.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/AI Brain Map.md",
+      "target": "WADE Brain Interface.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/External Tool Map.md",
+      "target": "External Tools Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/External Tool Map.md",
+      "target": "LightRAG Plan.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/External Tool Map.md",
+      "target": "Graphiti Plan.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/External Tool Map.md",
+      "target": "Neo4j Graph Schema Plan.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/External Tool Map.md",
+      "target": "Graphify Status.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/index.md",
+      "target": "WebHound Master Map.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Knowledge Corpus Map.md",
+      "target": "Corpus Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Knowledge Corpus Map.md",
+      "target": "Manifest Schema.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Knowledge Corpus Map.md",
+      "target": "Chunk Index.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Knowledge Corpus Map.md",
+      "target": "Retrieval Modes.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Knowledge Corpus Map.md",
+      "target": "Phase History.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Provider Intelligence Map.md",
+      "target": "Provider Intelligence Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Provider Intelligence Map.md",
+      "target": "CDN Providers.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Provider Intelligence Map.md",
+      "target": "WAF Providers.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Provider Intelligence Map.md",
+      "target": "Cloud Providers.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Scanner Engine Map.md",
+      "target": "Scanner Engines Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Scanner Engine Map.md",
+      "target": "Nuclei Engine.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Scanner Engine Map.md",
+      "target": "ZAP Engine.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Scanner Engine Map.md",
+      "target": "DalFox Engine.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Threat Intelligence Map.md",
+      "target": "Threat Intelligence Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Threat Intelligence Map.md",
+      "target": "TI Sources.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Threat Intelligence Map.md",
+      "target": "VirusTotal Integration.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Vulnerability Taxonomy Map.md",
+      "target": "Taxonomy Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Vulnerability Taxonomy Map.md",
+      "target": "CWE Mapping.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Vulnerability Taxonomy Map.md",
+      "target": "OWASP Categories.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/Vulnerability Taxonomy Map.md",
+      "target": "Severity Framework.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/WADE Intelligence Map.md",
+      "target": "WADE Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/WADE Intelligence Map.md",
+      "target": "WADE Confidence Model.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/WADE Intelligence Map.md",
+      "target": "WADE FP Rules.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/WADE Intelligence Map.md",
+      "target": "WADE Retrieval Interface.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/WADE Intelligence Map.md",
+      "target": "WADE Brain Interface.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/WebHound Master Map.md",
+      "target": "AI Brain Map.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/WebHound Master Map.md",
+      "target": "Knowledge Corpus Map.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/WebHound Master Map.md",
+      "target": "WADE Intelligence Map.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/WebHound Master Map.md",
+      "target": "Scanner Engine Map.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/WebHound Master Map.md",
+      "target": "Provider Intelligence Map.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/WebHound Master Map.md",
+      "target": "Threat Intelligence Map.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/WebHound Master Map.md",
+      "target": "Vulnerability Taxonomy Map.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/00-Maps/WebHound Master Map.md",
+      "target": "External Tool Map.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/01-Architecture/Component Inventory.md",
+      "target": "WebHound Architecture Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/01-Architecture/Component Inventory.md",
+      "target": "Corpus Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/01-Architecture/index.md",
+      "target": "WebHound Architecture Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/01-Architecture/Phase History.md",
+      "target": "Corpus Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/01-Architecture/Phase History.md",
+      "target": "WebHound Architecture Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/01-Architecture/WebHound Architecture Overview.md",
+      "target": "AI Brain Map.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/01-Architecture/WebHound Architecture Overview.md",
+      "target": "WADE Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/01-Architecture/WebHound Architecture Overview.md",
+      "target": "Scanner Engines Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/01-Architecture/WebHound Architecture Overview.md",
+      "target": "Corpus Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/02-Scanner Engines/DalFox Engine.md",
+      "target": "Scanner Engines Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/02-Scanner Engines/DalFox Engine.md",
+      "target": "WADE Confidence Model.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/02-Scanner Engines/DalFox Engine.md",
+      "target": "CWE Mapping.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/02-Scanner Engines/index.md",
+      "target": "Scanner Engines Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/02-Scanner Engines/Nuclei Engine.md",
+      "target": "Scanner Engines Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/02-Scanner Engines/Nuclei Engine.md",
+      "target": "WADE Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/02-Scanner Engines/Nuclei Engine.md",
+      "target": "Vulnerability Taxonomy Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/02-Scanner Engines/Scanner Engines Overview.md",
+      "target": "Nuclei Engine.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/02-Scanner Engines/Scanner Engines Overview.md",
+      "target": "ZAP Engine.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/02-Scanner Engines/Scanner Engines Overview.md",
+      "target": "DalFox Engine.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/02-Scanner Engines/Scanner Engines Overview.md",
+      "target": "WADE Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/02-Scanner Engines/ZAP Engine.md",
+      "target": "Scanner Engines Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/02-Scanner Engines/ZAP Engine.md",
+      "target": "WADE FP Rules.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/03-WADE/index.md",
+      "target": "WADE Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/03-WADE/WADE Confidence Model.md",
+      "target": "WADE Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/03-WADE/WADE Confidence Model.md",
+      "target": "WADE FP Rules.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/03-WADE/WADE Confidence Model.md",
+      "target": "Severity Framework.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/03-WADE/WADE FP Rules.md",
+      "target": "WADE Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/03-WADE/WADE FP Rules.md",
+      "target": "Provider Intelligence Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/03-WADE/WADE FP Rules.md",
+      "target": "Threat Intelligence Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/03-WADE/WADE Overview.md",
+      "target": "WADE Confidence Model.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/03-WADE/WADE Overview.md",
+      "target": "WADE FP Rules.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/03-WADE/WADE Overview.md",
+      "target": "WADE Retrieval Interface.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/03-WADE/WADE Overview.md",
+      "target": "WADE Brain Interface.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/03-WADE/WADE Overview.md",
+      "target": "Scanner Engines Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/03-WADE/WADE Retrieval Interface.md",
+      "target": "WADE Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/03-WADE/WADE Retrieval Interface.md",
+      "target": "WADE Brain Interface.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/03-WADE/WADE Retrieval Interface.md",
+      "target": "Retrieval Modes.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/03-WADE/WADE Retrieval Interface.md",
+      "target": "Corpus Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/04-Knowledge Corpus/Chunk Index.md",
+      "target": "Corpus Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/04-Knowledge Corpus/Chunk Index.md",
+      "target": "Retrieval Modes.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/04-Knowledge Corpus/Chunk Index.md",
+      "target": "Manifest Schema.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/04-Knowledge Corpus/Corpus Overview.md",
+      "target": "Manifest Schema.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/04-Knowledge Corpus/Corpus Overview.md",
+      "target": "Chunk Index.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/04-Knowledge Corpus/Corpus Overview.md",
+      "target": "Retrieval Modes.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/04-Knowledge Corpus/Corpus Overview.md",
+      "target": "Phase History.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/04-Knowledge Corpus/index.md",
+      "target": "Corpus Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/04-Knowledge Corpus/Manifest Schema.md",
+      "target": "Corpus Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/04-Knowledge Corpus/Manifest Schema.md",
+      "target": "Chunk Index.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/04-Knowledge Corpus/Retrieval Modes.md",
+      "target": "Chunk Index.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/04-Knowledge Corpus/Retrieval Modes.md",
+      "target": "WADE Retrieval Interface.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/04-Knowledge Corpus/Retrieval Modes.md",
+      "target": "WADE Brain Interface.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/05-Provider Intelligence/CDN Providers.md",
+      "target": "Provider Intelligence Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/05-Provider Intelligence/CDN Providers.md",
+      "target": "WADE FP Rules.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/05-Provider Intelligence/Cloud Providers.md",
+      "target": "Provider Intelligence Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/05-Provider Intelligence/Cloud Providers.md",
+      "target": "WADE Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/05-Provider Intelligence/index.md",
+      "target": "Provider Intelligence Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/05-Provider Intelligence/Provider Intelligence Overview.md",
+      "target": "CDN Providers.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/05-Provider Intelligence/Provider Intelligence Overview.md",
+      "target": "WAF Providers.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/05-Provider Intelligence/Provider Intelligence Overview.md",
+      "target": "Cloud Providers.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/05-Provider Intelligence/Provider Intelligence Overview.md",
+      "target": "WADE FP Rules.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/05-Provider Intelligence/WAF Providers.md",
+      "target": "Provider Intelligence Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/05-Provider Intelligence/WAF Providers.md",
+      "target": "WADE FP Rules.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/06-Threat Intelligence/index.md",
+      "target": "Threat Intelligence Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/06-Threat Intelligence/Threat Intelligence Overview.md",
+      "target": "TI Sources.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/06-Threat Intelligence/Threat Intelligence Overview.md",
+      "target": "VirusTotal Integration.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/06-Threat Intelligence/Threat Intelligence Overview.md",
+      "target": "WADE Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/06-Threat Intelligence/TI Sources.md",
+      "target": "Threat Intelligence Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/06-Threat Intelligence/TI Sources.md",
+      "target": "VirusTotal Integration.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/06-Threat Intelligence/VirusTotal Integration.md",
+      "target": "TI Sources.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/06-Threat Intelligence/VirusTotal Integration.md",
+      "target": "WADE Confidence Model.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/07-Vulnerability Taxonomy/CWE Mapping.md",
+      "target": "Taxonomy Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/07-Vulnerability Taxonomy/CWE Mapping.md",
+      "target": "OWASP Categories.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/07-Vulnerability Taxonomy/index.md",
+      "target": "Taxonomy Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/07-Vulnerability Taxonomy/OWASP Categories.md",
+      "target": "Taxonomy Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/07-Vulnerability Taxonomy/OWASP Categories.md",
+      "target": "CWE Mapping.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/07-Vulnerability Taxonomy/OWASP Categories.md",
+      "target": "Severity Framework.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/07-Vulnerability Taxonomy/Severity Framework.md",
+      "target": "Taxonomy Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/07-Vulnerability Taxonomy/Severity Framework.md",
+      "target": "WADE Confidence Model.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/07-Vulnerability Taxonomy/Taxonomy Overview.md",
+      "target": "CWE Mapping.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/07-Vulnerability Taxonomy/Taxonomy Overview.md",
+      "target": "OWASP Categories.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/07-Vulnerability Taxonomy/Taxonomy Overview.md",
+      "target": "Severity Framework.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/07-Vulnerability Taxonomy/Taxonomy Overview.md",
+      "target": "WADE Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/08-External Tools/External Tools Overview.md",
+      "target": "LightRAG Plan.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/08-External Tools/External Tools Overview.md",
+      "target": "Graphiti Plan.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/08-External Tools/External Tools Overview.md",
+      "target": "Neo4j Graph Schema Plan.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/08-External Tools/External Tools Overview.md",
+      "target": "Graphify Status.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/08-External Tools/Graphify Status.md",
+      "target": "External Tools Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/08-External Tools/Graphiti Plan.md",
+      "target": "External Tools Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/08-External Tools/Graphiti Plan.md",
+      "target": "WADE Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/08-External Tools/index.md",
+      "target": "External Tools Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/08-External Tools/LightRAG Plan.md",
+      "target": "External Tools Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/08-External Tools/LightRAG Plan.md",
+      "target": "Corpus Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/08-External Tools/LightRAG Plan.md",
+      "target": "Retrieval Modes.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/08-External Tools/Neo4j Graph Schema Plan.md",
+      "target": "External Tools Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/08-External Tools/Neo4j Graph Schema Plan.md",
+      "target": "Corpus Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/08-External Tools/Neo4j Graph Schema Plan.md",
+      "target": "Provider Intelligence Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/09-Reports/index.md",
+      "target": "Phase Results Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/09-Reports/Phase Results Overview.md",
+      "target": "AI Brain Map.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/09-Reports/Phase Results Overview.md",
+      "target": "Phase History.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/10-Decisions/Architecture Decisions.md",
+      "target": "WebHound Architecture Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/10-Decisions/Architecture Decisions.md",
+      "target": "Retrieval Modes.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/10-Decisions/Hybrid Retrieval Weights.md",
+      "target": "Architecture Decisions.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/10-Decisions/Hybrid Retrieval Weights.md",
+      "target": "Retrieval Modes.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/10-Decisions/index.md",
+      "target": "Architecture Decisions.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/10-Decisions/Local Only Embedding Decision.md",
+      "target": "Architecture Decisions.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/10-Decisions/Local Only Embedding Decision.md",
+      "target": "Retrieval Modes.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/99-Graphify/Graphify Status.md",
+      "target": "External Tools Overview.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/99-Graphify/index.md",
+      "target": "Graphify Status.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "vault/WebHound AI Brain/index.md",
+      "target": "WebHound Master Map.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "docs/ai/graphify/graph_report.md",
+      "target": "note.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "docs/ai/OBSIDIAN_VAULT_PLAN.md",
+      "target": "note.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "docs/ai/PHASE8A_RESULTS.md",
+      "target": "wikilinks.md",
+      "type": "wikilink"
+    },
+    {
+      "source": "docs/ai/PHASE8A_RESULTS.md",
+      "target": "wikilinks.md",
+      "type": "wikilink"
+    }
+  ],
+  "stats": {
+    "node_count": 126,
+    "edge_count": 263,
+    "python_files": 20,
+    "markdown_files": 106
+  }
+}

@@ -15,6 +15,6 @@ Graphify output placeholder. Not yet installed.
 
 ## See Also
 
-- [[Graphify Status]]
+- [[Graphify Status]] · [[graphify_results]]
 
 #webhound #index

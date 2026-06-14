@@ -15,6 +15,6 @@ System design, phases, and component inventory.
 
 ## See Also
 
-- [[WebHound Architecture Overview]]
+- [[WebHound Architecture Overview]] · [[Component Inventory]] · [[Phase History]]
 
 #webhound #index

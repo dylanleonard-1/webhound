@@ -1,0 +1,209 @@
+{
+  "main": {
+    "id": "47ad1645673b6351",
+    "type": "split",
+    "children": [
+      {
+        "id": "2e331f8dded29582",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "015b9303c7199545",
+            "type": "leaf",
+            "state": {
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "Graph view"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "104e065b27f0f6d0",
+    "type": "split",
+    "children": [
+      {
+        "id": "5df0fefdd8fb3835",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "54409cc90226f2d3",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": true,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "8575a01fd0fda48b",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "59deed104f3d3221",
+    "type": "split",
+    "children": [
+      {
+        "id": "6ab5479c75130e3b",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "7e40d3787fbbf46c",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks"
+            }
+          },
+          {
+            "id": "8dddcf7cb9c5d39d",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links"
+            }
+          },
+          {
+            "id": "c078c207d6742311",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "1ed71704d4a86e0c",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "766451c0d7853363",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "015b9303c7199545",
+  "lastOpenFiles": [
+    "WEBHOUND_BRAIN_DASHBOARD.md.tmp.127444.732b141facba",
+    "99-Maps/sedoY297C",
+    "13-Knowledge Corpus/sedOqrTMy",
+    "13-Knowledge Corpus/sed3hOZAw",
+    "11-External Tools/sedMr5zOG",
+    "10-Providers/sed4CgGFH",
+    "06-Infrastructure/seddVEqE6",
+    "99-Maps/sedUKjwKg",
+    "13-Knowledge Corpus/sednCeKOr",
+    "12-Taxonomy/sedZTAI0v",
+    "sed3hoZCE",
+    "27-Scanner Engines/ZAP Engine.md",
+    "27-Scanner Engines/Scanner Engines Overview.md",
+    "27-Scanner Engines/DalFox Engine.md",
+    "27-Scanner Engines/Nuclei Engine.md",
+    "27-Scanner Engines/index.md",
+    "26-Architecture/WebHound Architecture Overview.md",
+    "26-Architecture/Phase History.md",
+    "26-Architecture/index.md",
+    "26-Architecture/Component Inventory.md",
+    "18-Graphify/graphify_results.md",
+    "18-Graphify/Graphify Status.md",
+    "25-Decisions/Local Only Embedding Decision.md",
+    "25-Decisions/Hybrid Retrieval Weights.md",
+    "25-Decisions/Architecture Decisions.md",
+    "23-Reports/Phase Results Overview.md",
+    "11-External Tools/Neo4j Graph Schema Plan.md",
+    "11-External Tools/LightRAG Plan.md",
+    "11-External Tools/Graphiti Plan.md",
+    "13-Knowledge Corpus/Retrieval Modes.md",
+    "13-Knowledge Corpus/Manifest Schema.md",
+    "13-Knowledge Corpus/Corpus Overview.md",
+    "13-Knowledge Corpus/Chunk Index.md",
+    "08-WADE/WADE Retrieval Interface.md",
+    "08-WADE/WADE Overview.md",
+    "08-WADE/WADE FP Rules.md",
+    "Untitled 3.canvas",
+    "Untitled 2.canvas",
+    "Untitled 1.canvas",
+    "Untitled.canvas"
+  ]
+}

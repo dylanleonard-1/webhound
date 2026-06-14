@@ -1,0 +1,16 @@
+{
+  "model_name": "all-MiniLM-L6-v2",
+  "model_full_path": "sentence-transformers/all-MiniLM-L6-v2",
+  "embedding_dim": 384,
+  "chunk_count": 1161,
+  "normalize_embeddings": true,
+  "similarity_metric": "cosine_via_dot_product",
+  "hybrid_lexical_weight": 0.35,
+  "hybrid_dense_weight": 0.65,
+  "chunks_source": "corpus/normalized/unified_chunks.jsonl",
+  "built_at": "2026-06-14T04:30:48.025418Z",
+  "local_only": true,
+  "cloud_api_used": false,
+  "faiss_used": false,
+  "similarity_backend": "numpy_dot_product"
+}

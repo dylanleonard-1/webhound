@@ -52,6 +52,7 @@
         "official_repo",
         "official_provider_doc",
         "official_threat_intel_doc",
+        "official_taxonomy_doc",
         "detection_repo",
         "planning_reference",
         "paper",

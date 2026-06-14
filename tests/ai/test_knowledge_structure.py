@@ -180,6 +180,8 @@ def test_manifest_jsonl_doc_ids_unique_and_pointers_local():
         "official_provider_doc": os.path.join(ROOT, "corpus", "normalized", "provider-docs"),
         # Phase 6E: threat intelligence source docs
         "official_threat_intel_doc": os.path.join(ROOT, "corpus", "normalized", "threat-intel"),
+        # Phase 6F: vulnerability taxonomy docs
+        "official_taxonomy_doc": os.path.join(ROOT, "corpus", "normalized", "vulnerability-taxonomy"),
     }
     missing = []
     for r in rows:

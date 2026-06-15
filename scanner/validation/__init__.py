@@ -31,6 +31,13 @@ from validation.regression_runner import (
     RegressionResult,
     evaluate_regression,
 )
+from validation.harness import (
+    ValidationTarget,
+    ValidationRun,
+    ValidationFinding,
+    ValidationEvidence,
+    ValidationReport,
+)
 
 __all__ = [
     "CoverageReport", "QualityScore", "build_coverage_report",
@@ -41,4 +48,6 @@ __all__ = [
     "GroundTruthTarget", "PrecisionReport", "build_precision_report",
     "RecallReport", "build_recall_report", "RegressionResult",
     "evaluate_regression",
+    "ValidationTarget", "ValidationRun", "ValidationFinding",
+    "ValidationEvidence", "ValidationReport",
 ]

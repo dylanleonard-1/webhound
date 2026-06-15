@@ -107,6 +107,33 @@ _TRUSTED_DOMAINS: frozenset[str] = frozenset({
     "run.app",              # Google Cloud Run
     "sentry.io", "sentry-cdn.com",
     "vercel-insights.com",
+    # Additional shared hosting / PaaS platforms — subdomains of these are
+    # expected end-user deployments, not attacker-controlled. Without explicit
+    # listing, a subdomain containing a suspicious keyword or on a "link/dev/app"
+    # TLD could accumulate enough heuristic signals to trigger a false-positive
+    # RISKY or MALICIOUS_INDICATOR verdict.
+    "digitalocean.app", "digitaloceanspaces.com", "ondigitalocean.app",
+    "wpengine.com",
+    "kinsta.com",
+    "pantheon.io",
+    "platform.sh",
+    "cloudways.com",
+    "a2hosting.com", "a2cdn.net",
+    "siteground.net", "sgcpanel.com",
+    "bluehost.com",
+    "dreamhost.com",
+    "godaddy.com",
+    "hostgator.com",
+    "namecheap.com",
+    "ionos.com",
+    "hetzner.com",
+    "linode.com", "linodeobjects.com",
+    "vultr.com",
+    "replit.com", "repl.co",
+    "glitch.me", "glitch.com",
+    "stackblitz.io",
+    "codesandbox.io",
+    "netlify.live",
 })
 
 # Legitimate third-party services that handle user data — expected but worth noting.

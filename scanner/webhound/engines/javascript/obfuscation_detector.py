@@ -66,6 +66,15 @@ _PACKER_PATTERN = re.compile(
     re.I,
 )
 
+# FP guard for packer: a genuine packed payload has a pipe-encoded token list
+# (the dictionary of obfuscated identifiers) as a string argument. Bare packer
+# function *definitions* embedded in utility libraries match _PACKER_PATTERN but
+# have no encoded payload. We require ≥5 pipe separators in a quoted string
+# within 2000 chars of the packer signature before calling it a real pack.
+_PACKER_PAYLOAD_RE = re.compile(
+    r"""["'][^"']{3,}(?:\|[^"']{0,50}){5,}["']""",
+)
+
 # Three or more eval() calls in one script is strongly suspicious.
 _EVAL_CALL = re.compile(r"\beval\s*\(")
 
@@ -286,6 +295,14 @@ class ObfuscationDetectorEngine:
     def _check_packer(self, content: str, url: str, idx: int) -> list[Finding]:
         m = _PACKER_PATTERN.search(content)
         if not m:
+            return []
+        # FP guard: a utility library may embed the packer *function template*
+        # without any encoded payload. Genuine packed code always includes a
+        # pipe-separated token string (the obfuscated identifier dictionary)
+        # within the call. Without it we skip — this is the main source of
+        # packer false-positives on minified bundles that embed legacy libraries.
+        window = content[m.start(): min(len(content), m.start() + 2000)]
+        if not _PACKER_PAYLOAD_RE.search(window):
             return []
         snippet = content[m.start():min(len(content), m.start() + 80)]
         ev = _js_ev(f"Packer pattern: {snippet}…", url, idx)

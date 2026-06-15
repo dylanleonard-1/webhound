@@ -217,6 +217,9 @@ class CookieScannerEngine:
                 "the Secure attribute. That means the browser will happily send it over "
                 "plain HTTP if the visitor ever ends up on an HTTP URL of your site — "
                 "anyone on their network can read it." + sensitivity_note
+                + "\n\nPassive-analysis note: WebHound inspects Set-Cookie response "
+                "headers only. Cookies created by JavaScript (document.cookie) after "
+                "page load are not covered by this check."
             ),
             severity=sev,
             url=url,
@@ -248,6 +251,11 @@ class CookieScannerEngine:
                 "on the page. If you ever have a cross-site scripting bug — and most "
                 "sites do at least once — the attacker can read the cookie value and "
                 "use it." + sensitivity_note
+                + "\n\nPassive-analysis note: WebHound inspects Set-Cookie response "
+                "headers only. Cookies created by JavaScript (document.cookie) after "
+                "page load are not analyzed by this check — those cookies cannot carry "
+                "HttpOnly regardless of server intent, so this finding applies only to "
+                "the server-set cookie above."
             ),
             severity=sev,
             url=url,

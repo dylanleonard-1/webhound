@@ -1,9 +1,16 @@
-# Phase 9B — Scanner Validation & Hardening Results
-<!-- PHASE-9B-HARDENING -->
+# Phase 9B-A — Coverage + Validation Infrastructure Results
+<!-- PHASE-9B-A-COVERAGE -->
 
-**Completed:** 2026-06-14  
-**Branch:** `feat/scanner-phase-9b-validation-hardening`  
-**Scope:** Validation harness, test coverage for 6 previously-untested modules, documentation.  
+> **HONEST SCOPE NOTICE — READ FIRST**
+> This is **Phase 9B-A** — coverage and validation-infrastructure only.
+> It delivered the 6 static-module test suites + the validation harness data model.
+> It did **NOT** do detection hardening, live scans, FP/FN measurement, or the 9A→9B
+> readiness scorecard — those are deferred to **Phase 9B-B** (Detection Hardening +
+> Measured Validation). See `docs/ai/PHASE9B_B_RESULTS.md` when that phase lands.
+
+**Completed:** 2026-06-14
+**Branch:** `feat/scanner-phase-9b-validation-hardening` (merged as PR #21)
+**Scope:** Validation harness, test coverage for 6 previously-untested modules, documentation.
 **Production code changes:** None — firing conditions, CVSS scores, WADE scoring, provider access, billing, and auth are all unchanged.
 
 ---

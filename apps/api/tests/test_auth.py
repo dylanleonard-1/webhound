@@ -43,8 +43,30 @@ async def _register(client: AsyncClient, email: str = "user@example.com", passwo
 
 
 async def _login(client: AsyncClient, email: str = "user@example.com", password: str = "password123") -> dict:
+    # Step 1 of the 2-step OTP login: returns a challenge_token (NOT a JWT).
     r = await client.post("/auth/login", json={"email": email, "password": password})
     return r
+
+
+async def _login_token(
+    client: AsyncClient, email: str = "user@example.com", password: str = "password123"
+) -> str:
+    """Complete the 2-step OTP login flow and return the JWT access token.
+
+    Step 1 (/auth/login) issues an email OTP + challenge_token; in dev/test (no
+    email provider configured) the code is surfaced as `dev_code`. Step 2
+    (/auth/login/verify) exchanges challenge_token + code for the JWT.
+    """
+    r = await _login(client, email=email, password=password)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    code = body["dev_code"]
+    v = await client.post(
+        "/auth/login/verify",
+        json={"challenge_token": body["challenge_token"], "code": code},
+    )
+    assert v.status_code == 200, v.text
+    return v.json()["access_token"]
 
 
 # ---------------------------------------------------------------------------
@@ -101,12 +123,21 @@ async def test_register_missing_password_rejected(client):
 
 async def test_login_returns_token(client):
     await _register(client)
+    # Step 1: /auth/login issues an OTP challenge, NOT a JWT.
     r = await _login(client)
     assert r.status_code == 200
     body = r.json()
-    assert "access_token" in body
-    assert body["token_type"] == "bearer"
-    assert len(body["access_token"]) > 10
+    assert "challenge_token" in body
+    assert "access_token" not in body  # the JWT is only issued after OTP verify
+    # Step 2: verifying the OTP returns the bearer access token.
+    v = await client.post(
+        "/auth/login/verify",
+        json={"challenge_token": body["challenge_token"], "code": body["dev_code"]},
+    )
+    assert v.status_code == 200, v.text
+    vbody = v.json()
+    assert vbody["token_type"] == "bearer"
+    assert len(vbody["access_token"]) > 10
 
 
 async def test_login_wrong_password_rejected(client):
@@ -124,7 +155,8 @@ async def test_login_normalises_email(client):
     await _register(client, email="user@example.com")
     r = await _login(client, email="  USER@EXAMPLE.COM  ")
     assert r.status_code == 200
-    assert "access_token" in r.json()
+    # Normalised email still authenticates → step-1 challenge is issued.
+    assert "challenge_token" in r.json()
 
 
 # ---------------------------------------------------------------------------
@@ -134,7 +166,7 @@ async def test_login_normalises_email(client):
 
 async def test_me_returns_user(client):
     await _register(client)
-    token = (await _login(client)).json()["access_token"]
+    token = await _login_token(client)
     r = await client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200
     body = r.json()
@@ -191,8 +223,8 @@ async def test_users_only_see_own_websites(client):
     await _register(client, email="alice@example.com", password="password123")
     await _register(client, email="bob@example.com", password="password123")
 
-    alice_token = (await _login(client, email="alice@example.com")).json()["access_token"]
-    bob_token = (await _login(client, email="bob@example.com")).json()["access_token"]
+    alice_token = await _login_token(client, email="alice@example.com")
+    bob_token = await _login_token(client, email="bob@example.com")
 
     # Alice creates a website
     r = await client.post(
@@ -215,8 +247,8 @@ async def test_user_cannot_get_others_website(client):
     await _register(client, email="alice@example.com", password="password123")
     await _register(client, email="bob@example.com", password="password123")
 
-    alice_token = (await _login(client, email="alice@example.com")).json()["access_token"]
-    bob_token = (await _login(client, email="bob@example.com")).json()["access_token"]
+    alice_token = await _login_token(client, email="alice@example.com")
+    bob_token = await _login_token(client, email="bob@example.com")
 
     r = await client.post(
         "/websites",
@@ -236,8 +268,8 @@ async def test_user_cannot_delete_others_website(client):
     await _register(client, email="alice@example.com", password="password123")
     await _register(client, email="bob@example.com", password="password123")
 
-    alice_token = (await _login(client, email="alice@example.com")).json()["access_token"]
-    bob_token = (await _login(client, email="bob@example.com")).json()["access_token"]
+    alice_token = await _login_token(client, email="alice@example.com")
+    bob_token = await _login_token(client, email="bob@example.com")
 
     r = await client.post(
         "/websites",

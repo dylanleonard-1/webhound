@@ -65,8 +65,12 @@ async def test_retry_is_rechecking_with_same_token(client, monkeypatch):
     monkeypatch.setattr(vs, "_check_dns", _flaky)
     wid = await _create_website(client)
     await client.post(f"/websites/{wid}/verify/initiate?method=dns_txt")
-    assert (await client.post(f"/websites/{wid}/verify/check")).json()["verified"] is False
-    assert (await client.post(f"/websites/{wid}/verify/check")).json()["verified"] is True
+    # Disable the dev bypass so the real (flaky) DNS check governs the result —
+    # otherwise DEV_SKIP_DOMAIN_VERIFICATION short-circuits both polls to verified.
+    with patch("apps.api.services.verification.get_settings",
+               return_value=Settings(dev_skip_domain_verification=False)):
+        assert (await client.post(f"/websites/{wid}/verify/check")).json()["verified"] is False
+        assert (await client.post(f"/websites/{wid}/verify/check")).json()["verified"] is True
 
 
 async def test_get_verify_recommends_method(client):

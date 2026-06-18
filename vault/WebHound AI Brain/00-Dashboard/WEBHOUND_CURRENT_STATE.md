@@ -32,5 +32,17 @@ Production scanner + customer-facing **Production WADE** are live and wired. A l
 
 **Merge PR #22** — finish the validated in-flight scanner hardening; then batch-merge the doc PRs. Do not build new systems.
 
-#webhound #dashboard #current-state #baseline
+## CONTROL-2B STATUS — production code ingested into the brain
+
+The brain now sees real WebHound code (746 modules + 820 classes), not just docs/advisory. Brain completeness **~48% → ~74%**.
+
+- Corpus: +746 code-aware chunks (1,907 total); hybrid retrieval now hits production code for 6/8 concepts (`domain_classifier` resolved — was a total blind spot).
+- Graphify: 126 → **892 nodes** (382 production); Neo4j: 172 → **2,133 nodes** (+1,961: ScannerEngine/WADEComponent/APIRoute/ThreatIntel/…).
+- Graphiti: 26 hallucinated entities removed, 7 production concepts seeded. **Ollama not installed → LLM retrieval still blocked (documented, not faked).**
+
+Reports (repo `docs/ai/`): `PRODUCTION_CODE_INVENTORY.md` · `INDEX_REBUILD_REPORT.md` · `GRAPHIFY_REPAIR_REPORT.md` · `GRAPHITI_REPAIR_REPORT.md` · `PHASE_CONTROL_2B_RESULTS.md`.
+
+**Next single action:** promote the code-aware hybrid index to the default/committed retrieval path so "the brain sees code" persists beyond the local build (or install Ollama to unblock the graph/LLM tier).
+
+#webhound #dashboard #current-state #baseline #control-2b
 </content>

@@ -1,0 +1,39 @@
+name: API Tests
+
+# CI for the apps/api test suite. Mirrors the AI Knowledge Layer job's safe
+# patterns: runs on every PR and on pushes to main, least-privilege (read-only),
+# no secrets, no deploy. The suite uses in-memory SQLite (aiosqlite) + fakeredis,
+# so NO database/redis service is required. It exercises app code read-only and
+# performs no external writes.
+#
+# Import note: apps/api/pytest.ini sets import-mode=importlib and apps/api/conftest.py
+# adds repo-root + scanner/ to sys.path, so a plain `pytest apps/api/tests` works
+# (avoids the apps/api/platform vs stdlib `platform` shadow). scanner/ is on the
+# path for `webhound.*` imports, so scanner runtime deps are installed too.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read   # least privilege; no write, no secrets, no deploy
+
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install API test deps (api dev reqs + scanner runtime deps for webhound)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r apps/api/requirements-dev.txt
+          pip install -r scanner/requirements.txt
+
+      - name: Run API tests (apps/api/tests — bare invocation, config-driven)
+        run: python -m pytest apps/api/tests -q -ra

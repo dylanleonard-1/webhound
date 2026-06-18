@@ -1,0 +1,5 @@
+# CONTROL-2C: regenerated brain build artifacts — NOT committed (large/binary).
+# Regenerate with: python scripts/ai/build_canonical_brain_index.py [--embed]
+canonical_chunks.jsonl
+dense/
+*.npy

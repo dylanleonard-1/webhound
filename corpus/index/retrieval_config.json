@@ -1,0 +1,11 @@
+{
+  "schema": "webhound.brain.retrieval.v1",
+  "canonical_chunks": "corpus/index/canonical_chunks.jsonl",
+  "doc_chunks": "corpus/normalized/unified_chunks.jsonl",
+  "code_chunks_manifest": "corpus/index/code_chunks_manifest.jsonl",
+  "sources_manifest": "corpus/index/brain_sources_manifest.json",
+  "embedding_model": "all-MiniLM-L6-v2",
+  "prefer_canonical": true,
+  "rebuild_cmd": "python scripts/ai/build_canonical_brain_index.py",
+  "note": "canonical_chunks.jsonl is regenerated (not committed). Run rebuild_cmd after clone."
+}

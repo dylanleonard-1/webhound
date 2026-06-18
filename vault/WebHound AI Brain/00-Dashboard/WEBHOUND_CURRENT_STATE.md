@@ -42,7 +42,18 @@ The brain now sees real WebHound code (746 modules + 820 classes), not just docs
 
 Reports (repo `docs/ai/`): `PRODUCTION_CODE_INVENTORY.md` · `INDEX_REBUILD_REPORT.md` · `GRAPHIFY_REPAIR_REPORT.md` · `GRAPHITI_REPAIR_REPORT.md` · `PHASE_CONTROL_2B_RESULTS.md`.
 
-**Next single action:** promote the code-aware hybrid index to the default/committed retrieval path so "the brain sees code" persists beyond the local build (or install Ollama to unblock the graph/LLM tier).
+## CONTROL-2C CANONICAL BRAIN INDEX STATUS
 
-#webhound #dashboard #current-state #baseline #control-2b
+The code-aware brain is now **canonical and regenerable** from committed manifests — a fresh clone rebuilds the same production-code-aware brain with no local binary blobs.
+
+- Canonical: **5,701 code chunks** (Python + TS/TSX, symbol-level) + 1,161 doc = **6,862 total**; 752 sources included, 42 excluded (lock/env/cache).
+- Committed (small/deterministic): `corpus/index/brain_sources_manifest.json`, `corpus/index/code_chunks_manifest.jsonl`, `corpus/index/retrieval_config.json`.
+- Regenerated (not committed): `canonical_chunks.jsonl`, `dense/*.npy` (gitignored). Rebuild: `python scripts/ai/build_canonical_brain_index.py [--embed]`.
+- Retrieval default now prefers the canonical index (warned fallback, no silent stale doc-only). Traceability: 6 PASS / 3 PARTIAL / 1 FAIL (lexical; all 10 concepts indexed).
+
+Reports (repo `docs/ai/`): `BRAIN_INDEX_ARTIFACT_POLICY.md` · `PHASE_CONTROL_2C_RESULTS.md`. Scripts: `build_canonical_brain_index.py` · `check_brain_traceability.py`. Tests: `tests/ai/test_canonical_brain_index.py`.
+
+**Next single action:** add a committed/CI embedding step (or small embedding shard) so dense retrieval works out-of-the-box on a fresh clone.
+
+#webhound #dashboard #current-state #baseline #control-2b #control-2c
 </content>

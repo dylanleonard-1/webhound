@@ -50,7 +50,8 @@ async def test_start_blocked_when_unverified(client):
     wid = await _create_website(client)
     r = await client.post(f"/websites/{wid}/trusted-access/start")
     assert r.status_code == 409
-    assert r.json()["detail"]["error"] == "ownership_required"
+    # The global error handler wraps HTTPException detail under error.message.
+    assert "ownership_required" in r.json()["error"]["message"]
 
 
 async def test_start_blocked_without_provider_discovery(client, monkeypatch):
@@ -58,7 +59,7 @@ async def test_start_blocked_without_provider_discovery(client, monkeypatch):
     await _verify(client, monkeypatch, wid)
     r = await client.post(f"/websites/{wid}/trusted-access/start")
     assert r.status_code == 409
-    assert r.json()["detail"]["error"] == "provider_discovery_required"
+    assert "provider_discovery_required" in r.json()["error"]["message"]
 
 
 async def test_get_not_configured_by_default(client):

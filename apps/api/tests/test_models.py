@@ -39,18 +39,23 @@ from apps.api.models.website import DomainVerification, Website
 
 class TestEnums:
     def test_verification_status_values(self):
+        # EXPIRED/REVOKED added in Phase 3.2 (ownership lifecycle).
         assert set(VerificationStatus) == {
             VerificationStatus.UNVERIFIED,
             VerificationStatus.PENDING,
             VerificationStatus.VERIFIED,
             VerificationStatus.FAILED,
+            VerificationStatus.EXPIRED,
+            VerificationStatus.REVOKED,
         }
 
     def test_verification_method_values(self):
+        # PROVIDER_CONNECTION added in Phase 4.2 (provider-proven ownership).
         assert set(VerificationMethod) == {
             VerificationMethod.DNS_TXT,
             VerificationMethod.META_TAG,
             VerificationMethod.HTML_FILE,
+            VerificationMethod.PROVIDER_CONNECTION,
         }
 
     def test_scan_status_values(self):

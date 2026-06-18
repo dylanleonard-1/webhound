@@ -8,6 +8,9 @@ pytestmark = pytest.mark.anyio
 _SAFE_KEYS = {
     "scanner_name", "scanner_version", "user_agent",
     "verification_url", "docs_url", "ip_ranges_url", "contact",
+    # Scanner egress IP/CIDR allowlist — intentionally public so customers can
+    # allowlist the scanner by IP (env-configurable WEBHOUND_SCANNER_OUTBOUND_IPS).
+    "outbound_ips",
 }
 
 

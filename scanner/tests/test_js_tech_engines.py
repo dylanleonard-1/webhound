@@ -332,18 +332,39 @@ class TestObfuscationDetectorEngine:
         findings = _OBFUSCATION.analyze(arts)
         assert not any("hex" in f.title.lower() for f in findings)
 
-    def test_detects_packer_pattern(self):
-        packed = "eval(function(p,a,c,k,e,d){return 'test'})"
+    def test_detects_packer_pattern_with_payload(self):
+        # Genuine Dean Edwards packed output: signature + pipe-encoded token list
+        packed = (
+            "eval(function(p,a,c,k,e,d){e=function(c){return c};if(!''."
+            "replace(/^/,String)){while(c--)d[c]=k[c]||c;k=[function(e)"
+            "{return d[e]}];e=function(){return'\\\\w+'};c=1};while(c--)"
+            "if(k[c])p=p.replace(new RegExp('\\\\b'+e(c)+'\\\\b','g'),k[c]);"
+            "return p}('0 1(2){3 4 5 6}',7,7,'function|hello|name|return|var|log|msg'.split('|'),0,{}))"
+        )
         arts = _artifacts(scripts=[_inline(packed)])
         findings = _OBFUSCATION.analyze(arts)
         assert any("packer" in f.title.lower() for f in findings)
 
     def test_packer_finding_is_high(self):
-        packed = "eval(function(p,a,c,k,e,d){return p})"
+        packed = (
+            "eval(function(p,a,c,k,e,d){e=function(c){return c};"
+            "return p}('0 1 2 3 4 5',6,6,'var|a|b|c|d|e'.split('|'),0,{}))"
+        )
         arts = _artifacts(scripts=[_inline(packed)])
         findings = _OBFUSCATION.analyze(arts)
         pk = [f for f in findings if "packer" in f.title.lower()]
         assert pk[0].severity == Severity.HIGH
+
+    def test_packer_bare_definition_no_finding(self):
+        # FP guard: a packer *function template* embedded as a utility
+        # (no pipe-encoded payload string adjacent to the call) should NOT fire.
+        bare_definition = (
+            "// packer utility included by legacy build tool\n"
+            "eval(function(p,a,c,k,e,r){/* packer internals */})"
+        )
+        arts = _artifacts(scripts=[_inline(bare_definition)])
+        findings = _OBFUSCATION.analyze(arts)
+        assert not any("packer" in f.title.lower() for f in findings)
 
     def test_detects_multiple_evals(self):
         script = "eval(a); eval(b); eval(c); eval(d); eval(e);"  # 5+ (threshold)

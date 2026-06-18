@@ -388,6 +388,34 @@ def _fill_key_and_sig(info: "TlsCertInfo", der_bytes: bytes) -> None:
         pass
 
 
+# Issuers that indicate CDN-terminated TLS. When the cert was issued by one of
+# these, the scanner is talking to a CDN edge, not the origin server — findings
+# about the cert only describe what the CDN edge presents, not the origin cert.
+_CDN_ISSUERS: frozenset[str] = frozenset({
+    "cloudflare", "amazon", "fastly", "akamai", "edgio", "limelight",
+    "google trust services", "digicert", "sectigo",
+})
+
+
+def _cdn_issued_note(cert_info: "TlsCertInfo") -> str:
+    """Return a note string when we can identify the cert as CDN-issued."""
+    issuer = " ".join(filter(None, [
+        cert_info.issuer_o or "",
+        cert_info.issuer_cn or "",
+    ])).lower()
+    for marker in _CDN_ISSUERS:
+        if marker in issuer:
+            return (
+                "\n\nNote: The observed certificate was issued by "
+                f"'{cert_info.issuer_o or cert_info.issuer_cn}', indicating "
+                "CDN-terminated TLS. WebHound is talking to the CDN edge, not "
+                "the origin server. This finding describes the CDN-layer "
+                "certificate — the origin server's own certificate is not "
+                "visible to this passive scan."
+            )
+    return ""
+
+
 class TlsCheckerEngine:
     """Passive analysis of TLS certificate metadata for security issues.
 
@@ -466,12 +494,14 @@ class TlsCheckerEngine:
             f" (expired {cert_info.not_after.date()})" if cert_info.not_after else ""
         )
         ev = _cert_ev(cert_info, url, f"Certificate expired{detail}")
+        cdn_note = _cdn_issued_note(cert_info)
         return [_finding(
             title=f"Your SSL certificate has already expired",
             description=(
                 f"The certificate for '{cert_info.domain}' expired{detail}. Every visitor "
                 "now sees a giant red warning page from their browser saying the site is "
                 "unsafe. Most leave immediately. This is a site-down emergency."
+                + cdn_note
             ),
             severity=Severity.CRITICAL,
             url=url,
@@ -635,6 +665,7 @@ class TlsCheckerEngine:
         ev = _cert_ev(
             cert_info, url, f"Protocol version: {cert_info.protocol_version}"
         )
+        cdn_note = _cdn_issued_note(cert_info)
         return [_finding(
             title=f"Server is still negotiating an obsolete TLS version ({cert_info.protocol_version})",
             description=(
@@ -643,6 +674,7 @@ class TlsCheckerEngine:
                 "(POODLE, BEAST, CRIME). Modern browsers refuse to load sites that "
                 "negotiate this version, so visitors using up-to-date Chrome / Firefox / "
                 "Safari may see an error instead of your site."
+                + cdn_note
             ),
             severity=Severity.HIGH,
             url=url,

@@ -25,6 +25,12 @@ DOCS_AI = ROOT / "docs" / "ai"
 SCRIPTS_AI = ROOT / "scripts" / "ai"
 SCRIPTS_WADE = ROOT / "scripts" / "wade"
 TESTS_AI = ROOT / "tests" / "ai"
+# CONTROL-2B: production code dirs so the graph sees the real product, not just
+# the advisory scripts/vault. Imports of webhound.*/apps.* are now graph edges.
+SCANNER_DIR = ROOT / "scanner" / "webhound"
+API_DIR = ROOT / "apps" / "api"
+PROD_IMPORT_PREFIXES = ("scripts.", "tests.", "webhound", "apps.")
+_SKIP_DIRS = ("__pycache__", "node_modules", ".next", "migrations/versions")
 
 
 def _rel(p: Path) -> str:
@@ -49,11 +55,11 @@ def _py_imports(path: Path) -> list[str]:
             if isinstance(node, ast.Import):
                 for alias in node.names:
                     mod = alias.name
-                    if mod.startswith(("scripts.", "tests.")):
+                    if mod.startswith(PROD_IMPORT_PREFIXES):
                         refs.append(mod.replace(".", "/"))
             elif isinstance(node, ast.ImportFrom) and node.module:
                 mod = node.module
-                if mod.startswith(("scripts.", "tests.")):
+                if mod.startswith(PROD_IMPORT_PREFIXES):
                     refs.append(mod.replace(".", "/"))
     return refs
 
@@ -63,9 +69,10 @@ def scan_python_files(dirs: list[Path]) -> list[tuple[str, str, str]]:
     edges = []
     for d in dirs:
         for f in sorted(d.rglob("*.py")):
-            if "__pycache__" in str(f):
+            rels = _rel(f)
+            if any(s in rels for s in _SKIP_DIRS):
                 continue
-            src = _rel(f)
+            src = rels
             for imp in _py_imports(f):
                 edges.append((src, imp + ".py", "import"))
     return edges
@@ -266,8 +273,8 @@ See graph.json for raw node/edge data.
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    print("Scanning Python files...")
-    py_edges = scan_python_files([SCRIPTS_AI, SCRIPTS_WADE, TESTS_AI])
+    print("Scanning Python files (incl. production scanner + API)...")
+    py_edges = scan_python_files([SCANNER_DIR, API_DIR, SCRIPTS_AI, SCRIPTS_WADE, TESTS_AI])
 
     print("Scanning Markdown files...")
     md_dirs = [VAULT_DIR, DOCS_AI]

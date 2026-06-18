@@ -270,13 +270,14 @@ async def test_dispatch_creates_scan_job(db_engine, _test_user):
 
     async with factory() as db:
         now = datetime.now(timezone.utc)
-        job_ids = await dispatch_due_schedules(db, now=now)
+        dispatched = await dispatch_due_schedules(db, now=now)
         await db.commit()
 
-    assert len(job_ids) == 1
+    # dispatch_due_schedules returns celery-dispatch dicts: {"job_id", "url", "profile"}.
+    assert len(dispatched) == 1
 
     async with factory() as db:
-        job = await db.get(ScanJob, job_ids[0])
+        job = await db.get(ScanJob, uuid.UUID(dispatched[0]["job_id"]))
         assert job is not None
         assert job.status == ScanStatus.QUEUED
 

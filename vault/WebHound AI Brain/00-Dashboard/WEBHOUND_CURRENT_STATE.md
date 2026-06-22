@@ -65,7 +65,9 @@ Dense/hybrid retrieval is now **reproducible from a fresh clone** with no cloud 
 
 Docs (`docs/ai/`): `DENSE_RETRIEVAL_ARTIFACT_POLICY.md` · `BRAIN_DENSE_RETRIEVAL_BUILD.md` · `PHASE_CONTROL_2D_RESULTS.md`. Tests: `tests/ai/test_dense_retrieval_reliability.py`.
 
-**Next single action:** add a CI job that installs sentence-transformers, builds bounded dense vectors, and gates hybrid traceability ≥ 8/10.
+**CI gate (added):** a `dense-quality-gate` job (in `.github/workflows/api-tests.yml`) installs sentence-transformers, builds a **concept-seeded** shard (all 10 concept modules + ~1,200-chunk sample), and asserts **≥8/10 concepts found (top-k, rank-robust)** under hybrid — gating dense QUALITY, not just plumbing. The minimal `ai-knowledge` job stays green via contract/fallback tests. `tls_checker` remains PARTIAL on the full index (counted as found; gate has headroom).
+
+**Next single action:** lift `tls_checker` to top-1 on the FULL index (boost code-symbol weighting for exact module-name queries), closing the last PARTIAL.
 
 #webhound #dashboard #current-state #baseline #control-2b #control-2c #control-2d
 </content>

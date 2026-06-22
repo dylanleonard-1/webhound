@@ -37,3 +37,27 @@ jobs:
 
       - name: Run API tests (apps/api/tests — bare invocation, config-driven)
         run: python -m pytest apps/api/tests -q -ra
+
+  # CONTROL-2D: gate dense HYBRID retrieval QUALITY (not just the build/fallback
+  # contract). Installs sentence-transformers, regenerates the canonical chunk set,
+  # builds a small CONCEPT-SEEDED shard (all 10 concept modules + a bounded sample),
+  # and asserts >=8/10 concepts are found (top-k, rank-robust) under hybrid.
+  # Read-only, no secrets, no deploy. Independent of the minimal ai-knowledge job
+  # (which has no sentence-transformers and stays green via contract/fallback tests).
+  dense-quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dense retrieval deps (local model; no cloud APIs)
+        run: |
+          python -m pip install --upgrade pip
+          pip install sentence-transformers numpy
+      - name: Build canonical chunk set (code + docs)
+        run: python scripts/ai/build_canonical_brain_index.py
+      - name: Build concept-seeded CI shard
+        run: python scripts/ai/build_dense_brain_embeddings.py --seed-modules CI --sample 1200 --output-dir corpus/index/_ci_shard
+      - name: Gate hybrid traceability (>=8/10 concepts found, top-k)
+        run: python scripts/ai/check_brain_traceability.py --index-dir corpus/index/_ci_shard --mode hybrid --min-found 8

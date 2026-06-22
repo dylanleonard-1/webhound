@@ -43,7 +43,7 @@
     "sources": 795,
     "included": 753,
     "excluded": 42,
-    "code_chunks": 5712,
+    "code_chunks": 5713,
     "doc_chunks": 1161
   },
   "sources": [
@@ -7882,7 +7882,7 @@
       "language": "python",
       "status": "include",
       "reason": "production/test source",
-      "hash": "75484bf42f1cd982",
+      "hash": "36981783a0e9c1c3",
       "category": "test"
     },
     {

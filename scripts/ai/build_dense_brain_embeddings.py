@@ -45,15 +45,55 @@ def _load_chunks() -> list[dict]:
     raise SystemExit(4)
 
 
+# CONTROL-2D CI gate: the 10 graded concepts -> source-path substrings. A
+# concept-seeded shard MUST include every matching chunk so the >=8/10 gate is
+# meaningful (a flat --limit shard cannot contain all concepts).
+CI_SEED_MODULES = [
+    "engines/cookies/cookie_scanner", "threat_intel/domain_classifier",
+    "engines/tls_dns/tls_checker", "scanner/webhound/threat_intel",
+    "scanner/webhound/wade/", "scripts/wade/", "scanner/webhound/core/orchestrator",
+    "apps/api/services/verification", "apps/api/routers/auth", "apps/api/tests/test_auth",
+    "scanner/webhound/reporting/",
+]
+
+
+def _select_seeded(chunks: list[dict], seeds: list[str], sample: int) -> list[dict]:
+    """All chunks whose file_path matches any seed substring + a DETERMINISTIC
+    strided sample of the rest (realistic distractors), capped near `sample`."""
+    seeded, rest = [], []
+    for c in chunks:
+        fp = c.get("file_path", "")
+        (seeded if any(s in fp for s in seeds) else rest).append(c)
+    budget = max(0, sample - len(seeded))
+    if budget and rest:
+        stride = max(1, len(rest) // budget)
+        sampled = rest[::stride][:budget]
+    else:
+        sampled = []
+    # keep canonical order (stable, deterministic)
+    keep_ids = {id(c) for c in seeded} | {id(c) for c in sampled}
+    return [c for c in chunks if id(c) in keep_ids]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--limit", type=int, default=0, help="embed only first N chunks (CI smoke)")
+    ap.add_argument("--seed-modules", default="",
+                    help="comma-separated source-path substrings to ALWAYS include; "
+                         "use 'CI' for the built-in 10-concept set. Writes a self-contained shard.")
+    ap.add_argument("--sample", type=int, default=1200,
+                    help="approx total shard size when seeding (seeded chunks + strided sample)")
     ap.add_argument("--output-dir", default=str(DEFAULT_OUT))
     args = ap.parse_args()
 
     chunks = _load_chunks()
-    if args.limit > 0:
+    seeded_mode = bool(args.seed_modules)
+    if seeded_mode:
+        seeds = CI_SEED_MODULES if args.seed_modules.strip().upper() == "CI" \
+            else [s.strip() for s in args.seed_modules.split(",") if s.strip()]
+        chunks = _select_seeded(chunks, seeds, args.sample)
+    elif args.limit > 0:
         chunks = chunks[:args.limit]
     n = len(chunks)
     n_code = sum(1 for c in chunks if c.get("source_type") == "production_code")
@@ -81,6 +121,12 @@ def main() -> int:
         out = ROOT / out
     out.mkdir(parents=True, exist_ok=True)
     np.save(str(out / "chunk_embeddings.npy"), emb)
+    if seeded_mode:
+        # Self-contained shard: write the matching chunk set so a retriever can
+        # load chunks + vectors from this one dir (aligned 1:1) for the CI gate.
+        with open(out / "canonical_chunks.jsonl", "w", encoding="utf-8") as fh:
+            for c in chunks:
+                fh.write(json.dumps(c, ensure_ascii=False) + "\n")
     # Per-chunk meta (aligns 1:1 with the .npy row order).
     meta = [{"idx": i, "chunk_id": c.get("chunk_id", ""),
              "file_path": c.get("file_path", ""), "source_type": c.get("source_type", "")}

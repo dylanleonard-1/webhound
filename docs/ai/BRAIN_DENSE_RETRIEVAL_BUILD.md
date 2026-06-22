@@ -45,6 +45,18 @@ Writes the committed manifests + the regenerated `corpus/index/canonical_chunks.
 - dense vectors missing → **lexical** with a printed WARNING + rebuild instruction.
 - **Never** silently uses stale/mismatched dense artifacts.
 
+## CI dense-quality gate (concept-seeded shard)
+CI gates hybrid retrieval *quality* (not just plumbing) on a small concept-seeded
+shard — every one of the 10 concept modules plus a bounded ~1,200-chunk sample:
+```
+python scripts/ai/build_canonical_brain_index.py
+python scripts/ai/build_dense_brain_embeddings.py --seed-modules CI --sample 1200 --output-dir corpus/index/_ci_shard
+python scripts/ai/check_brain_traceability.py --index-dir corpus/index/_ci_shard --mode hybrid --min-found 8
+```
+- `--seed-modules CI` = the built-in 10-concept set; writes a self-contained shard
+  (chunks + aligned vectors). `--min-found 8` = gate (concept found in top-k; exit 1 if <8).
+- Rank-robust: gates on top-k membership, not exact order. Shard vectors are gitignored.
+
 ## Delete / regenerate
 ```
 rm -rf corpus/index/canonical_chunks.jsonl corpus/index/dense   # remove artifacts

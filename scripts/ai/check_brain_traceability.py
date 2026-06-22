@@ -18,7 +18,23 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
-from scripts.ai.hybrid_retrieval import load_retriever  # noqa: E402
+from scripts.ai.hybrid_retrieval import HybridRetriever, load_retriever  # noqa: E402
+
+
+def _load_from_dir(index_dir: Path) -> HybridRetriever:
+    """Build a retriever from a self-contained shard dir (chunks + vectors).
+
+    Used by the CI dense-quality gate: a concept-seeded shard written by
+    build_dense_brain_embeddings.py --seed-modules CI.
+    """
+    import json as _json
+
+    import numpy as np
+    chunks = [_json.loads(l) for l in open(index_dir / "canonical_chunks.jsonl",
+                                           encoding="utf-8") if l.strip()]
+    emb = np.load(str(index_dir / "chunk_embeddings.npy"))
+    return HybridRetriever(chunks=chunks, embeddings=emb, meta=[],
+                           model_name="all-MiniLM-L6-v2")
 
 # concept -> (query, expected-substring in a top hit's file_path)
 CONCEPTS = [
@@ -43,10 +59,21 @@ def main() -> int:
     ap.add_argument("--mode", choices=list(_MODE_MAP), default="lexical")
     ap.add_argument("--require-dense", action="store_true",
                     help="fail if dense embeddings are unavailable (no silent lexical fallback)")
+    ap.add_argument("--index-dir", default="",
+                    help="load chunks+vectors from a self-contained shard dir (CI gate)")
+    ap.add_argument("--min-found", type=int, default=0,
+                    help="GATE: exit non-zero if fewer than N concepts are found "
+                         "(found = PASS or PARTIAL = concept in top-k; robust to rank order)")
     ap.add_argument("--json", action="store_true", help="machine-readable JSON only")
     args = ap.parse_args()
 
-    r = load_retriever()
+    if args.index_dir:
+        d = Path(args.index_dir)
+        if not d.is_absolute():
+            d = ROOT / d
+        r = _load_from_dir(d)
+    else:
+        r = load_retriever()
     retr_mode = _MODE_MAP[args.mode]
     dense_ok = r.dense_available
 
@@ -70,21 +97,27 @@ def main() -> int:
         results.append((name, verdict, paths[0] if paths else "(none)"))
 
     counts = {v: sum(1 for _, vv, _ in results if vv == v) for v in ("PASS", "PARTIAL", "FAIL")}
+    found = counts["PASS"] + counts["PARTIAL"]  # concept appeared in top-k (rank-robust)
     payload = {
         "requested_mode": args.mode, "effective_mode": retr_mode,
         "dense_available": dense_ok, "index_chunks": len(r.chunks),
-        "counts": counts,
+        "counts": counts, "found": found, "min_found": args.min_found or None,
         "results": [{"concept": n, "verdict": v, "top": t} for n, v, t in results],
     }
+    gate_failed = args.min_found and found < args.min_found
     if args.json:
         print(json.dumps(payload))
-        return 0
+        return 1 if gate_failed else 0
     print(f"index chunks: {len(r.chunks)} | mode={args.mode} (effective={retr_mode}) "
           f"| dense_available={dense_ok}\n")
     for n, v, t in results:
         print(f"  {n:22s} {v:8s} top={t[:60]}")
-    print(f"\nPASS={counts['PASS']} PARTIAL={counts['PARTIAL']} FAIL={counts['FAIL']} / {len(results)}")
-    return 0
+    print(f"\nPASS={counts['PASS']} PARTIAL={counts['PARTIAL']} FAIL={counts['FAIL']} "
+          f"| found(top-k)={found}/{len(results)}")
+    if args.min_found:
+        status = "FAILED" if gate_failed else "OK"
+        print(f"GATE: found {found} >= min_found {args.min_found} -> {status}")
+    return 1 if gate_failed else 0
 
 
 if __name__ == "__main__":

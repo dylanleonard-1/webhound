@@ -119,3 +119,24 @@ def test_limited_dense_build_succeeds():
     assert man["chunk_count"] == 25 and man["embedding_dim"] == 384
     import shutil
     shutil.rmtree(out, ignore_errors=True)
+
+
+@pytest.mark.skipif(not _HAS_ST, reason="sentence-transformers not installed (minimal CI)")
+def test_hybrid_quality_gate_on_seeded_shard():
+    """CONTROL-2D CI gate: a concept-seeded shard must yield >=8/10 concepts found
+    (top-k) under HYBRID. Concept-level (rank-robust), not exact ordering."""
+    import shutil
+    shard = INDEX / "_ci_shard_test"
+    try:
+        b = _run(str(DENSE_BUILD), "--seed-modules", "CI", "--sample", "1200",
+                 "--output-dir", str(shard))
+        assert b.returncode == 0, b.stderr
+        assert (shard / "canonical_chunks.jsonl").exists() and (shard / "chunk_embeddings.npy").exists()
+        g = _run(str(TRACE), "--index-dir", str(shard), "--mode", "hybrid",
+                 "--min-found", "8", "--json")
+        assert g.returncode == 0, f"gate failed: {g.stdout}\n{g.stderr}"
+        payload = json.loads(g.stdout.strip().splitlines()[-1])
+        assert payload["found"] >= 8, payload
+        assert payload["dense_available"] is True
+    finally:
+        shutil.rmtree(shard, ignore_errors=True)

@@ -40,10 +40,10 @@
     ]
   },
   "counts": {
-    "sources": 796,
-    "included": 754,
+    "sources": 797,
+    "included": 755,
     "excluded": 42,
-    "code_chunks": 5725,
+    "code_chunks": 5732,
     "doc_chunks": 1161
   },
   "sources": [
@@ -7846,6 +7846,16 @@
       "category": "test"
     },
     {
+      "source_id": "fc1a885f34d5e6c2",
+      "path": "tests/ai/test_brain_reality_verification.py",
+      "source_type": "code",
+      "language": "python",
+      "status": "include",
+      "reason": "production/test source",
+      "hash": "a44f99f7c8ff3c85",
+      "category": "test"
+    },
+    {
       "source_id": "16c8e3f8a60b1c8e",
       "path": "tests/ai/test_brain_runtime.py",
       "source_type": "code",
@@ -7872,7 +7882,7 @@
       "language": "python",
       "status": "include",
       "reason": "production/test source",
-      "hash": "6866922ab7d9ccc2",
+      "hash": "b94720c376fe054c",
       "category": "test"
     },
     {

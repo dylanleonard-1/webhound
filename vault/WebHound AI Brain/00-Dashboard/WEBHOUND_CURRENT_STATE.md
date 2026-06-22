@@ -55,5 +55,17 @@ Reports (repo `docs/ai/`): `BRAIN_INDEX_ARTIFACT_POLICY.md` · `PHASE_CONTROL_2C
 
 **Next single action:** add a committed/CI embedding step (or small embedding shard) so dense retrieval works out-of-the-box on a fresh clone.
 
-#webhound #dashboard #current-state #baseline #control-2b #control-2c
+## CONTROL-2D DENSE RETRIEVAL STATUS
+
+Dense/hybrid retrieval is now **reproducible from a fresh clone** with no cloud APIs and no hidden local files.
+
+- Build: `build_dense_brain_embeddings.py` (local sentence-transformers; `--dry-run`/`--limit`/`--output-dir`; exits 3 with install hint if the dep is missing — never fakes vectors). Full build = **6,862 × 384** local MiniLM vectors (gitignored).
+- Retrieval (`retrieval_config.json` v2): explicit `lexical`/`dense`/`hybrid` modes. Dense present → hybrid; missing → lexical **with warning + rebuild cmd**; never silent/stale. `check_brain_traceability.py` gained `--mode`, `--require-dense`, `--json`.
+- **Traceability: lexical 1 PASS / 7 PARTIAL / 2 FAIL → hybrid 9 PASS / 1 PARTIAL / 0 FAIL** (dense fixes scanner orchestrator, threat_intel, production WADE, report rendering). Only `tls_checker` PARTIAL.
+
+Docs (`docs/ai/`): `DENSE_RETRIEVAL_ARTIFACT_POLICY.md` · `BRAIN_DENSE_RETRIEVAL_BUILD.md` · `PHASE_CONTROL_2D_RESULTS.md`. Tests: `tests/ai/test_dense_retrieval_reliability.py`.
+
+**Next single action:** add a CI job that installs sentence-transformers, builds bounded dense vectors, and gates hybrid traceability ≥ 8/10.
+
+#webhound #dashboard #current-state #baseline #control-2b #control-2c #control-2d
 </content>

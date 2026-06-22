@@ -246,16 +246,35 @@ def main() -> None:
         for c in chunk_meta:
             fh.write(json.dumps(c, ensure_ascii=False, sort_keys=True) + "\n")
     RETRIEVAL_CONFIG.write_text(json.dumps({
-        "schema": "webhound.brain.retrieval.v1",
+        "schema": "webhound.brain.retrieval.v2",
         "canonical_chunks": "corpus/index/canonical_chunks.jsonl",
         "doc_chunks": "corpus/normalized/unified_chunks.jsonl",
         "code_chunks_manifest": "corpus/index/code_chunks_manifest.jsonl",
         "sources_manifest": "corpus/index/brain_sources_manifest.json",
+        "dense_dir": "corpus/index/dense",
         "embedding_model": "all-MiniLM-L6-v2",
         "prefer_canonical": True,
+        # CONTROL-2D: explicit retrieval modes.
+        "modes": {
+            "lexical": "BM25-style; no embeddings/network; always available",
+            "dense": "cosine over dense embeddings; needs build_dense_brain_embeddings.py",
+            "hybrid": "0.35*lexical + 0.65*dense; best ranking; needs dense embeddings",
+        },
+        "default_mode": "hybrid_if_dense_else_lexical",
+        "fallback_behavior": (
+            "If dense embeddings (corpus/index/dense/*.npy) are present -> hybrid. "
+            "If missing -> lexical WITH a printed warning + rebuild instruction. "
+            "NEVER silently uses stale dense artifacts; mismatched dense is ignored."
+        ),
         "rebuild_cmd": "python scripts/ai/build_canonical_brain_index.py",
-        "note": "canonical_chunks.jsonl is regenerated (not committed). Run rebuild_cmd after clone.",
+        "dense_rebuild_cmd": "python scripts/ai/build_dense_brain_embeddings.py",
+        "note": "canonical_chunks.jsonl + dense vectors are regenerated (not committed).",
     }, indent=2), encoding="utf-8")
+    # canonical_chunks.jsonl ALWAYS = code chunks + existing doc chunks, so the
+    # retrieval set is complete and consistent whether or not --embed is used.
+    doc_rows = [json.loads(l) for l in open(DOC_CHUNKS, encoding="utf-8") if l.strip()] \
+        if DOC_CHUNKS.exists() else []
+    canonical_rows = canonical_rows + doc_rows
     with open(CANONICAL_CHUNKS, "w", encoding="utf-8") as fh:
         for r in canonical_rows:
             fh.write(json.dumps(r, ensure_ascii=False) + "\n")
@@ -268,13 +287,9 @@ def main() -> None:
         # artifact — NOT committed). Aligns 1:1 with canonical_chunks.jsonl order.
         import numpy as np
         from sentence_transformers import SentenceTransformer
-        doc_rows = [json.loads(l) for l in open(DOC_CHUNKS, encoding="utf-8") if l.strip()] \
-            if DOC_CHUNKS.exists() else []
-        all_rows = canonical_rows + doc_rows  # canonical (code) first, then docs
-        # rewrite canonical_chunks to include docs so embeddings align with retrieval
-        with open(CANONICAL_CHUNKS, "w", encoding="utf-8") as fh:
-            for r in all_rows:
-                fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+        # canonical_rows already = code + docs (written above); embed that exact set
+        # so vectors align 1:1 with canonical_chunks.jsonl row order.
+        all_rows = canonical_rows
         model = SentenceTransformer("all-MiniLM-L6-v2")
         emb = model.encode([r.get("text", "") for r in all_rows], batch_size=64,
                            normalize_embeddings=True, convert_to_numpy=True, show_progress_bar=False)

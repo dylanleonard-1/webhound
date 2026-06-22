@@ -1,11 +1,20 @@
 {
-  "schema": "webhound.brain.retrieval.v1",
+  "schema": "webhound.brain.retrieval.v2",
   "canonical_chunks": "corpus/index/canonical_chunks.jsonl",
   "doc_chunks": "corpus/normalized/unified_chunks.jsonl",
   "code_chunks_manifest": "corpus/index/code_chunks_manifest.jsonl",
   "sources_manifest": "corpus/index/brain_sources_manifest.json",
+  "dense_dir": "corpus/index/dense",
   "embedding_model": "all-MiniLM-L6-v2",
   "prefer_canonical": true,
+  "modes": {
+    "lexical": "BM25-style; no embeddings/network; always available",
+    "dense": "cosine over dense embeddings; needs build_dense_brain_embeddings.py",
+    "hybrid": "0.35*lexical + 0.65*dense; best ranking; needs dense embeddings"
+  },
+  "default_mode": "hybrid_if_dense_else_lexical",
+  "fallback_behavior": "If dense embeddings (corpus/index/dense/*.npy) are present -> hybrid. If missing -> lexical WITH a printed warning + rebuild instruction. NEVER silently uses stale dense artifacts; mismatched dense is ignored.",
   "rebuild_cmd": "python scripts/ai/build_canonical_brain_index.py",
-  "note": "canonical_chunks.jsonl is regenerated (not committed). Run rebuild_cmd after clone."
+  "dense_rebuild_cmd": "python scripts/ai/build_dense_brain_embeddings.py",
+  "note": "canonical_chunks.jsonl + dense vectors are regenerated (not committed)."
 }

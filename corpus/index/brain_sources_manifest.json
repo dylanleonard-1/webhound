@@ -40,10 +40,10 @@
     ]
   },
   "counts": {
-    "sources": 794,
-    "included": 752,
+    "sources": 795,
+    "included": 753,
     "excluded": 42,
-    "code_chunks": 5701,
+    "code_chunks": 5712,
     "doc_chunks": 1161
   },
   "sources": [
@@ -7862,7 +7862,7 @@
       "language": "python",
       "status": "include",
       "reason": "production/test source",
-      "hash": "358de5bc3f57a44f",
+      "hash": "e469d1863649e902",
       "category": "test"
     },
     {
@@ -7873,6 +7873,16 @@
       "status": "include",
       "reason": "production/test source",
       "hash": "fabcbdef47013009",
+      "category": "test"
+    },
+    {
+      "source_id": "fb77077175ee0602",
+      "path": "tests/ai/test_dense_retrieval_reliability.py",
+      "source_type": "code",
+      "language": "python",
+      "status": "include",
+      "reason": "production/test source",
+      "hash": "75484bf42f1cd982",
       "category": "test"
     },
     {

@@ -55,3 +55,20 @@ still let the most semantically relevant doc win; exact symbol matches get the l
 `tls_checker.py`: 0.804 + 0.25 + 0.07 = **1.124**, vs the Nuclei doc 0.828 + 0.03 =
 0.858 → code now rank #1. All 10 benchmark concepts are top-ranked as code (see
 `TRACEABILITY_BENCHMARK.md`). The CONTROL-2D ≥8/10 gate is unaffected (boosts only add).
+
+## Knowledge-query guard (CONTROL-2E refinement)
+The code bias must NOT hijack natural-language security questions. Two safeguards:
+- **Query gating** — `_is_symbol_like_query()` only enables the code-symbol/source-tier
+  boost when the query looks like a code lookup: a snake_case/CamelCase identifier, a
+  `.py`/path token, or a short (≤5-token) noun phrase with no question word
+  (`how/what/why/should/does/prevent/help/handle/cause/validate/...`). Prose questions
+  → boost OFF → pure semantic ranking.
+- **Prose preference** — for prose queries, `_prose_bonus()` demotes **test** chunks
+  by −0.30 (tests assert behavior, they don't explain) and gives docs/knowledge +0.06;
+  production code stays neutral so it can still win when genuinely dominant.
+
+Why both were needed (real findings): "what causes **Cloudflare** challenge pages…"
+wrongly got +0.25 because it contained the module token `cloudflare` (fixed by query
+gating); "how does HSTS…" returned a *test file* on pure semantics (fixed by the −0.30
+test demotion). After the refinement, all 5 prose guard queries rank docs/knowledge #1
+while the 10 code concepts stay 10/10 (`tests/ai/test_code_symbol_ranking.py`).

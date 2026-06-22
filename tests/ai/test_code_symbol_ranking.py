@@ -102,3 +102,32 @@ def test_exact_symbol_lookup_prefers_code(retr):
         hits = _top(retr, stem.replace("_", " "))
         assert hits[0].get("chunk_type") == "code", f"{stem}: top is not code"
         assert stem in hits[0].get("file_path", ""), f"{stem}: top file mismatch"
+
+
+# ── CONTROL-2E knowledge-query guard ───────────────────────────────────────────
+# Prose/NL security questions must rank DOCUMENTATION/KNOWLEDGE first — the
+# code-symbol/source-tier boost must NOT over-apply to them.
+_PROSE_QUERIES = [
+    "how does HSTS prevent downgrade attacks",
+    "what does Content Security Policy help prevent",
+    "how should webhook signatures be validated",
+    "what causes Cloudflare challenge pages to block scanners",
+    "how should threat-intel shared hosting false positives be handled",
+]
+
+
+@pytest.mark.parametrize("query", _PROSE_QUERIES)
+def test_prose_query_is_not_code_seeking(query):
+    # The symbol/source-tier code bias must be GATED OFF for prose questions.
+    from scripts.ai.hybrid_retrieval import _is_symbol_like_query
+    assert _is_symbol_like_query(query) is False, f"prose query wrongly treated as code-seeking: {query!r}"
+
+
+@pytest.mark.parametrize("query", _PROSE_QUERIES)
+def test_prose_query_top_is_doc(retr, query):
+    # Top result for a natural-language guidance question must be docs/knowledge,
+    # not arbitrary production code.
+    hits = _top(retr, query)
+    assert hits, f"no hits for {query!r}"
+    assert hits[0].get("chunk_type") == "doc", (
+        f"prose query returned CODE at top: {query!r} -> {hits[0].get('file_path')}")

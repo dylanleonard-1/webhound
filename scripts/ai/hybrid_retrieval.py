@@ -62,6 +62,32 @@ def _ident_tokens(text: str) -> list[str]:
     return [t for t in re.split(r"[^a-z0-9]+", (text or "").lower()) if t]
 
 
+# CONTROL-2E guard: the code-symbol/source-tier bias must apply ONLY to queries
+# that look like a concrete module/symbol/path lookup — NOT to natural-language
+# security questions (those should rank documentation/knowledge first).
+_QUESTION_WORDS = {
+    "how", "what", "why", "when", "where", "which", "who", "should", "does", "do",
+    "did", "is", "are", "can", "could", "would", "prevent", "prevents", "help",
+    "helps", "handle", "handled", "cause", "causes", "explain", "validate",
+    "validated", "mitigate", "protect", "work", "works",
+}
+
+
+def _is_symbol_like_query(query: str) -> bool:
+    """True when the query resembles a code lookup (identifier/path/short noun
+    phrase); False for prose questions (so docs/knowledge rank first)."""
+    if re.search(r"[a-z0-9]_[a-z0-9]", query):          # snake_case identifier
+        return True
+    if re.search(r"\.(py|ts|tsx|md)\b|/", query):       # path / extension
+        return True
+    if re.search(r"[a-z][A-Z]", query):                 # CamelCase identifier
+        return True
+    toks = _tok(query)
+    if any(t in _QUESTION_WORDS for t in toks):         # prose question -> not code-seeking
+        return False
+    return 0 < len(toks) <= 5                            # short noun-phrase lookup
+
+
 def _source_tier(chunk: dict) -> int:
     """1 production code · 2 API code · 3 WADE code · 4 tests · 5 tech docs ·
     6 knowledge notes · 7 planning/other (lower = higher priority)."""
@@ -204,9 +230,21 @@ class HybridRetriever:
     # ── Public API ────────────────────────────────────────────────────────────
 
     def _rerank_bonus(self, qtokens: set[str], idx: int) -> float:
-        """CONTROL-2E: symbol boost + source-tier tie-break (additive)."""
+        """CONTROL-2E: symbol boost + source-tier tie-break (additive). Code-seeking only."""
         c = self.chunks[idx]
         return _symbol_boost(qtokens, c) + (8 - _source_tier(c)) * _SOURCE_TIER_WEIGHT
+
+    def _prose_bonus(self, idx: int) -> float:
+        """CONTROL-2E knowledge guard: for prose/NL questions, demote TEST chunks
+        (tests assert behavior, they don't explain) and gently favor docs/knowledge.
+        Production code stays neutral so it can still win when genuinely dominant."""
+        c = self.chunks[idx]
+        tier = _source_tier(c)
+        if tier == 4:            # test files — not answers to "how/why" questions
+            return -0.30
+        if tier in (5, 6):       # technical docs / knowledge notes
+            return 0.06
+        return 0.0
 
     def retrieve(self, query: str, k: int = 5, mode: str = "hybrid") -> list[dict]:
         # Wider candidate pool for ALL modes so a near-miss code chunk can be
@@ -226,7 +264,12 @@ class HybridRetriever:
             base = {i: self.lex_w * lex_n.get(i, 0.0) + self.dense_w * den_n.get(i, 0.0)
                     for i in (set(lex_n) | set(den_n))}
 
-        final = {i: base[i] + self._rerank_bonus(qtokens, i) for i in base}
+        # CONTROL-2E: only bias toward code for symbol-like (code-seeking) queries;
+        # prose/knowledge questions keep pure semantic ranking so docs win.
+        code_seeking = _is_symbol_like_query(query)
+        final = {i: base[i] + (self._rerank_bonus(qtokens, i) if code_seeking
+                               else self._prose_bonus(i))
+                 for i in base}
         top = sorted(final, key=lambda x: final[x], reverse=True)[:k]
         out = []
         for rank, i in enumerate(top):
@@ -234,7 +277,8 @@ class HybridRetriever:
                                     final[i], mode if mode != "lexical_only" else "lexical_only")
             c = self.chunks[i]
             res["base_score"] = round(base[i], 4)
-            res["symbol_boost"] = round(_symbol_boost(qtokens, c), 4)
+            res["symbol_boost"] = round(_symbol_boost(qtokens, c) if code_seeking else 0.0, 4)
+            res["code_seeking"] = code_seeking
             res["source_tier"] = _source_tier(c)
             res["chunk_type"] = "code" if c.get("source_type") == _CODE_SOURCE_TYPE else "doc"
             out.append(res)

@@ -79,7 +79,9 @@ Exact module/class/function queries now rank real **CODE above generic docs**.
 
 Docs (`docs/ai/`): `RETRIEVAL_RANKING_MODEL.md` · `TRACEABILITY_BENCHMARK.md` · `PHASE_CONTROL_2E_RESULTS.md`. Tests: `tests/ai/test_code_symbol_ranking.py`.
 
-**Next single action:** add a regression assert that pure knowledge queries (e.g. "how does HSTS prevent downgrade") still rank docs first, so the code-boost can't silently regress doc retrieval.
+**Knowledge-query guard (added):** the code bias is now gated to symbol-like queries only (`_is_symbol_like_query`), and prose questions demote test chunks (−0.30) + favor docs/knowledge (+0.06). Caught 2 real over-applications (Cloudflare token; HSTS test-file); after the fix **5/5 prose queries rank docs/knowledge #1**, **10/10 code concepts still PASS**, dense-gate 10/10. `tests/ai`: 357 passed.
+
+**Next single action:** tune the boost/penalty constants from a small labeled code-seeking-vs-knowledge query set instead of hand-picked values.
 
 #webhound #dashboard #current-state #baseline #control-2b #control-2c #control-2d #control-2e
 </content>

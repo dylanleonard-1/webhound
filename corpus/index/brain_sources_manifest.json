@@ -40,10 +40,10 @@
     ]
   },
   "counts": {
-    "sources": 797,
-    "included": 755,
+    "sources": 798,
+    "included": 756,
     "excluded": 42,
-    "code_chunks": 5732,
+    "code_chunks": 5740,
     "doc_chunks": 1161
   },
   "sources": [
@@ -7852,7 +7852,7 @@
       "language": "python",
       "status": "include",
       "reason": "production/test source",
-      "hash": "a44f99f7c8ff3c85",
+      "hash": "77828240ed25d63b",
       "category": "test"
     },
     {
@@ -7943,6 +7943,16 @@
       "status": "include",
       "reason": "production/test source",
       "hash": "e4031af9c281c2d8",
+      "category": "test"
+    },
+    {
+      "source_id": "3bd5769b0a2cefde",
+      "path": "tests/ai/test_retrieval_intent_routing.py",
+      "source_type": "code",
+      "language": "python",
+      "status": "include",
+      "reason": "production/test source",
+      "hash": "4e5376a6d1621a3b",
       "category": "test"
     },
     {

@@ -83,5 +83,17 @@ Docs (`docs/ai/`): `RETRIEVAL_RANKING_MODEL.md` · `TRACEABILITY_BENCHMARK.md` �
 
 **Next single action:** tune the boost/penalty constants from a small labeled code-seeking-vs-knowledge query set instead of hand-picked values.
 
-#webhound #dashboard #current-state #baseline #control-2b #control-2c #control-2d #control-2e
+## CONTROL-2F BRAIN REALITY VERIFICATION STATUS
+
+Physically tested whether the brain answers real WebHound questions correctly (read-only, brutally honest).
+
+- **Graphify 90%** (896 nodes, all 10 concepts are real code nodes) · **Obsidian 75%** (dashboard current; deeper notes 8G-generated; 3-vault dup) · **Retrieval reality 6 PASS / 1 PARTIAL / 3 FAIL** (symbol queries 10/10; verbose NL "where is WADE implemented" returns docs) · **end-to-end 4/5 PASS**.
+- **Neo4j + Ollama OFFLINE** this phase (WSL containers stopped; not restarted — regenerable via committed loaders). Older vault runtime notes overstate liveness.
+- Biggest issue: prose implementation questions surface docs over engine code (inverse of the 2E knowledge guard). Stale/dup: 3 vaults, dual-numbered sections, legacy dense index.
+
+Docs (`docs/ai/`): `OBSIDIAN_REALITY_VERIFICATION.md` · `GRAPHIFY_REALITY_VERIFICATION.md` · `NEO4J_REALITY_VERIFICATION.md` · `RETRIEVAL_REALITY_VERIFICATION.md` · `BRAIN_END_TO_END_TRACES.md` · `BRAIN_STALE_DUPLICATE_REPORT.md` · `BRAIN_REALITY_SCORECARD.md` · `PHASE_CONTROL_2F_RESULTS.md`. Script: `scripts/ai/verify_brain_reality.py`.
+
+**Next single action:** CONTROL-2G — detect code-locating intent ("where is … implemented", "what handles …") so prose implementation questions return engine code, lifting retrieval reality to 9–10/10.
+
+#webhound #dashboard #current-state #baseline #control-2b #control-2c #control-2d #control-2e #control-2f
 </content>

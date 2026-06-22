@@ -95,5 +95,17 @@ Docs (`docs/ai/`): `OBSIDIAN_REALITY_VERIFICATION.md` · `GRAPHIFY_REALITY_VERIF
 
 **Next single action:** CONTROL-2G — detect code-locating intent ("where is … implemented", "what handles …") so prose implementation questions return engine code, lifting retrieval reality to 9–10/10.
 
-#webhound #dashboard #current-state #baseline #control-2b #control-2c #control-2d #control-2e #control-2f
+## CONTROL-2G RETRIEVAL INTENT ROUTING STATUS
+
+Retrieval now routes by **intent** (deterministic, no LLM): CODE_LOOKUP → code, KNOWLEDGE_EXPLANATION → docs, MIXED → both, UNKNOWN → hybrid.
+
+- `classify_intent()` on code-location vs explanation phrases (+ 2E symbol detection); `_intent_bonus()` applies code-prefer / doc-prefer / balanced ranking + a **path-overlap** boost (code whose path holds the query's topical tokens) + a MIXED top-5 both-types guarantee.
+- **Retrieval reality 6/1/3 → 8 PASS / 2 PARTIAL / 0 FAIL** (prod_wade, adv_wade, threat_intel FAIL→PASS). **No regression:** code traceability 10/10, doc guards 5/5, dense-gate ≥8/10.
+- Remaining PARTIAL (honest): `scan_to_report` (process Q→doc), `api_auth` (frontend api.ts vs backend handler). `scripts/wade/` not yet in canonical index.
+
+Docs (`docs/ai/`): `RETRIEVAL_INTENT_ROUTING_MODEL.md` · `PHASE_CONTROL_2G_RESULTS.md`. Tests: `tests/ai/test_retrieval_intent_routing.py`.
+
+**Next single action:** index `scripts/wade/` + add a frontend-vs-backend tier so advisory-WADE and backend-auth questions resolve to the precise module (target 10/10).
+
+#webhound #dashboard #current-state #baseline #control-2b #control-2c #control-2d #control-2e #control-2f #control-2g
 </content>

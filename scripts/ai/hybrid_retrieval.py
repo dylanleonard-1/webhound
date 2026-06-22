@@ -125,6 +125,69 @@ def _symbol_boost(qtokens: set[str], chunk: dict) -> float:
     return boost
 
 
+# ── CONTROL-2G: retrieval intent routing (code vs knowledge) ───────────────────
+# Deterministic, no LLM. Routes prose IMPLEMENTATION questions toward code and
+# prose EXPLANATION questions toward docs. Generalizes via phrase patterns — the
+# failing 2F examples are NOT special-cased.
+_CODE_INTENT_RE = re.compile(
+    r"\b(where is|where are|where does|where do we|where can i find|what handles|"
+    r"what module|which module|which file|which class|which function|which engine|"
+    r"show (me )?(the )?code|source code|implemented|implementation|"
+    r"located|defined|lives?|reside[sd]?|performs?)\b")
+_KNOWLEDGE_INTENT_RE = re.compile(
+    r"\b(how does|how do|how should|how can|why does|why is|what does|what is|"
+    r"explain|best practice|prevent|mitigat|remediat|guidance|impact|risk|"
+    r"standard|cause[sd]?|help[sed]*|protect|defend)\b")
+
+INTENT_CODE = "CODE_LOOKUP"
+INTENT_KNOWLEDGE = "KNOWLEDGE_EXPLANATION"
+INTENT_MIXED = "MIXED"
+INTENT_UNKNOWN = "UNKNOWN"
+
+
+def classify_intent(query: str) -> str:
+    """CODE_LOOKUP / KNOWLEDGE_EXPLANATION / MIXED / UNKNOWN (deterministic)."""
+    q = query.lower()
+    code_sig = bool(_CODE_INTENT_RE.search(q)) or _is_symbol_like_query(query)
+    know_sig = bool(_KNOWLEDGE_INTENT_RE.search(q))
+    if code_sig and know_sig:
+        return INTENT_MIXED
+    if code_sig:
+        return INTENT_CODE
+    if know_sig:
+        return INTENT_KNOWLEDGE
+    return INTENT_UNKNOWN
+
+
+def _is_doc_tier(tier: int) -> bool:
+    return tier in (5, 6, 7)
+
+
+# Tokens that carry no topical signal — excluded from path-overlap matching.
+_STOP_TOKENS = _QUESTION_WORDS | {
+    "the", "a", "an", "to", "of", "in", "on", "for", "and", "or", "it", "we",
+    "me", "find", "code", "source", "module", "file", "class", "function",
+    "implemented", "implementation", "handler", "located", "defined", "live",
+    "lives", "performs", "perform", "into", "become", "becomes", "this", "that",
+    # generic structural tokens that match many unrelated paths (e.g. apps/api,
+    # apps/web/src/lib/api.ts) and would mislead path-overlap matching:
+    "api", "apis", "app", "apps", "web", "src", "lib", "scanner", "webhound",
+}
+
+
+def _path_overlap_bonus(qtokens: set[str], chunk: dict) -> float:
+    """CONTROL-2G: prefer CODE whose file path contains the query's topical tokens
+    (e.g. 'what handles threat intelligence' -> .../threat_intel/...). Generalizes
+    via path-token overlap; not concept-hardcoded."""
+    if chunk.get("source_type") != _CODE_SOURCE_TYPE:
+        return 0.0
+    content = qtokens - _STOP_TOKENS
+    if not content:
+        return 0.0
+    ptoks = set(_ident_tokens(chunk.get("file_path", "")))
+    return min(len(content & ptoks), 3) * 0.08
+
+
 class HybridRetriever:
     """Lexical + dense hybrid retriever over chunked knowledge base."""
 
@@ -246,6 +309,54 @@ class HybridRetriever:
             return 0.06
         return 0.0
 
+    def _intent_bonus(self, intent: str, qtokens: set[str], idx: int) -> float:
+        """CONTROL-2G: intent-specific re-rank bonus."""
+        c = self.chunks[idx]
+        tier = _source_tier(c)
+        is_code = c.get("source_type") == _CODE_SOURCE_TYPE
+        if intent == INTENT_CODE:
+            # Prefer code (exact symbol first, then production > api > wade > tests),
+            # prefer path-topical code, demote docs. Tests stay below production.
+            if is_code:
+                return (_symbol_boost(qtokens, c) + _path_overlap_bonus(qtokens, c)
+                        + (8 - tier) * 0.04)
+            return -0.15
+        if intent == INTENT_KNOWLEDGE:
+            # Prefer docs/knowledge, demote tests, NO code-symbol boost.
+            if tier == 4:
+                return -0.30
+            if tier in (5, 6):
+                return 0.10
+            return 0.0
+        if intent == INTENT_MIXED:
+            # Balanced: mild code lift + mild doc lift; tests demoted.
+            if tier == 4:
+                return -0.15
+            if is_code:
+                return (_symbol_boost(qtokens, c) * 0.5 + _path_overlap_bonus(qtokens, c) * 0.5
+                        + (8 - tier) * 0.02)
+            if tier in (5, 6):
+                return 0.04
+            return 0.0
+        # UNKNOWN -> CONTROL-2E behavior
+        return (self._rerank_bonus(qtokens, idx) if _is_symbol_like_query(" ".join(qtokens))
+                else self._prose_bonus(idx))
+
+    def _ensure_mixed_coverage(self, ordered: list[int], k: int) -> list[int]:
+        """MIXED: guarantee the top-k contains >=1 code and >=1 doc when available."""
+        topk = ordered[:k]
+        types = [self.chunks[i].get("source_type") == _CODE_SOURCE_TYPE for i in topk]
+        have_code, have_doc = any(types), any(not t for t in types)
+        for want_code in (True, False):
+            if (want_code and have_code) or (not want_code and have_doc):
+                continue
+            # find best-ranked chunk of the missing type beyond top-k
+            for i in ordered[k:]:
+                if (self.chunks[i].get("source_type") == _CODE_SOURCE_TYPE) == want_code:
+                    topk[-1] = i  # swap into the last slot, preserving higher ranks
+                    break
+        return topk
+
     def retrieve(self, query: str, k: int = 5, mode: str = "hybrid") -> list[dict]:
         # Wider candidate pool for ALL modes so a near-miss code chunk can be
         # re-ranked above generic docs by the symbol/source boost.
@@ -264,21 +375,23 @@ class HybridRetriever:
             base = {i: self.lex_w * lex_n.get(i, 0.0) + self.dense_w * den_n.get(i, 0.0)
                     for i in (set(lex_n) | set(den_n))}
 
-        # CONTROL-2E: only bias toward code for symbol-like (code-seeking) queries;
-        # prose/knowledge questions keep pure semantic ranking so docs win.
-        code_seeking = _is_symbol_like_query(query)
-        final = {i: base[i] + (self._rerank_bonus(qtokens, i) if code_seeking
-                               else self._prose_bonus(i))
-                 for i in base}
-        top = sorted(final, key=lambda x: final[x], reverse=True)[:k]
+        # CONTROL-2G: route by detected intent (code-lookup vs knowledge vs mixed).
+        intent = classify_intent(query)
+        final = {i: base[i] + self._intent_bonus(intent, qtokens, i) for i in base}
+        ordered = sorted(final, key=lambda x: final[x], reverse=True)
+        if intent == INTENT_MIXED:
+            top = self._ensure_mixed_coverage(ordered, k)
+        else:
+            top = ordered[:k]
         out = []
         for rank, i in enumerate(top):
             res = self._make_result(rank + 1, i, lex_n.get(i, 0.0), den_n.get(i, 0.0),
                                     final[i], mode if mode != "lexical_only" else "lexical_only")
             c = self.chunks[i]
             res["base_score"] = round(base[i], 4)
-            res["symbol_boost"] = round(_symbol_boost(qtokens, c) if code_seeking else 0.0, 4)
-            res["code_seeking"] = code_seeking
+            res["intent"] = intent
+            res["symbol_boost"] = round(_symbol_boost(qtokens, c), 4)
+            res["code_seeking"] = intent in (INTENT_CODE, INTENT_MIXED)
             res["source_tier"] = _source_tier(c)
             res["chunk_type"] = "code" if c.get("source_type") == _CODE_SOURCE_TYPE else "doc"
             out.append(res)

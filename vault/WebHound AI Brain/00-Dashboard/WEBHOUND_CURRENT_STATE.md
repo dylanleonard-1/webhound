@@ -69,5 +69,19 @@ Docs (`docs/ai/`): `DENSE_RETRIEVAL_ARTIFACT_POLICY.md` · `BRAIN_DENSE_RETRIEVA
 
 **Next single action:** lift `tls_checker` to top-1 on the FULL index (boost code-symbol weighting for exact module-name queries), closing the last PARTIAL.
 
-#webhound #dashboard #current-state #baseline #control-2b #control-2c #control-2d
+## CONTROL-2E CODE SYMBOL RANKING STATUS
+
+Exact module/class/function queries now rank real **CODE above generic docs**.
+
+- Ranking logic (`scripts/ai/hybrid_retrieval.py`, no chunk-content change): **code-symbol boost** (+0.25 module-stem / +0.12 symbol match, metadata-driven, generalizes) + **source-priority tie-break** (1 production → 7 planning). `check_brain_traceability.py --show-ranking` added.
+- **Full-index hybrid: 9 PASS / 1 PARTIAL → 10 PASS / 0 PARTIAL / 0 FAIL.** `tls_checker` PARTIAL→**PASS** (`tls_checker.py` 1.124 > Nuclei doc 0.858); all 10 top hits are code.
+- CONTROL-2D dense-quality-gate re-run: **10/10 found, OK — no regression**. `tests/ai`: 347 passed.
+
+Docs (`docs/ai/`): `RETRIEVAL_RANKING_MODEL.md` · `TRACEABILITY_BENCHMARK.md` · `PHASE_CONTROL_2E_RESULTS.md`. Tests: `tests/ai/test_code_symbol_ranking.py`.
+
+**Knowledge-query guard (added):** the code bias is now gated to symbol-like queries only (`_is_symbol_like_query`), and prose questions demote test chunks (−0.30) + favor docs/knowledge (+0.06). Caught 2 real over-applications (Cloudflare token; HSTS test-file); after the fix **5/5 prose queries rank docs/knowledge #1**, **10/10 code concepts still PASS**, dense-gate 10/10. `tests/ai`: 357 passed.
+
+**Next single action:** tune the boost/penalty constants from a small labeled code-seeking-vs-knowledge query set instead of hand-picked values.
+
+#webhound #dashboard #current-state #baseline #control-2b #control-2c #control-2d #control-2e
 </content>

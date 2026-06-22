@@ -64,6 +64,8 @@ def main() -> int:
     ap.add_argument("--min-found", type=int, default=0,
                     help="GATE: exit non-zero if fewer than N concepts are found "
                          "(found = PASS or PARTIAL = concept in top-k; robust to rank order)")
+    ap.add_argument("--show-ranking", action="store_true",
+                    help="print concept, rank, file, chunk_type, source_tier for the top hit")
     ap.add_argument("--json", action="store_true", help="machine-readable JSON only")
     args = ap.parse_args()
 
@@ -88,6 +90,7 @@ def main() -> int:
         retr_mode = "lexical_only"
 
     results = []
+    ranking_rows = []
     for name, query, expect in CONCEPTS:
         hits = r.retrieve(query, k=8, mode=retr_mode)
         paths = [h.get("file_path", "").lower() for h in hits]
@@ -95,6 +98,19 @@ def main() -> int:
         any_hit = any(expect in p for p in paths)
         verdict = "PASS" if exact_top else ("PARTIAL" if any_hit else "FAIL")
         results.append((name, verdict, paths[0] if paths else "(none)"))
+        if hits:
+            top = hits[0]
+            ranking_rows.append({"concept": name, "rank": 1, "file": top.get("file_path", ""),
+                                 "chunk_type": top.get("chunk_type", ""),
+                                 "source_tier": top.get("source_tier", ""),
+                                 "score": top.get("score", 0)})
+
+    if args.show_ranking and not args.json:
+        print("ranking (top hit per concept):")
+        for r0 in ranking_rows:
+            print(f"  {r0['concept']:22s} rank={r0['rank']} type={r0['chunk_type']:4s} "
+                  f"tier={r0['source_tier']} score={r0['score']:.3f} {r0['file'][:50]}")
+        print()
 
     counts = {v: sum(1 for _, vv, _ in results if vv == v) for v in ("PASS", "PARTIAL", "FAIL")}
     found = counts["PASS"] + counts["PARTIAL"]  # concept appeared in top-k (rank-robust)

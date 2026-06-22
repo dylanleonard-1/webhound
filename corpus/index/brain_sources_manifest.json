@@ -40,10 +40,10 @@
     ]
   },
   "counts": {
-    "sources": 795,
-    "included": 753,
+    "sources": 796,
+    "included": 754,
     "excluded": 42,
-    "code_chunks": 5713,
+    "code_chunks": 5725,
     "doc_chunks": 1161
   },
   "sources": [
@@ -7866,6 +7866,16 @@
       "category": "test"
     },
     {
+      "source_id": "13c2308e9a95f719",
+      "path": "tests/ai/test_code_symbol_ranking.py",
+      "source_type": "code",
+      "language": "python",
+      "status": "include",
+      "reason": "production/test source",
+      "hash": "6866922ab7d9ccc2",
+      "category": "test"
+    },
+    {
       "source_id": "cf77aafad8feaf17",
       "path": "tests/ai/test_dense_retrieval.py",
       "source_type": "code",
@@ -7882,7 +7892,7 @@
       "language": "python",
       "status": "include",
       "reason": "production/test source",
-      "hash": "36981783a0e9c1c3",
+      "hash": "05c4e2c71fcdb20c",
       "category": "test"
     },
     {

@@ -45,6 +45,86 @@ def _tok(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", text.lower())
 
 
+# ── CONTROL-2E: code-symbol ranking ────────────────────────────────────────────
+# When a query exactly matches a production module/class/function name, real CODE
+# should outrank generic docs. Boosts are metadata-driven (file stem + symbol
+# title + source tier) and generalize — no per-concept hardcoding. They only ADD
+# to scores, so they never reduce the CONTROL-2D >=8/10 found count.
+_SYMBOL_BOOST_MODULE = 0.25   # query contains ALL of a code module's stem tokens
+_SYMBOL_BOOST_SYMBOL = 0.12   # query contains ALL of a code chunk's symbol tokens
+_SOURCE_TIER_WEIGHT = 0.01    # small tie-break: (8 - tier) * weight
+_CODE_SOURCE_TYPE = "production_code"
+_DOC_SOURCE_TYPES = {"internal_doc", "official_doc", "official_repo", "provider_doc"}
+
+
+def _ident_tokens(text: str) -> list[str]:
+    """Split an identifier/path-stem into tokens: 'tls_checker' -> [tls, checker]."""
+    return [t for t in re.split(r"[^a-z0-9]+", (text or "").lower()) if t]
+
+
+# CONTROL-2E guard: the code-symbol/source-tier bias must apply ONLY to queries
+# that look like a concrete module/symbol/path lookup — NOT to natural-language
+# security questions (those should rank documentation/knowledge first).
+_QUESTION_WORDS = {
+    "how", "what", "why", "when", "where", "which", "who", "should", "does", "do",
+    "did", "is", "are", "can", "could", "would", "prevent", "prevents", "help",
+    "helps", "handle", "handled", "cause", "causes", "explain", "validate",
+    "validated", "mitigate", "protect", "work", "works",
+}
+
+
+def _is_symbol_like_query(query: str) -> bool:
+    """True when the query resembles a code lookup (identifier/path/short noun
+    phrase); False for prose questions (so docs/knowledge rank first)."""
+    if re.search(r"[a-z0-9]_[a-z0-9]", query):          # snake_case identifier
+        return True
+    if re.search(r"\.(py|ts|tsx|md)\b|/", query):       # path / extension
+        return True
+    if re.search(r"[a-z][A-Z]", query):                 # CamelCase identifier
+        return True
+    toks = _tok(query)
+    if any(t in _QUESTION_WORDS for t in toks):         # prose question -> not code-seeking
+        return False
+    return 0 < len(toks) <= 5                            # short noun-phrase lookup
+
+
+def _source_tier(chunk: dict) -> int:
+    """1 production code · 2 API code · 3 WADE code · 4 tests · 5 tech docs ·
+    6 knowledge notes · 7 planning/other (lower = higher priority)."""
+    st = chunk.get("source_type", "")
+    tags = chunk.get("topic_tags") or []
+    tagstr = " ".join(tags).lower() if isinstance(tags, list) else str(tags).lower()
+    fp = chunk.get("file_path", "").lower()
+    if st == _CODE_SOURCE_TYPE:
+        if "test" in tagstr or "/test" in fp:
+            return 4
+        if "wade" in tagstr or "/wade" in fp:
+            return 3
+        if "api" in tagstr or "apps/api" in fp:
+            return 2
+        return 1
+    if st in _DOC_SOURCE_TYPES:
+        return 5
+    if "knowledge" in st or "knowledge" in fp:
+        return 6
+    return 7
+
+
+def _symbol_boost(qtokens: set[str], chunk: dict) -> float:
+    """Boost code chunks whose module-stem or symbol name is fully named by the query."""
+    if chunk.get("source_type") != _CODE_SOURCE_TYPE:
+        return 0.0
+    boost = 0.0
+    stem = chunk.get("file_path", "").rsplit("/", 1)[-1].rsplit(".", 1)[0]
+    stem_toks = _ident_tokens(stem)
+    if stem_toks and all(t in qtokens for t in stem_toks):
+        boost = max(boost, _SYMBOL_BOOST_MODULE)
+    sym_toks = _ident_tokens(chunk.get("title", ""))
+    if sym_toks and sym_toks != ["module"] and all(t in qtokens for t in sym_toks):
+        boost = max(boost, _SYMBOL_BOOST_SYMBOL)
+    return boost
+
+
 class HybridRetriever:
     """Lexical + dense hybrid retriever over chunked knowledge base."""
 
@@ -149,39 +229,60 @@ class HybridRetriever:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
+    def _rerank_bonus(self, qtokens: set[str], idx: int) -> float:
+        """CONTROL-2E: symbol boost + source-tier tie-break (additive). Code-seeking only."""
+        c = self.chunks[idx]
+        return _symbol_boost(qtokens, c) + (8 - _source_tier(c)) * _SOURCE_TIER_WEIGHT
+
+    def _prose_bonus(self, idx: int) -> float:
+        """CONTROL-2E knowledge guard: for prose/NL questions, demote TEST chunks
+        (tests assert behavior, they don't explain) and gently favor docs/knowledge.
+        Production code stays neutral so it can still win when genuinely dominant."""
+        c = self.chunks[idx]
+        tier = _source_tier(c)
+        if tier == 4:            # test files — not answers to "how/why" questions
+            return -0.30
+        if tier in (5, 6):       # technical docs / knowledge notes
+            return 0.06
+        return 0.0
+
     def retrieve(self, query: str, k: int = 5, mode: str = "hybrid") -> list[dict]:
-        k_cand = k * 4  # wider candidate pool for hybrid merging
+        # Wider candidate pool for ALL modes so a near-miss code chunk can be
+        # re-ranked above generic docs by the symbol/source boost.
+        k_cand = max(k * 8, 40)
+        qtokens = set(_tok(query))
+
         if mode == "lexical_only":
-            lex = self._lex_score(query, k)
-            lex_n = self._norm(lex)
-            return [
-                self._make_result(r + 1, i, lex_n[i], 0.0, lex_n[i], mode)
-                for r, (i, _) in enumerate(lex)
-            ]
-        if mode == "dense_only":
-            den = self._dense_score(query, k)
-            den_n = self._norm(den)
-            return [
-                self._make_result(r + 1, i, 0.0, den_n[i], den_n[i], mode)
-                for r, (i, _) in enumerate(den)
-            ]
-        # hybrid: lexical + dense, then re-rank
-        lex = self._lex_score(query, k_cand)
-        den = self._dense_score(query, k_cand)
-        lex_n = self._norm(lex)
-        den_n = self._norm(den)
-        candidates = set(lex_n) | set(den_n)
-        hyb = {
-            i: self.lex_w * lex_n.get(i, 0.0) + self.dense_w * den_n.get(i, 0.0)
-            for i in candidates
-        }
-        top = sorted(hyb, key=lambda x: hyb[x], reverse=True)[:k]
-        return [
-            self._make_result(
-                r + 1, i, lex_n.get(i, 0.0), den_n.get(i, 0.0), hyb[i], "hybrid"
-            )
-            for r, i in enumerate(top)
-        ]
+            base = self._norm(self._lex_score(query, k_cand))
+            lex_n, den_n = base, {}
+        elif mode == "dense_only":
+            base = self._norm(self._dense_score(query, k_cand))
+            lex_n, den_n = {}, base
+        else:  # hybrid
+            lex_n = self._norm(self._lex_score(query, k_cand))
+            den_n = self._norm(self._dense_score(query, k_cand))
+            base = {i: self.lex_w * lex_n.get(i, 0.0) + self.dense_w * den_n.get(i, 0.0)
+                    for i in (set(lex_n) | set(den_n))}
+
+        # CONTROL-2E: only bias toward code for symbol-like (code-seeking) queries;
+        # prose/knowledge questions keep pure semantic ranking so docs win.
+        code_seeking = _is_symbol_like_query(query)
+        final = {i: base[i] + (self._rerank_bonus(qtokens, i) if code_seeking
+                               else self._prose_bonus(i))
+                 for i in base}
+        top = sorted(final, key=lambda x: final[x], reverse=True)[:k]
+        out = []
+        for rank, i in enumerate(top):
+            res = self._make_result(rank + 1, i, lex_n.get(i, 0.0), den_n.get(i, 0.0),
+                                    final[i], mode if mode != "lexical_only" else "lexical_only")
+            c = self.chunks[i]
+            res["base_score"] = round(base[i], 4)
+            res["symbol_boost"] = round(_symbol_boost(qtokens, c) if code_seeking else 0.0, 4)
+            res["code_seeking"] = code_seeking
+            res["source_tier"] = _source_tier(c)
+            res["chunk_type"] = "code" if c.get("source_type") == _CODE_SOURCE_TYPE else "doc"
+            out.append(res)
+        return out
 
     @property
     def dense_available(self) -> bool:

@@ -1,0 +1,28 @@
+import type { RoadmapPhase } from './types'
+
+export const ROADMAP: RoadmapPhase[] = [
+  { n: 1, title: 'Foundations: SOX / ICFR / COSO / GITC', moduleSlug: 'sox-icfr',
+    goal: 'Understand why a public manufacturer tests IT controls at all.',
+    topics: ['What SOX is & why', 'ICFR', 'COSO five components', 'GITC/ITGC domains', 'ITGC → app control → assertion chain'] },
+  { n: 2, title: 'The Audit Lifecycle & Evidence', moduleSlug: 'audit',
+    goal: 'Speak fluently about how controls get tested.',
+    topics: ['Walkthroughs', 'Test of Design vs Operating Effectiveness', 'roll-forward', 'populations & samples', 'exceptions & remediation', 'sufficient + appropriate evidence'] },
+  { n: 3, title: 'Identity & Access Management', moduleSlug: 'iam',
+    goal: 'Own the most-tested ITGC domain.',
+    topics: ['AD & Entra ID', 'authN vs authZ', 'provisioning/deprovisioning', 'Joiner/Mover/Leaver', 'access reviews', 'privileged & service accounts', 'least privilege'] },
+  { n: 4, title: 'Change Management + SDLC controls', moduleSlug: 'change-management',
+    goal: 'Explain how changes reach production safely.',
+    topics: ['RFC', 'CAB/CCB approval', 'testing', 'migration & SoD', 'emergency change', 'backout plan', 'SDLC governance', 'change evidence'] },
+  { n: 5, title: 'Backup / DR / BCP / Data Center', moduleSlug: 'dr-backup',
+    goal: 'Cover resilience controls — relevant to PCA’s plants.',
+    topics: ['backups & restore tests', 'RTO/RPO', 'DRP vs BCP', 'data-center review', 'physical vs logical security', 'environmental controls'] },
+  { n: 6, title: 'Vendor Assurance / SOC / SLAs', moduleSlug: 'vendor-risk',
+    goal: 'Review third-party assurance correctly.',
+    topics: ['third-party risk', 'SOC 1/2/3', 'Type I/II', 'CUECs', 'bridge letters', 'subservice orgs', 'carve-out vs inclusive', 'how to review a SOC report'] },
+  { n: 7, title: 'Tools & Documentation', moduleSlug: 'tools',
+    goal: 'Be ready for the practical "can you do the work" questions.',
+    topics: ['Excel (pivots, XLOOKUP)', 'evidence/PBC trackers', 'SharePoint version control', 'Teams', 'Visio diagrams', 'ServiceNow', 'PowerShell AD exports'] },
+  { n: 8, title: 'Interview Mastery', moduleSlug: undefined,
+    goal: 'Convert knowledge into confident, honest answers.',
+    topics: ['HR & "why this role"', 'positioning WebHound + Log(N) Pacific', 'technical Q&A', 'scenario questions', 'questions to ask them'] },
+]

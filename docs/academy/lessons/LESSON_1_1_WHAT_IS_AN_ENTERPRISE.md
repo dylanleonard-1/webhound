@@ -2,7 +2,8 @@
 
 > **WebHound Enterprise Security Academy · Volume 1 — Enterprise, Risk & Audit Foundations**
 > Module 1 — The Business Before the Controls · Chapter 1 — Orientation
-> **Difficulty:** L1 · **Profile:** concept-foundation · **Est. time:** ~25 min · **Status:** approved v1.0.0 · evergreen
+> **Difficulty:** L1 · **Profile:** concept-foundation · **Est. time:** ~25 min · **Status:** published v1.1.0 · evergreen
+> 🏅 **Certified: WebHound Enterprise Security Academy — Golden Lesson Reference v1.0** (see [editorial review](LESSON_1_1_EDITORIAL_REVIEW.md) and [certification checklist](../GOLDEN_LESSON_CERTIFICATION_CHECKLIST.md)).
 > **Graph node:** `enterprise-business.foundations.intro.what-is-an-enterprise` · **Authored from:** [golden brief 1.1](../../../apps/web/src/lib/academy/_content/golden-briefs/1-1-what-is-an-enterprise.json) · **Content record:** [1-1-what-is-an-enterprise.json](../../../apps/web/src/lib/academy/_content/lessons/1-1-what-is-an-enterprise.json)
 
 This is the human-readable render of the schema-conforming content record. It exists so the lesson can be read and reviewed before a renderer exists. The authoritative source is the JSON; this file mirrors it.
@@ -24,7 +25,7 @@ By the end of this lesson you will be able to do four things. None require any t
 
 ## Executive Summary
 
-An **enterprise** is a large organization built to create value at scale, divided into specialized **departments**, and held together by formal **governance** and **accountability**. That structure is the reason it needs technology (to run at scale), cybersecurity (to protect what it runs on), risk management (to decide what could go wrong and what to do about it), and auditing (to prove independently that it is actually being run the way leadership claims). Everything in this curriculum — every control, every audit test, every security measure — exists to keep this value-creating machine running and trustworthy. This first lesson builds that mental model so the rest of the course has somewhere to attach.
+An **enterprise** is a large organization built to create value at scale, divided into specialized **departments**, and held together by formal **governance** and **accountability**. That structure is the reason it needs technology (to run at scale), cybersecurity (to protect what it runs on), risk management (to decide what could go wrong and what to do about it), and auditing (to prove independently that it is actually being run the way leadership claims). Everything in this curriculum — every safeguard, every audit test, every security measure — exists to keep this value-creating machine running and trustworthy. This first lesson builds that mental model so the rest of the course has somewhere to attach.
 
 ---
 
@@ -32,7 +33,7 @@ An **enterprise** is a large organization built to create value at scale, divide
 
 Most people who enter security, IT, or audit start by learning *tools* — a firewall, a ticketing system, a testing checklist. They can configure the tool but cannot answer the one question every senior person asks: *why does this matter to the business?*
 
-That gap is expensive. Controls get deployed that no one owns. Audit findings get dismissed because they are written in technical jargon instead of business terms. Security teams ask for budget they cannot justify because they cannot connect their work to the money.
+That gap is expensive. *Controls* — the safeguards and checks built into how a business runs (you will study them properly in later lessons) — get deployed that no one owns. Audit findings get dismissed because they are written in technical jargon instead of business terms. Security teams ask for budget they cannot justify because they cannot connect their work to the money.
 
 This lesson exists to close that gap from day one. Before you protect an enterprise, you have to understand what an enterprise *is*: how it is organized, how it makes money, and who is responsible for what. Get this right and every later topic — risk, internal controls, Sarbanes-Oxley, IT general controls, audit testing — has an obvious reason to exist. Skip it, and you will spend your career memorizing controls without ever understanding them.
 
@@ -66,7 +67,7 @@ An enterprise splits its work into **business functions**, run by **departments*
 - **Audit** — independently checks that everything is being run the way leadership says it is.
 - **Executive leadership / the Board** — sets direction and is ultimately accountable to the owners.
 
-Notice that only Operations directly *makes* the value. Everything else exists to enable it, run it, protect it, or vouch for it. Keep that hierarchy of purpose in mind — it explains why security and audit are *support* functions in service of value, never ends in themselves.
+Notice that Operations is where the core product or service is actually *made*. Other functions contribute too — Sales wins the customers, for example — but most of the rest exist to enable, run, protect, or vouch for that value creation. Keep that hierarchy of purpose in mind: it explains why security and audit are *support* functions in service of value, never ends in themselves.
 
 #### Why an enterprise needs technology, security, governance, risk, and audit
 
@@ -115,10 +116,10 @@ Controlled glossary terms introduced here, grouped as the golden brief specifies
 | Tier | Terms |
 |------|-------|
 | Core | enterprise, organization, business function, department, value creation |
-| Supporting | stakeholder, operating model, headquarters, subsidiary |
-| Business | revenue, cost center, profit center, shareholder, board of directors |
-| Audit | accountability, control owner, assurance |
-| Risk | business risk, attack surface, crown jewels |
+| Supporting | stakeholder *(anyone with an interest in the enterprise)*, headquarters *(central corporate site)*, subsidiary *(a company owned by a larger parent)* |
+| Business | revenue *(money in from sales)*, cost center *(spends but doesn't directly earn, e.g. HR)*, profit center *(directly earns money)*, shareholder *(part-owner)*, board of directors *(oversees leadership for the owners)* |
+| Audit | accountability *(being answerable for an outcome)*, control owner *(person accountable for a safeguard)*, assurance *(independent confirmation something is as claimed)* |
+| Risk | business risk *(something that could harm value creation)*, attack surface *(all the ways something could be attacked)*, crown jewels *(the few most valuable assets)* |
 | Acronyms | GRC = Governance, Risk, and Compliance · P&L = Profit and Loss · ERP = Enterprise Resource Planning |
 | Advanced (previewed) | operating model, three lines model, fiduciary duty, materiality |
 
@@ -138,7 +139,7 @@ Picture a public company in the paper-and-packaging industry — the kind of pro
 **Lesson of the example:** value is created at the plant, but a problem *anywhere* — outage, fraud, safety failure — stops the money. We return to this packaging manufacturer throughout the curriculum.
 
 ### Financial Services — a regional bank
-A bank's product is essentially **trust**. That makes governance and audit visible to *everyone*. Operations processes transactions and loans; Security protects customer funds and data (the literal crown jewels); Audit and regulators continuously check solvency and honesty. A single breach or misstatement can destroy the business overnight — which is why this is the home of Sarbanes-Oxley, met later in this volume.
+A bank's product is essentially **trust**. That makes governance and audit visible to *everyone*. Operations processes transactions and loans; Security protects customer funds and data (the *crown jewels* — the assets most worth protecting); Audit and regulators continuously check solvency *(ability to cover what it owes)* and honesty. A single breach or misstatement *(an incorrect financial number)* can destroy the business overnight — which is why this is the home of **Sarbanes-Oxley (SOX)**, met later in this volume.
 
 ### Healthcare — a hospital network
 Value here is **patient outcomes and trust**, not money. Operations is clinical care; IT runs the electronic health record; Security must protect patient privacy *and* keep life-critical systems available; Audit verifies data is handled lawfully. The accountabilities are identical; the stakes are human.
@@ -194,7 +195,7 @@ No single right answer — the goal is to see the value-engine model in a real o
 
 ## Interview Prep (Enterprise IT Risk / GRC)
 
-Entry-level **GRC** (Governance, Risk, and Compliance) and IT-audit interviews often open with business-context questions like these. The headline: tie every answer back to **protecting business value**, and mention **governance and accountability**, not just size.
+Entry-level **GRC** (Governance, Risk, and Compliance) and IT-audit interviews often open with business-context questions like these. Think in three tiers: a *weak* answer is wrong or empty; an *average* answer is correct but shallow ("a big company with departments"); an *exceptional* answer ties everything back to **protecting business value** and names **governance and accountability**, not just size. Aim for exceptional.
 
 **HR — "What is an enterprise, and how is it different from a startup?"**
 *Strong:* A large organization structured into specialized functions to create value at scale, with formal governance and accountability so owners, regulators, and customers can trust it. The difference isn't just size — it's the formal structure and accountability.
@@ -258,6 +259,7 @@ This is the foundation the entire curriculum rests on. Next, in **Lesson 1.2 —
 ## Revision History
 
 - **1.0.0** — Initial production release; first canonical benchmark lesson of the Academy. Authored against the Phase 2C golden brief for 1.1. reviewBy 2029-01-01 (evergreen).
+- **1.1.0** — Senior-editor editorial review pass (see [LESSON_1_1_EDITORIAL_REVIEW.md](LESSON_1_1_EDITORIAL_REVIEW.md)). Glossed "control" and the glossary jargon terms; softened "only Operations creates value"; anchored "Sarbanes-Oxley (SOX)"; surfaced the average→exceptional interview ladder. **CERTIFIED: WebHound Enterprise Security Academy — Golden Lesson Reference v1.0** (status: published).
 
 ---
 

@@ -1,0 +1,58 @@
+{
+  "schema": "webhound.academy.graph.edges.v1",
+  "governedBy": "docs/academy/PHASE_0_ACADEMY_CONSTITUTION.md",
+  "edgeTypes": {
+    "requires": "hard prerequisite — `from` must NOT be taught before `to`. MUST be acyclic.",
+    "recommends": "soft prerequisite — helpful before `from`, not blocking.",
+    "reinforces": "spiral re-teach — `from` revisits a concept `to` at greater depth (cycles allowed/ignored in DAG check).",
+    "relatedTo": "lateral association for navigation/elaboration (non-directional intent; cycles ignored)."
+  },
+  "cycleCheckApplies": ["requires"],
+  "edges": [
+    { "from": "networking.foundations.addressing.ip-addressing", "to": "networking.foundations.models.tcp-ip-model", "type": "requires" },
+    { "from": "networking.services.dns.dns-overview", "to": "networking.foundations.addressing.ip-addressing", "type": "requires" },
+    { "from": "networking.services.dns.dns-resolution", "to": "networking.services.dns.dns-overview", "type": "requires" },
+    { "from": "networking.services.dns.dns-srv-records", "to": "networking.services.dns.dns-resolution", "type": "requires" },
+    { "from": "active-directory.foundations.overview.ad-basics", "to": "networking.services.dns.dns-overview", "type": "requires" },
+    { "from": "active-directory.foundations.structure.domains-ous-forests", "to": "active-directory.foundations.overview.ad-basics", "type": "requires" },
+    { "from": "active-directory.foundations.structure.security-groups", "to": "active-directory.foundations.structure.domains-ous-forests", "type": "requires" },
+    { "from": "active-directory.foundations.services.dc-locator", "to": "networking.services.dns.dns-srv-records", "type": "requires" },
+    { "from": "active-directory.foundations.services.dc-locator", "to": "active-directory.foundations.overview.ad-basics", "type": "requires" },
+
+    { "from": "identity.foundations.basics.authn-vs-authz", "to": "identity.foundations.basics.what-is-identity", "type": "requires" },
+    { "from": "cryptography-pki.foundations.symmetric.symmetric-encryption", "to": "identity.foundations.basics.authn-vs-authz", "type": "requires" },
+    { "from": "authentication.foundations.factors.authentication-factors", "to": "identity.foundations.basics.authn-vs-authz", "type": "requires" },
+    { "from": "authentication.protocols.kerberos.kerberos-overview", "to": "authentication.foundations.factors.authentication-factors", "type": "requires" },
+    { "from": "authentication.protocols.kerberos.kerberos-overview", "to": "cryptography-pki.foundations.symmetric.symmetric-encryption", "type": "requires" },
+    { "from": "authentication.protocols.kerberos.kerberos-overview", "to": "active-directory.foundations.overview.ad-basics", "type": "requires" },
+    { "from": "authentication.protocols.kerberos.kdc-as-tgs", "to": "authentication.protocols.kerberos.kerberos-overview", "type": "requires" },
+    { "from": "authentication.protocols.kerberos.tgt", "to": "authentication.protocols.kerberos.kdc-as-tgs", "type": "requires" },
+    { "from": "authentication.protocols.kerberos.service-ticket", "to": "authentication.protocols.kerberos.tgt", "type": "requires" },
+    { "from": "authentication.protocols.kerberos.pac", "to": "authentication.protocols.kerberos.service-ticket", "type": "requires" },
+    { "from": "authentication.protocols.kerberos.kerberos-attacks", "to": "authentication.protocols.kerberos.pac", "type": "requires" },
+
+    { "from": "sox.foundations.overview.icfr", "to": "sox.foundations.overview.what-is-sox", "type": "requires" },
+    { "from": "coso.framework.components.coso-five-components", "to": "sox.foundations.overview.icfr", "type": "requires" },
+    { "from": "itgc.foundations.overview.itgc-overview", "to": "sox.foundations.overview.icfr", "type": "requires" },
+    { "from": "itgc.foundations.overview.itgc-overview", "to": "coso.framework.components.coso-five-components", "type": "requires" },
+    { "from": "itgc.access.logical-access", "to": "itgc.foundations.overview.itgc-overview", "type": "requires" },
+    { "from": "itgc.access.logical-access", "to": "identity.foundations.basics.authn-vs-authz", "type": "requires" },
+    { "from": "iam.lifecycle.provisioning-deprovisioning", "to": "active-directory.foundations.structure.security-groups", "type": "requires" },
+    { "from": "iam.lifecycle.provisioning-deprovisioning", "to": "identity.foundations.basics.authn-vs-authz", "type": "requires" },
+    { "from": "itgc.access.access-reviews", "to": "iam.lifecycle.provisioning-deprovisioning", "type": "requires" },
+    { "from": "itgc.access.access-reviews", "to": "itgc.access.logical-access", "type": "requires" },
+    { "from": "audit-evidence.testing.tod-toe", "to": "itgc.foundations.overview.itgc-overview", "type": "requires" },
+    { "from": "audit-evidence.testing.populations-samples", "to": "audit-evidence.testing.tod-toe", "type": "requires" },
+    { "from": "audit-evidence.testing.exceptions-remediation", "to": "audit-evidence.testing.populations-samples", "type": "requires" },
+    { "from": "sox.testing.itgc-sox-testing", "to": "itgc.access.access-reviews", "type": "requires" },
+    { "from": "sox.testing.itgc-sox-testing", "to": "audit-evidence.testing.exceptions-remediation", "type": "requires" },
+
+    { "from": "active-directory.foundations.services.dc-locator", "to": "authentication.protocols.kerberos.kerberos-overview", "type": "relatedTo" },
+    { "from": "authentication.protocols.kerberos.kerberos-attacks", "to": "logging-siem-detection", "type": "relatedTo" },
+    { "from": "authentication.protocols.kerberos.pac", "to": "authorization", "type": "relatedTo" },
+    { "from": "active-directory.foundations.structure.security-groups", "to": "authorization", "type": "relatedTo" },
+    { "from": "itgc.access.access-reviews", "to": "audit-evidence.testing.populations-samples", "type": "relatedTo" },
+    { "from": "itgc.access.access-reviews", "to": "identity.foundations.basics.authn-vs-authz", "type": "reinforces" },
+    { "from": "sox.testing.itgc-sox-testing", "to": "vendor-risk", "type": "relatedTo" }
+  ]
+}

@@ -1,0 +1,367 @@
+{
+  "metadata": {
+    "id": "enterprise-business.v1.processes.business-processes",
+    "graphNodeId": "enterprise-business.foundations.processes.business-processes",
+    "title": "Business Processes",
+    "domain": "enterprise-business",
+    "module": "Module 1 — The Business Before the Controls",
+    "chapter": "Chapter 2 — How Work Flows",
+    "difficulty": "L1",
+    "bloom": "understand",
+    "profile": "concept-foundation",
+    "estMinutes": 40,
+    "prerequisites": ["enterprise-business.foundations.intro.what-is-an-enterprise"],
+    "relatedLessons": ["enterprise-business", "internal-audit", "risk"],
+    "volatility": "evergreen",
+    "status": "published",
+    "version": "1.0.0",
+    "authors": ["WebHound Academy"],
+    "certification": "WebHound Enterprise Security Academy — Golden Lesson Reference v1.0",
+    "reviewBy": "2029-01-01",
+    "importance": { "ent": 5, "bus": 4, "sec": 2, "aud": 3, "int": 2 }
+  },
+  "objectives": [
+    { "verb": "define", "statement": "Define a business process in terms of inputs, activities, outputs, and a process owner." },
+    { "verb": "trace", "statement": "Trace a single transaction end-to-end through a named process such as Order-to-Cash or Procure-to-Pay." },
+    { "verb": "classify", "statement": "Classify processes as core, supporting, or management, and give an example of each." },
+    { "verb": "locate", "statement": "Locate at least two control points in a process and explain what could go wrong at each." },
+    { "verb": "explain", "statement": "Explain why controls are embedded in processes, why auditors evaluate processes, and why cybersecurity protects processes — not just computers." }
+  ],
+  "sections": [
+    {
+      "key": "learningObjectives",
+      "body": "Lesson 1.1 showed you *what* an enterprise is and *why* it needs technology, security, governance, risk, and audit. This lesson zooms in on *how the work actually flows* — because that flow is where value is created and where risk, controls, and audit all attach. By the end you will be able to:",
+      "items": [
+        "Define a business process (inputs, activities, outputs, and an owner).",
+        "Trace one transaction end-to-end through a named process such as Order-to-Cash.",
+        "Classify processes as core, supporting, or management.",
+        "Locate control points in a process and say what could go wrong at each.",
+        "Explain why controls live inside processes, why auditors evaluate processes, and why cybersecurity protects processes, not just computers."
+      ]
+    },
+    {
+      "key": "executiveSummary",
+      "body": "A **business process** is a repeatable chain of work that turns an **input** into an **output** of value — the *how* behind the value creation you met in Lesson 1.1. Enterprises standardize this work into named end-to-end flows like **Order-to-Cash** (taking a customer order all the way to collecting the cash) and **Procure-to-Pay** (buying materials all the way to paying the supplier). Value, risk, and controls all live *inside* these flows — and especially at the **handoffs** where work passes between departments. Once you can see the process, everything else in this curriculum has a place to attach: a control sits at a step, a risk sits at a handoff, and an auditor follows the flow to check it works. This lesson teaches you to see the flow."
+    },
+    {
+      "key": "whyThisExists",
+      "body": "In Lesson 1.1 you learned that an enterprise creates value and that departments each play a part. But value is not created by departments sitting in isolation — it is created when work *flows across* them. A customer order is useless until Sales, Credit, Production, Shipping, and Accounting have each done their part *in sequence*.\n\nThat flow is where the money is made and where it can be lost. A control placed at the wrong step protects nothing. A risk hiding in a handoff between two departments goes unnoticed until it becomes a loss or a fraud. An audit finding that ignores the end-to-end flow misses the real exposure. And a cyberattack rarely targets \"a computer\" for its own sake — it targets the *process* the computer runs, because that is what moves money and data.\n\nSo before you can reason about a single control, risk, or audit test, you have to be able to see the process it lives in. This lesson builds that lens. Everything from Lesson 1.3 (risk) onward attaches to the flows you learn to trace here."
+    },
+    {
+      "key": "coreConcept",
+      "body": "### The one idea: value flows through processes, and risk and controls live along that flow\n\nIf you remember one thing: **value is created by transactions flowing through a process, and risk and controls live at the steps — and especially at the handoffs — along that flow.**\n\n#### What a business process is\n\nA **business process** is a repeatable set of **activities** that turns an **input** into an **output** of value. Four parts define it:\n\n- **Input** — what starts it (a customer order, a purchase request, a new hire).\n- **Activities** — the steps that do the work, in sequence.\n- **Output** — the result of value (a shipped product, a paid supplier, an onboarded employee).\n- **Process owner** — the single business leader *accountable* for the whole flow working end-to-end (recall owner vs. maintainer vs. auditor from Lesson 1.1).\n\nA quick analogy: a process is an **assembly line**. Each station does one specialized job and passes the part to the next. The product is the value; the moments a part passes between workers are the **handoffs**.\n\n> **Process vs. procedure** (a common mix-up): a *process* is the whole flow of value across the enterprise; a *procedure* is the detailed step-by-step instructions for one task inside it. The process is the assembly line; a procedure is the work instruction taped to one station.\n\n> **The process is NOT the software.** The same Order-to-Cash process can run on paper, in spreadsheets, or in a modern **ERP** (Enterprise Resource Planning system — the integrated software backbone you met in Lesson 1.1). Software just *executes* part of the flow; the process is the flow itself.\n\n#### Why enterprises standardize work\n\nA corner bakery can improvise. An enterprise cannot: thousands of orders, employees, and dollars move every day across many people who never speak directly. **Standardizing** work into a defined process makes it repeatable (the 10,000th order is handled like the first), scalable (new staff follow the same flow), measurable (you can see where it is slow or failing), and *controllable* (you can put a check at a known step). Standardization is what makes an enterprise trustworthy at scale.\n\n#### Three kinds of process\n\nNot all processes create value the same way. Classify them:\n\n- **Core processes** directly create and deliver value to customers — e.g. Order-to-Cash, Manufacturing. These are the value engine from Lesson 1.1, in motion.\n- **Supporting processes** enable the core — e.g. Procure-to-Pay (buying materials), Hire-to-Retire (staffing). Customers never see them, but the core stops without them.\n- **Management processes** plan, measure, and govern the others — e.g. Record-to-Report (closing the books), budgeting, performance review.\n\n#### Control points: where we check the work\n\nA **control point** is simply *a place in the process where we deliberately check something before letting the work continue* — for example, a manager approving a purchase before it is ordered. That is all you need for now: a control point is a checkpoint in the flow.\n\n*(What kinds of controls exist, and how they are designed and tested, is the subject of later lessons — Lesson 1.4 on internal controls and Lessons 1.8–1.10 on testing. Here we only learn to spot **where** a checkpoint belongs.)*\n\n#### Handoffs: where the risk hides\n\nThe riskiest places in a process are not usually the steps themselves — it is the **handoffs**, the moments work passes from one person or department to the next. That is where information gets dropped, where errors slip through, and where fraud hides, because no single person sees the whole picture. A useful instinct from day one: **when you look at a process, look hardest at the handoffs.**\n\n#### Segregation of duties: the most important handoff principle\n\nOne handoff principle is so important it has a name: **Segregation of Duties (SoD)** — *no single person should control a whole sensitive transaction end-to-end.* The classic example: the person who **orders** materials must not also be the person who **approves the payment** for them. Split across two people, fraud requires collusion and honest mistakes get caught; combined in one person, money can walk out the door unnoticed.\n\nSoD is the first concrete reason controls are *embedded in the process*: it is enforced by *who is allowed to do which step*, at the handoff. You will see SoD again and again — it is one of the most-tested ideas in audit and security.\n\n#### Why controls are embedded in processes, why auditors evaluate processes, and why cybersecurity protects processes\n\nThree payoffs that the whole rest of the curriculum builds on:\n\n1. **Controls are embedded in processes** because a control only means something *at a point in a flow* — an approval before a payment, a quality check before shipping. A control with no process step to attach to protects nothing.\n2. **Auditors evaluate processes** because to judge whether a control works, they first *walk the process* (a **walkthrough** — tracing one transaction end-to-end to confirm the flow really works as management describes). You cannot test a checkpoint without first seeing the road it sits on.\n3. **Cybersecurity protects processes, not just computers.** Attackers want what the process moves — money in Order-to-Cash, payments in Procure-to-Pay, identities in Hire-to-Retire. Securing \"a server\" matters only because of the business process running on it. Thinking in processes is what turns a technician into someone who protects the business.\n\n> **See the Diagram Specifications for the seven process visuals**, including the mandatory Order-to-Cash and Procure-to-Pay flows."
+    },
+    {
+      "key": "howItWorks",
+      "body": "### The anatomy of any process — read any flow with five questions\n\nEvery business process, however complex, can be read with the same five questions at each step. Internalize these and you can analyze a process you have never seen before:\n\n1. **What is the business purpose of this step?** (Why does it exist?)\n2. **What technology runs it?** (Where does the work happen — which system?)\n3. **What data does it create or change?** (What is the record left behind?)\n4. **What could go wrong here — and at the handoff after it?** (The risk.)\n5. **What checkpoint protects it, and what record proves it happened?** (The control point and its evidence.)\n\nThe last question is the bridge to the rest of the course: the *checkpoint* is the control (Lesson 1.4), the *record that proves it happened* is **audit evidence** (the records an auditor later uses to confirm the step occurred — studied formally in Lesson 1.10), and *what could go wrong* is risk (Lesson 1.3). You are not learning those disciplines yet — you are learning to see the hooks they hang on.\n\nThe next section walks a real end-to-end process — Order-to-Cash — applying these five questions to every step."
+    },
+    {
+      "key": "enterpriseWorkflow",
+      "body": "### End-to-end walkthrough: Order-to-Cash at a paper & packaging manufacturer\n\nMeet **Northwind Containerboard Co.** — a *fictional* large paper-and-packaging manufacturer (it makes containerboard and corrugated boxes and sells them to other businesses). It is representative of the industry only; nothing here describes any real company's internal processes. Northwind is the same *kind* of enterprise you met in Lesson 1.1, now seen in motion.\n\n**Order-to-Cash (O2C)** is Northwind's core process: it takes a customer's order all the way through to collecting the cash. Watch one order flow across the whole company. For each step: business purpose · technology · data created · risk (incl. the handoff after it) · security control (plain-language safeguard) · audit evidence (the record that proves it happened) · responsible department.\n\n| # | Step | Business purpose | Technology | Data created | Risk (step & handoff) | Security control (safeguard) | Audit evidence | Department |\n|---|------|------------------|-----------|--------------|----------------------|------------------------------|----------------|-----------|\n| 1 | **Customer order** | Capture what the customer wants to buy | CRM / order-entry portal (CRM = Customer Relationship Management) | Sales order record | Wrong/fraudulent order entered; bad data passed downstream | Authenticated customer accounts; input validation | The logged sales order with who entered it | Sales |\n| 2 | **Sales review** | Confirm price, terms, product feasibility | CRM / pricing system | Confirmed quote, pricing | Unauthorized discount; mispricing | Pricing approval limits by role | Approved quote with approver identity | Sales |\n| 3 | **Credit approval** | Check the customer can pay before committing | Credit module of the ERP | Credit decision, limit | Extending credit to a bad payer (a loss) | Required credit check above a threshold | Credit-approval record and limit | Finance (Credit) |\n| 4 | **Production scheduling** | Slot the order into plant capacity | ERP planning / scheduling | Production order, schedule | Over/under-commit capacity; missed dates | Schedule sign-off; capacity checks | Scheduled production order | Operations (Planning) |\n| 5 | **Manufacturing** | Actually make the boxes — value is created here | MES on the plant floor (MES = Manufacturing Execution System) | Production run, material usage | Off-spec output; plant-system tampering halting lines | Plant-floor system access limited to operators | Production run logs, material consumption | Operations (Plant) |\n| 6 | **Quality assurance (QA)** | Verify the product meets spec before it ships | QA/LIMS system | Inspection result, pass/fail | Defective product shipped; QA bypassed | QA sign-off required before release | QA inspection record | Operations (QA) |\n| 7 | **Inventory** | Record finished goods as available stock | WMS (WMS = Warehouse Management System) | Inventory movement record | Stock mis-recorded; shrinkage/theft | Restricted inventory adjustments | Inventory movement log | Operations (Warehouse) |\n| 8 | **Shipping** | Deliver the goods to the customer | WMS / carrier/logistics system | Shipping document, proof of delivery | Goods shipped without a valid order; lost in transit | Ship only against an approved order | Bill of lading, proof of delivery | Operations (Logistics) |\n| 9 | **Accounting (invoicing)** | Bill the customer for what shipped | ERP financials | Customer invoice | Invoice doesn't match what shipped | Invoice matched to shipment before sending | Invoice tied to shipment record | Finance (Accounting) |\n| 10 | **Accounts Receivable (AR)** | Collect and apply the cash | ERP AR module / bank feed | Payment received, cash applied | Payment misapplied or diverted; fraud | Segregation of duties: biller ≠ cash-applier | Remittance and cash-application record | Finance (AR) |\n| 11 | **Executive reporting** | Show leadership the results reliably | BI / reporting on the ERP | Management report, revenue figure | Misstated numbers; bad decisions | Reports drawn from controlled source data | The report and its data lineage | Executive / Finance |\n\n**Read the flow, not the rows.** Value is *physically created* at step 5 (Manufacturing), but the enterprise only *realizes* that value when the cash arrives at step 10 and is reported truthfully at step 11. A failure *anywhere* — a bad credit decision at step 3, a QA bypass at step 6, a diverted payment at step 10 — breaks the chain. And notice the most dangerous gaps are the **handoffs**: order→credit (committing before checking ability to pay), shipping→invoicing (shipping what was never billed), invoicing→cash (the SoD split between who bills and who collects). That is where you look first."
+    },
+    {
+      "key": "exampleManufacturing",
+      "body": "**Procure-to-Pay (P2P) at Northwind — the supporting process that feeds the core.**\n\nNorthwind cannot run Order-to-Cash without raw materials (pulp, recovered fiber, starch). **Procure-to-Pay (P2P)** is the supporting process that buys them and pays for them — and it is the classic teaching example for control points and Segregation of Duties.\n\nThe flow: a planner raises a **purchase requisition** → a manager **approves** it → Procurement issues a **purchase order (PO)** to the supplier → Receiving **confirms the goods arrived** → Accounts Payable does a **three-way match** (it checks the PO, the receipt, and the supplier's invoice all agree) → Finance **pays** the invoice.\n\nTwo handoffs carry almost all the risk:\n- **Approval → ordering:** without an approval checkpoint, anyone could order anything. The control point is the approval limit.\n- **Receipt → payment:** without the three-way match, the company could pay for goods it never received, or pay twice. The control point is the match.\n\nAnd Segregation of Duties runs through the whole thing: *the person who raises the order must not also approve it or release the payment.* Split those duties and fraud needs collusion; combine them and one person can invent a fake supplier and pay themselves. This single supporting process is why P2P shows up in nearly every audit — and why it is the first diagram you should be able to draw from memory."
+    },
+    {
+      "key": "exampleHealthcare",
+      "body": "**The same lens in another industry — Order-to-Cash at a hospital.**\n\nProcess thinking is industry-independent. A hospital's Order-to-Cash looks different on the surface but has the identical shape: *treat patient → code the treatment → submit the claim → insurer adjudicates → payment posted*. The most dangerous handoff is **treatment → coding → billing**: if the clinical work is coded wrong or the handoff to billing is dropped, the hospital both loses revenue *and* creates a compliance exposure (billing for the wrong thing). Same mental model as Northwind: value is created in the core activity (care, manufacturing), but it is only realized — and only safe — if the flow and its handoffs hold together. Learn the lens once and it transfers everywhere."
+    },
+    {
+      "key": "definitions",
+      "body": "Every term below is used later in the course with this meaning. Terms from Lesson 1.1 (enterprise, department, value creation, ERP, owner/maintainer/auditor) are assumed.",
+      "items": [
+        "**Business process** — a repeatable set of activities that turns an input into an output of value.",
+        "**Input** — what triggers and feeds a process (e.g. a customer order).",
+        "**Activities** — the sequenced steps that perform the work.",
+        "**Output** — the value the process produces (a shipped product, a paid supplier).",
+        "**Process owner** — the single business leader accountable for the whole end-to-end flow (distinct from the *system owner*, who is accountable for a piece of software the process uses).",
+        "**Transaction** — one instance flowing through a process (one order, one purchase).",
+        "**Control point** — a place in a process where something is deliberately checked before the work continues (a checkpoint). Control *types* are Lesson 1.4.",
+        "**Handoff** — the moment work passes from one person or department to the next; where most risk hides.",
+        "**Workflow** — the ordered sequence of steps and handoffs that makes up a process.",
+        "**End-to-end** — covering the whole flow from first input to final output, across all departments.",
+        "**Process map** — a diagram of a process's steps, handoffs, and control points.",
+        "**Segregation of Duties (SoD)** — the principle that no single person should control a whole sensitive transaction (e.g. the person who orders must not also pay). Treated here as a process principle; its formal place in the control framework is Lesson 1.4.",
+        "**Core / supporting / management process** — processes that respectively create value directly, enable the core, or plan and govern the others.",
+        "**Audit evidence** — the records a process leaves behind that later let an auditor confirm a step happened (studied formally in Lesson 1.10)."
+      ]
+    },
+    {
+      "key": "vocabulary",
+      "body": "Controlled glossary terms introduced in this lesson, grouped as the golden brief specifies. Acronyms are expanded at first use in the prose and here.",
+      "items": [
+        "Core: business process · input · output · activities · control point · process owner · transaction",
+        "Supporting: workflow · handoff · end-to-end · process map · core/supporting/management process",
+        "Business: Procure-to-Pay (P2P) · Order-to-Cash (O2C) · Record-to-Report (R2R) · Hire-to-Retire (H2R) · approval · purchase order (PO) · three-way match (matching PO + receipt + invoice before paying)",
+        "Audit: walkthrough (tracing one transaction end-to-end to confirm the flow) · segregation of duties · control point · audit evidence (forward-pointer to Lesson 1.10)",
+        "Risk: process risk · handoff risk · single point of failure (one person/step whose failure breaks the whole flow)",
+        "Acronyms: P2P = Procure-to-Pay · O2C = Order-to-Cash · R2R = Record-to-Report · H2R = Hire-to-Retire · SoD = Segregation of Duties · ERP = Enterprise Resource Planning · CRM = Customer Relationship Management · MES = Manufacturing Execution System · WMS = Warehouse Management System · QA = Quality Assurance · AR = Accounts Receivable · PO = Purchase Order",
+        "Advanced (previewed, taught later): sub-process · key control vs. compensating control · risk-and-control matrix (RCM)"
+      ]
+    },
+    {
+      "key": "commonMisunderstandings",
+      "body": "The mistakes beginners reliably make when they first think about processes. Name them now.",
+      "items": [
+        "**'A business process is the software that runs it.'** No — the process is the flow of work and value; software just executes part of it. The same Order-to-Cash process can run on paper or in an ERP. Confusing the two leads people to 'fix the system' when the real problem is the flow.",
+        "**'The risk is inside the steps.'** Mostly it is at the **handoffs** between steps and departments — that is where information drops, errors slip through, and fraud hides because no one sees the whole picture.",
+        "**'Whoever runs the system owns the process.'** No — the **process owner** (accountable for the end-to-end flow) is usually a business leader, while a **system owner** is accountable for one piece of software. A process crosses many systems and many owners.",
+        "**'A control point is the same as a control.'** A control point is the *place* a check belongs; the control is the *check* performed there. This lesson teaches you to find the places; later lessons teach the checks."
+      ]
+    },
+    {
+      "key": "knowledgeCheck",
+      "body": "Answer from memory before moving on — retrieval is what makes this stick. Full answers and rationale are in the structured quiz payload.",
+      "items": [
+        "What are the four defining parts of a business process?",
+        "In Order-to-Cash, name the handoff you would watch most closely, and why.",
+        "Classify these as core / supporting / management: Manufacturing, Procure-to-Pay, Record-to-Report.",
+        "What is Segregation of Duties, and what classic P2P fraud does it prevent?",
+        "Why does cybersecurity protect processes, not just computers?"
+      ]
+    },
+    {
+      "key": "practicalExercise",
+      "body": "**Thought-exercise lab (no tools, ~15 minutes).** Reinforces understanding, not configuration. Reuse the company you mapped in Lesson 1.1 (or use Northwind).\n\nTrace **one order** through your company end-to-end, then answer the six questions auditors and security people ask about every flow:\n\n1. **Map the flow.** List the steps from first customer contact to cash collected (5–10 steps is fine). Draw arrows for the handoffs.\n2. **Identify risks.** At each step *and each handoff*, write one thing that could go wrong.\n3. **Identify control points.** Mark the 2–3 places where a checkpoint most belongs (hint: look at the handoffs first).\n4. **Identify systems.** Name the system that runs each step (CRM, ERP, MES, WMS — or 'paper/spreadsheet' if you don't know).\n5. **Identify audit evidence.** For two steps, name the record that would prove the step happened.\n6. **Identify cybersecurity responsibilities.** Pick the one step where a cyberattack would hurt the business most, and say what it would disrupt.\n\nThere is no single right answer. The goal is to *see the flow* and where risk, controls, evidence, and security attach. Keep your map — Lesson 1.3 uses it to weigh which risks matter most."
+    },
+    {
+      "key": "reflectionQuestions",
+      "body": "Pause and think (no graded answers — these build judgment):",
+      "items": [
+        "In the process you mapped, which single handoff, if it failed silently, would cause the biggest loss before anyone noticed?",
+        "Pick one step and explain why protecting its *system* really means protecting the *business process* it runs.",
+        "Where would Segregation of Duties be hardest to enforce in a small team, and what would you do about it?"
+      ]
+    },
+    {
+      "key": "interviewQuestions",
+      "body": "Process fluency is the single most common opener in enterprise IT-risk and GRC (Governance, Risk, and Compliance) interviews — 'walk me through Procure-to-Pay' separates people who memorized definitions from people who understand the business. Each item below gives a strong answer and the weak answer to avoid; the behavioral item includes a STAR (Situation, Task, Action, Result) example. Three tiers to aim through: *weak* (lists software screens), *average* (lists steps), *exceptional* (names the flow, the owner, the risky handoffs, and where a control belongs). Full payload below."
+    },
+    {
+      "key": "chapterSummary",
+      "body": "A **business process** is a repeatable flow of **activities** that turns an **input** into an **output** of value, owned end-to-end by a **process owner**. Enterprises **standardize** work so it is repeatable, scalable, measurable, and controllable. Processes come in three kinds — **core** (create value, e.g. Order-to-Cash), **supporting** (enable it, e.g. Procure-to-Pay, Hire-to-Retire), and **management** (govern it, e.g. Record-to-Report). Value, risk, and **control points** all live *inside* the flow — and the riskiest spots are the **handoffs** between departments, which is why **Segregation of Duties** splits sensitive steps across people. Controls are embedded in processes because a check only means something at a point in a flow; auditors evaluate processes (a **walkthrough**) before testing any control; and cybersecurity protects processes, not just computers, because the process is what moves the money and data.\n\nYou can now *see the flow*. Next, **Lesson 1.3 — Enterprise Risk** takes the risks you spotted at each step and handoff and teaches you to weigh which ones actually matter. Then Lesson 1.4 turns your control points into real controls."
+    },
+    {
+      "key": "flashcards",
+      "body": "Spaced-repetition cards for the core ideas. Full card data is in the structured flashcards payload."
+    },
+    {
+      "key": "relatedLessons",
+      "body": "Where this sits in the curriculum, from the knowledge-graph edges for this node.",
+      "items": [
+        "Previous: Lesson 1.1 — What Is an Enterprise? (the value engine these processes run).",
+        "Next: Lesson 1.3 — Enterprise Risk (weighing the risks you found at each step and handoff).",
+        "Then: Lesson 1.4 — Internal Controls (turning control points into real controls).",
+        "Related domains: Enterprise Business, Internal Audit, Risk Management."
+      ]
+    },
+    {
+      "key": "references",
+      "body": "Authoritative, beginner-appropriate sources for the concepts introduced here.",
+      "items": [
+        "APQC Process Classification Framework — the standard taxonomy of enterprise processes (core/supporting/management). https://www.apqc.org",
+        "ISO 9000:2015, *Quality management systems — Fundamentals and vocabulary* — defines 'process' and the process approach. https://www.iso.org",
+        "COSO, *Internal Control — Integrated Framework* (2013) — establishes that controls are embedded within business processes. https://www.coso.org",
+        "The IIA (Institute of Internal Auditors) — guidance on process walkthroughs as the basis for evaluating controls. https://www.theiia.org"
+      ]
+    },
+    {
+      "key": "revisionHistory",
+      "body": "Version history and review schedule (Phase 0 §18/§19).",
+      "items": [
+        "1.0.0 — Initial production release; second canonical Golden Lesson. Authored against the Phase 2C golden brief for 1.2, building directly on certified Lesson 1.1. Self-reviewed against the Golden Lesson Certification Checklist (all P1 pass, no open P2). CERTIFIED: WebHound Enterprise Security Academy — Golden Lesson Reference v1.0 (status: published). Vocabulary discipline: 'control point' and 'Segregation of Duties' introduced here per the brief; control *types* (1.4), risk scoring (1.3), audit evidence theory (1.10), SOX (1.5), ITGC (1.6) referenced only as glossed forward-pointers. reviewBy 2029-01-01 (evergreen)."
+      ]
+    }
+  ],
+  "diagrams": [
+    {
+      "kind": "process-flow",
+      "title": "Order-to-Cash (O2C) End-to-End",
+      "altText": "A left-to-right flow of eleven steps — Customer order, Sales review, Credit approval, Production scheduling, Manufacturing, QA, Inventory, Shipping, Accounting, Accounts Receivable, Executive reporting — with department bands and the riskiest handoffs (order to credit, shipping to invoicing, invoicing to cash) highlighted.",
+      "src": "diagrams/1-2/order-to-cash.mmd"
+    },
+    {
+      "kind": "process-flow",
+      "title": "Procure-to-Pay (P2P) End-to-End",
+      "altText": "A left-to-right flow — purchase requisition, approval, purchase order, goods receipt, three-way match, payment — with the approval and three-way-match control points marked and the requisition/approval/payment duties shown split across different people for Segregation of Duties.",
+      "src": "diagrams/1-2/procure-to-pay.mmd"
+    },
+    {
+      "kind": "process-flow",
+      "title": "Hire-to-Retire (H2R) End-to-End",
+      "altText": "A left-to-right flow of the employee lifecycle — requisition, hire, onboard, provision access, manage/transfer, offboard, deprovision access — with the onboarding access-grant and offboarding access-removal handoffs highlighted as the risky points.",
+      "src": "diagrams/1-2/hire-to-retire.mmd"
+    },
+    {
+      "kind": "process-flow",
+      "title": "Record-to-Report (R2R) End-to-End",
+      "altText": "A left-to-right management-process flow — capture transactions, reconcile accounts, adjust/journal entries, consolidate, close the period, produce financial reports — with the reconciliation and journal-approval control points marked.",
+      "src": "diagrams/1-2/record-to-report.mmd"
+    },
+    {
+      "kind": "swimlane",
+      "title": "Order-to-Cash Swimlane by Department",
+      "altText": "A swimlane diagram with horizontal lanes for Sales, Finance, Operations, and Executive. The Order-to-Cash steps are placed in their owning lane, and arrows crossing between lanes show the inter-department handoffs where risk concentrates.",
+      "src": "diagrams/1-2/o2c-swimlane.mmd"
+    },
+    {
+      "kind": "architecture",
+      "title": "Department Interaction Map",
+      "altText": "A map of enterprise departments — Sales, Finance, Operations, Procurement, HR, IT, Audit — as nodes, with labeled arrows showing which processes connect them (O2C links Sales-Operations-Finance; P2P links Procurement-Operations-Finance; H2R links HR-IT). Audit observes all flows.",
+      "src": "diagrams/1-2/department-interaction-map.mmd"
+    },
+    {
+      "kind": "enterprise-data-flow",
+      "title": "Enterprise Information Flow",
+      "altText": "A data-flow diagram showing how information moves between core systems — CRM to ERP to MES and WMS, and all into the BI/reporting layer — illustrating that one transaction creates data across many systems as it flows through the process.",
+      "src": "diagrams/1-2/enterprise-information-flow.mmd"
+    }
+  ],
+  "quiz": [
+    {
+      "type": "short-answer",
+      "bloom": "remember",
+      "prompt": "What are the four defining parts of a business process?",
+      "answer": "Input, activities, output, and a process owner.",
+      "rationale": "A process is defined by what starts it (input), the sequenced work (activities), the value it produces (output), and the single accountable owner. Naming only 'steps' misses input/output and especially the owner.",
+      "outcomeRef": "LO1"
+    },
+    {
+      "type": "scenario",
+      "bloom": "understand",
+      "prompt": "In Northwind's Order-to-Cash, which handoff would you watch most closely, and why?",
+      "answer": "Strong answers name a handoff and the loss it hides — e.g. invoicing→cash (where Segregation of Duties between the biller and the cash-applier prevents diverted payments), or shipping→invoicing (where goods could ship without ever being billed). The reasoning matters more than the specific pick.",
+      "rationale": "Risk concentrates at handoffs, not steps. A good answer points to a handoff and the specific failure it enables.",
+      "outcomeRef": "LO2"
+    },
+    {
+      "type": "multi-select",
+      "bloom": "understand",
+      "prompt": "Classify each as core, supporting, or management. Select the ones that are CORE (directly create/deliver customer value).",
+      "options": ["Manufacturing", "Procure-to-Pay", "Order-to-Cash", "Record-to-Report"],
+      "answer": ["Manufacturing", "Order-to-Cash"],
+      "rationale": "Manufacturing and Order-to-Cash directly create and deliver value to customers (core). Procure-to-Pay enables the core (supporting); Record-to-Report governs and reports (management).",
+      "outcomeRef": "LO3"
+    },
+    {
+      "type": "scenario",
+      "bloom": "apply",
+      "prompt": "In Procure-to-Pay, name two control points and what could go wrong at each if they were missing.",
+      "answer": "1) The approval before ordering — without it, anyone could order anything (uncontrolled spend/fraud). 2) The three-way match before payment — without it, the company could pay for goods it never received or pay an invoice twice.",
+      "rationale": "Control points belong at the risky handoffs (approval→order, receipt→payment). A strong answer ties each checkpoint to the specific failure it prevents.",
+      "outcomeRef": "LO4"
+    },
+    {
+      "type": "multiple-choice",
+      "bloom": "understand",
+      "prompt": "What does Segregation of Duties (SoD) prevent in Procure-to-Pay?",
+      "options": [
+        "It speeds up the process by removing approval steps.",
+        "It lets one trusted person handle the whole purchase efficiently.",
+        "It stops a single person from both ordering goods and approving their payment, which would enable fraud.",
+        "It is a type of software used to run procurement."
+      ],
+      "answer": "It stops a single person from both ordering goods and approving their payment, which would enable fraud.",
+      "rationale": "SoD splits a sensitive transaction across people so fraud requires collusion and errors get caught. It is a principle enforced at the handoff, not software or a speed optimization.",
+      "outcomeRef": "LO4"
+    },
+    {
+      "type": "short-answer",
+      "bloom": "understand",
+      "prompt": "Why does cybersecurity protect business processes, not just computers?",
+      "answer": "Because attackers want what the process moves — money in Order-to-Cash, payments in Procure-to-Pay, identities in Hire-to-Retire. Securing a system matters only because of the business process running on it; protecting the process is the real goal.",
+      "rationale": "This connects security to business value (the Lesson 1.1 mental model). A weak answer talks only about 'protecting servers' with no business reason.",
+      "outcomeRef": "LO5"
+    }
+  ],
+  "flashcards": [
+    {
+      "front": "What is a business process (and its four parts)?",
+      "back": "A repeatable set of activities that turns an input into an output of value. Four parts: input, activities, output, process owner.",
+      "difficulty": "L1",
+      "tags": ["process", "foundation"],
+      "memoryAid": "Assembly line: input in, value out.",
+      "commonConfusion": "The process is NOT the software that runs it.",
+      "related": ["enterprise-business"]
+    },
+    {
+      "front": "Where does most risk live in a process?",
+      "back": "At the handoffs — where work passes between people/departments and no one sees the whole picture.",
+      "difficulty": "L1",
+      "tags": ["risk", "handoff"],
+      "memoryAid": "Look hardest at the handoffs.",
+      "related": ["enterprise-business", "risk"]
+    },
+    {
+      "front": "What is Segregation of Duties (SoD)?",
+      "back": "No single person should control a whole sensitive transaction — e.g. the one who orders must not also approve the payment. Split it so fraud needs collusion.",
+      "difficulty": "L1",
+      "tags": ["SoD", "control"],
+      "memoryAid": "Orderer ≠ payer.",
+      "commonConfusion": "It's a process principle here; its formal control-framework role is Lesson 1.4.",
+      "related": ["internal-audit"]
+    },
+    {
+      "front": "Core vs supporting vs management process?",
+      "back": "Core creates/delivers customer value (O2C, Manufacturing); supporting enables the core (P2P, H2R); management plans and governs (R2R, budgeting).",
+      "difficulty": "L1",
+      "tags": ["process-types"],
+      "memoryAid": "Create / enable / govern.",
+      "related": ["enterprise-business"]
+    },
+    {
+      "front": "What is a control point (vs a control)?",
+      "back": "A control point is the place in a process where something is checked before work continues. The control is the check itself. This lesson finds the places; Lesson 1.4 teaches the checks.",
+      "difficulty": "L1",
+      "tags": ["control-point"],
+      "commonConfusion": "Control point = the spot; control = the check.",
+      "related": ["coso"]
+    },
+    {
+      "front": "What is a walkthrough?",
+      "back": "Tracing one transaction end-to-end through a process to confirm the flow really works as described — what auditors do before testing any control.",
+      "difficulty": "L1",
+      "tags": ["audit", "walkthrough"],
+      "memoryAid": "Follow one order all the way through.",
+      "related": ["internal-audit", "audit-evidence"]
+    }
+  ],
+  "interview": [
+    {
+      "category": "technical",
+      "question": "Walk me through the Procure-to-Pay process.",
+      "strongAnswer": "P2P starts with a purchase requisition, which a manager approves; Procurement then issues a purchase order to the supplier; Receiving confirms the goods arrived; Accounts Payable performs a three-way match — checking the PO, the receipt, and the invoice agree — and only then is the invoice paid. The owner is a procurement/finance leader accountable end-to-end. The riskiest handoffs are approval→ordering and receipt→payment, which is why we segregate who can order from who can pay, and put control points at the approval and the three-way match.",
+      "weakAnswerExample": "You go into the system, create a PO, and it gets paid.",
+      "followUps": ["What could go wrong between approval and payment?", "Who should NOT be allowed to do which steps?"]
+    },
+    {
+      "category": "technical",
+      "question": "What is a process owner, and why does it matter for audit and risk?",
+      "strongAnswer": "A process owner is the single business leader accountable for an end-to-end flow working — not the person who runs a system, but the one answerable for the whole Order-to-Cash or Procure-to-Pay. It matters because audit and risk need a clear accountable party: someone who owns the control points, can explain the flow in a walkthrough, and is responsible when a handoff fails. Without a process owner, gaps between departments belong to no one.",
+      "weakAnswerExample": "It's whoever administers the ERP.",
+      "followUps": ["How is a process owner different from a system owner?", "Who owns the risk in a handoff between two departments?"]
+    },
+    {
+      "category": "scenario",
+      "question": "A company ships products but sometimes never invoices them, losing revenue. Where in the process is the problem, and how would you think about it?",
+      "strongAnswer": "This is a broken handoff between Shipping and Accounting — goods leave without a matching invoice being raised. I'd trace Order-to-Cash end-to-end (a walkthrough), confirm where the shipping record is supposed to trigger invoicing, and look for a missing control point that ensures every shipment is matched to an invoice. The fix lives at the handoff, not inside either department alone.",
+      "weakAnswerExample": "The accounting software is buggy; they should fix it.",
+      "followUps": ["What control point would you add and where?", "What evidence would prove every shipment got invoiced?"]
+    },
+    {
+      "category": "scenario",
+      "question": "Why would a ransomware attack on the plant-floor manufacturing system be a business problem, not just an IT problem?",
+      "strongAnswer": "Because that system runs the Manufacturing step of Order-to-Cash — the step where value is physically created. If it's down, production stops, orders can't be filled, cash isn't collected, and customer commitments are missed. The attacker isn't really after 'a server'; they're after the process the server runs. Framing it as a process disruption is what lets you explain the business impact to leadership.",
+      "weakAnswerExample": "We'd restore the server from backup; it's an IT ticket.",
+      "followUps": ["Which other O2C steps would be affected downstream?", "How would you prioritize which systems to protect first?"]
+    },
+    {
+      "category": "behavioral",
+      "question": "Tell me about a time you had to understand or document how a process worked end-to-end. (Answer with STAR.)",
+      "strongAnswer": "STAR — Situation: in a previous role, invoices were frequently paid late and no one could say why. Task: I was asked to find where the delay was. Action: rather than blame a department, I traced one invoice end-to-end from receipt to payment, mapped each step and handoff, and found the delay sat at the handoff between Receiving and Accounts Payable, where goods-receipt confirmations weren't reaching AP. Result: we added a checkpoint so every receipt notified AP, and late payments dropped sharply. The lesson: the problem was a handoff no single team owned — exactly where process problems hide.",
+      "weakAnswerExample": "I just worked in accounts payable and paid invoices when they came in.",
+      "followUps": ["How did you confirm the flow actually worked that way?", "Who became accountable for that handoff afterward?"]
+    }
+  ]
+}

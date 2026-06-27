@@ -179,6 +179,10 @@ export interface LessonMetadata {
   authors: string[]
   reviewBy: string // ISO date
   importance?: { ent: Score1to5; bus: Score1to5; sec: Score1to5; aud: Score1to5; int: Score1to5 }
+  /** OPTIONAL, additive (backward-compatible): a Golden-Lesson certification stamp,
+   *  e.g. "WebHound Enterprise Security Academy — Golden Lesson Reference v1.0".
+   *  Absent on uncertified lessons; does not change any existing lesson's validity. */
+  certification?: string
 }
 export interface Lesson {
   metadata: LessonMetadata

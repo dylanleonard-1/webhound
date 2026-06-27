@@ -1,0 +1,52 @@
+{
+  "_note": "TEMPLATE EXAMPLE — NOT REAL LESSON CONTENT. Illustrates the Lesson shape for an L1 'concept-foundation' profile (CORE sections only + one recommended). Bodies are intentionally short placeholders so authors see structure, not finished prose. Real lessons are authored in Phase 2B+.",
+  "metadata": {
+    "id": "identity.identity-foundations.identity-basics.authn-vs-authz",
+    "graphNodeId": "identity.foundations.basics.authn-vs-authz",
+    "title": "Authentication vs Authorization",
+    "domain": "identity",
+    "module": "Identity Foundations",
+    "chapter": "Identity Basics",
+    "difficulty": "L1",
+    "bloom": "understand",
+    "profile": "concept-foundation",
+    "estMinutes": 15,
+    "prerequisites": ["identity.foundations.basics.what-is-identity"],
+    "relatedLessons": ["authentication.foundations.factors.authentication-factors"],
+    "volatility": "evergreen",
+    "status": "draft",
+    "version": "0.1.0",
+    "authors": ["<template>"],
+    "reviewBy": "2027-06-27",
+    "importance": { "ent": 5, "bus": 2, "sec": 5, "aud": 4, "int": 5 }
+  },
+  "objectives": [
+    { "verb": "differentiate", "statement": "Differentiate authentication from authorization in an enterprise access flow." },
+    { "verb": "classify", "statement": "Classify a given control as authentication or authorization." }
+  ],
+  "sections": [
+    { "key": "learningObjectives", "body": "[CORE] Restates the two objectives above for the learner." },
+    { "key": "whyThisExists", "body": "[CORE/WHY] Mixing up authN and authZ causes real access-control failures; this distinction underpins every access decision." },
+    { "key": "definitions", "body": "[CORE] authentication = proving identity; authorization = what an identity may do." },
+    { "key": "vocabulary", "items": ["authentication", "authorization", "credential", "permission"] },
+    { "key": "coreConcept", "body": "[CORE/one-idea] AuthN happens first (who are you?), then authZ (what may you do?)." },
+    { "key": "commonMisunderstandings", "items": ["\"Logging in\" = full access — no, login is authN; access is authZ.", "MFA is authorization — no, MFA strengthens authN."] },
+    { "key": "knowledgeCheck", "data": [] },
+    { "key": "chapterSummary", "body": "[CORE] AuthN proves identity; authZ governs actions; authN precedes authZ." },
+    { "key": "relatedLessons", "items": ["authentication.foundations.factors.authentication-factors", "authorization"] },
+    { "key": "references", "items": ["NIST SP 800-63 (Digital Identity Guidelines)"] },
+    { "key": "revisionHistory", "items": ["0.1.0 — template example skeleton"] }
+  ],
+  "diagrams": [
+    { "kind": "identity-flow", "title": "AuthN-then-AuthZ flow", "altText": "Identity proves itself, then a policy decides allowed actions.", "src": "_content/diagrams/identity/authn-then-authz.mmd" }
+  ],
+  "quiz": [
+    { "type": "recall", "bloom": "remember", "prompt": "Which comes first, authentication or authorization?", "answer": "authentication", "rationale": "You must establish identity before deciding what it may do.", "outcomeRef": "differentiate-authn-authz" }
+  ],
+  "flashcards": [
+    { "front": "Authentication vs Authorization?", "back": "AuthN = proving who you are; AuthZ = what you're allowed to do. AuthN first.", "difficulty": "L1", "tags": ["identity"], "commonConfusion": "MFA is authZ (it is authN)", "related": ["authorization"] }
+  ],
+  "interview": [
+    { "category": "technical", "question": "Explain authentication vs authorization to a non-technical stakeholder.", "strongAnswer": "Authentication is the badge proving who you are; authorization is which doors that badge opens. You authenticate first, then the system decides access.", "weakAnswerExample": "They're basically the same thing — logging in.", "followUps": ["Where does MFA fit?"] }
+  ]
+}

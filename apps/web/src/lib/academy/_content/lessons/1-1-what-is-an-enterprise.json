@@ -1,0 +1,307 @@
+{
+  "metadata": {
+    "id": "enterprise-business.v1.intro.what-is-an-enterprise",
+    "graphNodeId": "enterprise-business.foundations.intro.what-is-an-enterprise",
+    "title": "What Is an Enterprise?",
+    "domain": "enterprise-business",
+    "module": "Module 1 — The Business Before the Controls",
+    "chapter": "Chapter 1 — Orientation",
+    "difficulty": "L1",
+    "bloom": "understand",
+    "profile": "concept-foundation",
+    "estMinutes": 25,
+    "prerequisites": [],
+    "relatedLessons": ["enterprise-it", "enterprise-architecture", "governance"],
+    "volatility": "evergreen",
+    "status": "approved",
+    "version": "1.0.0",
+    "authors": ["WebHound Academy"],
+    "reviewBy": "2029-01-01",
+    "importance": { "ent": 5, "bus": 5, "sec": 2, "aud": 3, "int": 2 }
+  },
+  "objectives": [
+    { "verb": "define", "statement": "Define an enterprise and distinguish it from a small business by scale, structure, and governance." },
+    { "verb": "identify", "statement": "Identify the major functional departments (Finance, HR, IT, Security, Audit, Operations) and state what each is accountable for." },
+    { "verb": "explain", "statement": "Explain in one sentence how an enterprise creates and protects value, and why that makes it a target." },
+    { "verb": "relate", "statement": "Relate at least two security or audit activities to the business function they protect." }
+  ],
+  "sections": [
+    {
+      "key": "learningObjectives",
+      "body": "By the end of this lesson you will be able to do four things. None of them require any technical background — this is the business picture that every later lesson sits on top of.",
+      "items": [
+        "Define an enterprise and say clearly how it differs from a small business.",
+        "Name the major departments of an enterprise and what each one is accountable for.",
+        "Explain, in one sentence, how an enterprise creates and protects value — and why that makes it a target.",
+        "Connect at least two security or audit activities to the business function they exist to protect."
+      ]
+    },
+    {
+      "key": "executiveSummary",
+      "body": "An **enterprise** is a large organization built to create value at scale, divided into specialized **departments**, and held together by formal **governance** and **accountability**. That structure is the reason it needs technology (to run at scale), cybersecurity (to protect what it runs on), risk management (to decide what could go wrong and what to do about it), and auditing (to prove independently that it is actually being run the way leadership claims). Everything you will learn in this curriculum — every control, every audit test, every security measure — exists to keep this value-creating machine running and trustworthy. This first lesson builds that mental model so the rest of the course has somewhere to attach."
+    },
+    {
+      "key": "whyThisExists",
+      "body": "Most people who enter security, IT, or audit start by learning *tools* — a firewall, a ticketing system, a testing checklist. They can configure the tool but cannot answer the one question every senior person asks: *why does this matter to the business?*\n\nThat gap is expensive. Controls get deployed that no one owns. Audit findings get dismissed because they are written in technical jargon instead of business terms. Security teams ask for budget they cannot justify because they cannot connect their work to the money.\n\nThis lesson exists to close that gap from day one. Before you protect an enterprise, you have to understand what an enterprise *is*: how it is organized, how it makes money, and who is responsible for what. Get this right and every later topic — risk, internal controls, Sarbanes-Oxley, IT general controls, audit testing — has an obvious reason to exist. Skip it, and you will spend your career memorizing controls without ever understanding them."
+    },
+    {
+      "key": "coreConcept",
+      "body": "### The one idea: an enterprise is a machine for creating and protecting value\n\nIf you remember nothing else from this lesson, remember this: **an enterprise is a machine built to create and protect value, and every department, control, and audit exists to keep that machine running and trustworthy.**\n\nLet's unpack that, one piece at a time.\n\n#### A useful picture: the factory\n\nImagine a factory. Raw materials come in one end, work happens in the middle, and a finished product goes out the other end to a paying customer. Each station on the floor does one specialized job, and a floor manager makes sure the stations work together and follow the rules. An enterprise is that factory — even when it makes software or processes loans instead of physical goods. The *value* is the product. The *departments* are the stations. *Governance* is the floor manager.\n\n#### Enterprise vs. small business\n\nA corner bakery is a business: it creates value (bread) and has customers. But one or two people do everything — baking, selling, paying bills, hiring. An **enterprise** is different not just because it is bigger, but because the work is **divided into specialized functions** and held together by **formal governance and accountability**.\n\nThat distinction matters more than size. A tightly governed 200-person regulated firm behaves more like an enterprise than a chaotic 2,000-person company with no clear ownership. The defining traits are *structure*, *separation of functions*, and *accountability* — not headcount alone. (You will meet a sharper, control-specific version of this idea — *segregation of duties* — in later lessons; here we just mean that different teams do different specialized jobs.)\n\n#### The departments and what each is accountable for\n\nAn enterprise splits its work into **business functions**, run by **departments**. The common ones:\n\n- **Operations** — actually makes or delivers the product or service. This is where value is created.\n- **Finance** — handles the money: billing customers, paying suppliers, reporting results to owners.\n- **Human Resources (HR)** — hires, manages, and offboards people.\n- **Information Technology (IT)** — runs the systems everything else depends on.\n- **Security** — protects the enterprise's systems, data, and people from harm.\n- **Audit** — independently checks that everything is being run the way leadership says it is.\n- **Executive leadership / the Board** — sets direction and is ultimately accountable to the owners.\n\nNotice that only Operations directly *makes* the value. Everything else exists to enable it, run it, protect it, or vouch for it. Keep that hierarchy of purpose in mind — it explains why security and audit are *support* functions in service of value, never ends in themselves.\n\n#### Why an enterprise needs technology, security, governance, risk, and audit\n\nHere is the chain of reasoning the whole curriculum follows:\n\n1. **Why technology?** You cannot run thousands of transactions, employees, and customers on paper. An enterprise runs on systems — an **ERP** (Enterprise Resource Planning system, the software backbone that runs finance, operations, and supply chain), email, databases, directories. Technology is how value creation scales.\n2. **Why cybersecurity?** The moment value lives in systems, those systems become a target. Money, customer data, and the ability to operate are all things an attacker — or a careless insider — can steal or break. Security protects the machine.\n3. **Why governance?** With many people and departments, you need agreed rules about who decides what, who is allowed to do what, and how things are supposed to work. Governance is the rule-making that keeps a large organization coherent.\n4. **Why risk management?** You can never protect against everything, so you have to decide what could go wrong, how bad it would be, and what is worth doing about it. Risk management is how an enterprise spends its limited protection wisely.\n5. **Why auditing?** Leadership tells owners, regulators, and customers that the enterprise is well run and its numbers are trustworthy. Auditing is the *independent* check that those claims are actually true. Without it, the claims are just words.\n\n#### Three different accountabilities: owner, maintainer, auditor\n\nA recurring trap for beginners is collapsing three different roles into one. For anything important in an enterprise, ask three separate questions:\n\n- **Who owns it?** (is *accountable* for it) — like the architect who is responsible for the building's design.\n- **Who maintains it?** (*operates* it day to day) — like the building superintendent who keeps it running.\n- **Who audits it?** (*independently checks* it) — like the safety inspector who verifies it is sound.\n\nThese are deliberately separate people. The owner is accountable even though the maintainer does the daily work, and the auditor must be independent of both so the check means something. This owner / maintainer / auditor split shows up in every later lesson, so anchor it now.\n\n> **See:** Diagram 1, *The Enterprise as a Value Engine*, and Diagram 2, *Why an Enterprise Needs IT, Security, Governance, Risk, and Audit* — both specified in the diagram section below."
+    },
+    {
+      "key": "definitions",
+      "body": "Every term below is used later in the course with exactly this meaning. Read them once now; you will see them again.",
+      "items": [
+        "**Enterprise** — a large organization structured into specialized functions to create value at scale, held together by formal governance and accountability.",
+        "**Organization** — any structured group of people working toward shared goals; an enterprise is a large, formally governed organization.",
+        "**Business function** — a category of work an enterprise must do (e.g. finance, operations, IT); a department is the team that performs a function.",
+        "**Department** — the organizational unit that carries out a business function and is accountable for it.",
+        "**Value creation** — how an enterprise produces something customers will pay for; the reason the enterprise exists.",
+        "**Governance** — the system of rules, decision rights, and accountability that keeps a large organization coherent and directed.",
+        "**Accountability** — being answerable for an outcome; the accountable person owns the result even if others do the work.",
+        "**Stakeholder** — anyone with an interest in the enterprise: owners, employees, customers, regulators.",
+        "**ERP (Enterprise Resource Planning)** — the integrated software backbone that runs core functions like finance, operations, and supply chain."
+      ]
+    },
+    {
+      "key": "vocabulary",
+      "body": "These are the controlled glossary terms introduced in this lesson, grouped the way the golden brief specifies. Later lessons reuse them without redefining, so make sure they are familiar. Acronyms are expanded at first use, here and in the prose.",
+      "items": [
+        "Core: enterprise, organization, business function, department, value creation",
+        "Supporting: stakeholder, operating model, headquarters, subsidiary",
+        "Business: revenue, cost center, profit center, shareholder, board of directors",
+        "Audit: accountability, control owner, assurance",
+        "Risk: business risk, attack surface, crown jewels",
+        "Acronyms: GRC = Governance, Risk, and Compliance · P&L = Profit and Loss · ERP = Enterprise Resource Planning",
+        "Advanced (previewed, taught later): operating model, three lines model, fiduciary duty, materiality"
+      ]
+    },
+    {
+      "key": "exampleManufacturing",
+      "body": "**Industry: Manufacturing — a large public packaging maker.**\n\nPicture a public company in the paper-and-packaging industry — the kind of profile a company like Packaging Corporation of America has: a corporate headquarters, several paper mills that produce containerboard, and dozens of plants that turn that board into corrugated boxes sold to other businesses. (We will keep this example generic and public — nothing here describes any company's confidential internal processes.)\n\nMap it to the model:\n- **Operations** is the mills and plants — this is where physical value is literally manufactured.\n- **Finance** bills the business customers who buy the boxes and reports results to shareholders.\n- **IT** runs the **ERP** that ties together orders, production scheduling, and shipping across all those sites.\n- **Security** protects both the office systems *and* the plant-floor technology that keeps the machines running.\n- **Audit** checks that, for example, the company only pays for raw materials it actually received.\n\nThe lesson of the example: value is created at the plant, but a problem *anywhere* — a system outage, a fraudulent payment, a safety failure — stops the money. That is why every support function matters. We will return to this packaging manufacturer throughout the curriculum."
+    },
+    {
+      "key": "exampleFinancial",
+      "body": "**Industry: Financial Services — a regional bank.**\n\nA bank's product is unusual: it is essentially **trust**. Customers hand over their money because they believe it will be safe and available. That makes governance and audit visible to *everyone* in the company, not just a back office.\n\n- **Operations** processes transactions, loans, and accounts.\n- **Finance** manages the bank's own money and regulatory reporting.\n- **Security** protects customer funds and data — the literal crown jewels.\n- **Audit** and regulators continuously check that the bank is solvent and honest.\n\nBecause the product is trust, a single breach or misstatement can destroy the business overnight. Financial services is the industry where you will most often hear the word *control*, and it is the home of Sarbanes-Oxley, which you will meet later in this volume."
+    },
+    {
+      "key": "exampleHealthcare",
+      "body": "**Industry: Healthcare — a hospital network.**\n\nA hospital creates value by treating patients, but it sits on top of extraordinarily sensitive data: medical records.\n\n- **Operations** is clinical care — doctors, nurses, labs.\n- **IT** runs the electronic health record system that every clinician depends on.\n- **Security** must protect patient privacy *and* keep life-critical systems available.\n- **Audit** and compliance verify that patient data is handled according to law.\n\nHealthcare shows that 'value' is not always money — here it is patient outcomes and patient trust — and that the cost of a failure can be measured in harm, not just dollars. The accountabilities are the same; the stakes are human."
+    },
+    {
+      "key": "exampleGovernment",
+      "body": "**Industry: Government — a public agency.**\n\nA government agency has no shareholders and often no profit, yet it is unmistakably an enterprise: large, departmental, and intensely governed.\n\n- **Operations** delivers a public service (benefits, licensing, defense).\n- **Finance** is accountable for taxpayer money.\n- **Security** protects citizen data and critical services.\n- **Audit** answers to the public and to oversight bodies, not to investors.\n\nGovernment shows that the enterprise model does not depend on making a profit. Replace 'shareholders' with 'citizens' and 'profit' with 'public mission,' and the structure — departments, governance, accountability, audit — is identical."
+    },
+    {
+      "key": "exampleCloud",
+      "body": "**Industry: Technology — a cloud software (SaaS) company.**\n\nA technology company, such as a cloud **SaaS** (Software-as-a-Service) provider, may look very different from a factory, but the model holds.\n\n- **Operations** is engineering and the running of the service itself.\n- **Finance** handles subscription revenue.\n- **IT and Security** overlap heavily here, because the product *is* technology — protecting it is protecting the value directly.\n- **Audit** checks that customer data is handled as promised, often via independent reports customers demand before they will buy.\n\nThe technology example makes one thing vivid: even when the product is software, the enterprise is still a structured, governed, accountable organization. The same five questions — how does it create value, run, protect, decide risk, and prove trust — apply unchanged."
+    },
+    {
+      "key": "commonMisunderstandings",
+      "body": "Beginners reliably trip over the same few ideas. Name them now so they do not mislead you later.",
+      "items": [
+        "**'An enterprise is just any large company.'** Scale matters, but the real defining traits are formal structure, separation of functions, and governance/accountability. A small, tightly governed regulated firm can be more 'enterprise' than a large, chaotic one.",
+        "**'Security and audit exist for their own sake.'** They exist to protect the enterprise's ability to create and sustain value. Every control should trace back to a business reason; if you cannot name the business reason, you do not yet understand the control.",
+        "**'The owner is the person who does the work.'** No — the owner is *accountable*, the maintainer *operates*, and the auditor *independently checks*. These are deliberately different people, and confusing them is one of the most common beginner errors."
+      ]
+    },
+    {
+      "key": "knowledgeCheck",
+      "body": "Answer these from memory before moving on — retrieval is what makes the ideas stick. Full answers and rationale are in the structured quiz payload.",
+      "items": [
+        "What is the single best one-sentence definition of an enterprise?",
+        "Name three enterprise departments and what each is accountable for.",
+        "What is the difference between the owner, the maintainer, and the auditor of something?",
+        "Why does an enterprise need cybersecurity at all?"
+      ]
+    },
+    {
+      "key": "practicalExercise",
+      "body": "**Thought-exercise lab (no tools, ~5 minutes).** This is a beginner lab by design: it reinforces understanding, not technical configuration.\n\n1. Pick a company you already know well — your employer, a past job, or a well-known brand.\n2. On paper, list its major departments. Aim for at least five.\n3. For each department, write one sentence: *what is this department accountable for, and what would go wrong for the business if it failed?*\n4. Now pick one department and name one thing the Security or Audit function does to protect it.\n\nThere is no single right answer. The goal is to see the value-engine model in a real organization you understand. Keep your notes — you will extend this same company in Lesson 1.2 when we trace how its work actually flows."
+    },
+    {
+      "key": "reflectionQuestions",
+      "body": "Pause and think (these have no graded answer — they build judgment):",
+      "items": [
+        "In the organization you just mapped, which single department's failure would hurt the business fastest, and why?",
+        "Can you describe, to a non-technical friend, why your future role protects the business — without using any technical jargon?",
+        "Where in your example do the owner, maintainer, and auditor roles separate, and where do they get blurred together?"
+      ]
+    },
+    {
+      "key": "interviewQuestions",
+      "body": "Entry-level **GRC** (Governance, Risk, and Compliance) and IT-audit interviews very often open with business-context questions exactly like these — they are how an interviewer checks whether you understand the business you would be protecting. Full strong/weak answers are in the structured interview payload below. The headline: always tie your answer back to protecting business value, and mention governance and accountability, not just size."
+    },
+    {
+      "key": "chapterSummary",
+      "body": "An **enterprise** is a machine for creating and protecting value: a large organization divided into specialized **departments**, held together by formal **governance** and **accountability**. It differs from a small business not mainly by size but by *structure* and *accountability*. It needs **technology** to run at scale, **cybersecurity** to protect what it runs on, **governance** to stay coherent, **risk management** to spend protection wisely, and **auditing** to prove independently that it is run as claimed. For anything important, three roles stay separate: the **owner** (accountable), the **maintainer** (operates), and the **auditor** (independently checks).\n\nThis is the foundation the entire curriculum rests on. Next, in **Lesson 1.2 — Business Processes**, we zoom in on *how the work actually flows* through these departments, because that is where risk and controls live. Every later lesson — risk, internal controls, SOX, IT general controls, audit testing — is ultimately about protecting the value engine you just learned to see."
+    },
+    {
+      "key": "flashcards",
+      "body": "Spaced-repetition cards for the core ideas. Full card data is in the structured flashcards payload."
+    },
+    {
+      "key": "relatedLessons",
+      "body": "Where to go from here, drawn from the knowledge-graph edges for this node.",
+      "items": [
+        "Next: Lesson 1.2 — Business Processes (how work flows through the departments).",
+        "Then: Lesson 1.3 — Enterprise Risk (what threatens the value engine).",
+        "Related domains: Enterprise IT, Enterprise Architecture, Governance."
+      ]
+    },
+    {
+      "key": "references",
+      "body": "Authoritative, beginner-appropriate sources for the concepts introduced here.",
+      "items": [
+        "COSO, *Internal Control — Integrated Framework* (2013) — the standard reference for governance and internal control over an enterprise. https://www.coso.org",
+        "The IIA (Institute of Internal Auditors), *The Three Lines Model* (2020) — the canonical description of how owning, managing, and independently assuring responsibilities separate. https://www.theiia.org",
+        "U.S. Securities and Exchange Commission — overview of what a public company is and what it must report to shareholders. https://www.sec.gov",
+        "Packaging Corporation of America — public investor materials illustrate a real corporate/mill/plant manufacturing structure (used here only as a public, generic profile). https://www.packagingcorp.com"
+      ]
+    },
+    {
+      "key": "revisionHistory",
+      "body": "Version history and review schedule (Phase 0 §18/§19).",
+      "items": [
+        "1.0.0 — Initial production release; first canonical benchmark lesson of the Academy. Authored against the Phase 2C golden brief for 1.1. reviewBy 2029-01-01 (evergreen)."
+      ]
+    }
+  ],
+  "diagrams": [
+    {
+      "kind": "architecture",
+      "title": "The Enterprise as a Value Engine",
+      "altText": "A central core labeled 'Value Creation + Governance' with the departments Operations, Finance, HR, IT, Security, and Audit arranged around it, each with an arrow pointing inward to show they all serve the shared core. Executive leadership and the Board sit above, accountable for the whole.",
+      "src": "diagrams/1-1/enterprise-value-engine.mmd"
+    },
+    {
+      "kind": "architecture",
+      "title": "Why an Enterprise Needs IT, Security, Governance, Risk, and Audit",
+      "altText": "Concentric layers around a center labeled 'Value'. Innermost ring: Technology (runs value at scale). Next: Cybersecurity (protects the systems). Next: Governance and Risk (rules and decisions). Outermost: Audit (independent assurance). Arrows show each outer layer protecting or vouching for the layers inside it.",
+      "src": "diagrams/1-1/protect-the-value-engine.mmd"
+    }
+  ],
+  "quiz": [
+    {
+      "type": "short-answer",
+      "bloom": "remember",
+      "prompt": "In one sentence, what is an enterprise?",
+      "answer": "A large organization structured into specialized functions to create value at scale, held together by formal governance and accountability.",
+      "rationale": "A strong answer names structure, value creation, and governance/accountability — not just size. Defining an enterprise purely as 'a big company' misses the defining traits.",
+      "outcomeRef": "LO1"
+    },
+    {
+      "type": "multiple-choice",
+      "bloom": "understand",
+      "prompt": "Which statement best distinguishes an enterprise from a small business?",
+      "options": [
+        "An enterprise always has more than 1,000 employees.",
+        "An enterprise divides work into specialized functions held together by formal governance and accountability.",
+        "An enterprise is always profitable.",
+        "An enterprise never uses technology from small vendors."
+      ],
+      "answer": "An enterprise divides work into specialized functions held together by formal governance and accountability.",
+      "rationale": "Size alone does not define an enterprise; a tightly governed small firm can be more 'enterprise' than a large chaotic one. Profit is not required (see the government example), and vendor choice is irrelevant.",
+      "outcomeRef": "LO1"
+    },
+    {
+      "type": "multi-select",
+      "bloom": "understand",
+      "prompt": "Which of the following are enterprise departments, and which are accountable for creating value directly? Select all that directly CREATE value.",
+      "options": ["Operations", "Finance", "Security", "Audit"],
+      "answer": ["Operations"],
+      "rationale": "Only Operations directly makes or delivers the product/service. Finance, Security, and Audit are essential support functions that enable, protect, or vouch for value creation — they do not create it directly. Recognizing this hierarchy of purpose is the point.",
+      "outcomeRef": "LO2"
+    },
+    {
+      "type": "scenario",
+      "bloom": "apply",
+      "prompt": "At the packaging manufacturer, the Finance department pays suppliers. Name one thing the Audit function might do to protect Finance, and the business reason for it.",
+      "answer": "Audit can independently check that the company only paid for raw materials it actually received (e.g. matching payments to receipts). The business reason: it protects the company's money from fraud or error, keeping the reported financial results trustworthy.",
+      "rationale": "A strong answer ties an audit/security activity to the specific business function it protects AND states the business reason. Naming an activity with no business reason is the classic weak answer.",
+      "outcomeRef": "LO4"
+    },
+    {
+      "type": "recall",
+      "bloom": "understand",
+      "prompt": "Match the role to its meaning: owner, maintainer, auditor.",
+      "answer": "Owner = accountable for it; Maintainer = operates it day to day; Auditor = independently checks it.",
+      "rationale": "These three are deliberately separate. The owner stays accountable even though the maintainer does the daily work, and the auditor must be independent of both for the check to be meaningful.",
+      "outcomeRef": "LO3"
+    }
+  ],
+  "flashcards": [
+    {
+      "front": "What is an enterprise (one sentence)?",
+      "back": "A large organization structured into specialized functions to create value at scale, held together by formal governance and accountability.",
+      "difficulty": "L1",
+      "tags": ["enterprise", "foundation"],
+      "memoryAid": "Machine for creating and protecting value.",
+      "commonConfusion": "It is NOT defined by size alone — structure and governance are the real markers.",
+      "related": ["enterprise-business"]
+    },
+    {
+      "front": "Owner vs. maintainer vs. auditor?",
+      "back": "Owner = accountable for it · Maintainer = operates it day to day · Auditor = independently checks it. Deliberately three different people.",
+      "difficulty": "L1",
+      "tags": ["accountability", "governance"],
+      "memoryAid": "Architect / superintendent / safety inspector.",
+      "commonConfusion": "The owner is accountable, not necessarily the one doing the work.",
+      "related": ["governance"]
+    },
+    {
+      "front": "Why does an enterprise need cybersecurity?",
+      "back": "Because value lives in its systems, and systems are a target. Security protects the machine that creates value.",
+      "difficulty": "L1",
+      "tags": ["security", "why"],
+      "memoryAid": "Value in systems → systems are targets → protect them.",
+      "related": ["enterprise-business"]
+    },
+    {
+      "front": "Why does an enterprise need auditing?",
+      "back": "Leadership claims the enterprise is well run and its numbers are trustworthy; auditing is the INDEPENDENT check that those claims are true.",
+      "difficulty": "L1",
+      "tags": ["audit", "why"],
+      "memoryAid": "Without an independent check, a claim is just words.",
+      "related": ["governance"]
+    },
+    {
+      "front": "Which enterprise department directly creates value?",
+      "back": "Operations. Everything else (Finance, IT, Security, Audit) enables, runs, protects, or vouches for value creation.",
+      "difficulty": "L1",
+      "tags": ["departments", "value"],
+      "commonConfusion": "Support functions are essential but do not create value directly.",
+      "related": ["enterprise-business"]
+    }
+  ],
+  "interview": [
+    {
+      "category": "hr",
+      "question": "In your own words, what is an enterprise, and how is it different from a startup or small business?",
+      "strongAnswer": "An enterprise is a large organization structured into specialized functions — finance, operations, IT, security, audit — to create value at scale, with formal governance and accountability so owners, regulators, and customers can trust it. The difference from a startup isn't just size; it's the formal structure and accountability. A startup might have a few people doing everything informally; an enterprise separates responsibilities and has governance over who decides and who is accountable.",
+      "weakAnswerExample": "It's a big company with lots of employees and departments.",
+      "followUps": ["Can a small company be run like an enterprise?", "Who is ultimately accountable for how an enterprise is run?"]
+    },
+    {
+      "category": "hr",
+      "question": "Why should someone in a security or audit role care about how the business makes money?",
+      "strongAnswer": "Because security and audit exist to protect the business's ability to create and sustain value. If I understand how the company makes money, I can prioritize protecting what matters most, justify controls in business terms, and write findings that leadership will actually act on. Work that's disconnected from the business gets ignored or de-funded.",
+      "weakAnswerExample": "I just need to focus on the technical controls; the business side is someone else's job.",
+      "followUps": ["Give an example of a control that protects a specific business function.", "How would you explain a technical risk to a CFO?"]
+    },
+    {
+      "category": "technical",
+      "question": "Name a few enterprise departments and what each is responsible for. Which one actually creates value?",
+      "strongAnswer": "Operations makes or delivers the product or service — that's where value is created. Finance handles billing, payments, and reporting to owners. IT runs the systems everyone depends on, often centered on an ERP. Security protects those systems and data. Audit independently checks that everything is run as leadership claims. Only Operations creates value directly; the rest enable, run, protect, or vouch for it.",
+      "weakAnswerExample": "There's IT, HR, and finance, and they all kind of do their own thing.",
+      "followUps": ["Where does the IT department fit in protecting value?", "Why is Audit kept separate from the departments it checks?"]
+    },
+    {
+      "category": "scenario",
+      "question": "A manufacturer's plant is running fine, but its finance system is breached and payments are diverted. Is that a business problem even though production never stopped? Explain.",
+      "strongAnswer": "Yes, absolutely. Value creation isn't only the physical production — the enterprise only realizes value when it gets paid and reports results accurately. A finance breach steals money directly, can corrupt the financial results owners rely on, and damages trust with customers and regulators. A problem anywhere in the value engine — not just on the plant floor — hurts the business. That's exactly why every support function, including security over finance systems, matters.",
+      "weakAnswerExample": "Not really a big deal since the plant kept making product.",
+      "followUps": ["Who would be accountable for that finance system's security?", "What would an auditor want to check after this incident?"]
+    }
+  ]
+}

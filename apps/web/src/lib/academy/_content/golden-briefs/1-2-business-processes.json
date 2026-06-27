@@ -1,0 +1,135 @@
+{
+  "schema": "webhound.academy.lessonBrief.v1",
+  "status": "approved",
+  "volatility": "evergreen",
+  "reviewBy": "2029-01-01",
+  "identity": {
+    "lessonId": "enterprise-business.v1.processes.business-processes",
+    "graphNodeId": "enterprise-business.foundations.processes.business-processes",
+    "volume": "Volume 1 — Enterprise, Risk & Audit Foundations",
+    "module": "Module 1 — The Business Before the Controls",
+    "chapter": "Chapter 2 — How Work Flows",
+    "lesson": "1.2 Business Processes",
+    "version": "1.0.0"
+  },
+  "purpose": {
+    "whyExists": "An enterprise creates value by running repeatable business processes. Risk, controls, and audit all attach to specific points in a process, so a learner cannot understand a control until they can see the process it sits inside.",
+    "whyLearnerNeeds": "Auditors test controls within processes (Procure-to-Pay, Order-to-Cash). Without a mental model of how a transaction flows from start to finish, control testing is just box-ticking.",
+    "futureDependents": [
+      "risk.foundations.overview.enterprise-risk",
+      "coso.foundations.controls.internal-controls",
+      "itgc.foundations.overview.itgc-overview",
+      "audit-evidence.testing.tod-toe"
+    ],
+    "businessProblem": "When people don't understand the end-to-end process, controls are placed at the wrong step, risks between handoffs go unnoticed, and audit findings miss the real exposure."
+  },
+  "audience": {
+    "primaryRoles": ["grc-analyst-trainee", "it-auditor-trainee", "junior-sysadmin", "business-analyst"],
+    "level": "L1"
+  },
+  "prerequisites": {
+    "required": ["enterprise-business.foundations.intro.what-is-an-enterprise"],
+    "recommended": [],
+    "optional": []
+  },
+  "outcomes": [
+    { "verb": "define", "statement": "Define a business process in terms of inputs, activities, outputs, and a process owner.", "bloom": "remember" },
+    { "verb": "trace", "statement": "Trace a simple transaction end-to-end through a named process such as Procure-to-Pay.", "bloom": "understand" },
+    { "verb": "locate", "statement": "Locate at least two control points within a process and explain what could go wrong at each.", "bloom": "apply" },
+    { "verb": "explain", "statement": "Explain why segregation of duties matters at process handoffs.", "bloom": "understand" }
+  ],
+  "businessContext": {
+    "departments": ["Finance", "Operations", "Procurement", "IT", "Audit"],
+    "note": "Process thinking spans departments — a single Procure-to-Pay flow crosses Procurement, Operations, and Finance, which is exactly why handoffs are risky."
+  },
+  "enterpriseContext": {
+    "whereItLives": "The operational layer of the enterprise — the repeatable flows that turn inputs into delivered value and recorded transactions.",
+    "owner": "The process owner (a business leader, e.g. the Head of Procurement for P2P)",
+    "maintainer": "Operations staff and the IT teams running the systems that execute the process",
+    "auditor": "Internal Audit (process and control walkthroughs) and external auditors for financially significant processes"
+  },
+  "interviewIntel": {
+    "probability": 2,
+    "likelyQuestions": [
+      "Walk me through the Procure-to-Pay process.",
+      "Where in a process would you place a control and why?",
+      "What is a process owner and why does it matter for audit?"
+    ],
+    "traps": [
+      "Describing software screens instead of the business flow.",
+      "Forgetting handoffs between departments, where most risk lives."
+    ],
+    "strongAnswerTraits": ["Describes inputs/activities/outputs and a clear owner", "Identifies handoff risk", "Connects a control to a specific step"],
+    "weakAnswerTraits": ["Lists system features, not business steps", "No notion of who owns the process"],
+    "followUps": ["What could go wrong between approval and payment?", "How would you test that the approval step actually happens?"]
+  },
+  "vocabIntel": {
+    "core": ["business process", "input", "output", "control point", "process owner", "transaction"],
+    "supporting": ["workflow", "handoff", "end-to-end", "process map"],
+    "business": ["Procure-to-Pay (P2P)", "Order-to-Cash (O2C)", "Record-to-Report (R2R)", "approval"],
+    "audit": ["walkthrough", "segregation of duties", "control point"],
+    "risk": ["process risk", "handoff risk", "single point of failure"],
+    "acronyms": ["P2P = Procure-to-Pay", "O2C = Order-to-Cash", "R2R = Record-to-Report", "SoD = Segregation of Duties"],
+    "commonConfusion": ["process vs. procedure", "process owner vs. system owner", "control point vs. control"]
+  },
+  "misconceptions": [
+    { "misconception": "A business process is the software that runs it.", "correction": "The process is the flow of work and value; software is just a tool that executes part of it. The same process can run on paper or in an ERP." },
+    { "misconception": "Risk lives inside steps.", "correction": "Most risk lives at handoffs between steps and between departments — that's where errors and fraud slip through." }
+  ],
+  "diagramNeeds": [
+    { "kind": "process-flow", "why": "A left-to-right Procure-to-Pay flow makes inputs, activities, outputs, handoffs, and control points visible at a glance — impossible to convey as well in prose." }
+  ],
+  "labIntel": { "type": "thought-exercise", "why": "Learners map a simple P2P or O2C flow for the recurring manufacturing example and mark where a control belongs. Hands-on system work is premature; the goal is the mental model." },
+  "crossLinks": {
+    "previous": ["enterprise-business.v1.intro.what-is-an-enterprise"],
+    "future": ["risk.v1.foundations.enterprise-risk", "coso.v1.foundations.internal-controls", "audit-evidence.v1.testing.test-of-design"],
+    "related": ["enterprise-business", "internal-audit"],
+    "domains": ["enterprise-business"],
+    "vocab": ["business process", "control point", "segregation of duties"],
+    "interviewTopics": ["process-walkthrough", "segregation-of-duties"]
+  },
+  "difficultyIntel": { "bloom": "understand", "difficulty": "L1", "studyMinutes": 30, "readingMinutes": 14, "labMinutes": 8, "reviewMinutes": 8 },
+  "writingGuidance": {
+    "profile": "concept-foundation",
+    "instructions": [
+      "Carry forward the SAME manufacturing example from Lesson 1.1.",
+      "Teach the business flow before mentioning any system or ERP.",
+      "Introduce 'control point' here but do NOT teach control types yet — that is Lesson 1.4.",
+      "Introduce the term Segregation of Duties (SoD) and define it; it will be reinforced repeatedly later.",
+      "Define every acronym (P2P, O2C, R2R, SoD) at first use.",
+      "Reinforce Lesson 1.1's value-creation idea: a process is how value actually gets created."
+    ]
+  },
+  "enrichment": {
+    "mentalModel": "Value is created by transactions flowing through a process; risk and controls live at the steps and especially the handoffs along that flow.",
+    "educationalBoundaries": {
+      "inScope": ["What a process is (inputs/activities/outputs/owner)", "End-to-end tracing of one transaction", "What a control point is and where it sits", "Why handoffs are risky", "Introducing the term Segregation of Duties"],
+      "outOfScope": ["Control TYPES (preventive/detective/etc.)", "How to test a control", "Risk scoring", "ERP configuration"],
+      "deferredToFuture": ["coso.v1.foundations.internal-controls teaches control types at those points", "risk.v1.foundations.enterprise-risk teaches how to weigh what could go wrong", "audit-evidence.v1.testing.test-of-design teaches how to test the control point"]
+    },
+    "teachingStrategy": {
+      "order": ["Define process with the factory example", "Trace one purchase from request to payment", "Mark the handoffs", "Show that a control point is just a place where we check something", "Name segregation of duties at the approval/payment handoff"],
+      "whyThisSequence": "Tracing a concrete transaction first gives the learner something to point at; abstractions (control point, SoD) are then attached to a flow they can already picture, which is far stickier than defining terms cold.",
+      "analogyPoints": ["Process as an assembly line; handoffs as the moments a part passes between workers", "Segregation of duties as 'the person who orders the parts can't also sign the cheque'"],
+      "mandatoryDiagramsAt": ["The Procure-to-Pay process-flow diagram is mandatory when tracing the transaction"]
+    },
+    "industryContext": [
+      { "industry": "Manufacturing", "scenario": "Procure-to-Pay for raw materials: a planner raises a purchase order, receiving confirms delivery, Finance pays the invoice — three departments, two risky handoffs." },
+      { "industry": "Healthcare", "scenario": "Order-to-Cash for patient billing, where a missed handoff between treatment coding and billing causes both revenue loss and compliance exposure." }
+    ],
+    "auditContext": {
+      "internalAudit": "Internal Audit runs process walkthroughs to confirm the flow really works the way management describes before testing any control.",
+      "externalAudit": "External auditors scope financially significant processes (P2P, O2C, R2R) because that's where misstatement risk concentrates.",
+      "compliance": "Compliance checks that regulated steps (approvals, data handling) actually exist in the flow.",
+      "executive": "Executives care that processes are efficient and reliable enough to deliver value predictably."
+    },
+    "vocabAdvanced": ["sub-process", "key control vs. compensating control (previewed)", "process risk and control matrix (RCM, taught later)"],
+    "interviewAnswers": {
+      "averageAnswer": "'Procure-to-Pay is when you buy something and pay for it.' — technically true, no grasp of steps, owners, or risk.",
+      "exceptionalAnswer": "'P2P flows from purchase requisition through approval, receipt, and three-way match to payment. The riskiest points are the approval and payment handoffs, which is why we segregate who can order from who can pay — and that's exactly where I'd expect to test a control.'"
+    },
+    "diagramDetail": [
+      { "kind": "process-flow", "complexity": "medium", "learningObjective": "Make the end-to-end transaction flow and its handoffs concrete so the learner can later point to exactly where a control belongs." }
+    ]
+  }
+}

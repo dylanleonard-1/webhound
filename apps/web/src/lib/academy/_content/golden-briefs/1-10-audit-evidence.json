@@ -1,0 +1,139 @@
+{
+  "schema": "webhound.academy.lessonBrief.v1",
+  "status": "approved",
+  "volatility": "stable",
+  "reviewBy": "2027-06-01",
+  "identity": {
+    "lessonId": "audit-evidence.v1.foundations.audit-evidence",
+    "graphNodeId": "audit-evidence.foundations.evidence.what-is-audit-evidence",
+    "volume": "Volume 1 — Enterprise, Risk & Audit Foundations",
+    "module": "Module 5 — Proving Controls Work",
+    "chapter": "Chapter 10 — Audit Evidence",
+    "lesson": "1.10 Audit Evidence",
+    "version": "1.0.0"
+  },
+  "purpose": {
+    "whyExists": "Every audit conclusion rests on evidence. After learning to test controls (1.8–1.9), the learner must understand what makes evidence good — sufficient and appropriate — so their conclusions hold up to review and to external auditors. This lesson consolidates the testing arc.",
+    "whyLearnerNeeds": "Findings are only as strong as the evidence behind them. Knowing the types and quality of evidence is what separates a defensible work paper from a rejected one.",
+    "futureDependents": [
+      "audit-evidence.testing.populations-samples",
+      "audit-evidence.testing.exceptions-remediation",
+      "sox.testing.itgc-sox-testing"
+    ],
+    "businessProblem": "Audits fail review and external reliance is lost when evidence is insufficient, unreliable, or poorly documented; weak evidence means conclusions can't be trusted no matter how good the testing looked."
+  },
+  "audience": {
+    "primaryRoles": ["it-auditor-trainee", "it-auditor", "internal-auditor", "sox-analyst"],
+    "level": "L3"
+  },
+  "prerequisites": {
+    "required": ["audit-evidence.testing.tod-toe"],
+    "recommended": ["audit-evidence.testing.populations-samples", "itgc.foundations.overview.itgc-overview"],
+    "optional": ["coso.foundations.controls.internal-controls"]
+  },
+  "outcomes": [
+    { "verb": "define", "statement": "Define audit evidence and the twin criteria of sufficiency (quantity) and appropriateness (quality).", "bloom": "understand" },
+    { "verb": "classify", "statement": "Classify evidence-gathering techniques: inspection, observation, inquiry, reperformance, and recalculation.", "bloom": "understand" },
+    { "verb": "rank", "statement": "Rank evidence by reliability and explain what makes one source more reliable than another.", "bloom": "analyze" },
+    { "verb": "evaluate", "statement": "Evaluate whether the evidence gathered for a control test is sufficient and appropriate to support a conclusion.", "bloom": "evaluate" }
+  ],
+  "businessContext": {
+    "departments": ["Audit", "IT", "Finance", "Compliance", "Operations"],
+    "note": "Evidence quality depends on what the business can produce; the lesson links good control design (systems that log) to the availability of reliable evidence."
+  },
+  "enterpriseContext": {
+    "whereItLives": "The connective tissue of the whole audit: every walkthrough, sample, and test produces evidence captured in work papers that support the audit opinion.",
+    "owner": "The auditor (responsible for sufficient appropriate evidence) working with the control owner who supplies source records",
+    "maintainer": "Audit maintains work-paper standards and evidence retention; control owners maintain the source systems and records",
+    "auditor": "Internal Audit and, critically, external auditors and the PCAOB judge whether evidence supports the conclusions"
+  },
+  "interviewIntel": {
+    "probability": 4,
+    "likelyQuestions": [
+      "What makes audit evidence sufficient and appropriate?",
+      "Rank these by reliability: inquiry, inspection of a system-generated report, reperformance.",
+      "What's the difference between inspection, observation, and inquiry?",
+      "Why is inquiry alone usually not enough?"
+    ],
+    "traps": [
+      "Confusing sufficiency (how much) with appropriateness (how good).",
+      "Relying on inquiry alone, the weakest form of evidence."
+    ],
+    "strongAnswerTraits": ["Separates quantity from quality", "Ranks reliability by source (independent/system > internal > inquiry)", "Knows reperformance is strong, inquiry is weak"],
+    "weakAnswerTraits": ["Treats all evidence as equal", "Concludes from inquiry alone"],
+    "followUps": ["Why is a system-generated report more reliable when ITGCs are strong?", "How does evidence quality connect back to ITGCs?"]
+  },
+  "vocabIntel": {
+    "core": ["audit evidence", "sufficiency", "appropriateness", "reliability", "relevance"],
+    "supporting": ["inspection", "observation", "inquiry", "reperformance", "recalculation", "work paper"],
+    "business": ["source document", "system-generated report", "record retention"],
+    "audit": ["corroboration", "independent evidence", "audit trail", "work paper", "documentation standard"],
+    "risk": ["insufficient evidence", "unreliable evidence", "unsupported conclusion"],
+    "acronyms": ["IPE = Information Produced by the Entity", "ToD = Test of Design", "ToE = Test of Operating Effectiveness"],
+    "commonConfusion": ["sufficiency vs appropriateness", "relevance vs reliability", "inspection vs observation", "inquiry vs inspection"]
+  },
+  "misconceptions": [
+    { "misconception": "Sufficiency and appropriateness are the same thing.", "correction": "Sufficiency is the quantity of evidence; appropriateness is its quality (relevance and reliability). You need both — more of poor evidence does not make it appropriate." },
+    { "misconception": "Asking the control owner (inquiry) is enough evidence.", "correction": "Inquiry is the weakest form and rarely sufficient alone; it must be corroborated by inspection, reperformance, or other more reliable evidence." }
+  ],
+  "diagramNeeds": [
+    { "kind": "risk-matrix", "why": "A reliability ladder (independent/system-generated > internal documentary > observation > inquiry) gives learners a ranking they will use constantly when choosing evidence." },
+    { "kind": "audit-workflow", "why": "Showing evidence flowing from each test (walkthrough, sample) into the work paper that supports the conclusion ties the whole testing arc together." }
+  ],
+  "labIntel": { "type": "capstone", "why": "A capstone tying Lessons 1.4–1.9 together: given a control, its test, and a set of evidence items, learners judge sufficiency and appropriateness and assemble a defensible mini work paper. It consolidates the entire foundation track." },
+  "crossLinks": {
+    "previous": ["audit-evidence.v1.testing.test-of-operating-effectiveness"],
+    "future": ["audit-evidence.testing.populations-samples", "sox.testing.itgc-sox-testing"],
+    "related": ["audit-evidence", "internal-audit", "external-audit", "itgc"],
+    "domains": ["audit-evidence"],
+    "vocab": ["audit evidence", "sufficiency", "appropriateness", "reliability"],
+    "interviewTopics": ["audit-evidence", "evidence-reliability", "sufficient-appropriate-evidence"]
+  },
+  "difficultyIntel": { "bloom": "evaluate", "difficulty": "L3", "studyMinutes": 55, "readingMinutes": 24, "labMinutes": 22, "reviewMinutes": 13 },
+  "writingGuidance": {
+    "profile": "control-audit",
+    "instructions": [
+      "Position this as the consolidation of the testing arc (1.8–1.9): all that testing produces evidence, and evidence has a quality bar.",
+      "Teach sufficiency (quantity) and appropriateness (quality) as a paired concept; never one without the other.",
+      "Rank the techniques by reliability and explain WHY independent/system-generated beats inquiry.",
+      "Connect evidence reliability back to ITGCs from Lesson 1.6: a system-generated report is only reliable if the ITGCs over that system are sound (IPE concept).",
+      "Reuse evidence examples from the 1.8 walkthrough and 1.9 sample tests for continuity.",
+      "Define IPE, ToD, ToE at first use.",
+      "Close the volume by foreshadowing the next volume (deeper ITGC testing and the integrated SOX program)."
+    ]
+  },
+  "enrichment": {
+    "mentalModel": "An audit conclusion is only as strong as its evidence: you need enough of it (sufficient) and it must be good enough (appropriate) — and the best evidence is independent or system-generated, never just someone's word.",
+    "educationalBoundaries": {
+      "inScope": ["Definition of audit evidence", "Sufficiency vs appropriateness", "The five gathering techniques", "Reliability ranking by source", "Judging whether evidence supports a conclusion"],
+      "outOfScope": ["Formal sampling math (covered separately)", "Deficiency severity grading", "Detailed work-paper tooling/standards by firm", "Legal evidentiary standards"],
+      "deferredToFuture": ["audit-evidence.testing.populations-samples formalizes how much evidence (sufficiency) sampling yields", "audit-evidence.testing.exceptions-remediation uses evidence to support exception conclusions", "sox.testing.itgc-sox-testing applies evidence standards across the SOX program"]
+    },
+    "teachingStrategy": {
+      "order": ["Recall that 1.8–1.9 produced evidence", "Define evidence + the two criteria", "Walk the five techniques", "Rank techniques by reliability", "Tie reliability to ITGCs (IPE)", "Judge a sample set for sufficiency and appropriateness"],
+      "whyThisSequence": "Starting from the evidence the learner just generated in prior lessons makes the abstract criteria concrete. Techniques before reliability lets the ranking be applied to things already named; the ITGC/IPE link is placed near the end to reward the learner with a satisfying callback that unifies the volume.",
+      "analogyPoints": ["Sufficiency vs appropriateness as 'enough photos' vs 'in-focus photos'", "Reliability ladder as courtroom evidence: a signed contract beats hearsay", "IPE as 'a report is only trustworthy if the system that made it is trustworthy'"],
+      "mandatoryDiagramsAt": ["The evidence reliability ladder is mandatory when ranking techniques", "The evidence→work-paper→conclusion workflow is mandatory when consolidating the arc"]
+    },
+    "industryContext": [
+      { "industry": "Manufacturing", "scenario": "Evidence for the three-way match: the system-generated match report (strong, if ERP ITGCs are sound) versus the buyer's verbal assurance (weak inquiry)." },
+      { "industry": "Finance", "scenario": "Reperforming a bank reconciliation provides stronger evidence than inspecting the preparer's sign-off alone." },
+      { "industry": "Government", "scenario": "An immutable system audit log as highly reliable evidence of who approved a payment, contrasted with an emailed confirmation." }
+    ],
+    "auditContext": {
+      "internalAudit": "Internal Audit must retain sufficient appropriate evidence in work papers so conclusions survive quality review.",
+      "externalAudit": "External auditors and the PCAOB scrutinize evidence quality; insufficient or unreliable evidence is a top inspection finding.",
+      "compliance": "Compliance relies on well-evidenced testing to demonstrate control operation to regulators.",
+      "executive": "Management's SOX assessment must itself be supported by evidence that withstands external-auditor and PCAOB scrutiny."
+    },
+    "vocabAdvanced": ["information produced by the entity (IPE)", "corroborating vs contradictory evidence", "directness of evidence", "evidence hierarchy", "completeness and accuracy of reports (C&A)"],
+    "interviewAnswers": {
+      "averageAnswer": "'Audit evidence is proof the control works, like screenshots and reports.' — names artifacts but misses sufficiency vs appropriateness and reliability ranking.",
+      "exceptionalAnswer": "'Audit evidence supports the audit conclusion and must be both sufficient (enough) and appropriate (relevant and reliable). I rank reliability by source — independent or system-generated evidence and reperformance beat inquiry — and I remember that a system-generated report is only reliable if the ITGCs over that system are sound, which is the IPE concept. Inquiry alone is almost never enough.'"
+    },
+    "diagramDetail": [
+      { "kind": "risk-matrix", "complexity": "medium", "learningObjective": "Give a reliability ladder so the learner can rank any evidence type from independent/system-generated down to inquiry." },
+      { "kind": "audit-workflow", "complexity": "medium", "learningObjective": "Show evidence flowing from tests into a work paper that supports the conclusion, consolidating the 1.8–1.10 testing arc." }
+    ]
+  }
+}

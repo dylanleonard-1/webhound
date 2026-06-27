@@ -1,0 +1,140 @@
+{
+  "schema": "webhound.academy.lessonBrief.v1",
+  "status": "approved",
+  "volatility": "stable",
+  "reviewBy": "2027-06-01",
+  "identity": {
+    "lessonId": "itgc.v1.foundations.itgc-overview",
+    "graphNodeId": "itgc.foundations.overview.itgc-overview",
+    "volume": "Volume 1 — Enterprise, Risk & Audit Foundations",
+    "module": "Module 3 — The Regulatory Engine",
+    "chapter": "Chapter 6 — IT General Controls",
+    "lesson": "1.6 IT General Controls",
+    "version": "1.0.0"
+  },
+  "purpose": {
+    "whyExists": "ITGCs are the IT controls that SOX relies on to trust financial data. This lesson defines the ITGC domains (access, change, operations) and how they support the application controls that produce the numbers — the core subject of most IT-audit careers.",
+    "whyLearnerNeeds": "Almost every entry-level IT-audit task is testing an ITGC. The learner needs the domain map and the concept of reliance before they can test anything (Lessons 1.8–1.9).",
+    "futureDependents": [
+      "itgc.access.logical-access",
+      "itgc.access.access-reviews",
+      "audit-evidence.testing.tod-toe",
+      "sox.testing.itgc-sox-testing"
+    ],
+    "businessProblem": "If IT general controls are weak, the application controls and reports built on them cannot be trusted, so the entire financial-reporting control structure collapses — auditors then cannot rely on the systems and must do far more manual testing."
+  },
+  "audience": {
+    "primaryRoles": ["it-auditor-trainee", "it-auditor", "grc-analyst", "sysadmin", "control-owner"],
+    "level": "L3"
+  },
+  "prerequisites": {
+    "required": ["sox.foundations.overview.what-is-sox", "coso.foundations.controls.internal-controls"],
+    "recommended": ["sox.foundations.overview.icfr", "risk.foundations.overview.enterprise-risk"],
+    "optional": []
+  },
+  "outcomes": [
+    { "verb": "define", "statement": "Define IT General Controls and explain how they differ from application controls.", "bloom": "understand" },
+    { "verb": "list", "statement": "List the core ITGC domains (logical access, change management, IT operations) and the risk each addresses.", "bloom": "remember" },
+    { "verb": "explain", "statement": "Explain the concept of reliance — why weak ITGCs undermine trust in application controls and reports.", "bloom": "analyze" },
+    { "verb": "scope", "statement": "Determine, at a basic level, whether a system is in scope for SOX ITGC testing.", "bloom": "apply" }
+  ],
+  "businessContext": {
+    "departments": ["IT", "Audit", "Finance", "Security", "Compliance"],
+    "note": "ITGCs are owned by IT but tested for the benefit of Finance's reporting; this lesson keeps the financial-reporting purpose front and center so IT controls aren't taught as ends in themselves."
+  },
+  "enterpriseContext": {
+    "whereItLives": "The IT control layer beneath every financially significant application; ITGCs govern who can access systems, how systems change, and how they are operated.",
+    "owner": "IT management (e.g. the IT control owners for access, change, and operations)",
+    "maintainer": "System administrators, DBAs, and DevOps/change teams who operate the controls daily",
+    "auditor": "IT auditors (internal and external) test ITGCs to establish whether application controls and reports can be relied upon"
+  },
+  "interviewIntel": {
+    "probability": 5,
+    "likelyQuestions": [
+      "What are ITGCs and what are the main domains?",
+      "What's the difference between an ITGC and an application control?",
+      "Why do auditors test ITGCs before relying on automated application controls?",
+      "How do you decide if a system is in scope for SOX?"
+    ],
+    "traps": [
+      "Confusing ITGCs (pervasive, support reliance) with application controls (within one app).",
+      "Listing controls without tying them to financial-reporting reliance."
+    ],
+    "strongAnswerTraits": ["Names the three domains and their risks", "Explains reliance clearly", "Connects scoping to financial significance"],
+    "weakAnswerTraits": ["Lists tools instead of control domains", "Cannot explain why ITGCs come first"],
+    "followUps": ["If change management fails, what happens to your reliance on an automated control?", "Name an example access ITGC and the risk it covers."]
+  },
+  "vocabIntel": {
+    "core": ["IT General Controls (ITGC)", "application control", "logical access", "change management", "IT operations"],
+    "supporting": ["reliance", "in-scope system", "control domain", "privileged access", "segregation of duties"],
+    "business": ["financially significant application", "general ledger (GL)", "ERP", "financial report"],
+    "audit": ["reliance", "scoping", "benchmarking", "key report"],
+    "risk": ["unauthorized access", "unauthorized change", "processing failure"],
+    "acronyms": ["ITGC = IT General Controls", "ITAC = IT Application Control", "SoD = Segregation of Duties", "GL = General Ledger", "DBA = Database Administrator"],
+    "commonConfusion": ["ITGC vs application control", "logical access vs physical access", "change management vs incident management", "in-scope vs out-of-scope systems"]
+  },
+  "misconceptions": [
+    { "misconception": "ITGCs and application controls are the same.", "correction": "ITGCs are pervasive controls over the IT environment (access, change, operations) that support the reliable functioning of application controls, which operate within a single application (e.g. a three-way match)." },
+    { "misconception": "Every system needs ITGC testing.", "correction": "Only systems that are in scope — those supporting financially significant processes and reports — are tested for SOX; scoping is a deliberate risk-based exercise." }
+  ],
+  "diagramNeeds": [
+    { "kind": "architecture", "why": "A layered diagram (ITGC foundation → applications → reports → financial statements) shows visually why weak ITGCs undermine everything above them." },
+    { "kind": "control-matrix", "why": "A domain × risk × example-control grid gives the learner the standard ITGC map they will use on every engagement." }
+  ],
+  "labIntel": { "type": "enterprise", "why": "An enterprise-style scenario: given a small environment (an ERP, AD, a database), the learner identifies which systems are in scope and names the ITGC in each domain. This bridges concept to the real scoping work of IT audit." },
+  "crossLinks": {
+    "previous": ["sox.v1.foundations.what-is-sox"],
+    "future": ["active-directory.v1.foundations.ad-fundamentals", "audit-evidence.v1.testing.test-of-design", "audit-evidence.v1.testing.test-of-operating-effectiveness"],
+    "related": ["itgc", "cobit", "change-config-mgmt", "iam"],
+    "domains": ["itgc"],
+    "vocab": ["ITGC", "logical access", "change management", "reliance"],
+    "interviewTopics": ["itgc-domains", "itgc-vs-application-controls", "sox-scoping"]
+  },
+  "difficultyIntel": { "bloom": "analyze", "difficulty": "L3", "studyMinutes": 55, "readingMinutes": 25, "labMinutes": 20, "reviewMinutes": 12 },
+  "writingGuidance": {
+    "profile": "concept-deep",
+    "instructions": [
+      "Anchor every ITGC to the SOX reliance purpose from Lesson 1.5 — never teach ITGCs as standalone IT hygiene.",
+      "Reuse the control vocabulary from Lesson 1.4 (preventive/detective, key control) when describing each ITGC.",
+      "Teach the three domains with one concrete example control each, using the manufacturing ERP scenario.",
+      "Do NOT assume networking or deep AD knowledge — logical access is introduced conceptually; AD specifics come in Lesson 1.7.",
+      "Explain reliance with the layered-stack visual before listing controls.",
+      "Define ITGC, ITAC, GL, DBA, SoD at first use.",
+      "Set up Lesson 1.7 (Active Directory as where logical access often lives) and Lessons 1.8–1.9 (how these controls are tested)."
+    ]
+  },
+  "enrichment": {
+    "mentalModel": "ITGCs are the foundation the financial-reporting house is built on: if access, change, and operations controls are weak, nothing built on those systems can be trusted.",
+    "educationalBoundaries": {
+      "inScope": ["Definition of ITGC vs application control", "The three core domains and their risks", "The reliance concept", "Basic SOX scoping of systems"],
+      "outOfScope": ["Step-by-step testing procedures", "Active Directory mechanics (next lesson)", "COBIT framework depth", "Cloud-specific control nuances"],
+      "deferredToFuture": ["active-directory.v1.foundations.ad-fundamentals teaches where logical access is administered", "itgc.access.logical-access and access-reviews go deep on the access domain", "audit-evidence.v1.testing.* teaches how to test these controls"]
+    },
+    "teachingStrategy": {
+      "order": ["Recall SOX reliance need", "Define ITGC vs application control", "Show the layered stack (ITGC → app → report → financials)", "Walk the three domains with one example each", "Introduce scoping as a risk-based filter"],
+      "whyThisSequence": "Leading with the reliance purpose keeps IT controls tethered to financial reporting. The layered visual is shown before the domain list so learners understand WHY the domains matter before memorizing them; scoping comes last because it presupposes knowing what an ITGC is.",
+      "analogyPoints": ["ITGCs as the foundation and plumbing of a building; application controls as the locks on individual office doors", "Reliance as 'you can only trust the alarm if the wiring is sound'"],
+      "mandatoryDiagramsAt": ["The layered ITGC→application→report→financials architecture is mandatory when explaining reliance", "The ITGC domain matrix is mandatory when surveying domains"]
+    },
+    "industryContext": [
+      { "industry": "Manufacturing", "scenario": "An SAP ERP that runs procurement and revenue: access control over who can post journal entries, change control over configuration, and batch-job monitoring in operations are all in-scope ITGCs." },
+      { "industry": "Finance", "scenario": "A core banking system where privileged-access ITGCs are the difference between trustworthy and untrustworthy financial reporting." },
+      { "industry": "Technology", "scenario": "A cloud-hosted billing platform where change management via CI/CD pipelines is the key ITGC over revenue-affecting code." }
+    ],
+    "auditContext": {
+      "internalAudit": "Internal Audit tests ITGCs continuously and reports weaknesses that could undermine reliance on automated controls.",
+      "externalAudit": "External auditors test ITGCs first to decide how much they can rely on application controls and reports, directly affecting audit scope.",
+      "compliance": "Compliance confirms ITGCs satisfy SOX and related framework expectations (e.g. COBIT alignment).",
+      "executive": "IT and Finance executives are accountable for ITGCs because their failure flows straight up to ICFR and the SOX certification."
+    },
+    "vocabAdvanced": ["IT-dependent manual control", "key report / report logic testing", "benchmarking of automated controls", "privileged access management (PAM)", "control reliance strategy", "COBIT alignment"],
+    "interviewAnswers": {
+      "averageAnswer": "'ITGCs are IT controls like access and change management.' — names domains but no reliance, no scoping, no link to financial reporting.",
+      "exceptionalAnswer": "'ITGCs are pervasive controls over logical access, change management, and IT operations that support reliable application controls and reports. Auditors test them first because, without sound ITGCs, you can't rely on automated controls — a change-management failure means a previously tested automated control might no longer work. We scope ITGC testing to systems supporting financially significant processes.'"
+    },
+    "diagramDetail": [
+      { "kind": "architecture", "complexity": "high", "learningObjective": "Show the dependency stack so the learner sees that financial statements rest on reports, which rest on applications, which rest on ITGCs." },
+      { "kind": "control-matrix", "complexity": "medium", "learningObjective": "Give the standard ITGC domain → risk → example-control map the learner will reuse on every engagement." }
+    ]
+  }
+}

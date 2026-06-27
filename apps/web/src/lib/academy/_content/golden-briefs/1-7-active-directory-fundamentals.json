@@ -1,0 +1,141 @@
+{
+  "schema": "webhound.academy.lessonBrief.v1",
+  "status": "approved",
+  "volatility": "stable",
+  "reviewBy": "2027-06-01",
+  "identity": {
+    "lessonId": "active-directory.v1.foundations.ad-fundamentals",
+    "graphNodeId": "active-directory.foundations.overview.ad-basics",
+    "volume": "Volume 1 — Enterprise, Risk & Audit Foundations",
+    "module": "Module 4 — Where Access Lives",
+    "chapter": "Chapter 7 — Active Directory",
+    "lesson": "1.7 Active Directory Fundamentals",
+    "version": "1.0.0"
+  },
+  "purpose": {
+    "whyExists": "In most enterprises, the logical-access ITGC domain is implemented in Active Directory. To test access controls (Lessons 1.8–1.9), a learner must first understand what AD is, how users and groups work, and how access is granted and removed.",
+    "whyLearnerNeeds": "IT auditors test AD-based access constantly: who has admin rights, are leavers disabled, are privileged groups controlled. None of that is testable without AD fundamentals.",
+    "futureDependents": [
+      "active-directory.foundations.structure.domains-ous-forests",
+      "active-directory.foundations.structure.security-groups",
+      "itgc.access.logical-access",
+      "itgc.access.access-reviews",
+      "iam.lifecycle.provisioning-deprovisioning"
+    ],
+    "businessProblem": "When AD is misunderstood, access controls are tested superficially — stale accounts, over-privileged groups, and orphaned admin rights go unnoticed, which are exactly the access weaknesses that break ITGC reliance and ICFR."
+  },
+  "audience": {
+    "primaryRoles": ["it-auditor-trainee", "it-auditor", "sysadmin", "iam-analyst", "help-desk"],
+    "level": "L2"
+  },
+  "prerequisites": {
+    "required": ["itgc.foundations.overview.itgc-overview"],
+    "recommended": ["identity.foundations.basics.authn-vs-authz"],
+    "optional": ["networking.services.dns.dns-overview"]
+  },
+  "outcomes": [
+    { "verb": "define", "statement": "Define Active Directory as a directory service and state what it stores and controls.", "bloom": "remember" },
+    { "verb": "describe", "statement": "Describe users, security groups, domains, and OUs and how they relate.", "bloom": "understand" },
+    { "verb": "explain", "statement": "Explain how access is granted via group membership and why least privilege matters.", "bloom": "understand" },
+    { "verb": "connect", "statement": "Connect AD objects to the logical-access ITGC tests an auditor would perform.", "bloom": "apply" }
+  ],
+  "businessContext": {
+    "departments": ["IT", "Security", "Audit", "HR", "Operations"],
+    "note": "AD ties to HR through the joiner/mover/leaver lifecycle; this lesson links the technical directory to the business event (someone is hired, moves, or leaves) that should drive access change."
+  },
+  "enterpriseContext": {
+    "whereItLives": "The identity backbone of most Windows enterprises; the system of record for who exists, what groups they belong to, and therefore what they can access.",
+    "owner": "IT / Identity & Access Management team (directory owner)",
+    "maintainer": "Domain administrators and help-desk staff who create, modify, and disable accounts",
+    "auditor": "IT auditors test AD for access ITGCs: provisioning, deprovisioning, privileged access, and periodic access reviews"
+  },
+  "interviewIntel": {
+    "probability": 4,
+    "likelyQuestions": [
+      "What is Active Directory and what does it do?",
+      "What's the difference between a user, a security group, and an OU?",
+      "How is access typically granted in AD, and what is least privilege?",
+      "As an auditor, what would you check in AD for logical access?"
+    ],
+    "traps": [
+      "Confusing organizational units (administrative containers) with security groups (access grants).",
+      "Assuming deep networking/DNS knowledge is required to reason about AD access."
+    ],
+    "strongAnswerTraits": ["Cleanly separates users/groups/OUs/domains", "Explains group-based access and least privilege", "Names concrete access tests (stale accounts, privileged groups)"],
+    "weakAnswerTraits": ["Uses 'group' and 'OU' interchangeably", "Cannot connect AD to an audit test"],
+    "followUps": ["How would you find accounts that should have been disabled?", "Why is membership in Domain Admins a key control concern?"]
+  },
+  "vocabIntel": {
+    "core": ["Active Directory (AD)", "directory service", "user account", "security group", "organizational unit (OU)"],
+    "supporting": ["domain", "domain controller (DC)", "group membership", "privileged account", "least privilege"],
+    "business": ["joiner/mover/leaver", "access request", "manager approval", "role"],
+    "audit": ["privileged access", "stale/orphaned account", "access review", "provisioning/deprovisioning"],
+    "risk": ["over-privileged access", "orphaned account", "unauthorized access", "privilege creep"],
+    "acronyms": ["AD = Active Directory", "OU = Organizational Unit", "DC = Domain Controller", "GPO = Group Policy Object", "RBAC = Role-Based Access Control"],
+    "commonConfusion": ["OU vs security group", "domain vs forest", "user vs service account", "authentication vs authorization in AD"]
+  },
+  "misconceptions": [
+    { "misconception": "An organizational unit (OU) grants access.", "correction": "An OU is an administrative container for organizing and applying policy; access is granted through security group membership and permissions, not by OU placement." },
+    { "misconception": "You need to be a networking expert to audit AD access.", "correction": "Auditing logical access in AD is about accounts, groups, and lifecycle — the underlying DNS/replication plumbing matters for engineers but not for reasoning about who can access what." }
+  ],
+  "diagramNeeds": [
+    { "kind": "identity-flow", "why": "An access-grant flow (user → security group → resource permission) makes group-based access and least privilege visible, which is the crux of every access audit." },
+    { "kind": "architecture", "why": "A simple domain/OU/object hierarchy clarifies the structural vocabulary (domain, OU, group, user) learners routinely confuse." }
+  ],
+  "labIntel": { "type": "guided", "why": "A guided walkthrough of a sample AD structure — find users, inspect group membership, spot an over-privileged or stale account — builds the connect-to-audit skill without requiring a live domain." },
+  "crossLinks": {
+    "previous": ["itgc.v1.foundations.itgc-overview"],
+    "future": ["audit-evidence.v1.testing.test-of-design", "audit-evidence.v1.testing.test-of-operating-effectiveness"],
+    "related": ["active-directory", "iam", "authentication", "authorization"],
+    "domains": ["active-directory", "iam"],
+    "vocab": ["Active Directory", "security group", "organizational unit", "least privilege"],
+    "interviewTopics": ["ad-fundamentals", "logical-access-controls", "least-privilege"]
+  },
+  "difficultyIntel": { "bloom": "apply", "difficulty": "L2", "studyMinutes": 50, "readingMinutes": 24, "labMinutes": 18, "reviewMinutes": 12 },
+  "writingGuidance": {
+    "profile": "concept-standard",
+    "instructions": [
+      "Introduce AD as the implementation of the logical-access ITGC from Lesson 1.6 — keep the audit purpose central.",
+      "Explicitly DO NOT assume networking knowledge; mention DNS only as 'AD relies on it under the hood' and move on.",
+      "Reuse authN-vs-authZ if the learner has it, but re-explain briefly: AD authenticates (who) and authorizes via groups (what).",
+      "Use the manufacturing enterprise: a plant worker is hired (joiner), changes role (mover), and leaves (leaver), driving access changes.",
+      "Disambiguate OU vs security group early and repeatedly — it is the most common confusion.",
+      "Define AD, OU, DC, GPO, RBAC at first use.",
+      "Set up Lessons 1.8–1.9: the access controls you just learned are what we test for design and operating effectiveness."
+    ]
+  },
+  "enrichment": {
+    "mentalModel": "Active Directory is the enterprise's list of who exists and what groups they're in; access follows group membership, so auditing access means auditing accounts and groups over their lifecycle.",
+    "educationalBoundaries": {
+      "inScope": ["What AD is and stores", "Users, groups, OUs, domains", "Group-based access and least privilege", "Linking AD objects to access audit tests"],
+      "outOfScope": ["DNS, replication, Kerberos internals", "Group Policy depth", "Entra/Azure AD specifics", "AD attack techniques"],
+      "deferredToFuture": ["active-directory.foundations.structure.* goes deeper on domains/OUs/forests and groups", "iam.lifecycle.provisioning-deprovisioning teaches the joiner/mover/leaver controls", "itgc.access.access-reviews teaches periodic recertification", "authentication.protocols.kerberos.* covers the auth internals"]
+    },
+    "teachingStrategy": {
+      "order": ["Define AD as a directory service tied to logical access", "Introduce users and accounts", "Introduce security groups and group-based access", "Introduce OUs and domains as structure (contrast with groups)", "Connect to least privilege and to concrete audit tests"],
+      "whyThisSequence": "Accounts before groups before structure mirrors how access is actually reasoned about. OUs are introduced after groups specifically so the OU-vs-group confusion can be addressed head-on; audit tests come last to tie the technical model back to the learner's purpose.",
+      "analogyPoints": ["AD as a company phone directory that also holds the keys", "Security group as a keyring; OU as the filing drawer the employee record sits in", "Least privilege as 'only the keys you need for your job'"],
+      "mandatoryDiagramsAt": ["The user→group→resource identity-flow is mandatory when explaining group-based access", "The domain/OU/object hierarchy is mandatory when contrasting OUs and groups"]
+    },
+    "industryContext": [
+      { "industry": "Manufacturing", "scenario": "A plant operator joins, gets the 'Plant-Floor-Users' group; promoted to supervisor, gains an approval group but should lose the operator group — privilege creep if not removed." },
+      { "industry": "Healthcare", "scenario": "Clinical staff access to record systems via AD groups, where an un-disabled leaver account is both a privacy and an audit finding." },
+      { "industry": "Government", "scenario": "Tiered administrative groups in AD where membership in a high-privilege group is tightly controlled and reviewed." }
+    ],
+    "auditContext": {
+      "internalAudit": "Internal Audit checks AD for stale accounts, excessive privileged group membership, and timely deprovisioning as part of access testing.",
+      "externalAudit": "External auditors test AD-based logical access ITGCs to support reliance on the applications authenticated through it.",
+      "compliance": "Compliance confirms access aligns with least-privilege and regulatory access requirements.",
+      "executive": "IT leadership owns the directory and is accountable for the access controls that protect financially significant systems."
+    },
+    "vocabAdvanced": ["nested groups", "service account", "privileged access management (PAM)", "tiered administration", "RBAC vs ABAC", "Group Policy Object (GPO)"],
+    "interviewAnswers": {
+      "averageAnswer": "'Active Directory is where user accounts and passwords live in Windows networks.' — true but stops at authentication, misses groups, structure, and audit relevance.",
+      "exceptionalAnswer": "'AD is the directory service that holds users and groups and grants access through group membership. OUs organize objects and apply policy but don't grant access. As an auditor I'd test that access follows least privilege, that leavers are disabled promptly, and that membership in privileged groups like Domain Admins is justified and reviewed — these are the core logical-access ITGCs.'"
+    },
+    "diagramDetail": [
+      { "kind": "identity-flow", "complexity": "medium", "learningObjective": "Show that a user gets access by belonging to a security group that is granted permission on a resource, making group-based access and least privilege concrete." },
+      { "kind": "architecture", "complexity": "low", "learningObjective": "Clarify the domain → OU → object hierarchy so OUs and groups are no longer confused." }
+    ]
+  }
+}

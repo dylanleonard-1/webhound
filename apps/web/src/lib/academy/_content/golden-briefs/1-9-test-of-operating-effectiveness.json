@@ -1,0 +1,139 @@
+{
+  "schema": "webhound.academy.lessonBrief.v1",
+  "status": "approved",
+  "volatility": "stable",
+  "reviewBy": "2027-06-01",
+  "identity": {
+    "lessonId": "audit-evidence.v1.testing.test-of-operating-effectiveness",
+    "graphNodeId": "audit-evidence.testing.tod-toe",
+    "volume": "Volume 1 — Enterprise, Risk & Audit Foundations",
+    "module": "Module 5 — Proving Controls Work",
+    "chapter": "Chapter 9 — Test of Operating Effectiveness",
+    "lesson": "1.9 Test of Operating Effectiveness",
+    "version": "1.0.0"
+  },
+  "purpose": {
+    "whyExists": "Once a control's design is confirmed (Lesson 1.8), an auditor must prove it actually operated as designed throughout the period. Test of Operating Effectiveness (ToE) is how controls earn reliance, and it introduces sampling.",
+    "whyLearnerNeeds": "ToE is the bulk of day-to-day audit fieldwork. Learners must know how to choose a sample, gather evidence of operation, and handle exceptions.",
+    "futureDependents": [
+      "audit-evidence.testing.populations-samples",
+      "audit-evidence.testing.exceptions-remediation",
+      "sox.testing.itgc-sox-testing"
+    ],
+    "businessProblem": "Without operating-effectiveness testing, a control is just a claim; the organization cannot demonstrate to auditors or regulators that the control actually worked all year, not just on the day it was designed."
+  },
+  "audience": {
+    "primaryRoles": ["it-auditor-trainee", "it-auditor", "internal-auditor", "sox-analyst"],
+    "level": "L3"
+  },
+  "prerequisites": {
+    "required": ["audit-evidence.testing.tod-toe"],
+    "recommended": ["itgc.foundations.overview.itgc-overview", "coso.foundations.controls.internal-controls"],
+    "optional": ["active-directory.foundations.overview.ad-basics"]
+  },
+  "outcomes": [
+    { "verb": "define", "statement": "Define test of operating effectiveness and the question it answers (did the control operate as designed throughout the period?).", "bloom": "understand" },
+    { "verb": "select", "statement": "Select an appropriate sample based on control frequency and population.", "bloom": "apply" },
+    { "verb": "perform", "statement": "Perform attribute testing on a sample and document evidence of operation.", "bloom": "apply" },
+    { "verb": "evaluate", "statement": "Evaluate an exception: determine whether it is an isolated error or a control failure.", "bloom": "evaluate" }
+  ],
+  "businessContext": {
+    "departments": ["Audit", "IT", "Finance", "Operations", "Compliance"],
+    "note": "ToE depends on control owners producing reliable evidence; the lesson stresses that what is testable is shaped by what evidence the control naturally produces."
+  },
+  "enterpriseContext": {
+    "whereItLives": "The second stage of control testing, performed over a defined period; the largest body of audit fieldwork, documented in test work papers tied to the risk-and-control matrix.",
+    "owner": "The control owner (operates the control and supplies evidence)",
+    "maintainer": "Audit maintains the testing approach and sampling methodology",
+    "auditor": "Internal and external auditors perform ToE to conclude on whether they can rely on the control"
+  },
+  "interviewIntel": {
+    "probability": 5,
+    "likelyQuestions": [
+      "What is test of operating effectiveness?",
+      "How do you decide your sample size?",
+      "What's the difference between an exception and a control deficiency?",
+      "How does control frequency affect testing?"
+    ],
+    "traps": [
+      "Picking a sample size with no link to control frequency or population.",
+      "Treating every exception as an automatic control failure without evaluating it."
+    ],
+    "strongAnswerTraits": ["Links sample size to frequency/population", "Describes attribute testing and evidence of operation", "Evaluates exceptions before concluding"],
+    "weakAnswerTraits": ["States 'test 25' with no rationale", "Equates one exception with control failure automatically"],
+    "followUps": ["A daily control vs an annual control — how do sample sizes differ?", "You find one exception in 25 — what do you do next?"]
+  },
+  "vocabIntel": {
+    "core": ["test of operating effectiveness (ToE)", "sample", "population", "attribute testing", "exception"],
+    "supporting": ["control frequency", "evidence of operation", "reperformance", "observation", "sample size"],
+    "business": ["period under audit", "control owner", "transaction"],
+    "audit": ["attribute testing", "exception", "deviation rate", "deficiency", "reliance"],
+    "risk": ["operating failure", "deviation", "undetected error"],
+    "acronyms": ["ToE = Test of Operating Effectiveness", "ToD = Test of Design", "RCM = Risk and Control Matrix"],
+    "commonConfusion": ["exception vs deficiency", "sample vs population", "test of design vs operating effectiveness", "frequency vs sample size"]
+  },
+  "misconceptions": [
+    { "misconception": "Operating-effectiveness testing always uses a sample of 25.", "correction": "Sample size depends on control frequency and population — a daily control and an annual control require very different samples; '25' is a heuristic for certain frequencies, not a universal rule." },
+    { "misconception": "Any exception means the control has failed.", "correction": "An exception must be evaluated: it may be an isolated error within tolerance or evidence of a genuine control failure; the conclusion depends on nature, cause, and rate." }
+  ],
+  "diagramNeeds": [
+    { "kind": "decision-tree", "why": "An exception-evaluation path (exception found → isolated? → expand sample / conclude deficiency) turns the judgement into a usable procedure." },
+    { "kind": "control-matrix", "why": "A frequency → typical sample size reference table operationalizes sampling, a top interview and fieldwork topic." }
+  ],
+  "labIntel": { "type": "enterprise", "why": "An enterprise scenario: given a control's frequency and a population, learners choose a sample, test attributes against provided evidence, hit a planted exception, and decide whether it is a deficiency. This is the closest paper proxy to real fieldwork." },
+  "crossLinks": {
+    "previous": ["audit-evidence.v1.testing.test-of-design"],
+    "future": ["audit-evidence.v1.foundations.audit-evidence", "sox.testing.itgc-sox-testing"],
+    "related": ["audit-evidence", "internal-audit", "external-audit"],
+    "domains": ["audit-evidence"],
+    "vocab": ["test of operating effectiveness", "sample", "exception", "attribute testing"],
+    "interviewTopics": ["test-of-operating-effectiveness", "sampling", "exception-evaluation"]
+  },
+  "difficultyIntel": { "bloom": "evaluate", "difficulty": "L3", "studyMinutes": 60, "readingMinutes": 26, "labMinutes": 24, "reviewMinutes": 14 },
+  "writingGuidance": {
+    "profile": "control-audit",
+    "instructions": [
+      "Open by completing the pair from Lesson 1.8: design first, then operation — ToE only happens after ToD passes.",
+      "Teach sampling as a function of control frequency and population, not a magic number.",
+      "Introduce attribute testing concretely: what attribute proves the control operated on this instance?",
+      "Teach exception evaluation as judgement, distinguishing exception from deficiency explicitly.",
+      "Reuse the manufacturing three-way match and the Lesson 1.7 access controls as test subjects.",
+      "Define ToE, ToD, RCM at first use and keep contrasting ToD vs ToE.",
+      "Preview Lesson 1.10: the evidence you gather must itself be sufficient and appropriate."
+    ]
+  },
+  "enrichment": {
+    "mentalModel": "Test of Operating Effectiveness proves a well-designed control actually ran all period — sampled instance by instance — and treats each exception as a question to evaluate, not an automatic verdict.",
+    "educationalBoundaries": {
+      "inScope": ["What ToE is and the question it answers", "Sampling driven by frequency/population", "Attribute testing and evidence of operation", "Evaluating an exception vs declaring a deficiency"],
+      "outOfScope": ["Statistical sampling theory in depth", "Deficiency severity grading (with SOX)", "Remediation workflow detail", "What makes evidence sufficient/appropriate (next lesson)"],
+      "deferredToFuture": ["audit-evidence.testing.populations-samples formalizes sampling", "audit-evidence.testing.exceptions-remediation teaches the remediation loop", "audit-evidence.v1.foundations.audit-evidence teaches the quality bar for the evidence gathered", "sox.testing.itgc-sox-testing integrates this into the SOX program"]
+    },
+    "teachingStrategy": {
+      "order": ["Recall that design passed (1.8)", "State the ToE question (did it operate all period)", "Introduce population and control frequency", "Derive a sample from frequency", "Teach attribute testing on the sample", "Find an exception and evaluate it"],
+      "whyThisSequence": "Operation only matters once design is confirmed, so we start there. Frequency before sample size teaches the reasoning rather than a number; exception evaluation is last because it is the hardest, judgement-level skill and depends on everything before it.",
+      "analogyPoints": ["Sampling as a food inspector checking a representative batch, not every item", "Exception evaluation as 'one burnt cookie vs a broken oven'"],
+      "mandatoryDiagramsAt": ["The frequency→sample-size reference is mandatory when teaching sampling", "The exception-evaluation decision tree is mandatory when teaching exceptions"]
+    },
+    "industryContext": [
+      { "industry": "Manufacturing", "scenario": "Testing a daily three-way match: a large population and high frequency drive a larger sample; one mismatched payment becomes an exception to evaluate." },
+      { "industry": "Finance", "scenario": "Testing a monthly bank reconciliation (12 in the population) where the small population shapes the sample and each instance carries weight." },
+      { "industry": "Healthcare", "scenario": "Testing quarterly access reviews where evidence of operation is the signed recertification, and a missing sign-off is the exception." }
+    ],
+    "auditContext": {
+      "internalAudit": "Internal Audit performs the bulk of operating-effectiveness testing throughout the year and reports exceptions and deficiencies.",
+      "externalAudit": "External auditors re-perform or rely on ToE to conclude on control reliance for the financial-statement audit.",
+      "compliance": "Compliance uses ToE results as evidence that required controls operated throughout the period.",
+      "executive": "Operating failures in key controls can become deficiencies management must evaluate and potentially disclose under SOX."
+    },
+    "vocabAdvanced": ["statistical vs judgmental sampling", "tolerable deviation rate", "reperformance vs inspection vs observation", "rollforward testing", "deviation rate extrapolation"],
+    "interviewAnswers": {
+      "averageAnswer": "'You test a sample of the control, usually 25, and see if it worked.' — has the shape but no frequency-driven sizing and no exception judgement.",
+      "exceptionalAnswer": "'Operating-effectiveness testing proves a designed control actually ran throughout the period. I size the sample from the control's frequency and population, test each selected instance against the attribute that evidences operation, and when I find an exception I evaluate its nature and cause before deciding whether it's an isolated error or a control deficiency — possibly expanding the sample first.'"
+    },
+    "diagramDetail": [
+      { "kind": "decision-tree", "complexity": "medium", "learningObjective": "Give the learner a repeatable path from 'exception found' to a defensible conclusion (isolated error vs deficiency)." },
+      { "kind": "control-matrix", "complexity": "low", "learningObjective": "Show how control frequency maps to typical sample sizes so sampling is reasoned, not guessed." }
+    ]
+  }
+}

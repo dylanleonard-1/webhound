@@ -1,0 +1,141 @@
+{
+  "schema": "webhound.academy.lessonBrief.v1",
+  "status": "approved",
+  "volatility": "stable",
+  "reviewBy": "2027-06-01",
+  "identity": {
+    "lessonId": "sox.v1.foundations.what-is-sox",
+    "graphNodeId": "sox.foundations.overview.what-is-sox",
+    "volume": "Volume 1 — Enterprise, Risk & Audit Foundations",
+    "module": "Module 3 — The Regulatory Engine",
+    "chapter": "Chapter 5 — Sarbanes–Oxley",
+    "lesson": "1.5 Sarbanes–Oxley (SOX)",
+    "version": "1.0.0"
+  },
+  "purpose": {
+    "whyExists": "SOX is the law that turned internal control over financial reporting from good practice into a legal obligation for US public companies. It is the reason most of the audit and ITGC work in this curriculum is funded and required.",
+    "whyLearnerNeeds": "Most IT audit and GRC entry-level jobs exist because of SOX. A learner must know what SOX requires, who is accountable, and what a deficiency means before any ITGC or testing lesson makes sense.",
+    "futureDependents": [
+      "sox.foundations.overview.icfr",
+      "itgc.foundations.overview.itgc-overview",
+      "audit-evidence.testing.tod-toe",
+      "sox.testing.itgc-sox-testing"
+    ],
+    "businessProblem": "Before SOX, executives could disclaim knowledge of financial misstatement. SOX makes management personally certify the financials and the controls behind them, so unreliable controls become a legal and market problem, not just an accounting one."
+  },
+  "audience": {
+    "primaryRoles": ["it-auditor-trainee", "grc-analyst-trainee", "sox-analyst", "internal-auditor", "control-owner"],
+    "level": "L2"
+  },
+  "prerequisites": {
+    "required": ["coso.foundations.controls.internal-controls"],
+    "recommended": ["risk.foundations.overview.enterprise-risk", "enterprise-business.foundations.intro.what-is-an-enterprise"],
+    "optional": []
+  },
+  "outcomes": [
+    { "verb": "explain", "statement": "Explain in plain language what SOX is, why it was created, and who it applies to.", "bloom": "understand" },
+    { "verb": "describe", "statement": "Describe the roles of Sections 302 and 404 and what management must certify under each.", "bloom": "understand" },
+    { "verb": "define", "statement": "Define ICFR and explain why IT controls fall within its scope.", "bloom": "understand" },
+    { "verb": "differentiate", "statement": "Differentiate a control deficiency, a significant deficiency, and a material weakness by severity.", "bloom": "analyze" }
+  ],
+  "businessContext": {
+    "departments": ["Finance", "Executive", "Audit", "IT", "Compliance", "Legal"],
+    "note": "SOX is a board-and-CFO-level concern that cascades down to IT control owners; this lesson connects the executive certification to the daily control work the learner will do."
+  },
+  "enterpriseContext": {
+    "whereItLives": "The regulatory layer over financial reporting; it sets the obligation that the internal control system (Lesson 1.4) must satisfy and be tested against.",
+    "owner": "The CEO and CFO, who personally certify the financial statements and ICFR",
+    "maintainer": "The SOX program management office, control owners across Finance and IT, and Internal Audit",
+    "auditor": "External auditors attest to ICFR (Section 404(b)); the PCAOB oversees those auditors; Internal Audit supports management's 404(a) assessment"
+  },
+  "interviewIntel": {
+    "probability": 4,
+    "likelyQuestions": [
+      "What is SOX and why was it created?",
+      "What's the difference between Section 302 and Section 404?",
+      "What is a material weakness versus a significant deficiency?",
+      "Why does an IT auditor care about SOX?"
+    ],
+    "traps": [
+      "Thinking SOX is purely a finance/accounting matter with no IT relevance.",
+      "Using 'material weakness' loosely for any control problem."
+    ],
+    "strongAnswerTraits": ["Connects SOX to executive certification and ICFR", "Knows 302 (quarterly certification) vs 404 (annual ICFR assessment/attestation)", "Grades deficiencies by severity correctly"],
+    "weakAnswerTraits": ["Knows the name but not the sections", "Cannot explain why IT controls are in scope"],
+    "followUps": ["Who decides if something is a material weakness?", "How does an ITGC failure roll up to a financial statement risk?"]
+  },
+  "vocabIntel": {
+    "core": ["Sarbanes-Oxley (SOX)", "ICFR", "Section 302", "Section 404", "material weakness"],
+    "supporting": ["significant deficiency", "control deficiency", "management assertion", "certification", "attestation"],
+    "business": ["financial statements", "public company (issuer)", "investor confidence", "restatement"],
+    "audit": ["PCAOB", "external auditor attestation", "management's assessment", "scoping"],
+    "risk": ["risk of material misstatement", "financial reporting risk"],
+    "acronyms": ["SOX = Sarbanes-Oxley Act (2002)", "ICFR = Internal Control over Financial Reporting", "PCAOB = Public Company Accounting Oversight Board", "SEC = Securities and Exchange Commission"],
+    "commonConfusion": ["Section 302 vs 404", "significant deficiency vs material weakness", "management assessment (404a) vs auditor attestation (404b)", "SOX vs general compliance"]
+  },
+  "misconceptions": [
+    { "misconception": "SOX is only about accounting and has nothing to do with IT.", "correction": "Because financial data lives in IT systems, the controls over those systems (ITGCs) directly affect the reliability of financial reporting and are squarely in SOX scope." },
+    { "misconception": "Any control failure is a 'material weakness'.", "correction": "Severity is graded: a deficiency may be inconsequential, a significant deficiency warrants attention, and only a material weakness implies a reasonable possibility of a material misstatement going undetected." }
+  ],
+  "diagramNeeds": [
+    { "kind": "timeline", "why": "A brief timeline (Enron/WorldCom → SOX 2002 → PCAOB) explains WHY the law exists and anchors it in cause and effect." },
+    { "kind": "decision-tree", "why": "A severity decision path (deficiency → significant deficiency → material weakness) makes the grading criteria usable rather than memorized." }
+  ],
+  "labIntel": { "type": "case-study", "why": "A short case study of a real-style control failure, asking learners to grade its severity and trace it from an IT control up to financial-reporting impact, cements both the deficiency grading and the IT-to-financials linkage." },
+  "crossLinks": {
+    "previous": ["coso.v1.foundations.internal-controls"],
+    "future": ["itgc.v1.foundations.itgc-overview", "audit-evidence.v1.testing.test-of-design", "audit-evidence.v1.foundations.audit-evidence"],
+    "related": ["sox", "coso", "external-audit", "compliance"],
+    "domains": ["sox", "coso"],
+    "vocab": ["SOX", "ICFR", "material weakness", "Section 404"],
+    "interviewTopics": ["sox-overview", "deficiency-severity", "it-in-scope-for-sox"]
+  },
+  "difficultyIntel": { "bloom": "analyze", "difficulty": "L2", "studyMinutes": 45, "readingMinutes": 22, "labMinutes": 12, "reviewMinutes": 11 },
+  "writingGuidance": {
+    "profile": "concept-standard",
+    "instructions": [
+      "Open with WHY (the early-2000s accounting scandals) before any section numbers — motivation before mechanics.",
+      "Build on Lesson 1.4: SOX is internal control narrowed to financial reporting, with legal teeth.",
+      "Make the IT relevance explicit and early — the learner is here mostly because of SOX-driven ITGC work.",
+      "Teach deficiency severity as a graded scale, with a worked example, not as three memorized definitions.",
+      "Define SOX, ICFR, PCAOB, SEC, 302, 404 at first use.",
+      "Introduce the term ITGC only as a forward pointer to Lesson 1.6 ('the IT controls SOX relies on, covered next') — do NOT assume the learner already knows it; keep the IT relevance at the 'controls over the systems that hold financial data' level here.",
+      "Keep it US-public-company scoped; note privately-held and non-US analogues exist but are out of scope.",
+      "Set up Lesson 1.6: ITGCs are the IT controls SOX relies on."
+    ]
+  },
+  "enrichment": {
+    "mentalModel": "SOX makes executives personally swear the financials are right and the controls behind them work — and because those controls run on IT systems, IT controls become a legal matter.",
+    "educationalBoundaries": {
+      "inScope": ["Why SOX exists", "Sections 302 and 404 at a conceptual level", "ICFR and why IT is in scope", "Deficiency severity grading", "Roles: management, external auditor, PCAOB"],
+      "outOfScope": ["Full statutory text and every section", "Non-US regimes (J-SOX, etc.)", "How to actually test ITGCs", "COSO's five components in depth"],
+      "deferredToFuture": ["itgc.v1.foundations.itgc-overview teaches the IT controls SOX relies on", "audit-evidence.v1.testing.test-of-design and test-of-operating-effectiveness teach how those controls are proven", "sox.testing.itgc-sox-testing integrates ITGC testing into the SOX program"]
+    },
+    "teachingStrategy": {
+      "order": ["Tell the scandal-to-law story", "State who SOX applies to", "Introduce management certification (302) and the ICFR assessment/attestation (404)", "Define ICFR and show IT systems inside it", "Teach deficiency severity with a worked example"],
+      "whyThisSequence": "The historical motivation makes an otherwise dry law memorable and explains every requirement that follows. Certification before ICFR works because the certification is the human stake that gives ICFR its weight; severity grading comes last as the practical skill that connects to later testing work.",
+      "analogyPoints": ["Executive certification as 'signing under penalty of perjury'", "Material weakness as a crack big enough that a serious error could slip through unnoticed"],
+      "mandatoryDiagramsAt": ["The scandal→SOX→PCAOB timeline is mandatory for motivation", "The deficiency-severity decision tree is mandatory when teaching grading"]
+    },
+    "industryContext": [
+      { "industry": "Finance", "scenario": "A public bank where a misconfigured access control in the GL system could let unauthorized journal entries through — an ITGC issue that becomes a SOX ICFR concern." },
+      { "industry": "Manufacturing", "scenario": "A public manufacturer whose revenue recognition depends on the ERP; an IT change control failure there is a direct financial-reporting risk." },
+      { "industry": "Technology", "scenario": "A SaaS issuer where automated billing feeds revenue, making application and IT general controls central to ICFR." }
+    ],
+    "auditContext": {
+      "internalAudit": "Internal Audit supports management's Section 404(a) assessment by testing controls and reporting deficiencies.",
+      "externalAudit": "External auditors perform the independent 404(b) attestation on ICFR and grade deficiency severity in conjunction with management.",
+      "compliance": "Compliance ensures the SOX program meets SEC requirements and coordinates certifications.",
+      "executive": "The CEO and CFO personally certify under Sections 302 and 404 and bear legal accountability for ICFR."
+    },
+    "vocabAdvanced": ["Section 906 (criminal certification)", "issuer", "key SOX control", "ICFR scoping and materiality", "aggregation of deficiencies", "PCAOB AS 2201"],
+    "interviewAnswers": {
+      "averageAnswer": "'SOX is a law about financial controls after Enron.' — correct origin, but no sections, no ICFR, no IT linkage, no severity grading.",
+      "exceptionalAnswer": "'SOX (2002) responded to Enron/WorldCom by making CEOs and CFOs personally certify the financial statements (302) and assess ICFR annually, with external auditors attesting under 404. Because financial data lives in IT systems, ITGCs are in scope, and control problems are graded as deficiencies, significant deficiencies, or material weaknesses by their potential to cause undetected material misstatement.'"
+    },
+    "diagramDetail": [
+      { "kind": "timeline", "complexity": "low", "learningObjective": "Show the cause-and-effect from accounting scandals to the SOX act and the creation of the PCAOB, so the law's purpose is memorable." },
+      { "kind": "decision-tree", "complexity": "medium", "learningObjective": "Let the learner grade a control problem by severity using the could-it-cause-material-misstatement criterion." }
+    ]
+  }
+}

@@ -1,0 +1,139 @@
+{
+  "schema": "webhound.academy.lessonBrief.v1",
+  "status": "approved",
+  "volatility": "stable",
+  "reviewBy": "2027-06-01",
+  "identity": {
+    "lessonId": "audit-evidence.v1.testing.test-of-design",
+    "graphNodeId": "audit-evidence.testing.tod-toe",
+    "volume": "Volume 1 — Enterprise, Risk & Audit Foundations",
+    "module": "Module 5 — Proving Controls Work",
+    "chapter": "Chapter 8 — Test of Design",
+    "lesson": "1.8 Test of Design",
+    "version": "1.0.0"
+  },
+  "purpose": {
+    "whyExists": "Before testing whether a control operates, an auditor must confirm the control is designed to address the risk at all. Test of Design (ToD) is the first half of control testing and the gate to operating-effectiveness testing.",
+    "whyLearnerNeeds": "A control that is poorly designed cannot be effective no matter how consistently it runs. Learners must be able to evaluate design before they waste effort testing operation.",
+    "futureDependents": [
+      "audit-evidence.testing.populations-samples",
+      "audit-evidence.testing.exceptions-remediation",
+      "sox.testing.itgc-sox-testing"
+    ],
+    "businessProblem": "Organizations test whether controls 'ran' without first checking whether the control was even capable of addressing the risk; a well-operated but poorly designed control gives false assurance."
+  },
+  "audience": {
+    "primaryRoles": ["it-auditor-trainee", "it-auditor", "internal-auditor", "sox-analyst"],
+    "level": "L3"
+  },
+  "prerequisites": {
+    "required": ["itgc.foundations.overview.itgc-overview"],
+    "recommended": ["coso.foundations.controls.internal-controls", "active-directory.foundations.overview.ad-basics"],
+    "optional": ["enterprise-business.foundations.processes.business-processes"]
+  },
+  "outcomes": [
+    { "verb": "define", "statement": "Define test of design and state what question it answers (could this control, if operating, prevent or detect the risk?).", "bloom": "understand" },
+    { "verb": "perform", "statement": "Perform a walkthrough to understand and document how a control is intended to work.", "bloom": "apply" },
+    { "verb": "evaluate", "statement": "Evaluate whether a control's design adequately addresses its stated risk and objective.", "bloom": "evaluate" },
+    { "verb": "identify", "statement": "Identify a design gap and explain why operating-effectiveness testing is pointless until it is fixed.", "bloom": "analyze" }
+  ],
+  "businessContext": {
+    "departments": ["Audit", "IT", "Finance", "Operations", "Compliance"],
+    "note": "Design evaluation is a conversation with control owners; this lesson frames the walkthrough as a collaborative fact-find, not a gotcha."
+  },
+  "enterpriseContext": {
+    "whereItLives": "The first stage of the control-testing process, performed before each reporting period's operating-effectiveness testing; documented in walkthrough memos and the risk-and-control matrix.",
+    "owner": "The control owner (who designed and runs the control)",
+    "maintainer": "Audit maintains the test approach and documentation; the control owner maintains the control",
+    "auditor": "Internal and external auditors perform ToD to decide whether a control is worth testing for operating effectiveness"
+  },
+  "interviewIntel": {
+    "probability": 5,
+    "likelyQuestions": [
+      "What is a test of design and how is it different from a test of operating effectiveness?",
+      "How do you perform a walkthrough?",
+      "What is a design gap and what do you do when you find one?",
+      "Can a control be operating effectively but still fail test of design?"
+    ],
+    "traps": [
+      "Jumping straight to sampling/operation without confirming the design.",
+      "Treating a walkthrough as a single transaction test rather than an understanding exercise."
+    ],
+    "strongAnswerTraits": ["Separates 'is it designed right' from 'did it run'", "Describes a walkthrough as tracing one transaction to understand the control", "Knows a design gap blocks ToE"],
+    "weakAnswerTraits": ["Conflates ToD and ToE", "Cannot explain what a walkthrough establishes"],
+    "followUps": ["What evidence do you gather in a walkthrough?", "If design is deficient, what's the severity implication?"]
+  },
+  "vocabIntel": {
+    "core": ["test of design (ToD)", "walkthrough", "control design", "design gap", "design effectiveness"],
+    "supporting": ["control description", "control objective", "risk and control matrix", "inquiry", "inspection"],
+    "business": ["control owner", "process", "transaction"],
+    "audit": ["walkthrough", "design deficiency", "evidence", "control attribute"],
+    "risk": ["design gap", "false assurance", "unaddressed risk"],
+    "acronyms": ["ToD = Test of Design", "ToE = Test of Operating Effectiveness", "RCM = Risk and Control Matrix"],
+    "commonConfusion": ["test of design vs test of operating effectiveness", "walkthrough vs sample testing", "design gap vs operating exception", "design deficiency vs deficiency severity"]
+  },
+  "misconceptions": [
+    { "misconception": "Test of design just means doing one test of the control.", "correction": "ToD evaluates whether the control, as designed, COULD address the risk; it relies on a walkthrough to understand the control, not on sampling many instances (that's operating-effectiveness testing)." },
+    { "misconception": "If a control runs every day it must be well designed.", "correction": "Consistent operation of a control that doesn't actually address the risk gives false assurance; design must be confirmed first." }
+  ],
+  "diagramNeeds": [
+    { "kind": "audit-workflow", "why": "A two-gate workflow (Test of Design → pass? → Test of Operating Effectiveness) shows where ToD sits and why a design gap stops the process." },
+    { "kind": "process-flow", "why": "A walkthrough is a trace of one transaction through the control; a flow diagram makes 'walkthrough' concrete." }
+  ],
+  "labIntel": { "type": "case-study", "why": "Given a control description and its risk, learners perform a paper walkthrough and judge design adequacy, identifying a planted design gap. This builds the evaluate-level skill the outcomes require." },
+  "crossLinks": {
+    "previous": ["itgc.v1.foundations.itgc-overview", "active-directory.v1.foundations.ad-fundamentals"],
+    "future": ["audit-evidence.v1.testing.test-of-operating-effectiveness", "audit-evidence.v1.foundations.audit-evidence"],
+    "related": ["audit-evidence", "internal-audit", "external-audit", "itgc"],
+    "domains": ["audit-evidence"],
+    "vocab": ["test of design", "walkthrough", "design gap"],
+    "interviewTopics": ["test-of-design", "walkthrough", "tod-vs-toe"]
+  },
+  "difficultyIntel": { "bloom": "evaluate", "difficulty": "L3", "studyMinutes": 55, "readingMinutes": 24, "labMinutes": 22, "reviewMinutes": 12 },
+  "writingGuidance": {
+    "profile": "control-audit",
+    "instructions": [
+      "Frame ToD as the FIRST of two testing stages; explicitly defer operating-effectiveness mechanics to Lesson 1.9.",
+      "Build on Lesson 1.4: design is about whether the control addresses its objective/risk.",
+      "Reuse the manufacturing P2P controls (e.g. three-way match, approval) as the controls being walked through.",
+      "Teach the walkthrough as 'understand one transaction end to end', distinct from sampling.",
+      "Make the design-gap-blocks-ToE logic explicit; this is a top interview point.",
+      "Define ToD, ToE, RCM at first use and contrast ToD/ToE repeatedly.",
+      "Use the access controls from Lesson 1.7 (e.g. leaver deprovisioning) as a second worked example."
+    ]
+  },
+  "enrichment": {
+    "mentalModel": "Test of Design asks one question: if this control worked perfectly, would it actually stop the risk? If the answer is no, nothing else about the control matters yet.",
+    "educationalBoundaries": {
+      "inScope": ["What ToD is and the question it answers", "Performing a walkthrough", "Evaluating design adequacy", "Recognizing a design gap and its consequence for ToE"],
+      "outOfScope": ["Sampling and sample sizes", "Operating-effectiveness conclusions", "Deficiency severity grading (covered with SOX)", "Statistical methods"],
+      "deferredToFuture": ["audit-evidence.v1.testing.test-of-operating-effectiveness teaches whether the control actually ran", "audit-evidence.testing.populations-samples teaches how many instances to test", "audit-evidence.v1.foundations.audit-evidence teaches what makes the gathered evidence sufficient"]
+    },
+    "teachingStrategy": {
+      "order": ["Recall the control + objective pairing from 1.4", "State the ToD question", "Teach the walkthrough as a single-transaction trace", "Evaluate whether design meets the objective", "Show what a design gap is and why it halts ToE"],
+      "whyThisSequence": "Restating control+objective first gives the design question something to bite on. The walkthrough is taught before evaluation because you must understand a control before judging it; the design-gap-blocks-ToE point is saved for last as the memorable payoff.",
+      "analogyPoints": ["ToD vs ToE as 'is the smoke detector wired to the right room' vs 'does it actually beep when tested'", "Walkthrough as following one parcel through the whole sorting facility"],
+      "mandatoryDiagramsAt": ["The ToD→ToE two-gate audit-workflow is mandatory when positioning the stages", "The walkthrough trace is mandatory when defining a walkthrough"]
+    },
+    "industryContext": [
+      { "industry": "Manufacturing", "scenario": "Walking through the three-way match: confirming the control is designed so an invoice can't be paid without a matching PO and receipt before testing whether it ran." },
+      { "industry": "Finance", "scenario": "Evaluating whether a wire-approval control is designed to require a second approver above a threshold — a design gap if the threshold is set above all actual wires." },
+      { "industry": "Technology", "scenario": "Assessing whether a deployment approval is designed to prevent un-reviewed code reaching the revenue-billing service." }
+    ],
+    "auditContext": {
+      "internalAudit": "Internal Audit performs walkthroughs annually to confirm control design before committing to operating-effectiveness testing.",
+      "externalAudit": "External auditors document design understanding via walkthroughs as required evidence and to plan their reliance.",
+      "compliance": "Compliance uses design evaluation to confirm a control as-designed satisfies the regulatory requirement.",
+      "executive": "A pervasive design gap can itself be a significant deficiency or material weakness that management must disclose."
+    },
+    "vocabAdvanced": ["design effectiveness conclusion", "control attributes", "IT-dependent manual control design", "compensating control consideration", "walkthrough memo"],
+    "interviewAnswers": {
+      "averageAnswer": "'Test of design is checking the control is set up right.' — directionally correct but vague; no walkthrough, no gap-blocks-ToE insight.",
+      "exceptionalAnswer": "'Test of design evaluates whether a control, if operating as intended, would actually prevent or detect its risk. I establish that through a walkthrough — tracing one transaction to understand the control — then judge design adequacy against the objective. If there's a design gap, I stop: testing operating effectiveness is pointless until the design is fixed, and a pervasive gap may itself be a material weakness.'"
+    },
+    "diagramDetail": [
+      { "kind": "audit-workflow", "complexity": "medium", "learningObjective": "Show ToD as the first gate that must pass before ToE, so the learner sees design as a precondition for operation testing." },
+      { "kind": "process-flow", "complexity": "low", "learningObjective": "Make 'walkthrough' concrete as a single end-to-end transaction trace used to understand the control." }
+    ]
+  }
+}

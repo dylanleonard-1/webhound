@@ -1,0 +1,136 @@
+{
+  "schema": "webhound.academy.lessonBrief.v1",
+  "status": "approved",
+  "volatility": "evergreen",
+  "reviewBy": "2029-01-01",
+  "identity": {
+    "lessonId": "risk.v1.foundations.enterprise-risk",
+    "graphNodeId": "risk.foundations.overview.enterprise-risk",
+    "volume": "Volume 1 — Enterprise, Risk & Audit Foundations",
+    "module": "Module 2 — Why Controls Exist",
+    "chapter": "Chapter 3 — Risk",
+    "lesson": "1.3 Enterprise Risk",
+    "version": "1.0.0"
+  },
+  "purpose": {
+    "whyExists": "Controls exist to reduce risk. A learner cannot judge whether a control is worth its cost without first understanding what risk is, how it is measured, and what 'acceptable' risk means. Risk is the bridge between the business (1.1–1.2) and controls (1.4+).",
+    "whyLearnerNeeds": "Every audit and security decision is a risk decision. Practitioners who can speak in terms of likelihood, impact, and residual risk earn trust; those who only speak in technical findings do not.",
+    "futureDependents": [
+      "coso.foundations.controls.internal-controls",
+      "sox.foundations.overview.what-is-sox",
+      "itgc.foundations.overview.itgc-overview",
+      "audit-evidence.testing.tod-toe"
+    ],
+    "businessProblem": "Organizations either over-spend protecting low-impact assets or under-protect critical ones because they never quantified risk; controls get chosen by habit, not by exposure."
+  },
+  "audience": {
+    "primaryRoles": ["grc-analyst-trainee", "it-auditor-trainee", "security-analyst", "risk-analyst-trainee"],
+    "level": "L2"
+  },
+  "prerequisites": {
+    "required": ["enterprise-business.foundations.processes.business-processes"],
+    "recommended": ["enterprise-business.foundations.intro.what-is-an-enterprise"],
+    "optional": []
+  },
+  "outcomes": [
+    { "verb": "define", "statement": "Define risk as a function of likelihood and impact against a business objective.", "bloom": "remember" },
+    { "verb": "differentiate", "statement": "Differentiate inherent risk from residual risk and explain what reduces one to the other.", "bloom": "understand" },
+    { "verb": "assess", "statement": "Assess a simple scenario by placing it on a likelihood/impact risk matrix.", "bloom": "apply" },
+    { "verb": "explain", "statement": "Explain how risk appetite determines whether a residual risk is accepted, treated, transferred, or avoided.", "bloom": "analyze" }
+  ],
+  "businessContext": {
+    "departments": ["Executive", "Finance", "Risk", "Audit", "Operations", "IT", "Security"],
+    "note": "Risk is owned in the business but informed by every function; this lesson frames risk as a business decision, not a technical score."
+  },
+  "enterpriseContext": {
+    "whereItLives": "The decision layer that sits between business objectives and the controls chosen to protect them; formalized in a risk register and an Enterprise Risk Management (ERM) program.",
+    "owner": "Risk owners in the business, overseen by executive leadership and the board's risk/audit committee",
+    "maintainer": "The risk function / GRC team who maintain the risk register and methodology",
+    "auditor": "Internal Audit assesses whether risk management is working; external auditors focus on risks to financial reporting"
+  },
+  "interviewIntel": {
+    "probability": 3,
+    "likelyQuestions": [
+      "How do you define and measure risk?",
+      "What's the difference between inherent and residual risk?",
+      "What does 'risk appetite' mean and who sets it?"
+    ],
+    "traps": [
+      "Treating every risk as something to eliminate rather than manage to an acceptable level.",
+      "Confusing a threat (the source) with a risk (the exposure to an objective)."
+    ],
+    "strongAnswerTraits": ["Uses likelihood × impact precisely", "Distinguishes inherent vs residual", "Knows the four responses: accept/treat/transfer/avoid"],
+    "weakAnswerTraits": ["Says 'risk is bad stuff that could happen' with no measurement", "Thinks all risk must be removed"],
+    "followUps": ["Give an example where accepting a risk is the right call.", "How does a control change residual risk?"]
+  },
+  "vocabIntel": {
+    "core": ["risk", "likelihood", "impact", "inherent risk", "residual risk", "risk appetite"],
+    "supporting": ["threat", "vulnerability", "risk register", "risk owner", "risk response"],
+    "business": ["business objective", "loss event", "cost of control", "risk tolerance"],
+    "audit": ["risk assessment", "key risk", "control reliance"],
+    "risk": ["accept", "treat (mitigate)", "transfer", "avoid", "risk matrix"],
+    "acronyms": ["ERM = Enterprise Risk Management", "KRI = Key Risk Indicator"],
+    "commonConfusion": ["threat vs. risk", "inherent vs. residual risk", "risk appetite vs. risk tolerance"]
+  },
+  "misconceptions": [
+    { "misconception": "The goal of risk management is to eliminate risk.", "correction": "The goal is to manage risk to within appetite at justifiable cost; some risk is always accepted because eliminating it costs more than it's worth." },
+    { "misconception": "A threat and a risk are the same thing.", "correction": "A threat is a potential cause; a risk is the exposure of a business objective to that cause, measured by likelihood and impact." }
+  ],
+  "diagramNeeds": [
+    { "kind": "risk-matrix", "why": "A likelihood × impact grid is the canonical way to show how risks are ranked and where the line of acceptability sits; it makes 'high risk' concrete." }
+  ],
+  "labIntel": { "type": "guided", "why": "A guided exercise where learners score 3–4 scenarios on a likelihood/impact matrix and decide a response builds the apply-level skill the outcomes require, without needing live systems." },
+  "crossLinks": {
+    "previous": ["enterprise-business.v1.processes.business-processes"],
+    "future": ["coso.v1.foundations.internal-controls", "sox.v1.foundations.what-is-sox"],
+    "related": ["risk", "governance", "compliance"],
+    "domains": ["risk"],
+    "vocab": ["risk", "inherent risk", "residual risk", "risk appetite"],
+    "interviewTopics": ["risk-assessment", "inherent-vs-residual"]
+  },
+  "difficultyIntel": { "bloom": "analyze", "difficulty": "L2", "studyMinutes": 40, "readingMinutes": 18, "labMinutes": 12, "reviewMinutes": 10 },
+  "writingGuidance": {
+    "profile": "concept-standard",
+    "instructions": [
+      "Build risk on top of the Lesson 1.2 process: a risk is something that could go wrong at a process step or handoff.",
+      "Teach the business framing (objectives, appetite) before any scoring mechanics.",
+      "Introduce 'control' only as 'the thing that reduces inherent risk to residual risk' — full control types are Lesson 1.4.",
+      "Reinforce Segregation of Duties from 1.2 as one example of a risk response.",
+      "Define ERM and KRI at first use; do not assume prior risk vocabulary.",
+      "Use the recurring manufacturing example for at least one scenario."
+    ]
+  },
+  "enrichment": {
+    "mentalModel": "Risk = likelihood × impact on a business objective; controls earn their keep only by moving inherent risk down to an acceptable residual level.",
+    "educationalBoundaries": {
+      "inScope": ["Definition and measurement of risk", "Inherent vs residual risk", "Risk appetite/tolerance", "The four risk responses", "The likelihood/impact matrix"],
+      "outOfScope": ["Specific control types and how to design them", "Quantitative/Monte-Carlo risk modeling", "Regulatory risk specifics (SOX)"],
+      "deferredToFuture": ["coso.v1.foundations.internal-controls teaches the controls that treat risk", "sox.v1.foundations.what-is-sox teaches risk to financial reporting specifically", "audit-evidence.v1.testing.test-of-design teaches how we gain assurance a control reduces risk"]
+    },
+    "teachingStrategy": {
+      "order": ["Start from a business objective", "Show what could threaten it (at a process step)", "Introduce likelihood and impact", "Plot inherent risk, then add a control to get residual risk", "Introduce appetite and the four responses"],
+      "whyThisSequence": "Risk only means anything relative to an objective, so we start there. Inherent-then-residual is taught as a before/after of applying a control, which both motivates controls (next lesson) and makes the abstract pair concrete.",
+      "analogyPoints": ["Risk matrix as a heat map", "Inherent vs residual as 'speed before brakes' vs 'speed after brakes'", "Risk appetite as how fast the board is willing to drive"],
+      "mandatoryDiagramsAt": ["The likelihood/impact risk matrix is mandatory when ranking risks"]
+    },
+    "industryContext": [
+      { "industry": "Manufacturing", "scenario": "Risk that a fraudulent purchase order is paid: moderate likelihood, high impact — treated by segregation of duties and approval limits." },
+      { "industry": "Finance", "scenario": "Risk of material misstatement in financial reporting, which is the specific risk SOX exists to manage — previewing Lesson 1.5." },
+      { "industry": "Government", "scenario": "Risk to citizen-data confidentiality, where impact is reputational and legal more than financial." }
+    ],
+    "auditContext": {
+      "internalAudit": "Internal Audit uses a risk assessment to decide what to audit and how deeply — high residual risk gets more attention.",
+      "externalAudit": "External auditors perform a risk assessment to scope the audit toward accounts and processes with the highest risk of material misstatement.",
+      "compliance": "Compliance tracks regulatory risks and whether responses keep the organization within legal tolerance.",
+      "executive": "Executives and the board set risk appetite and accept residual risks on behalf of shareholders."
+    },
+    "vocabAdvanced": ["risk velocity", "key risk indicator (KRI)", "control reliance", "quantitative vs qualitative risk", "three lines model"],
+    "interviewAnswers": {
+      "averageAnswer": "'Risk is the chance something bad happens, and we use controls to stop it.' — has the gist, misses measurement, residual risk, and appetite.",
+      "exceptionalAnswer": "'Risk is the likelihood and impact of an event on a business objective. We start with inherent risk, apply controls to reach residual risk, and compare that to the board's risk appetite to decide whether to accept, treat, transfer, or avoid. Audit then focuses effort where residual risk is highest.'"
+    },
+    "diagramDetail": [
+      { "kind": "risk-matrix", "complexity": "medium", "learningObjective": "Show how likelihood and impact combine into a rank, and where the acceptability line (appetite) cuts across the grid." }
+    ]
+  }
+}

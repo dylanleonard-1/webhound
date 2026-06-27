@@ -1,0 +1,154 @@
+{
+  "schema": "webhound.academy.lessonBrief.v1",
+  "status": "approved",
+  "volatility": "evergreen",
+  "reviewBy": "2029-01-01",
+  "identity": {
+    "lessonId": "enterprise-business.v1.intro.what-is-an-enterprise",
+    "graphNodeId": "enterprise-business.foundations.intro.what-is-an-enterprise",
+    "volume": "Volume 1 — Enterprise Foundations",
+    "module": "Module 1 — What an Enterprise Is",
+    "chapter": "Chapter 1 — Orientation",
+    "lesson": "1.1 What Is an Enterprise?",
+    "version": "1.0.0"
+  },
+  "purpose": {
+    "whyExists": "Every security control, audit, and identity decision in this Academy exists to protect an enterprise. Learners cannot reason about why a control matters until they understand what an enterprise is, how it is organized, and how it makes money. This lesson is the root context the entire curriculum hangs from.",
+    "whyLearnerNeeds": "Junior practitioners routinely apply controls mechanically without grasping the business they protect. Knowing how departments, ownership, and revenue fit together is what separates an operator who follows a checklist from one who can explain risk to a business stakeholder.",
+    "futureDependents": [
+      "enterprise-business.foundations.structure.departments-and-functions",
+      "enterprise-business.foundations.governance.governance-and-accountability",
+      "itgc.foundations.overview.itgc-overview",
+      "sox.foundations.overview.what-is-sox"
+    ],
+    "businessProblem": "Security and audit work fails when it is disconnected from the business it serves — controls get deployed that no owner understands, and findings get dismissed because they are framed in technical rather than business terms."
+  },
+  "audience": {
+    "primaryRoles": ["help-desk", "junior-sysadmin", "grc-analyst-trainee", "it-auditor-trainee"],
+    "level": "L1"
+  },
+  "prerequisites": {
+    "required": [],
+    "recommended": [],
+    "optional": []
+  },
+  "outcomes": [
+    {
+      "verb": "define",
+      "statement": "Define an enterprise and distinguish it from a small business in terms of scale, structure, and governance.",
+      "bloom": "remember"
+    },
+    {
+      "verb": "identify",
+      "statement": "Identify the major functional departments (Finance, HR, IT, Security, Audit, Operations) and state what each is accountable for.",
+      "bloom": "understand"
+    },
+    {
+      "verb": "explain",
+      "statement": "Explain in one sentence how an enterprise creates and protects value, and why that makes it a target.",
+      "bloom": "understand"
+    },
+    {
+      "verb": "relate",
+      "statement": "Relate at least two security or audit activities to the business function they protect.",
+      "bloom": "apply"
+    }
+  ],
+  "businessContext": {
+    "departments": ["Finance", "HR", "IT", "Security", "Audit", "Operations", "Executive"],
+    "note": "This lesson is department-agnostic by design: it introduces ALL functions so later lessons can specialize. It sets the vocabulary every later business-context section reuses."
+  },
+  "enterpriseContext": {
+    "whereItLives": "Conceptual foundation — the organizational reality that every later technical and control lesson sits inside.",
+    "owner": "Executive leadership / Board (accountable for the enterprise as a whole)",
+    "maintainer": "Operations and the functional department heads",
+    "auditor": "Internal Audit and external auditors (assess whether the enterprise is governed and controlled as represented)"
+  },
+  "interviewIntel": {
+    "probability": 2,
+    "likelyQuestions": [
+      "In your own words, what is an enterprise and how is it different from a startup?",
+      "Why should a security analyst care about how the business makes money?",
+      "Name a few departments and tell me what each is responsible for."
+    ],
+    "traps": [
+      "Equating 'enterprise' purely with 'big company' and ignoring governance and accountability structure.",
+      "Talking only about technology and never mentioning business value or revenue."
+    ],
+    "strongAnswerTraits": [
+      "Ties security and audit back to protecting business value.",
+      "Names concrete departments and their accountabilities.",
+      "Mentions governance/ownership, not just headcount."
+    ],
+    "weakAnswerTraits": [
+      "Defines enterprise only by size.",
+      "Cannot connect a control to any business reason."
+    ],
+    "followUps": [
+      "Who is ultimately accountable when a control fails?",
+      "Give an example of a control that protects Finance specifically."
+    ]
+  },
+  "vocabIntel": {
+    "core": ["enterprise", "organization", "business function", "department", "value creation"],
+    "supporting": ["stakeholder", "operating model", "headquarters", "subsidiary"],
+    "business": ["revenue", "cost center", "profit center", "shareholder", "board of directors"],
+    "audit": ["accountability", "control owner", "assurance"],
+    "risk": ["business risk", "attack surface", "crown jewels"],
+    "acronyms": ["GRC = Governance, Risk, and Compliance", "P&L = Profit and Loss"],
+    "commonConfusion": [
+      "enterprise vs. company vs. corporation",
+      "cost center vs. profit center",
+      "owner (accountable) vs. maintainer (operates)"
+    ]
+  },
+  "misconceptions": [
+    {
+      "misconception": "An enterprise is just any large company.",
+      "correction": "Scale matters, but the defining traits are formal structure, separation of functions, and governance/accountability — a 200-person regulated firm is more 'enterprise' than a 2,000-person unstructured one."
+    },
+    {
+      "misconception": "Security exists for its own sake.",
+      "correction": "Security exists to protect the enterprise's ability to create and sustain value; every control should trace to a business reason."
+    }
+  ],
+  "diagramNeeds": [
+    {
+      "kind": "architecture",
+      "why": "A simple org-context diagram showing functional departments around a shared 'value creation + governance' core anchors the mental model the whole curriculum reuses."
+    }
+  ],
+  "labIntel": {
+    "type": "none",
+    "why": "This is a pure conceptual foundation lesson with no system to operate; a lab would be artificial. Hands-on work begins once technical domains are introduced."
+  },
+  "crossLinks": {
+    "previous": [],
+    "future": [
+      "enterprise-business.foundations.structure.departments-and-functions",
+      "itgc.foundations.overview.itgc-overview"
+    ],
+    "related": ["enterprise-it", "enterprise-architecture", "business-continuity"],
+    "domains": ["enterprise-business"],
+    "vocab": ["enterprise", "business function", "value creation"],
+    "interviewTopics": ["business-acumen", "security-as-business-enabler"]
+  },
+  "difficultyIntel": {
+    "bloom": "understand",
+    "difficulty": "L1",
+    "studyMinutes": 25,
+    "readingMinutes": 12,
+    "labMinutes": 0,
+    "reviewMinutes": 8
+  },
+  "writingGuidance": {
+    "profile": "concept-foundation",
+    "instructions": [
+      "Teach business before technology — no security jargon until the business picture is clear.",
+      "Lead with WHY this matters before any definitions.",
+      "Use one concrete, relatable example enterprise and carry it through the lesson.",
+      "Keep tone plain and welcoming; assume zero prior background.",
+      "End by foreshadowing that every later lesson protects something introduced here."
+    ]
+  }
+}

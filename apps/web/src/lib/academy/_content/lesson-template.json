@@ -1,0 +1,42 @@
+{
+  "_note": "BLANK lesson skeleton — conforms to _content/lesson-schema.ts (Lesson). Copy, fill, set status. CORE sections are required; add conditional sections per the profile + SECTION_RULES. NOT real lesson content.",
+  "metadata": {
+    "id": "<domain>.<volume>.<chapter>.<slug>",
+    "graphNodeId": "<must match an id in _graph/nodes.json>",
+    "title": "",
+    "domain": "",
+    "module": "",
+    "chapter": "",
+    "difficulty": "L1",
+    "bloom": "understand",
+    "profile": "concept-foundation",
+    "estMinutes": 0,
+    "prerequisites": [],
+    "relatedLessons": [],
+    "volatility": "evergreen",
+    "status": "draft",
+    "version": "0.1.0",
+    "authors": [],
+    "reviewBy": "YYYY-MM-DD"
+  },
+  "objectives": [
+    { "verb": "", "statement": "" }
+  ],
+  "sections": [
+    { "key": "learningObjectives", "body": "" },
+    { "key": "whyThisExists", "body": "" },
+    { "key": "definitions", "body": "" },
+    { "key": "vocabulary", "items": [] },
+    { "key": "coreConcept", "body": "" },
+    { "key": "commonMisunderstandings", "items": [] },
+    { "key": "knowledgeCheck", "data": [] },
+    { "key": "chapterSummary", "body": "" },
+    { "key": "relatedLessons", "items": [] },
+    { "key": "references", "items": [] },
+    { "key": "revisionHistory", "items": [] }
+  ],
+  "diagrams": [],
+  "quiz": [],
+  "flashcards": [],
+  "interview": []
+}

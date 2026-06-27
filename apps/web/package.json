@@ -10,7 +10,8 @@
     "type-check": "tsc --noEmit",
     "test:unit": "vitest run",
     "snap": "node scripts/snap-hero.mjs",
-    "academy:validate-graph": "node src/lib/academy/_graph/validate.mjs"
+    "academy:validate-graph": "node src/lib/academy/_graph/validate.mjs",
+    "academy:validate-brief": "node src/lib/academy/_content/validate-brief.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

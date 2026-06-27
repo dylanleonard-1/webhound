@@ -7,7 +7,7 @@
 //   Default target: ./lesson-brief.example.json (next to this file).
 // Exit code: 0 = all gates pass; 1 = one or more gates failed (BLOCKED).
 
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 
@@ -17,7 +17,9 @@ const GRAPH = resolve(HERE, '..', '_graph')
 const BLOOM = ['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create']
 const DIFF = ['L1', 'L2', 'L3', 'L4', 'L5']
 const VOLAT = ['evergreen', 'stable', 'volatile']
-const LABS = ['none', 'guided', 'enterprise', 'scenario', 'capstone']
+const LABS = ['none', 'thought-exercise', 'guided', 'enterprise', 'scenario', 'case-study', 'capstone']
+const INDUSTRIES = ['Manufacturing', 'Finance', 'Healthcare', 'Government', 'Technology']
+const COMPLEXITY = ['low', 'medium', 'high']
 const PROFILES = [
   'concept-foundation', 'concept-standard', 'concept-deep',
   'procedure', 'control-audit', 'leadership',
@@ -182,37 +184,118 @@ function validate(b) {
   const wg = b.writingGuidance || {}
   if (!PROFILES.includes(wg.profile)) err('writingGuidance.profile', `writingGuidance.profile must be one of ${PROFILES.join('/')}`)
   if (!nonEmpty(wg.instructions)) err('writingGuidance.profile', 'writingGuidance.instructions must have >= 1 instruction')
+
+  // Phase 2C — enrichment is OPTIONAL. Absent ⇒ legacy brief, no enrichment gates.
+  // Present ⇒ it must be complete (golden-brief standard).
+  if (b.enrichment === undefined) {
+    warn('enrichment absent — this is a legacy/minimal brief, not a golden reference brief')
+  } else {
+    const en = b.enrichment || {}
+    if (!str(en.mentalModel)) err('enrichment.mentalModel', 'enrichment.mentalModel is required when enrichment is present')
+
+    const eb = en.educationalBoundaries || {}
+    if (!nonEmpty(eb.inScope)) err('enrichment.educationalBoundaries', 'educationalBoundaries.inScope must be non-empty')
+    for (const k of ['outOfScope', 'deferredToFuture']) {
+      if (!arr(eb[k])) err('enrichment.educationalBoundaries', `educationalBoundaries.${k} must be an array`)
+    }
+
+    const ts = en.teachingStrategy || {}
+    if (!nonEmpty(ts.order)) err('enrichment.teachingStrategy', 'teachingStrategy.order must be non-empty')
+    if (!str(ts.whyThisSequence)) err('enrichment.teachingStrategy', 'teachingStrategy.whyThisSequence is required')
+    for (const k of ['analogyPoints', 'mandatoryDiagramsAt']) {
+      if (!arr(ts[k])) err('enrichment.teachingStrategy', `teachingStrategy.${k} must be an array`)
+    }
+
+    if (!nonEmpty(en.industryContext)) {
+      err('enrichment.industryContext', 'industryContext must have >= 1 industry scenario')
+    } else {
+      en.industryContext.forEach((c, i) => {
+        if (!INDUSTRIES.includes(c.industry)) err('enrichment.industryContext', `industryContext[${i}].industry must be one of ${INDUSTRIES.join('/')}`)
+        if (!str(c.scenario)) err('enrichment.industryContext', `industryContext[${i}].scenario is required`)
+      })
+    }
+
+    const ac = en.auditContext || {}
+    for (const k of ['internalAudit', 'externalAudit', 'compliance', 'executive']) {
+      if (!str(ac[k])) err('enrichment.auditContext', `auditContext.${k} is required`)
+    }
+
+    if (!arr(en.vocabAdvanced)) err('enrichment.vocabAdvanced', 'vocabAdvanced must be an array')
+
+    const ia = en.interviewAnswers || {}
+    if (!str(ia.averageAnswer)) err('enrichment.interviewAnswers', 'interviewAnswers.averageAnswer is required')
+    if (!str(ia.exceptionalAnswer)) err('enrichment.interviewAnswers', 'interviewAnswers.exceptionalAnswer is required')
+
+    if (!arr(en.diagramDetail)) {
+      err('enrichment.diagramDetail', 'diagramDetail must be an array')
+    } else {
+      en.diagramDetail.forEach((d, i) => {
+        if (!str(d.kind)) err('enrichment.diagramDetail', `diagramDetail[${i}].kind is required`)
+        if (!COMPLEXITY.includes(d.complexity)) err('enrichment.diagramDetail', `diagramDetail[${i}].complexity must be one of ${COMPLEXITY.join('/')}`)
+        if (!str(d.learningObjective)) err('enrichment.diagramDetail', `diagramDetail[${i}].learningObjective is required`)
+      })
+    }
+  }
+}
+
+// Validate one brief file; returns true on PASS. Resets the shared error/warning
+// accumulators first so the same module can validate many files in one run.
+function validateFile(path) {
+  errors.length = 0
+  warnings.length = 0
+  let brief
+  try {
+    brief = JSON.parse(readFileSync(path, 'utf8'))
+  } catch (e) {
+    console.error(`✗ ${path} is not valid JSON: ${e.message}`)
+    return false
+  }
+  validate(brief)
+  const label = brief?.identity?.lessonId || path
+  console.log(`Lesson Design Brief gate check — ${label}`)
+  if (warnings.length) {
+    console.log(`⚠  ${warnings.length} warning(s):`)
+    for (const w of warnings) console.log(`   - ${w}`)
+  }
+  if (errors.length) {
+    console.log(`✗ BLOCKED — ${errors.length} gate failure(s):`)
+    for (const e of errors) console.log(`   - ${e}`)
+    return false
+  }
+  console.log(`✓ PASS — all quality gates satisfied. Lesson generation unblocked.`)
+  return true
 }
 
 // ── run ──────────────────────────────────────────────────────────────────────
+// Accepts a file OR a directory (validates every *.json in it). Default: the example.
 const target = process.argv[2] ? resolve(process.cwd(), process.argv[2]) : resolve(HERE, 'lesson-brief.example.json')
 
 if (!existsSync(target)) {
-  console.error(`✗ brief not found: ${target}`)
+  console.error(`✗ path not found: ${target}`)
   process.exit(1)
 }
 
-let brief
-try {
-  brief = JSON.parse(readFileSync(target, 'utf8'))
-} catch (e) {
-  console.error(`✗ brief is not valid JSON: ${e.message}`)
-  process.exit(1)
+let files
+if (statSync(target).isDirectory()) {
+  files = readdirSync(target).filter((f) => f.endsWith('.json')).sort().map((f) => resolve(target, f))
+  if (files.length === 0) {
+    console.error(`✗ no .json briefs found in ${target}`)
+    process.exit(1)
+  }
+} else {
+  files = [target]
 }
 
-validate(brief)
+let passed = 0
+const failedFiles = []
+for (const f of files) {
+  if (validateFile(f)) passed++
+  else failedFiles.push(f)
+  if (files.length > 1) console.log('')
+}
 
-const label = brief?.identity?.lessonId || target
-console.log(`Lesson Design Brief gate check — ${label}`)
-if (warnings.length) {
-  console.log(`\n⚠  ${warnings.length} warning(s):`)
-  for (const w of warnings) console.log(`   - ${w}`)
+if (files.length > 1) {
+  console.log(`=== SUMMARY: ${passed}/${files.length} brief(s) PASS ===`)
+  if (failedFiles.length) for (const f of failedFiles) console.log(`   ✗ ${f}`)
 }
-if (errors.length) {
-  console.log(`\n✗ BLOCKED — ${errors.length} gate failure(s):`)
-  for (const e of errors) console.log(`   - ${e}`)
-  console.log('\nLesson generation is blocked until all gates pass.')
-  process.exit(1)
-}
-console.log(`\n✓ PASS — all quality gates satisfied. Lesson generation unblocked.`)
-process.exit(0)
+process.exit(failedFiles.length ? 1 : 0)

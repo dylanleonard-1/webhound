@@ -1,0 +1,137 @@
+{
+  "schema": "webhound.academy.lessonBrief.v1",
+  "status": "approved",
+  "volatility": "evergreen",
+  "reviewBy": "2029-01-01",
+  "identity": {
+    "lessonId": "coso.v1.foundations.internal-controls",
+    "graphNodeId": "coso.foundations.controls.internal-controls",
+    "volume": "Volume 1 — Enterprise, Risk & Audit Foundations",
+    "module": "Module 2 — Why Controls Exist",
+    "chapter": "Chapter 4 — Internal Controls",
+    "lesson": "1.4 Internal Controls",
+    "version": "1.0.0"
+  },
+  "purpose": {
+    "whyExists": "Internal controls are the enterprise's answer to risk. This lesson gives the learner the universal vocabulary of controls — objective, type, manual vs automated, key vs non-key — that every later lesson (SOX, ITGC, testing) assumes.",
+    "whyLearnerNeeds": "Every audit tests controls. A learner who cannot classify a control or state its objective cannot test it meaningfully or explain a finding.",
+    "futureDependents": [
+      "sox.foundations.overview.what-is-sox",
+      "itgc.foundations.overview.itgc-overview",
+      "itgc.access.logical-access",
+      "audit-evidence.testing.tod-toe"
+    ],
+    "businessProblem": "Without a shared language for controls, organizations can't tell which controls actually matter, auditors test the wrong things, and remediation effort is wasted on non-key controls."
+  },
+  "audience": {
+    "primaryRoles": ["grc-analyst-trainee", "it-auditor-trainee", "internal-auditor", "control-owner"],
+    "level": "L2"
+  },
+  "prerequisites": {
+    "required": ["risk.foundations.overview.enterprise-risk"],
+    "recommended": ["enterprise-business.foundations.processes.business-processes"],
+    "optional": []
+  },
+  "outcomes": [
+    { "verb": "define", "statement": "Define an internal control and state its control objective.", "bloom": "remember" },
+    { "verb": "classify", "statement": "Classify controls as preventive, detective, or corrective, and as manual or automated.", "bloom": "understand" },
+    { "verb": "distinguish", "statement": "Distinguish a key control from a non-key control and explain why the distinction drives audit effort.", "bloom": "analyze" },
+    { "verb": "map", "statement": "Map a control to the specific process risk it is designed to reduce.", "bloom": "apply" }
+  ],
+  "businessContext": {
+    "departments": ["Finance", "Operations", "IT", "Audit", "Compliance"],
+    "note": "Controls are owned by the business process owners, not by audit; this lesson stresses that audit tests controls but the business operates them."
+  },
+  "enterpriseContext": {
+    "whereItLives": "Embedded at the control points inside business processes (Lesson 1.2); collectively they form the internal control system the COSO framework describes.",
+    "owner": "The control owner — the manager responsible for the process step the control protects",
+    "maintainer": "The control owner and supporting IT/operations teams who perform or automate the control",
+    "auditor": "Internal Audit tests controls year-round; external auditors test the subset relevant to financial reporting"
+  },
+  "interviewIntel": {
+    "probability": 4,
+    "likelyQuestions": [
+      "What is an internal control and what makes one 'key'?",
+      "Give examples of preventive vs detective controls.",
+      "What's the difference between a manual and an automated control, and why does it matter for testing?"
+    ],
+    "traps": [
+      "Confusing the control with its objective (the control is the activity; the objective is the risk it addresses).",
+      "Assuming automated controls are always better or never fail."
+    ],
+    "strongAnswerTraits": ["States the control objective, not just the activity", "Classifies cleanly by type and nature", "Explains why key controls get more testing"],
+    "weakAnswerTraits": ["Lists controls with no objective", "Cannot say why one control matters more than another"],
+    "followUps": ["Is a reconciliation preventive or detective?", "How does control nature change the evidence you'd collect?"]
+  },
+  "vocabIntel": {
+    "core": ["internal control", "control objective", "preventive control", "detective control", "key control"],
+    "supporting": ["corrective control", "manual control", "automated control", "control owner", "compensating control"],
+    "business": ["control activity", "approval", "reconciliation", "authorization limit"],
+    "audit": ["key control", "control reliance", "control design", "control matrix (RCM)"],
+    "risk": ["control objective", "residual risk", "control failure"],
+    "acronyms": ["COSO = Committee of Sponsoring Organizations", "RCM = Risk and Control Matrix", "SoD = Segregation of Duties"],
+    "commonConfusion": ["control vs. control objective", "preventive vs. detective", "key vs. non-key control", "manual vs. automated control"]
+  },
+  "misconceptions": [
+    { "misconception": "A control and its objective are the same thing.", "correction": "The control is the activity performed (e.g. a manager approves an invoice); the objective is the risk it reduces (e.g. only valid invoices are paid)." },
+    { "misconception": "More controls are always better.", "correction": "Only key controls meaningfully reduce risk to objectives; piling on non-key controls adds cost and audit burden without proportionate benefit." }
+  ],
+  "diagramNeeds": [
+    { "kind": "control-matrix", "why": "A risk-and-control matrix (risk → control → type → key?) is the working artifact of every controls professional; showing it early makes the abstract classifications concrete." }
+  ],
+  "labIntel": { "type": "guided", "why": "Learners take the Lesson 1.2 process, list its risks, and fill a small risk-and-control matrix classifying each control. This is the apply/analyze skill the outcomes demand and the foundation for all later testing lessons." },
+  "crossLinks": {
+    "previous": ["risk.v1.foundations.enterprise-risk"],
+    "future": ["sox.v1.foundations.what-is-sox", "itgc.v1.foundations.itgc-overview", "audit-evidence.v1.testing.test-of-design"],
+    "related": ["coso", "internal-audit", "itgc"],
+    "domains": ["coso", "itgc"],
+    "vocab": ["internal control", "key control", "preventive control", "detective control"],
+    "interviewTopics": ["control-types", "key-vs-nonkey-controls"]
+  },
+  "difficultyIntel": { "bloom": "analyze", "difficulty": "L2", "studyMinutes": 45, "readingMinutes": 20, "labMinutes": 15, "reviewMinutes": 10 },
+  "writingGuidance": {
+    "profile": "concept-standard",
+    "instructions": [
+      "Open by connecting back to Lesson 1.3: a control is how we move inherent risk to residual risk.",
+      "Always pair a control with its objective — never present a control activity alone.",
+      "Reuse the manufacturing P2P example from 1.2 to show concrete preventive (approval) and detective (reconciliation) controls.",
+      "Introduce COSO by name only as the framework that organizes internal control; defer the five components to a later COSO lesson.",
+      "Reinforce Segregation of Duties (from 1.2) as a classic preventive control.",
+      "Define COSO, RCM, SoD at first use; do not assume audit background.",
+      "Set up the next lessons: SOX (1.5) is about controls over financial reporting; testing (1.8/1.9) is about proving these controls work."
+    ]
+  },
+  "enrichment": {
+    "mentalModel": "A control is an activity with an objective: it exists to reduce a specific risk to an acceptable level — and only the key ones really matter.",
+    "educationalBoundaries": {
+      "inScope": ["Definition and objective of a control", "Type (preventive/detective/corrective)", "Nature (manual/automated)", "Key vs non-key", "Mapping control to risk in an RCM"],
+      "outOfScope": ["The full COSO five components", "How to TEST controls (design vs operating)", "SOX-specific control requirements", "IT-specific control domains"],
+      "deferredToFuture": ["sox.v1.foundations.what-is-sox scopes controls to financial reporting", "itgc.v1.foundations.itgc-overview teaches IT-specific controls", "audit-evidence.v1.testing.test-of-design teaches how to prove a control is well designed"]
+    },
+    "teachingStrategy": {
+      "order": ["Recall risk needing treatment", "Define control + objective together", "Classify by type using P2P examples", "Classify by nature (manual/automated)", "Introduce key vs non-key and why it drives effort", "Assemble a small RCM"],
+      "whyThisSequence": "Pairing control with objective from the first example prevents the most common error (describing activities with no purpose). Classification is taught on examples the learner already owns from 1.2, then key/non-key is introduced last because it presupposes understanding what a control does.",
+      "analogyPoints": ["Preventive vs detective as 'a lock on the door' vs 'a camera that records who entered'", "Key control as the load-bearing wall you cannot remove"],
+      "mandatoryDiagramsAt": ["The risk-and-control matrix is mandatory when assembling controls against risks"]
+    },
+    "industryContext": [
+      { "industry": "Manufacturing", "scenario": "Three-way match (PO, receipt, invoice) as a key automated detective control preventing payment for goods never received." },
+      { "industry": "Finance", "scenario": "Dual authorization on wire transfers as a key preventive control over fund disbursement." },
+      { "industry": "Healthcare", "scenario": "System-enforced access restriction to patient records as a key automated preventive control supporting both privacy and integrity." }
+    ],
+    "auditContext": {
+      "internalAudit": "Internal Audit evaluates whether key controls are designed and operating well across all significant processes.",
+      "externalAudit": "External auditors identify and rely on key controls over financial reporting to reduce the substantive testing they must perform.",
+      "compliance": "Compliance maps controls to regulatory requirements to demonstrate obligations are met.",
+      "executive": "Executives sign off that an effective internal control system is in place — and are personally accountable for it under SOX (Lesson 1.5)."
+    },
+    "vocabAdvanced": ["compensating control", "entity-level vs process-level control", "control gap vs control deficiency", "risk and control matrix (RCM)", "control rationalization"],
+    "interviewAnswers": {
+      "averageAnswer": "'A control is something that stops bad things, like an approval.' — names an activity, no objective, no classification, no notion of key.",
+      "exceptionalAnswer": "'A control is an activity with a defined objective that reduces a specific risk. I'd classify it as preventive or detective, manual or automated, and flag whether it's a key control — because audit effort and reliance concentrate on key controls. For example, the three-way match is a key automated detective control whose objective is that we only pay for goods actually received.'"
+    },
+    "diagramDetail": [
+      { "kind": "control-matrix", "complexity": "medium", "learningObjective": "Show the risk → control → type → key? structure so the learner can read and build the RCM that underpins every later testing lesson." }
+    ]
+  }
+}

@@ -11,7 +11,8 @@
     "test:unit": "vitest run",
     "snap": "node scripts/snap-hero.mjs",
     "academy:validate-graph": "node src/lib/academy/_graph/validate.mjs",
-    "academy:validate-brief": "node src/lib/academy/_content/validate-brief.mjs"
+    "academy:validate-brief": "node src/lib/academy/_content/validate-brief.mjs",
+    "academy:validate-golden": "node src/lib/academy/_content/validate-brief.mjs src/lib/academy/_content/golden-briefs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

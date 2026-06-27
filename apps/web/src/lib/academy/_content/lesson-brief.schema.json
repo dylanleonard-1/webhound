@@ -111,7 +111,7 @@
     },
     "labIntel": {
       "type": "object", "required": ["type", "why"],
-      "properties": { "type": { "enum": ["none", "guided", "enterprise", "scenario", "capstone"] }, "why": { "type": "string" } }
+      "properties": { "type": { "enum": ["none", "thought-exercise", "guided", "enterprise", "scenario", "case-study", "capstone"] }, "why": { "type": "string" } }
     },
     "crossLinks": {
       "type": "object", "required": ["previous", "future", "related", "domains", "vocab", "interviewTopics"],
@@ -140,6 +140,69 @@
       "properties": {
         "profile": { "enum": ["concept-foundation", "concept-standard", "concept-deep", "procedure", "control-audit", "leadership"] },
         "instructions": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+      }
+    },
+    "enrichment": {
+      "description": "Phase 2C OPTIONAL golden-brief authoring layer. Backward-compatible: absent on legacy briefs.",
+      "type": "object",
+      "required": ["mentalModel", "educationalBoundaries", "teachingStrategy", "industryContext", "auditContext", "vocabAdvanced", "interviewAnswers", "diagramDetail"],
+      "properties": {
+        "mentalModel": { "type": "string", "minLength": 1 },
+        "educationalBoundaries": {
+          "type": "object", "required": ["inScope", "outOfScope", "deferredToFuture"],
+          "properties": {
+            "inScope": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+            "outOfScope": { "type": "array", "items": { "type": "string" } },
+            "deferredToFuture": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "teachingStrategy": {
+          "type": "object", "required": ["order", "whyThisSequence", "analogyPoints", "mandatoryDiagramsAt"],
+          "properties": {
+            "order": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+            "whyThisSequence": { "type": "string", "minLength": 1 },
+            "analogyPoints": { "type": "array", "items": { "type": "string" } },
+            "mandatoryDiagramsAt": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "industryContext": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object", "required": ["industry", "scenario"],
+            "properties": {
+              "industry": { "enum": ["Manufacturing", "Finance", "Healthcare", "Government", "Technology"] },
+              "scenario": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "auditContext": {
+          "type": "object", "required": ["internalAudit", "externalAudit", "compliance", "executive"],
+          "properties": {
+            "internalAudit": { "type": "string", "minLength": 1 },
+            "externalAudit": { "type": "string", "minLength": 1 },
+            "compliance": { "type": "string", "minLength": 1 },
+            "executive": { "type": "string", "minLength": 1 }
+          }
+        },
+        "vocabAdvanced": { "type": "array", "items": { "type": "string" } },
+        "interviewAnswers": {
+          "type": "object", "required": ["averageAnswer", "exceptionalAnswer"],
+          "properties": {
+            "averageAnswer": { "type": "string", "minLength": 1 },
+            "exceptionalAnswer": { "type": "string", "minLength": 1 }
+          }
+        },
+        "diagramDetail": {
+          "type": "array",
+          "items": {
+            "type": "object", "required": ["kind", "complexity", "learningObjective"],
+            "properties": {
+              "kind": { "enum": ["architecture", "process-flow", "network", "identity-flow", "timeline", "risk-matrix", "control-matrix", "decision-tree", "audit-workflow", "enterprise-data-flow", "swimlane"] },
+              "complexity": { "enum": ["low", "medium", "high"] },
+              "learningObjective": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
       }
     }
   }

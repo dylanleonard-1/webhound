@@ -95,7 +95,10 @@ export interface BriefDiagramNeed {
 }
 
 // 12 — Lab Intelligence
-export type LabIntent = 'none' | 'guided' | 'enterprise' | 'scenario' | 'capstone'
+// Phase 2C widened LabIntent additively (added 'thought-exercise', 'case-study');
+// pre-existing values are unchanged, so older briefs remain valid.
+export type LabIntent =
+  | 'none' | 'thought-exercise' | 'guided' | 'enterprise' | 'scenario' | 'case-study' | 'capstone'
 export interface BriefLabIntel {
   type: LabIntent
   why: string
@@ -127,6 +130,64 @@ export interface BriefWritingGuidance {
   instructions: string[] // e.g. "teach business before tech", "WHY before HOW"
 }
 
+// ── Phase 2C — Golden-brief enrichment (OPTIONAL, additive authoring layer) ───
+// This is NOT an architecture change: `enrichment` is an optional field, so every
+// brief written against the original 15-section schema (e.g. lesson-brief.example.json)
+// still validates unchanged. It captures the deeper authoring intelligence the
+// "golden" reference briefs carry — expressed alongside, not instead of, the core
+// sections. The validator only checks enrichment when it is present.
+export type Industry = 'Manufacturing' | 'Finance' | 'Healthcare' | 'Government' | 'Technology'
+
+export interface BriefIndustryScenario {
+  industry: Industry
+  scenario: string // a realistic, concrete situation in that industry
+}
+
+// The four stakeholder views on the concept.
+export interface BriefAuditContext {
+  internalAudit: string
+  externalAudit: string
+  compliance: string
+  executive: string
+}
+
+// What's IN, what's OUT, what FUTURE lessons teach instead — anti-scope-creep.
+export interface BriefEducationalBoundaries {
+  inScope: string[]
+  outOfScope: string[]
+  deferredToFuture: string[] // ideally references future lesson/node ids
+}
+
+export interface BriefTeachingStrategy {
+  order: string[] // the teaching beats, in sequence
+  whyThisSequence: string // the pedagogical reason for that order
+  analogyPoints: string[] // where an analogy belongs
+  mandatoryDiagramsAt: string[] // beats where a diagram becomes non-optional
+}
+
+export interface BriefDiagramDetail {
+  kind: DiagramKind
+  complexity: 'low' | 'medium' | 'high'
+  learningObjective: string // the single thing this diagram must make clear
+}
+
+export interface BriefInterviewAnswers {
+  averageAnswer: string // what a passable candidate says
+  exceptionalAnswer: string // what a standout candidate says
+}
+
+// The one idea the learner should still hold in five years.
+export interface BriefEnrichment {
+  mentalModel: string
+  educationalBoundaries: BriefEducationalBoundaries
+  teachingStrategy: BriefTeachingStrategy
+  industryContext: BriefIndustryScenario[]
+  auditContext: BriefAuditContext
+  vocabAdvanced: string[] // the "advanced" tier beyond core/supporting
+  interviewAnswers: BriefInterviewAnswers
+  diagramDetail: BriefDiagramDetail[]
+}
+
 // ── The Lesson Design Brief (all 15 sections) ────────────────────────────────
 export interface LessonDesignBrief {
   schema: 'webhound.academy.lessonBrief.v1'
@@ -148,6 +209,7 @@ export interface LessonDesignBrief {
   crossLinks: BriefCrossLinks // 13
   difficultyIntel: BriefDifficultyIntel // 14
   writingGuidance: BriefWritingGuidance // 15
+  enrichment?: BriefEnrichment // Phase 2C — optional, golden-brief authoring layer
 }
 
 // Quality gates (Del. 4) — the brief must pass ALL to unblock lesson generation.

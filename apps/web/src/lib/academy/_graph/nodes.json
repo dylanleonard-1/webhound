@@ -56,7 +56,7 @@
       "importance": { "ent": 5, "bus": 2, "sec": 5, "aud": 3, "int": 5 },
       "careers": { "help-desk": 4, "sysadmin": 5, "soc-analyst": 5, "security-engineer": 5, "iam-analyst": 4, "cloud-engineer": 5 },
       "departments": ["IT", "Security"], "interviewProb": 5, "lab": false, "diagram": true,
-      "vocabCount": 16, "related": ["networking.services.dns.dns-resolution", "active-directory.foundations.ad-services.dc-locator"],
+      "vocabCount": 16, "related": ["networking.services.dns.dns-resolution", "active-directory.foundations.services.dc-locator"],
       "capstone": [], "status": "enumerated", "volatility": "evergreen" },
     { "id": "networking.services.dns.dns-resolution", "type": "concept", "title": "DNS resolution: recursive/iterative & record types",
       "difficulty": "L2", "bloom": "analyze", "estMinutes": 30, "prereq": ["networking.services.dns.dns-overview"],
@@ -69,7 +69,7 @@
       "importance": { "ent": 4, "bus": 1, "sec": 4, "aud": 2, "int": 3 },
       "careers": { "sysadmin": 5, "security-engineer": 4, "iam-analyst": 3 },
       "departments": ["IT"], "interviewProb": 3, "lab": false, "diagram": true,
-      "vocabCount": 8, "related": ["active-directory.foundations.ad-services.dc-locator"], "capstone": [], "status": "enumerated", "volatility": "evergreen" },
+      "vocabCount": 8, "related": ["active-directory.foundations.services.dc-locator"], "capstone": [], "status": "enumerated", "volatility": "evergreen" },
 
     { "id": "active-directory.foundations.overview.ad-basics", "type": "concept", "title": "Active Directory: what & why",
       "difficulty": "L2", "bloom": "understand", "estMinutes": 25, "prereq": ["networking.services.dns.dns-overview"],
